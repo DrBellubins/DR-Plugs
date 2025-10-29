@@ -3,7 +3,6 @@
 VerticalRangeSlider::VerticalRangeSlider(float min, float max)
     : minValue(min), maxValue(max), lowerValue(min), upperValue(max)
 {
-    setMouseCursor(juce::MouseCursor::PointingHandCursor);
 }
 
 void VerticalRangeSlider::setLowerValue(float value)
@@ -102,4 +101,17 @@ void VerticalRangeSlider::mouseDrag(const juce::MouseEvent& e)
         setLowerValue(value);
     else if (dragging == Upper)
         setUpperValue(value);
+}
+
+void VerticalRangeSlider::mouseMove(const juce::MouseEvent& e)
+{
+    int mouseY = e.getPosition().getY();
+    int lowerY = valueToY(lowerValue);
+    int upperY = valueToY(upperValue);
+
+    int tolerance = 12;
+    if (std::abs(mouseY - lowerY) < tolerance || std::abs(mouseY - upperY) < tolerance)
+        setMouseCursor(juce::MouseCursor::PointingHandCursor);
+    else
+        setMouseCursor(juce::MouseCursor::NormalCursor);
 }

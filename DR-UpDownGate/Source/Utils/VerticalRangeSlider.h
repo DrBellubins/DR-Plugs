@@ -22,6 +22,7 @@ public:
 protected:
     void mouseDown(const juce::MouseEvent&) override;
     void mouseDrag(const juce::MouseEvent&) override;
+    void mouseMove(const juce::MouseEvent&) override;
 
 private:
     float minValue, maxValue;
