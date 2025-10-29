@@ -1,10 +1,16 @@
 #pragma once
 
+#include <juce_gui_basics/juce_gui_basics.h>
 #include "Theme.h"
 
 class FlatRotaryLookAndFeel : public juce::LookAndFeel_V4
 {
 public:
+    FlatRotaryLookAndFeel()
+    {
+        setColour(juce::TextEditor::outlineColourId, SecondaryAccentGray);
+    }
+
     void drawRotarySlider (
         juce::Graphics& graphics, int x, int y, int width, int height,
         float sliderPosProportional, float rotaryStartAngle, float rotaryEndAngle,
@@ -27,5 +33,13 @@ public:
 
         graphics.setColour(ThemePink);
         graphics.strokePath(valueArc, juce::PathStrokeType(6.0f));
+    }
+
+    void drawTextEditorOutline(juce::Graphics& graphics, int width, int height, juce::TextEditor& textEditor) override
+    {
+        const int thickness = (textEditor.hasKeyboardFocus(false) ? 2 : 1);
+
+        graphics.setColour(SecondaryAccentGray);
+        graphics.drawRect(0, 0, width, height, thickness);
     }
 };
