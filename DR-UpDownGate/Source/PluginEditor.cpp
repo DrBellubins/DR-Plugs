@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "Utils/Theme.h"
 
 //==============================================================================
 AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor& processor)
@@ -25,7 +26,7 @@ AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor() = default;
 void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
 {
     // (Our component is opaque, so we must completely fill the background with a solid colour)
-    graphics.fillAll(juce::Colour(50, 50, 50));
+    graphics.fillAll(BGGray);
 }
 
 void AudioPluginAudioProcessorEditor::resized()

@@ -1,4 +1,5 @@
 #include "VerticalRangeSlider.h"
+#include "Theme.h"
 
 VerticalRangeSlider::VerticalRangeSlider(float min, float max)
     : minValue(min), maxValue(max), lowerValue(min), upperValue(max)
@@ -23,13 +24,13 @@ void VerticalRangeSlider::setRoundness(float radius)
     repaint();
 }
 
-void VerticalRangeSlider::paint(juce::Graphics& g)
+void VerticalRangeSlider::paint(juce::Graphics& graphics)
 {
     auto bounds = getLocalBounds().toFloat();
 
     // Draw track background (full component area)
-    g.setColour(juce::Colour(40, 40, 40)); // dark grey
-    g.fillRoundedRectangle(bounds, roundness);
+    graphics.setColour(AccentGray);
+    graphics.fillRoundedRectangle(bounds, roundness);
 
     // Calculate range rectangle
     float sliderWidth = bounds.getWidth();
@@ -41,20 +42,20 @@ void VerticalRangeSlider::paint(juce::Graphics& g)
     juce::Rectangle<float> rangeRect(sliderX, upperY, sliderWidth, rangeHeight);
 
     // Draw range rectangle
-    g.setColour(juce::Colour(255, 140, 230)); // pink
-    g.fillRoundedRectangle(rangeRect, roundness);
+    graphics.setColour(ThemePink);
+    graphics.fillRoundedRectangle(rangeRect, roundness);
 
     // Draw handles (flat lines)
-    g.setColour(juce::Colour(0xFFFF8FE5).darker(0.2f));
+    graphics.setColour(ThemePink.darker(0.2f));
     float handleInset = handleMargin;
     float handleX1 = rangeRect.getX() + handleInset;
     float handleX2 = rangeRect.getRight() - handleInset;
 
     // Top handle (upperValue)
-    g.drawLine(handleX1, upperY + handleMargin, handleX2, upperY + handleMargin, (float)handleThickness);
+    graphics.drawLine(handleX1, upperY + handleMargin, handleX2, upperY + handleMargin, (float)handleThickness);
 
     // Bottom handle (lowerValue)
-    g.drawLine(handleX1, lowerY - handleMargin, handleX2, lowerY - handleMargin, (float)handleThickness);
+    graphics.drawLine(handleX1, lowerY - handleMargin, handleX2, lowerY - handleMargin, (float)handleThickness);
 }
 
 void VerticalRangeSlider::resized()
@@ -76,9 +77,9 @@ float VerticalRangeSlider::yToValue(int y) const
     return juce::jlimit(minValue, maxValue, minValue + proportion * (maxValue - minValue));
 }
 
-void VerticalRangeSlider::mouseDown(const juce::MouseEvent& e)
+void VerticalRangeSlider::mouseDown(const juce::MouseEvent& event)
 {
-    int mouseY = e.getPosition().getY();
+    int mouseY = event.getPosition().getY();
     int lowerY = valueToY(lowerValue);
     int upperY = valueToY(upperValue);
 
@@ -93,9 +94,9 @@ void VerticalRangeSlider::mouseDown(const juce::MouseEvent& e)
         dragging = None;
 }
 
-void VerticalRangeSlider::mouseDrag(const juce::MouseEvent& e)
+void VerticalRangeSlider::mouseDrag(const juce::MouseEvent& event)
 {
-    int mouseY = e.getPosition().getY();
+    int mouseY = event.getPosition().getY();
     float value = yToValue(mouseY);
 
     if (dragging == Lower)
@@ -104,9 +105,9 @@ void VerticalRangeSlider::mouseDrag(const juce::MouseEvent& e)
         setUpperValue(value);
 }
 
-void VerticalRangeSlider::mouseMove(const juce::MouseEvent& e)
+void VerticalRangeSlider::mouseMove(const juce::MouseEvent& event)
 {
-    int mouseY = e.getPosition().getY();
+    int mouseY = event.getPosition().getY();
     int lowerY = valueToY(lowerValue);
     int upperY = valueToY(upperValue);
 
