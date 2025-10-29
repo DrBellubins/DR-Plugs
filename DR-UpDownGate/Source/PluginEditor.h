@@ -19,7 +19,9 @@ private:
     // access the processor object that created it.
     AudioPluginAudioProcessor& processorRef;
 
-    std::unique_ptr<VerticalRangeSlider> gateRangeSlider;
+    std::unique_ptr<VerticalRangeSlider> rangeSlider;
+    std::unique_ptr<juce::Slider> attackKnob;
+    std::unique_ptr<juce::Slider> releaseKnob;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };
