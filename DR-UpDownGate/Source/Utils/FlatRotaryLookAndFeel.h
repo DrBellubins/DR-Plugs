@@ -2,6 +2,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Theme.h"
+#include "FlatTextBox.h"
 
 class FlatRotaryLookAndFeel : public juce::LookAndFeel_V4
 {
@@ -35,11 +36,9 @@ public:
         graphics.strokePath(valueArc, juce::PathStrokeType(6.0f));
     }
 
-    void drawTextEditorOutline(juce::Graphics& graphics, int width, int height, juce::TextEditor& textEditor) override
+    juce::TextEditor* createSliderTextBox(juce::Slider&) override
     {
-        const int thickness = (textEditor.hasKeyboardFocus(false) ? 2 : 1);
-
-        graphics.setColour(SecondaryAccentGray);
-        graphics.drawRect(0, 0, width, height, thickness);
+        auto* box = new FlatTextBox();
+        return box;
     }
 };
