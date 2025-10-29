@@ -1,4 +1,8 @@
 ### Project ###
+.idea/
+cmake-build-debug/
+Libs/
+
 **/[Bb]uild*/
 /Libs/
 
