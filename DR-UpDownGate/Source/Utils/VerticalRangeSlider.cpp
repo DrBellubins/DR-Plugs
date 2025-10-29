@@ -18,25 +18,25 @@ void VerticalRangeSlider::setUpperValue(float value)
     repaint();
 }
 
-void VerticalRangeSlider::paint(juce::Graphics& g)
+void VerticalRangeSlider::paint(juce::Graphics& graphics)
 {
     auto bounds = getLocalBounds();
     int sliderX = bounds.getCentreX();
 
     // Draw track
-    g.setColour(juce::Colours::darkgrey);
-    g.drawLine(sliderX, valueToY(minValue), sliderX, valueToY(maxValue), 4.0f);
+    graphics.setColour(juce::Colours::darkgrey);
+    graphics.drawLine(sliderX, valueToY(minValue), sliderX, valueToY(maxValue), 4.0f);
 
     // Highlighted range
-    g.setColour(juce::Colours::skyblue);
-    g.drawLine(sliderX, valueToY(upperValue), sliderX, valueToY(lowerValue), 8.0f);
+    graphics.setColour(juce::Colours::skyblue);
+    graphics.drawLine(sliderX, valueToY(upperValue), sliderX, valueToY(lowerValue), 8.0f);
 
     // Draw thumbs
-    g.setColour(juce::Colours::white);
-    g.fillEllipse(sliderX - thumbRadius, valueToY(lowerValue) - thumbRadius,
+    graphics.setColour(juce::Colours::white);
+    graphics.fillEllipse(sliderX - thumbRadius, valueToY(lowerValue) - thumbRadius,
                   thumbRadius * 2, thumbRadius * 2);
 
-    g.fillEllipse(sliderX - thumbRadius, valueToY(upperValue) - thumbRadius,
+    graphics.fillEllipse(sliderX - thumbRadius, valueToY(upperValue) - thumbRadius,
                   thumbRadius * 2, thumbRadius * 2);
 }
 
