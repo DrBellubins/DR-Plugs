@@ -139,8 +139,11 @@ void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     double releaseTimeMs = 1.0 + releaseValue * 999.0;
     double sampleRate = getSampleRate();
 
-    double attackCoeff = std::exp(-1.0 / (0.001 * attackTimeMs * sampleRate));
-    double releaseCoeff = std::exp(-1.0 / (0.001 * releaseTimeMs * sampleRate));
+    double attackTimeSeconds = attackTimeMs / 1000.0;
+    double releaseTimeSeconds = releaseTimeMs / 1000.0;
+
+    double attackCoeff = std::exp(-1.0 / (attackTimeSeconds * sampleRate));
+    double releaseCoeff = std::exp(-1.0 / (releaseTimeSeconds * sampleRate));
 
     // Process each sample
     for (int sampleIndex = 0; sampleIndex < buffer.getNumSamples(); ++sampleIndex)
@@ -156,9 +159,9 @@ void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
 
         // Envelope smoothing
         if (absValue > envelopeLevel)
-            envelopeLevel += attackCoeff * (absValue - envelopeLevel);
+            envelopeLevel = (1.0 - attackCoeff) * absValue + attackCoeff * envelopeLevel;
         else
-            envelopeLevel += releaseCoeff * (absValue - envelopeLevel);
+            envelopeLevel = (1.0 - releaseCoeff) * absValue + releaseCoeff * envelopeLevel;
 
         // Gate logic
         bool gateClosed = (envelopeLevel < thresholdLow || envelopeLevel > thresholdHigh);
