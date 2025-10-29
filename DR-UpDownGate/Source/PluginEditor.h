@@ -1,6 +1,9 @@
 #pragma once
 
 #include "PluginProcessor.h"
+#include "Utils/VerticalRangeSlider.h"
+
+std::unique_ptr<VerticalRangeSlider> rangeSlider;
 
 //==============================================================================
 class AudioPluginAudioProcessorEditor  : public juce::AudioProcessorEditor

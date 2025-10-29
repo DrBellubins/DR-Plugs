@@ -9,6 +9,10 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     // Make sure that before the constructor has finished, you've set the
     // editor's size to whatever you need it to be.
     setSize (400, 300);
+
+    rangeSlider = std::make_unique<VerticalRangeSlider>(0.0f, 1.0f); // For example
+    addAndMakeVisible(*rangeSlider);
+    rangeSlider->setBounds(50, 50, 40, 200); // Position as needed
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
