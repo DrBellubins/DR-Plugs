@@ -59,14 +59,14 @@ FetchContent_MakeAvailable(juce)
 # Check the readme at `docs/CMake API.md` in the JUCE repo for the full list.
 
 juce_add_plugin("${PROJECT_NAME}"
-    FORMATS AU VST3                             # The formats to build. Valid formats: Standalone Unity VST3 AU AUv3 AAX VST LV2.
+    FORMATS Standalone AU VST3                  # The formats to build. Valid formats: Standalone Unity VST3 AU AUv3 AAX VST LV2.
                                                 # AU and AUv3 plugins will only be enabled when building on macOS.
     PRODUCT_NAME "Dr Up-down gate"              # The name of the final executable, which can differ from the target name.
     # PLUGIN_NAME                               # Name of the plugin that will be displayed in the DAW. Can differ from PRODUCT_NAME.
 
     # ICON_BIG                                  # ICON_* arguments specify a path to an image file to use as an icon for the Standalone.
     # ICON_SMALL
-    COMPANY_NAME DrBell                    # The name of this target's author. The value is inherited from JUCE_COMPANY_NAME.
+    COMPANY_NAME DrBell                         # The name of this target's author. The value is inherited from JUCE_COMPANY_NAME.
     # COMPANY_WEBSITE                           # The address of a website related to this target in some way.
                                                 # The value is inherited from JUCE_COMPANY_WEBSITE.
     # COMPANY_EMAIL                             # An email address for this target's author. The value is inherited from JUCE_COMPANY_EMAIL.
