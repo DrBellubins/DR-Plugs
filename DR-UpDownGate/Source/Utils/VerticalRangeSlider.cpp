@@ -28,7 +28,7 @@ void VerticalRangeSlider::paint(juce::Graphics& g)
     auto bounds = getLocalBounds().toFloat();
 
     // Draw track background (full component area)
-    g.setColour(juce::Colour(0xFF2D2D2D)); // dark grey
+    g.setColour(juce::Colour(40, 40, 40)); // dark grey
     g.fillRoundedRectangle(bounds, roundness);
 
     // Calculate range rectangle
@@ -41,7 +41,7 @@ void VerticalRangeSlider::paint(juce::Graphics& g)
     juce::Rectangle<float> rangeRect(sliderX, upperY, sliderWidth, rangeHeight);
 
     // Draw range rectangle
-    g.setColour(juce::Colour(0xFFFF8FE5)); // pink
+    g.setColour(juce::Colour(255, 140, 230)); // pink
     g.fillRoundedRectangle(rangeRect, roundness);
 
     // Draw handles (flat lines)
@@ -83,7 +83,8 @@ void VerticalRangeSlider::mouseDown(const juce::MouseEvent& e)
     int upperY = valueToY(upperValue);
 
     // Use a tolerance for the handle lines
-    int tolerance = 12;
+    int tolerance = 20;
+
     if (std::abs(mouseY - lowerY) < tolerance)
         dragging = Lower;
     else if (std::abs(mouseY - upperY) < tolerance)
@@ -109,7 +110,8 @@ void VerticalRangeSlider::mouseMove(const juce::MouseEvent& e)
     int lowerY = valueToY(lowerValue);
     int upperY = valueToY(upperValue);
 
-    int tolerance = 12;
+    int tolerance = 20;
+
     if (std::abs(mouseY - lowerY) < tolerance || std::abs(mouseY - upperY) < tolerance)
         setMouseCursor(juce::MouseCursor::PointingHandCursor);
     else
