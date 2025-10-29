@@ -35,13 +35,14 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     addAndMakeVisible(*attackKnob);
 
     // Release knob
-    /*releaseKnob = std::make_unique<juce::Slider>();
-    releaseKnob->setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-    releaseKnob->setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    releaseKnob = std::make_unique<EnvelopeKnob>("Release");
+    releaseKnob->setLookAndFeel(&flatKnobLAF);
+    releaseKnob->setSliderStyle(juce::Slider::RotaryVerticalDrag);
+    releaseKnob->setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 20);
     releaseKnob->setRange(0.0, 1.0, 0.01);
-    releaseKnob->setBounds(50, 50, 100, 100);
+    releaseKnob->setBounds(25, 300, 100, 100);
 
-    addAndMakeVisible(*releaseKnob);*/
+    addAndMakeVisible(*releaseKnob);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor() = default;

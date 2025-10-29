@@ -2,24 +2,23 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
-// EnvelopeKnob: Generic envelope knob with a customizable label above the knob.
+// EnvelopeKnob: Generic envelope knob with a customizable label drawn above the knob (not as a child).
 class EnvelopeKnob : public juce::Slider
 {
 public:
     // Pass label text to constructor to customize per instance
     EnvelopeKnob(const juce::String& labelText = "Envelope")
         : juce::Slider(juce::Slider::RotaryVerticalDrag, juce::Slider::TextBoxBelow),
-          label({}, labelText)
+          labelText(labelText)
     {
-        label.setJustificationType(juce::Justification::centred);
-        label.setColour(juce::Label::textColourId, juce::Colours::white); // Replace with theme if desired
-        addAndMakeVisible(label);
+        // You can set up any knob properties here as needed (if not set externally)
     }
 
     // Change label text at runtime
     void setLabelText(const juce::String& newText)
     {
-        label.setText(newText, juce::dontSendNotification);
+        labelText = newText;
+        repaint();
     }
 
     juce::String getTextFromValue(double value) override
@@ -34,15 +33,21 @@ public:
         return juce::jlimit(0.0, 1.0, ((double)ms / 1000.0));
     }
 
-    void resized() override
+    void paint(juce::Graphics& graphics) override
     {
-        auto bounds = getLocalBounds();
-        label.setBounds(bounds.removeFromTop(20)); // 20 px tall label at top
-        // The rest is handled by juce::Slider
+        // Draw the knob as usual
+        juce::Slider::paint(graphics);
+
+        // Draw the label above the knob (top area)
+        auto textArea = getLocalBounds().removeFromTop(80);
+
+        graphics.setColour(juce::Colours::white); // Replace with your theme color if desired
+        graphics.setFont(15.0f);
+        graphics.drawFittedText(labelText, textArea, juce::Justification::centred, 1);
     }
 
 private:
-    juce::Label label;
+    juce::String labelText;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(EnvelopeKnob)
 };
