@@ -25,12 +25,12 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     rangeSlider->setRoundness(10.0f);
 
     // Attack knob
-    attackKnob = std::make_unique<EnvelopeKnob>();
+    attackKnob = std::make_unique<EnvelopeKnob>("Attack");
     attackKnob->setLookAndFeel(&flatKnobLAF);
     attackKnob->setSliderStyle(juce::Slider::RotaryVerticalDrag);
     attackKnob->setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 20);
     attackKnob->setRange(0.0, 1.0, 0.01);
-    attackKnob->setBounds(50, 50, 100, 100);
+    attackKnob->setBounds(25, 100, 100, 100);
 
     addAndMakeVisible(*attackKnob);
 
