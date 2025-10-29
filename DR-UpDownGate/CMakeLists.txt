@@ -16,6 +16,9 @@ set(LIB_JUCE_TAG "7.0.8")
 #        Instead, we explicitely specify which targets require schemes.
 set(CMAKE_XCODE_GENERATE_SCHEME OFF)
 
+# Optimize release build for size
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -s")
+
 # IDEs:  Enable grouping of source files into folders in IDEs.
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 

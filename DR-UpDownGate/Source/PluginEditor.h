@@ -14,6 +14,11 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
+    float getRangeLow() const { return rangeSlider ? rangeSlider->getLowerValue() : 0.0f; }
+    float getRangeHigh() const { return rangeSlider ? rangeSlider->getUpperValue() : 1.0f; }
+    float getAttack() const { return attackKnob ? attackKnob->getValue() : 0.0f; }
+    float getRelease() const { return releaseKnob ? releaseKnob->getValue() : 0.0f; }
+
 private:
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.

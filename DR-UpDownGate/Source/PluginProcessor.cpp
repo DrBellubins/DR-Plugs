@@ -121,35 +121,56 @@ bool AudioPluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layou
   #endif
 }
 
-void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
-                                              juce::MidiBuffer& midiMessages)
+void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
-    juce::ignoreUnused (midiMessages);
+    // ... existing code ...
 
-    juce::ScopedNoDenormals noDenormals;
-    auto totalNumInputChannels  = getTotalNumInputChannels();
-    auto totalNumOutputChannels = getTotalNumOutputChannels();
-
-    // In case we have more outputs than inputs, this code clears any output
-    // channels that didn't contain input data, (because these aren't
-    // guaranteed to be empty - they may contain garbage).
-    // This is here to avoid people getting screaming feedback
-    // when they first compile a plugin, but obviously you don't need to keep
-    // this code if your algorithm always overwrites all the output channels.
-    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear (i, 0, buffer.getNumSamples());
-
-    // This is the place where you'd normally do the guts of your plugin's
-    // audio processing...
-    // Make sure to reset the state if your inner loop is processing
-    // the samples and the outer loop is handling the channels.
-    // Alternatively, you can process the samples with the channels
-    // interleaved by keeping the same state.
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
+    // Get values from the editor
+    if (auto* editor = dynamic_cast<AudioPluginAudioProcessorEditor*>(getActiveEditor()))
     {
-        auto* channelData = buffer.getWritePointer (channel);
-        juce::ignoreUnused (channelData);
-        // ..do something to the data...
+        thresholdLow = editor->getRangeLow();
+        thresholdHigh = editor->getRangeHigh();
+
+        // Attack and release as time in seconds, convert to coefficients
+        const double attackTime = editor->getAttack();   // 0..1 mapped to ms in EnvelopeKnob
+        const double releaseTime = editor->getRelease(); // 0..1 mapped to ms in EnvelopeKnob
+
+        // Convert ms to coefficient, assuming sampleRate is valid
+        // Typical envelope follower formula:
+        // coeff = 1 - exp(-1/(time * sampleRate))
+        const double sampleRate = getSampleRate();
+        attackCoeff = 1.0 - std::exp(-1.0 / (attackTime * sampleRate * 1000.0 + 1.0));   // +1 to avoid div by zero
+        releaseCoeff = 1.0 - std::exp(-1.0 / (releaseTime * sampleRate * 1000.0 + 1.0));
+    }
+
+    // Process each sample
+    for (int sampleIndex = 0; sampleIndex < buffer.getNumSamples(); ++sampleIndex)
+    {
+        // Calculate envelope
+        double absValue = 0.0;
+        const int numChannels = buffer.getNumChannels();
+
+        for (int channelIndex = 0; channelIndex < numChannels; ++channelIndex)
+            absValue += std::abs(buffer.getReadPointer(channelIndex)[sampleIndex]);
+
+        absValue /= double(numChannels);
+
+        // Envelope smoothing
+        if (absValue > envelopeLevel)
+            envelopeLevel += attackCoeff * (absValue - envelopeLevel);
+        else
+            envelopeLevel += releaseCoeff * (absValue - envelopeLevel);
+
+        // Gate logic
+        bool gateClosed = (envelopeLevel < thresholdLow || envelopeLevel > thresholdHigh);
+
+        if (gateClosed)
+        {
+            for (int channelIndex = 0; channelIndex < numChannels; ++channelIndex)
+                buffer.getWritePointer(channelIndex)[sampleIndex] = 0.0f;
+        }
+
+        // else: gain is 1, so do nothing
     }
 }
 
