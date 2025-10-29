@@ -25,8 +25,12 @@ private:
     AudioPluginAudioProcessor& processorRef;
 
     std::unique_ptr<VerticalRangeSlider> rangeSlider;
+
     std::unique_ptr<juce::Slider> attackKnob;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attackKnobAttacthment;
+
     std::unique_ptr<juce::Slider> releaseKnob;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> releaseKnobAttacthment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };

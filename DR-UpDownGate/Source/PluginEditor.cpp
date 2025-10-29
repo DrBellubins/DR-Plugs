@@ -34,6 +34,9 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     addAndMakeVisible(*attackKnob);
 
+    attackKnobAttacthment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        processor.parameters, "attack", *attackKnob);
+
     // Release knob
     releaseKnob = std::make_unique<EnvelopeKnob>("Release");
     releaseKnob->setLookAndFeel(&flatKnobLAF);
@@ -43,6 +46,9 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     releaseKnob->setBounds(25, 300, 100, 100);
 
     addAndMakeVisible(*releaseKnob);
+
+    releaseKnobAttacthment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        processor.parameters, "release", *releaseKnob);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor() = default;

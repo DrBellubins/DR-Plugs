@@ -10,8 +10,15 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
                       #endif
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
-                       )
+                       ),
+parameters(*this, nullptr, "Parameters", {
+        std::make_unique<juce::AudioParameterFloat>("thresholdLow", "Threshold Low", juce::NormalisableRange<float>(0.0f, 1.0f), 0.4f),
+        std::make_unique<juce::AudioParameterFloat>("thresholdHigh", "Threshold High", juce::NormalisableRange<float>(0.0f, 1.0f), 0.7f),
+        std::make_unique<juce::AudioParameterFloat>("attack", "Attack", juce::NormalisableRange<float>(0.0f, 1.0f), 0.1f),
+        std::make_unique<juce::AudioParameterFloat>("release", "Release", juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f)
+    })
 {
+
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
@@ -123,25 +130,17 @@ bool AudioPluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layou
 
 void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
-    // ... existing code ...
+    float thresholdLow = parameters.getRawParameterValue("thresholdLow")->load();
+    float thresholdHigh = parameters.getRawParameterValue("thresholdHigh")->load();
+    float attackValue = parameters.getRawParameterValue("attack")->load();
+    float releaseValue = parameters.getRawParameterValue("release")->load();
 
-    // Get values from the editor
-    if (auto* editor = dynamic_cast<AudioPluginAudioProcessorEditor*>(getActiveEditor()))
-    {
-        thresholdLow = editor->getRangeLow();
-        thresholdHigh = editor->getRangeHigh();
+    double attackTimeMs = 1.0 + attackValue * 999.0;
+    double releaseTimeMs = 1.0 + releaseValue * 999.0;
+    double sampleRate = getSampleRate();
 
-        // Attack and release as time in seconds, convert to coefficients
-        const double attackTime = editor->getAttack();   // 0..1 mapped to ms in EnvelopeKnob
-        const double releaseTime = editor->getRelease(); // 0..1 mapped to ms in EnvelopeKnob
-
-        // Convert ms to coefficient, assuming sampleRate is valid
-        // Typical envelope follower formula:
-        // coeff = 1 - exp(-1/(time * sampleRate))
-        const double sampleRate = getSampleRate();
-        attackCoeff = 1.0 - std::exp(-1.0 / (attackTime * sampleRate * 1000.0 + 1.0));   // +1 to avoid div by zero
-        releaseCoeff = 1.0 - std::exp(-1.0 / (releaseTime * sampleRate * 1000.0 + 1.0));
-    }
+    double attackCoeff = std::exp(-1.0 / (0.001 * attackTimeMs * sampleRate));
+    double releaseCoeff = std::exp(-1.0 / (0.001 * releaseTimeMs * sampleRate));
 
     // Process each sample
     for (int sampleIndex = 0; sampleIndex < buffer.getNumSamples(); ++sampleIndex)

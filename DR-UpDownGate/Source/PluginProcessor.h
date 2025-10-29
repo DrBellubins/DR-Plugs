@@ -7,6 +7,8 @@ class AudioPluginAudioProcessor  : public juce::AudioProcessor
 {
 public:
     //==============================================================================
+    juce::AudioProcessorValueTreeState parameters;
+
     AudioPluginAudioProcessor();
     ~AudioPluginAudioProcessor() override;
 
@@ -46,9 +48,6 @@ private:
     //==============================================================================
     // Envelope follower state
     double envelopeLevel = 0;
-    double attackCoeff = 0.1;
-    double releaseCoeff = 0.01;
-    float thresholdLow = 0.2f;
-    float thresholdHigh = 0.8f;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessor)
 };
