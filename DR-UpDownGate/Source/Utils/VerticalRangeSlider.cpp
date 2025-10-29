@@ -18,33 +18,53 @@ void VerticalRangeSlider::setUpperValue(float value)
     repaint();
 }
 
-void VerticalRangeSlider::paint(juce::Graphics& graphics)
+void VerticalRangeSlider::setRoundness(float radius)
 {
-    auto bounds = getLocalBounds();
-    int sliderX = bounds.getCentreX();
-
-    // Draw track
-    graphics.setColour(juce::Colours::darkgrey);
-    graphics.drawLine(sliderX, valueToY(minValue), sliderX, valueToY(maxValue), 4.0f);
-
-    // Highlighted range
-    graphics.setColour(juce::Colours::skyblue);
-    graphics.drawLine(sliderX, valueToY(upperValue), sliderX, valueToY(lowerValue), 8.0f);
-
-    // Draw thumbs
-    graphics.setColour(juce::Colours::white);
-    graphics.fillEllipse(sliderX - thumbRadius, valueToY(lowerValue) - thumbRadius,
-                  thumbRadius * 2, thumbRadius * 2);
-
-    graphics.fillEllipse(sliderX - thumbRadius, valueToY(upperValue) - thumbRadius,
-                  thumbRadius * 2, thumbRadius * 2);
+    roundness = radius;
+    repaint();
 }
 
-void VerticalRangeSlider::resized() {}
+void VerticalRangeSlider::paint(juce::Graphics& g)
+{
+    auto bounds = getLocalBounds().toFloat();
+
+    // Draw track background (full component area)
+    g.setColour(juce::Colour(0xFF2D2D2D)); // dark grey
+    g.fillRoundedRectangle(bounds, roundness);
+
+    // Calculate range rectangle
+    float sliderWidth = bounds.getWidth();
+    float sliderX = bounds.getX() + (bounds.getWidth() - sliderWidth) / 2.0f;
+    float lowerY = valueToY(lowerValue);
+    float upperY = valueToY(upperValue);
+
+    float rangeHeight = lowerY - upperY;
+    juce::Rectangle<float> rangeRect(sliderX, upperY, sliderWidth, rangeHeight);
+
+    // Draw range rectangle
+    g.setColour(juce::Colour(0xFFFF8FE5)); // pink
+    g.fillRoundedRectangle(rangeRect, roundness);
+
+    // Draw handles (flat lines)
+    g.setColour(juce::Colour(0xFFFF8FE5).darker(0.2f));
+    float handleInset = handleMargin;
+    float handleX1 = rangeRect.getX() + handleInset;
+    float handleX2 = rangeRect.getRight() - handleInset;
+
+    // Top handle (upperValue)
+    g.drawLine(handleX1, upperY + handleMargin, handleX2, upperY + handleMargin, (float)handleThickness);
+
+    // Bottom handle (lowerValue)
+    g.drawLine(handleX1, lowerY - handleMargin, handleX2, lowerY - handleMargin, (float)handleThickness);
+}
+
+void VerticalRangeSlider::resized()
+{
+    // No layout needed, everything drawn relative to bounds
+}
 
 int VerticalRangeSlider::valueToY(float value) const
 {
-    // Map value to Y in component
     auto bounds = getLocalBounds();
     float proportion = (value - minValue) / (maxValue - minValue);
     return juce::jmap(1.0f - proportion, float(bounds.getY()), float(bounds.getBottom()));
@@ -63,9 +83,11 @@ void VerticalRangeSlider::mouseDown(const juce::MouseEvent& e)
     int lowerY = valueToY(lowerValue);
     int upperY = valueToY(upperValue);
 
-    if (std::abs(mouseY - lowerY) < thumbRadius * 2)
+    // Use a tolerance for the handle lines
+    int tolerance = 12;
+    if (std::abs(mouseY - lowerY) < tolerance)
         dragging = Lower;
-    else if (std::abs(mouseY - upperY) < thumbRadius * 2)
+    else if (std::abs(mouseY - upperY) < tolerance)
         dragging = Upper;
     else
         dragging = None;

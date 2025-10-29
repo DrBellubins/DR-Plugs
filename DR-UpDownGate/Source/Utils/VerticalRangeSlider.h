@@ -14,7 +14,7 @@ public:
     void setLowerValue(float value);
     void setUpperValue(float value);
 
-    // Optionally add: onChange callback or listener
+    void setRoundness(float radius); // <--- NEW
 
     void paint(juce::Graphics&) override;
     void resized() override;
@@ -27,12 +27,14 @@ private:
     float minValue, maxValue;
     float lowerValue, upperValue;
 
+    float roundness = 20.0f; // default roundness
+
     enum DraggingThumb { None, Lower, Upper };
     DraggingThumb dragging = None;
 
-    int thumbRadius = 8;
+    int handleThickness = 4; // thickness of the drag handles
+    int handleMargin = 8;    // margin inside the range rect for handles
 
-    // Maps a value to a Y position and vice versa
     int valueToY(float value) const;
     float yToValue(int y) const;
 
