@@ -23,14 +23,14 @@ public:
 
     juce::String getTextFromValue(double value) override
     {
-        int ms = juce::roundToInt(value * 1000.0); // Map 0..1 to 0..1000 ms
+        int ms = juce::roundToInt(1 + value * 999.9); // Map 0..1 to 1..1000 ms
         return juce::String(ms) + " ms";
     }
 
     double getValueFromText(const juce::String& text) override
     {
         int ms = text.getIntValue();
-        return juce::jlimit(0.0, 1.0, ((double)ms / 1000.0));
+        return juce::jlimit(0.0, 1.0, (1.0 + (double)ms / 9999.9));
     }
 
     void paint(juce::Graphics& graphics) override
