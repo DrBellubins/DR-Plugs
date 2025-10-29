@@ -1,7 +1,13 @@
 #pragma once
 
 #include "PluginProcessor.h"
+#include "PluginEditor.h"
+#include "Utils/Theme.h"
+#include "Utils/FlatRotaryLookAndFeel.h"
+#include "Utils/EnvelopeKnob.h"
+#include "PluginProcessor.h"
 #include "Utils/VerticalRangeSlider.h"
+#include "Utils/VerticalRangeSliderAttachment.h"
 
 //==============================================================================
 class AudioPluginAudioProcessorEditor  : public juce::AudioProcessorEditor
@@ -25,6 +31,7 @@ private:
     AudioPluginAudioProcessor& processorRef;
 
     std::unique_ptr<VerticalRangeSlider> rangeSlider;
+    std::unique_ptr<VerticalRangeSliderAttachment> rangeSliderAttachment;
 
     std::unique_ptr<juce::Slider> attackKnob;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attackKnobAttacthment;

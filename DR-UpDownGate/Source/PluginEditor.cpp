@@ -1,8 +1,4 @@
-#include "PluginProcessor.h"
 #include "PluginEditor.h"
-#include "Utils/Theme.h"
-#include "Utils/FlatRotaryLookAndFeel.h"
-#include "Utils/EnvelopeKnob.h"
 
 static FlatRotaryLookAndFeel flatKnobLAF;
 
@@ -20,6 +16,9 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     rangeSlider = std::make_unique<VerticalRangeSlider>(0.0f, 1.0f);
 
     addAndMakeVisible(*rangeSlider);
+
+    rangeSliderAttachment = std::make_unique<VerticalRangeSliderAttachment>(
+    processor.parameters, "thresholdLow", "thresholdHigh", *rangeSlider);
 
     rangeSlider->setBounds(150, 50, 100, 400); // Position as needed
     rangeSlider->setRoundness(10.0f);
