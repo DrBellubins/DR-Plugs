@@ -1,6 +1,9 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "Utils/Theme.h"
+#include "Utils/FlatRotaryLookAndFeel.h"
+
+static FlatRotaryLookAndFeel flatKnobLAF;
 
 //==============================================================================
 AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor& processor)
@@ -22,10 +25,29 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     // Attack knob
     attackKnob = std::make_unique<juce::Slider>();
+    attackKnob->setLookAndFeel(&flatKnobLAF);
     attackKnob->setSliderStyle(juce::Slider::RotaryVerticalDrag);
     attackKnob->setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 20);
     attackKnob->setRange(0.0, 1.0, 0.01);
     attackKnob->setBounds(50, 50, 100, 100);
+
+    attackKnob->setTextValueSuffix(" ms");
+    attackKnob->setNumDecimalPlacesToDisplay(0); // whole ms
+
+    attackKnob->setTextValueSuffix(""); // We'll handle ms manually
+
+
+    attackKnob->getTextFromValueFunction = [](double value)
+    {
+        int ms = juce::roundToInt(10.0 + value * 990.0); // Map 0..1 to 10..1000 ms
+        return juce::String(ms) + " ms";
+    };
+
+    attackKnob->getValueFromTextFunction = [](const juce::String& text)
+    {
+        auto ms = text.getIntValue();
+        return juce::jlimit(0.0, 1.0, ((double)ms - 10.0) / 990.0);
+    };
 
     addAndMakeVisible(*attackKnob);
 
