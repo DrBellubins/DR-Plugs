@@ -32,20 +32,6 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     attackKnob->setRange(0.0, 1.0, 0.01);
     attackKnob->setBounds(50, 50, 100, 100);
 
-    attackKnob->setTextValueSuffix(" ms");
-    attackKnob->setNumDecimalPlacesToDisplay(0); // whole ms
-
-    attackKnob->setTextValueSuffix(""); // We'll handle ms manually
-
-
-    attackKnob->getTextFromValue(attackKnob->getValue());
-
-    attackKnob->getValueFromText = [](const juce::String& text)
-    {
-        auto ms = text.getIntValue();
-        return juce::jlimit(0.0, 1.0, ((double)ms - 10.0) / 990.0);
-    };
-
     addAndMakeVisible(*attackKnob);
 
     // Release knob
