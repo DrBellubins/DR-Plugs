@@ -31,7 +31,12 @@ VerticalRangeSliderAttachment::VerticalRangeSliderAttachment(
         if (!updatingSlider)
         {
             updatingParameter = true;
-            *valueTreeState.getRawParameterValue(lowerID) = newLowerValue;
+
+            if (auto* parameter = dynamic_cast<juce::AudioParameterFloat*>(valueTreeState.getParameter(lowerID)))
+            {
+                parameter->setValueNotifyingHost(newLowerValue);
+            }
+
             updatingParameter = false;
         }
     };
@@ -41,7 +46,12 @@ VerticalRangeSliderAttachment::VerticalRangeSliderAttachment(
         if (!updatingSlider)
         {
             updatingParameter = true;
-            *valueTreeState.getRawParameterValue(upperID) = newUpperValue;
+
+            if (auto* parameter = dynamic_cast<juce::AudioParameterFloat*>(valueTreeState.getParameter(upperID)))
+            {
+                parameter->setValueNotifyingHost(newUpperValue);
+            }
+
             updatingParameter = false;
         }
     };
