@@ -24,12 +24,18 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> parameterList;
 
-    parameterList.push_back(std::make_unique<juce::AudioParameterChoice>(
+    parameterList.push_back(std::make_unique<juce::AudioParameterFloat>(
         "arpRate",                  // Parameter ID
         "Arp Rate",                 // Parameter name
-        juce::StringArray { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32" }, // Choices
-        2                           // Default index: "1/4"
+        juce::NormalisableRange<float>(0.0f, 1.0f),
+		0.5f                        // Default index: "1/8"
     ));
+
+	parameterList.push_back(std::make_unique<juce::AudioParameterBool>(
+		"isFreeRate",              // Parameter ID
+		"Free Rate Toggle",        // Parameter name
+		false                      // Default value
+	));
 
     return { parameterList.begin(), parameterList.end() };
 }
@@ -285,7 +291,7 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
         currentlyPlayingNote = -1;
     }
 
-    int arpRateIndex = parameters.getRawParameterValue("arpRate")->load();
+    int arpRateIndex = (parameters.getRawParameterValue("arpRate")->load() * 5.0f);
 
     // Map index to actual timing
     // 0 = 1/1, 1 = 1/2, 2 = 1/4, 3 = 1/8, etc.

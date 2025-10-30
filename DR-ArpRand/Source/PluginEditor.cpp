@@ -36,7 +36,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     freeRateCheckbox = std::make_unique<ThemedCheckbox>("Free rate");
 
     freeRateAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
-        processorRef.parameters, "freeRate", *freeRateCheckbox);
+        processorRef.parameters, "isFreeRate", *freeRateCheckbox);
 
     addAndMakeVisible(*freeRateCheckbox);
 
