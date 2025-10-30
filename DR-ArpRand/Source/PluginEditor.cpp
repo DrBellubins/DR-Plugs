@@ -2,6 +2,7 @@
 #include "PluginEditor.h"
 #include "Utils/FlatRotaryLookAndFeel.h"
 #include "Utils/Theme.h"
+#include "Utils/ThemedCheckbox.h"
 
 static FlatRotaryLookAndFeel flatKnobLAF;
 
@@ -17,6 +18,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     startTimerHz(20); // Update 20 times per second
 
+    // Rate Knob
     arpRateKnob = std::make_unique<ThemedKnob>(
         "Arp Rate", nullptr, nullptr, " Rate", juce::Slider::NoTextBox);
 
@@ -29,6 +31,16 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     addAndMakeVisible(*arpRateKnob);
 
     arpRateKnob->setBounds((getWidth() / 2) - 100, (getHeight() / 2) - 100, 200, 200);
+
+    // Free rate checkbox
+    freeRateCheckbox = std::make_unique<ThemedCheckbox>("Free rate");
+
+    freeRateAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+        processorRef.parameters, "freeRate", *freeRateCheckbox);
+
+    addAndMakeVisible(*freeRateCheckbox);
+
+    freeRateCheckbox->setBounds(50, 50, 150, 32); // x, y, width, height
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()

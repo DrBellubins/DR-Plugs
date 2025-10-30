@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PluginProcessor.h"
+#include "Utils/ThemedCheckbox.h"
 #include "Utils/ThemedKnob.h"
 
 //==============================================================================
@@ -28,6 +29,9 @@ private:
 
     std::unique_ptr<ThemedKnob> arpRateKnob;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> arpRateAttachment;
+
+    std::unique_ptr<ThemedCheckbox> freeRateCheckbox;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> freeRateAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };
