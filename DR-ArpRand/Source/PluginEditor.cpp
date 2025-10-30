@@ -32,11 +32,11 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     arpRateKnob->setBounds((getWidth() / 2) - 100, (getHeight() / 2) - 100, 200, 200);
 
-    // Free rate checkbox
-    freeRateCheckbox = std::make_unique<ThemedCheckbox>("Free rate");
+    // Free mode checkbox
+    freeRateCheckbox = std::make_unique<ThemedCheckbox>("Free mode");
 
     freeRateAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
-        processorRef.parameters, "isFreeRate", *freeRateCheckbox);
+        processorRef.parameters, "isFreeMode", *freeRateCheckbox);
 
     addAndMakeVisible(*freeRateCheckbox);
 
@@ -62,10 +62,10 @@ void AudioPluginAudioProcessorEditor::resized()
 
 void AudioPluginAudioProcessorEditor::timerCallback()
 {
-	bool isFreeRate = processorRef.parameters.getRawParameterValue("isFreeRate")->load() > 0.5f;
+	bool isFreeMode = processorRef.parameters.getRawParameterValue("isFreeMode")->load() > 0.5f;
 	float arpRate = processorRef.parameters.getRawParameterValue("arpRate")->load();
 
-	if (isFreeRate)
+	if (isFreeMode)
 	{
 		arpRateKnob->setRange(0.0, 1.0, 0.001); // Smooth for Hz mode
 

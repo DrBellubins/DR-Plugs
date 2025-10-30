@@ -32,8 +32,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
     ));
 
 	parameterList.push_back(std::make_unique<juce::AudioParameterBool>(
-		"isFreeRate",              // Parameter ID
-		"Free Rate Toggle",        // Parameter name
+		"isFreeMode",              // Parameter ID
+		"Free Mode Toggle",        // Parameter name
 		false                      // Default value
 	));
 
@@ -292,11 +292,11 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
     }
 
 	float arpRate = parameters.getRawParameterValue("arpRate")->load();
-	bool isFreeRate = parameters.getRawParameterValue("isFreeRate")->load() > 0.5;
+	bool isFreeMode = parameters.getRawParameterValue("isFreeMode")->load() > 0.5;
 
 	double samplesPerStep = 0.0;
 
-	if (isFreeRate)
+	if (isFreeMode)
 		samplesPerStep = arpRate * getSampleRate();
 	else
 		samplesPerStep = (60.0 / BPM) * getSampleRate() * arpRate;
