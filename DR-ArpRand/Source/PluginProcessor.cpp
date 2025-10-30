@@ -126,7 +126,7 @@ bool AudioPluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layou
   #endif
 }
 
-void shuffleBarOrder(const std::vector<int>& heldNotes)
+void AudioPluginAudioProcessor::shuffleBarOrder(const std::vector<int>& heldNotes)
 {
     currentBarOrder = heldNotes;
     std::random_device randomDevice;
@@ -147,9 +147,95 @@ void shuffleBarOrder(const std::vector<int>& heldNotes)
     barNoteIndex = 0;
 }
 
+void AudioPluginAudioProcessor::handleArpStep(
+    int64_t AbsoluteSamplePosition,
+    int64_t SampleCursorPosition,
+    int64_t NextQuarterNoteSamplePosition,
+    double SamplesPerQuarterNote,
+    juce::MidiBuffer& OutputMidiBuffer
+)
+{
+    // Calculate bar index
+    int QuartersPerBar = notesPerBar;
+    int64_t SamplesPerBar = SamplesPerQuarterNote * QuartersPerBar;
+    int CurrentBarIndex = static_cast<int>(AbsoluteSamplePosition / SamplesPerBar);
+
+    // If the bar changed or held notes changed, reshuffle
+    bool BarChanged = (CurrentBarIndex != lastBarIndex);
+    bool NotesChanged = (heldNotes.size() != currentBarOrder.size() ||
+                         !std::equal(heldNotes.begin(), heldNotes.end(), currentBarOrder.begin()));
+
+    if ((BarChanged || NotesChanged) && !heldNotes.empty())
+    {
+        shuffleBarOrder(heldNotes);
+        lastBarIndex = CurrentBarIndex;
+    }
+
+    // Pick note if notes are held
+    if (!heldNotes.empty())
+    {
+        int NoteIndex = barNoteIndex % currentBarOrder.size();
+        int SelectedNote = currentBarOrder[NoteIndex];
+
+        // Prevent immediate repeat
+        if (SelectedNote == lastPlayedNote && currentBarOrder.size() > 1)
+        {
+            for (size_t Offset = 1; Offset < currentBarOrder.size(); ++Offset)
+            {
+                int TryNote = currentBarOrder[(NoteIndex + Offset) % currentBarOrder.size()];
+                if (TryNote != lastPlayedNote)
+                {
+                    SelectedNote = TryNote;
+                    break;
+                }
+            }
+        }
+
+        // Turn off previous note first if necessary
+        if (noteIsOn && currentlyPlayingNote != SelectedNote && currentlyPlayingNote >= 0)
+        {
+            OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), (int)SampleCursorPosition);
+        }
+
+        // Turn on new note
+        OutputMidiBuffer.addEvent(juce::MidiMessage::noteOn(1, SelectedNote, (juce::uint8)127), (int)SampleCursorPosition);
+
+        currentlyPlayingNote = SelectedNote;
+        noteOnSamplePosition = NextQuarterNoteSamplePosition;
+        noteIsOn = true;
+
+        currentBarNotes.push_back(SelectedNote);
+        lastPlayedNote = SelectedNote;
+        barNoteIndex++;
+    }
+    else
+    {
+        if (noteIsOn && currentlyPlayingNote >= 0)
+        {
+            OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), (int)SampleCursorPosition);
+            noteIsOn = false;
+            currentlyPlayingNote = -1;
+            noteOnSamplePosition = -1;
+        }
+    }
+
+    // End of bar: Save current bar notes as previousBarNotes
+    if ((barNoteIndex % notesPerBar) == 0 && !currentBarNotes.empty())
+    {
+        previousBarNotes = currentBarNotes;
+        currentBarNotes.clear();
+    }
+}
 
 void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuffer, juce::MidiBuffer& MidiMessages)
 {
+    // We're stopped, clear midi and bypass processing.
+    if (BPM <= 0.0)
+    {
+        MidiMessages.clear();
+        return;
+    }
+
     juce::MidiBuffer OutputMidiBuffer;
     juce::AudioPlayHead::CurrentPositionInfo TransportInfo;
 
@@ -202,64 +288,18 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
     {
         int64_t absoluteSample = blockStartSample + sampleCursor;
 
-        // Is it time for a new arpeggiator step?
         if (absoluteSample >= nextQuarterNoteSample)
         {
-            int QuarterNoteIndex = static_cast<int>(nextQuarterNoteSample / samplesPerQuarterNote);
-            std::mt19937 RandomGenerator(QuarterNoteIndex);
-
-            // Pick note only if notes are held
-            if (!heldNotes.empty())
-            {
-                std::uniform_int_distribution<size_t> Distribution(0, heldNotes.size() - 1);
-                int SelectedNote = heldNotes[Distribution(RandomGenerator)];
-
-                // Turn off previous note first if necessary
-                if (noteIsOn && currentlyPlayingNote != SelectedNote && currentlyPlayingNote >= 0)
-                {
-                    OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), sampleCursor);
-                }
-
-                // Turn on new note
-                OutputMidiBuffer.addEvent(juce::MidiMessage::noteOn(1, SelectedNote, (juce::uint8)127), sampleCursor);
-
-                currentlyPlayingNote = SelectedNote;
-                noteOnSamplePosition = nextQuarterNoteSample;
-                noteIsOn = true;
-            }
-            else
-            {
-                // No notes held, turn off previous note
-                if (noteIsOn && currentlyPlayingNote >= 0)
-                {
-                    OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), sampleCursor);
-                    noteIsOn = false;
-                    currentlyPlayingNote = -1;
-                    noteOnSamplePosition = -1;
-                }
-            }
+            handleArpStep(
+                absoluteSample,
+                sampleCursor,
+                nextQuarterNoteSample,
+                samplesPerQuarterNote,
+                OutputMidiBuffer
+            );
 
             nextQuarterNoteSample += (int64_t)samplesPerQuarterNote;
         }
-
-        // Schedule note-off for currently playing note after 1 quarter note
-        if (noteIsOn && noteOnSamplePosition >= 0)
-        {
-            int64_t noteOffSample = noteOnSamplePosition + (int64_t)samplesPerQuarterNote;
-            int64_t noteOffOffset = noteOffSample - blockStartSample;
-
-            if (noteOffOffset >= sampleCursor && noteOffOffset < blockNumSamples)
-            {
-                OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), (int)noteOffOffset);
-                noteIsOn = false;
-                currentlyPlayingNote = -1;
-                noteOnSamplePosition = -1;
-            }
-        }
-
-        // Advance to next event (either next quarter note or end of block)
-        int64_t nextEventSample = juce::jmin(nextQuarterNoteSample, blockStartSample + blockNumSamples);
-        sampleCursor = nextEventSample - blockStartSample;
     }
 
     wasPlaying = isPlaying;

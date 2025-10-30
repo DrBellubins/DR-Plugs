@@ -50,6 +50,14 @@ private:
     void updateHeldNotes(const juce::MidiBuffer& MidiMessages);
     void shuffleBarOrder(const std::vector<int>& heldNotes);
 
+    void handleArpStep(
+        int64_t AbsoluteSamplePosition,
+        int64_t SampleCursorPosition,
+        int64_t NextQuarterNoteSamplePosition,
+        double SamplesPerQuarterNote,
+        juce::MidiBuffer& OutputMidiBuffer
+    );
+
     //==============================================================================
     std::vector<int> heldNotes;       // Vector of held MIDI note numbers, sorted
     std::set<int> heldNotesSet;       // For quick lookup
