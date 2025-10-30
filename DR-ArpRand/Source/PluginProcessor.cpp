@@ -292,8 +292,15 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
     }
 
 	float arpRate = parameters.getRawParameterValue("arpRate")->load();
+	bool isFreeRate = parameters.getRawParameterValue("isFreeRate")->load() > 0.5;
 
-    double samplesPerStep = (60.0 / BPM) * getSampleRate() * arpRate;
+	double samplesPerStep = 0.0;
+
+	if (isFreeRate)
+		samplesPerStep = arpRate * getSampleRate();
+	else
+		samplesPerStep = (60.0 / BPM) * getSampleRate() * arpRate;
+
     updateHeldNotes(MidiMessages);
 
     const int64_t SongPositionSamples = TransportInfo.timeInSamples;

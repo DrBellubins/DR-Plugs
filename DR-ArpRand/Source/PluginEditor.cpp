@@ -47,25 +47,6 @@ AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
 {
 }
 
-void AudioPluginAudioProcessorEditor::updateArpRateLabel(bool isFree)
-{
-    if (isFree)
-    {
-    	float arpRate = processorRef.parameters.getRawParameterValue("arpRate")->load();
-    	juce::String label = juce::String("Arp Rate\n\n\n") + juce::String(arpRate) + juce::String(" Hz");
-
-    	arpRateKnob->setLabelText(label);
-    }
-    else
-    {
-    	int arpRateIndex = static_cast<int>(processorRef.parameters.getRawParameterValue("arpRate")->load());
-    	static const juce::StringArray BeatFractions { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32" };
-    	juce::String label = juce::String("Arp Rate\n\n\n") + BeatFractions[arpRateIndex];
-
-    	arpRateKnob->setLabelText(label);
-    }
-}
-
 //==============================================================================
 void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
 {

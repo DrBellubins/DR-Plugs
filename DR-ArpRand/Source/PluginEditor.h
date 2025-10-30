@@ -18,8 +18,6 @@ public:
 private:
     void timerCallback() override;
 
-    void updateArpRateLabel(bool);
-
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
     AudioPluginAudioProcessor& processorRef;
