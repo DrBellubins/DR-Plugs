@@ -14,7 +14,7 @@ public:
     void setLowerValue(float value);
     void setUpperValue(float value);
 
-    void setRoundness(float radius); // <--- NEW
+    void setRoundness(float radius);
 
     void paint(juce::Graphics&) override;
     void resized() override;
