@@ -13,7 +13,6 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     arpRateKnob = std::make_unique<juce::Slider>(juce::Slider::RotaryVerticalDrag, juce::Slider::TextBoxBelow);
     arpRateKnob->setTextValueSuffix(" Rate");
-    arpRateKnob->setBounds(100, 100, 100, 100);
 
     // Attach the knob to the parameter
     arpRateAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
@@ -41,4 +40,10 @@ void AudioPluginAudioProcessorEditor::resized()
 {
     // This is generally where you'll want to lay out the positions of any
     // subcomponents in your editor.
+
+    if (arpRateKnob)
+    {
+        // Centered, or choose your preferred layout
+        arpRateKnob->setBounds(150, 100, 100, 100);
+    }
 }
