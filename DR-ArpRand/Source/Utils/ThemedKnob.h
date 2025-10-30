@@ -107,5 +107,5 @@ private:
     TextToValueFunction textToValueFunction;
     juce::String valueSuffix;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GenericKnob)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ThemedKnob)
 };

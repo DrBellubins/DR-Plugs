@@ -4,18 +4,18 @@
 #include "Theme.h"
 
 // Subclass juce::Label, not juce::TextEditor!
-class FlatTextBox : public juce::Label
+class FlatLabel : public juce::Label
 {
 public:
-    FlatTextBox() : juce::Label() {}
+    FlatLabel() : juce::Label() {}
 
-    void paint(juce::Graphics& g) override
+    void paint(juce::Graphics& graphics) override
     {
-        juce::Label::paint(g);
+        juce::Label::paint(graphics);
 
         // Draw a custom outline (always, focused or not)
         auto rect = getLocalBounds().toFloat();
-        g.setColour(AccentGray);
-        g.drawRect(rect, 2.0f); // 2px thickness
+        graphics.setColour(AccentGray);
+        graphics.drawRect(rect, 2.0f); // 2px thickness
     }
 };

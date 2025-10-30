@@ -2,7 +2,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Theme.h"
-#include "FlatTextBox.h"
+#include "FlatLabel.h"
 
 class FlatRotaryLookAndFeel : public juce::LookAndFeel_V4
 {

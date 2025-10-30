@@ -1,5 +1,9 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "Utils/FlatRotaryLookAndFeel.h"
+#include "Utils/Theme.h"
+
+static FlatRotaryLookAndFeel flatKnobLAF;
 
 //==============================================================================
 AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor& processor)
@@ -11,30 +15,16 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     // editor's size to whatever you need it to be.
     setSize (700, 300);
 
-    /*arpRateKnob = std::make_unique<juce::Slider>(juce::Slider::RotaryVerticalDrag, juce::Slider::TextBoxBelow);
+    arpRateKnob = std::make_unique<ThemedKnob>("Arp Rate");
     arpRateKnob->setTextValueSuffix(" Rate");
-
-    // Attach the knob to the parameter
-    arpRateAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        processorRef.parameters, "arpRate", *arpRateKnob);
-
-    arpRateKnob->setBounds(100, 100, 100, 100);
-
-    addAndMakeVisible(*arpRateKnob);*/
-
-    arpRateKnob = std::make_unique<juce::Slider>(juce::Slider::RotaryVerticalDrag, juce::Slider::TextBoxBelow);
-    arpRateKnob->setTextValueSuffix(" Rate");
+    arpRateKnob->setLookAndFeel(&flatKnobLAF);
 
     arpRateAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         processorRef.parameters, "arpRate", *arpRateKnob);
 
     addAndMakeVisible(*arpRateKnob);
 
-    int width, height;
-    width = getWidth();
-    height = getHeight();
-
-    arpRateKnob->setBounds((width / 2) - 100, (height / 2) - 100, 200, 200);
+    arpRateKnob->setBounds((getWidth() / 2) - 100, (getHeight() / 2) - 100, 200, 200);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
@@ -45,11 +35,7 @@ AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
 void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
 {
     // (Our component is opaque, so we must completely fill the background with a solid colour)
-    graphics.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
-
-    //g.setColour (juce::Colours::white);
-    //g.setFont (15.0f);
-    //g.drawFittedText ("Hello World!", getLocalBounds(), juce::Justification::centred, 1);
+    graphics.fillAll(BGGray);
 }
 
 void AudioPluginAudioProcessorEditor::resized()
