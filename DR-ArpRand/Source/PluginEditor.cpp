@@ -89,7 +89,12 @@ void AudioPluginAudioProcessorEditor::timerCallback()
 		arpRateKnob->setRange(0.0, 1.0, 0.001); // Smooth
 
 		// Customize for Hz mode
-		arpRateKnob->setLabelText("Arp Rate\n\n\n" + juce::String(arpRate * 24.0f, 2) + " Hz");
+		float minHzMult = 0.03125f;
+		float maxHzMult = 1.0f;
+		float hzValue = arpRate * (maxHzMult - minHzMult) + minHzMult;
+
+		arpRateKnob->setLabelText("Arp Rate\n\n\n" + juce::String(hzValue, 2) + " Hz");
+
 		arpRateKnob->setValueToTextFunction(nullptr);
 		arpRateKnob->setTextToValueFunction(nullptr);
 	}
