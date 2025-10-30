@@ -1,6 +1,5 @@
 #include "VerticalRangeSliderAttachment.h"
 
-// A custom attachment that binds two AudioProcessorValueTreeState parameters to a VerticalRangeSlider.
 VerticalRangeSliderAttachment::VerticalRangeSliderAttachment(
     juce::AudioProcessorValueTreeState& ParameterValueTreeState,
     const juce::String& LowerParameterID,
@@ -11,21 +10,21 @@ VerticalRangeSliderAttachment::VerticalRangeSliderAttachment(
       upperID(UpperParameterID),
       rangeSlider(RangeSlider)
 {
-    // Listen for parameter changes
     valueTreeState.addParameterListener(lowerID, this);
     valueTreeState.addParameterListener(upperID, this);
 
     // Set initial slider values from parameters
     updateSliderFromParameters();
 
-    // Listen for slider changes using a timer, or you can add custom listeners
-    startTimerHz(30); // Check for UI changes at 30 Hz
+    // Start the timer to poll for value changes
+    startTimerHz(30);
 }
 
 VerticalRangeSliderAttachment::~VerticalRangeSliderAttachment()
 {
     valueTreeState.removeParameterListener(lowerID, this);
     valueTreeState.removeParameterListener(upperID, this);
+
     stopTimer();
 }
 
@@ -33,7 +32,7 @@ void VerticalRangeSliderAttachment::parameterChanged(const juce::String& Paramet
 {
     juce::MessageManagerLock lock; // UI thread required
 
-    if (! updatingParameter)
+    if (!updatingParameter)
     {
         updatingSlider = true;
         updateSliderFromParameters();
@@ -46,43 +45,45 @@ void VerticalRangeSliderAttachment::timerCallback()
     if (updatingSlider)
         return; // Prevent feedback loop
 
-    // Always update slider from parameter state, so GUI reflects loaded project
-    float lower = valueTreeState.getRawParameterValue(lowerID)->load();
-    float upper = valueTreeState.getRawParameterValue(upperID)->load();
+    // Get current parameter values
+    float paramLower = valueTreeState.getRawParameterValue(lowerID)->load();
+    float paramUpper = valueTreeState.getRawParameterValue(upperID)->load();
 
-    if (rangeSlider.getLowerValue() != lower)
+    // Update slider if it doesn't match parameter
+    if (rangeSlider.getLowerValue() != paramLower)
     {
         updatingSlider = true;
-        rangeSlider.setLowerValue(lower);
+        rangeSlider.setLowerValue(paramLower);
+        updatingSlider = false;
+    }
+    if (rangeSlider.getUpperValue() != paramUpper)
+    {
+        updatingSlider = true;
+        rangeSlider.setUpperValue(paramUpper);
         updatingSlider = false;
     }
 
-    if (rangeSlider.getUpperValue() != upper)
-    {
-        updatingSlider = true;
-        rangeSlider.setUpperValue(upper);
-        updatingSlider = false;
-    }
+    // Push slider changes to parameter (only if user has dragged)
+    static float lastLower = paramLower;
+    static float lastUpper = paramUpper;
 
-    // Now detect user changes and update parameter values
-    static float lastLower = -1000.0f, lastUpper = -1000.0f;
-    float currentLower = rangeSlider.getLowerValue();
-    float currentUpper = rangeSlider.getUpperValue();
+    float sliderLower = rangeSlider.getLowerValue();
+    float sliderUpper = rangeSlider.getUpperValue();
 
-    if (currentLower != lastLower)
+    if (sliderLower != lastLower)
     {
         updatingParameter = true;
-        *valueTreeState.getRawParameterValue(lowerID) = currentLower;
+        *valueTreeState.getRawParameterValue(lowerID) = sliderLower;
         updatingParameter = false;
-        lastLower = currentLower;
+        lastLower = sliderLower;
     }
 
-    if (currentUpper != lastUpper)
+    if (sliderUpper != lastUpper)
     {
         updatingParameter = true;
-        *valueTreeState.getRawParameterValue(upperID) = currentUpper;
+        *valueTreeState.getRawParameterValue(upperID) = sliderUpper;
         updatingParameter = false;
-        lastUpper = currentUpper;
+        lastUpper = sliderUpper;
     }
 }
 
@@ -90,7 +91,6 @@ void VerticalRangeSliderAttachment::updateSliderFromParameters()
 {
     float lower = valueTreeState.getRawParameterValue(lowerID)->load();
     float upper = valueTreeState.getRawParameterValue(upperID)->load();
-
     rangeSlider.setLowerValue(lower);
     rangeSlider.setUpperValue(upper);
 }
