@@ -81,10 +81,10 @@ void AudioPluginAudioProcessorEditor::resized()
 
 void AudioPluginAudioProcessorEditor::timerCallback()
 {
-	bool IsFreeRate = processorRef.parameters.getRawParameterValue("freeRate")->load() > 0.5f;
+	bool isFreeRate = processorRef.parameters.getRawParameterValue("isFreeRate")->load() > 0.5f;
 	float arpRate = processorRef.parameters.getRawParameterValue("arpRate")->load();
 
-	if (IsFreeRate)
+	if (isFreeRate)
 	{
 		arpRateKnob->setRange(0.0, 1.0, 0.001); // Smooth
 
