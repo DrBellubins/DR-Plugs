@@ -13,12 +13,13 @@ public:
     // Parse function: (juce::String text) -> double value
     using TextToValueFunction = std::function<double(const juce::String& Text)>;
 
-    // Constructor: pass label text and, optionally, text/value conversion functions and suffix
+    // Constructor: pass label text and, optionally, text/value conversion functions, suffix, and textbox position
     ThemedKnob(const juce::String& LabelText = "Knob",
-                ValueToTextFunction ToTextFunction = nullptr,
-                TextToValueFunction ToValueFunction = nullptr,
-                const juce::String& Suffix = "")
-        : juce::Slider(juce::Slider::RotaryVerticalDrag, juce::Slider::TextBoxBelow),
+               ValueToTextFunction ToTextFunction = nullptr,
+               TextToValueFunction ToValueFunction = nullptr,
+               const juce::String& Suffix = "",
+               juce::Slider::TextEntryBoxPosition TextBoxPosition = juce::Slider::TextBoxBelow)
+        : juce::Slider(juce::Slider::RotaryVerticalDrag, TextBoxPosition),
           labelText(LabelText),
           valueToTextFunction(ToTextFunction),
           textToValueFunction(ToValueFunction),
@@ -94,22 +95,20 @@ public:
 
         auto bounds = getLocalBounds().toFloat();
         float diameter = juce::jmin(bounds.getWidth(), bounds.getHeight()) - 8.0f;
-        float radius = diameter / 2.0f;
         auto center = bounds.getCentre();
 
-        float labelHeight = 24.0f;
-        float labelWidth = diameter;
+        float verticalNudge = 6.0f; // For optical centering of label
 
-        juce::Rectangle<float> labelArea(
-            center.x - labelWidth / 2.0f,
-            center.y - radius - labelHeight - 4.0f,
-            labelWidth,
-            labelHeight
+        juce::Rectangle<float> knobCircleArea(
+            center.x - diameter / 2.0f,
+            center.y - diameter / 2.0f - verticalNudge,
+            diameter,
+            diameter
         );
 
         Graphics.setColour(juce::Colours::white);
         Graphics.setFont(15.0f);
-        Graphics.drawFittedText(labelText, labelArea.toNearestInt(), juce::Justification::centred, 1);
+        Graphics.drawFittedText(labelText, knobCircleArea.toNearestInt(), juce::Justification::centred, 1);
     }
 
 private:

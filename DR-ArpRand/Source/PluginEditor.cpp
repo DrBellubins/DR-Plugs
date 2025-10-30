@@ -15,7 +15,11 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     // editor's size to whatever you need it to be.
     setSize (700, 300);
 
-    arpRateKnob = std::make_unique<ThemedKnob>("Arp Rate");
+    startTimerHz(20); // Update 20 times per second
+
+    arpRateKnob = std::make_unique<ThemedKnob>(
+        "Arp Rate", nullptr, nullptr, " Rate", juce::Slider::NoTextBox);
+
     arpRateKnob->setTextValueSuffix(" Rate");
     arpRateKnob->setLookAndFeel(&flatKnobLAF);
 
@@ -29,6 +33,15 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
 {
+}
+
+void AudioPluginAudioProcessorEditor::updateArpRateLabel()
+{
+    static const juce::StringArray BeatFractions { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32" };
+    int ArpRateIndex = static_cast<int>(processorRef.parameters.getRawParameterValue("arpRate")->load());
+
+    juce::String label = juce::String("Arp Rate\n\n\n") + BeatFractions[ArpRateIndex];
+    arpRateKnob->setLabelText(label);
 }
 
 //==============================================================================

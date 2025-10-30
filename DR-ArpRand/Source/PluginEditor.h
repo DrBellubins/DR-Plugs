@@ -4,7 +4,7 @@
 #include "Utils/ThemedKnob.h"
 
 //==============================================================================
-class AudioPluginAudioProcessorEditor  : public juce::AudioProcessorEditor
+class AudioPluginAudioProcessorEditor : public juce::AudioProcessorEditor, private juce::Timer
 {
 public:
     explicit AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor&);
@@ -15,6 +15,13 @@ public:
     void resized() override;
 
 private:
+    void timerCallback() override
+    {
+        updateArpRateLabel();
+    }
+
+    void updateArpRateLabel();
+
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
     AudioPluginAudioProcessor& processorRef;
