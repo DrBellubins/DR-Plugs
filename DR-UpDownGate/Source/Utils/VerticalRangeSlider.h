@@ -11,6 +11,9 @@ public:
     float getLowerValue() const { return lowerValue; }
     float getUpperValue() const { return upperValue; }
 
+    std::function<void(float)> OnLowerValueChanged;
+    std::function<void(float)> OnUpperValueChanged;
+
     void setLowerValue(float value);
     void setUpperValue(float value);
 

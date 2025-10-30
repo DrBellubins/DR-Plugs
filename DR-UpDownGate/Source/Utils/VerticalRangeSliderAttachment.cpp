@@ -1,5 +1,14 @@
 #include "VerticalRangeSliderAttachment.h"
 
+// Helper: Update slider from parameter values
+void VerticalRangeSliderAttachment::updateSliderFromParameters()
+{
+    float lower = valueTreeState.getRawParameterValue(lowerID)->load();
+    float upper = valueTreeState.getRawParameterValue(upperID)->load();
+    rangeSlider.setLowerValue(lower);
+    rangeSlider.setUpperValue(upper);
+}
+
 VerticalRangeSliderAttachment::VerticalRangeSliderAttachment(
     juce::AudioProcessorValueTreeState& ParameterValueTreeState,
     const juce::String& LowerParameterID,
@@ -13,84 +22,41 @@ VerticalRangeSliderAttachment::VerticalRangeSliderAttachment(
     valueTreeState.addParameterListener(lowerID, this);
     valueTreeState.addParameterListener(upperID, this);
 
-    // Set initial slider values from parameters
+    // Set initial slider values from parameters (will be correct after DAW restores state)
     updateSliderFromParameters();
 
-    // Start the timer to poll for value changes
-    startTimerHz(30);
+    // Attach drag callbacks: you must add these methods to your VerticalRangeSlider class!
+    // (See below for the necessary additions)
+    rangeSlider.OnUpperValueChanged = [this](float newLower) {
+        if (!updatingSlider) {
+            updatingParameter = true;
+            *valueTreeState.getRawParameterValue(lowerID) = newLower;
+            updatingParameter = false;
+        }
+    };
+
+    rangeSlider.OnUpperValueChanged = [this](float newUpper) {
+        if (!updatingSlider) {
+            updatingParameter = true;
+            *valueTreeState.getRawParameterValue(upperID) = newUpper;
+            updatingParameter = false;
+        }
+    };
 }
 
 VerticalRangeSliderAttachment::~VerticalRangeSliderAttachment()
 {
     valueTreeState.removeParameterListener(lowerID, this);
     valueTreeState.removeParameterListener(upperID, this);
-
-    stopTimer();
 }
 
 void VerticalRangeSliderAttachment::parameterChanged(const juce::String& ParameterID, float NewValue)
 {
-    juce::MessageManagerLock lock; // UI thread required
-
+    juce::MessageManagerLock lock; // Ensure thread-safe UI update
     if (!updatingParameter)
     {
         updatingSlider = true;
         updateSliderFromParameters();
         updatingSlider = false;
     }
-}
-
-void VerticalRangeSliderAttachment::timerCallback()
-{
-    if (updatingSlider)
-        return; // Prevent feedback loop
-
-    // Get current parameter values
-    float paramLower = valueTreeState.getRawParameterValue(lowerID)->load();
-    float paramUpper = valueTreeState.getRawParameterValue(upperID)->load();
-
-    // Update slider if it doesn't match parameter
-    if (rangeSlider.getLowerValue() != paramLower)
-    {
-        updatingSlider = true;
-        rangeSlider.setLowerValue(paramLower);
-        updatingSlider = false;
-    }
-    if (rangeSlider.getUpperValue() != paramUpper)
-    {
-        updatingSlider = true;
-        rangeSlider.setUpperValue(paramUpper);
-        updatingSlider = false;
-    }
-
-    // Push slider changes to parameter (only if user has dragged)
-    static float lastLower = paramLower;
-    static float lastUpper = paramUpper;
-
-    float sliderLower = rangeSlider.getLowerValue();
-    float sliderUpper = rangeSlider.getUpperValue();
-
-    if (sliderLower != lastLower)
-    {
-        updatingParameter = true;
-        *valueTreeState.getRawParameterValue(lowerID) = sliderLower;
-        updatingParameter = false;
-        lastLower = sliderLower;
-    }
-
-    if (sliderUpper != lastUpper)
-    {
-        updatingParameter = true;
-        *valueTreeState.getRawParameterValue(upperID) = sliderUpper;
-        updatingParameter = false;
-        lastUpper = sliderUpper;
-    }
-}
-
-void VerticalRangeSliderAttachment::updateSliderFromParameters()
-{
-    float lower = valueTreeState.getRawParameterValue(lowerID)->load();
-    float upper = valueTreeState.getRawParameterValue(upperID)->load();
-    rangeSlider.setLowerValue(lower);
-    rangeSlider.setUpperValue(upper);
 }
