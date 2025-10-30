@@ -57,5 +57,11 @@ private:
     int lastQuarterNoteIndex = -1;           // Last quarter note index
     double cachedSamplesPerQuarterNote = 0;  // Cache value from prepareToPlay
 
+    int currentlyPlayingNote = -1;
+    int64_t noteOnSamplePosition = -1;
+    bool noteIsOn = false;
+    bool isPlaying = false;
+    bool wasPlaying = false; // Track last transport state
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessor)
 };

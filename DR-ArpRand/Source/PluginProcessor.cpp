@@ -128,9 +128,7 @@ bool AudioPluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layou
   #endif
 }
 
-void AudioPluginAudioProcessor::processBlock(
-    juce::AudioBuffer<float>& AudioBuffer,
-    juce::MidiBuffer& MidiMessages)
+void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuffer, juce::MidiBuffer& MidiMessages)
 {
     juce::MidiBuffer OutputMidiBuffer;
     juce::AudioPlayHead::CurrentPositionInfo TransportInfo;
@@ -138,7 +136,6 @@ void AudioPluginAudioProcessor::processBlock(
     if (getPlayHead() != nullptr)
         getPlayHead()->getCurrentPosition(TransportInfo);
 
-    // Calculate quarter note timing
     juce::AudioPlayHead* playHead = getPlayHead();
 
     if (playHead != nullptr)
@@ -152,31 +149,100 @@ void AudioPluginAudioProcessor::processBlock(
         }
     }
 
-    double SamplesPerQuarterNote = (60.0 / BPM) * getSampleRate();
+    isPlaying = TransportInfo.isPlaying; // Get from DAW
 
-    // Track held notes (from incoming MidiMessages)
-    updateHeldNotes(MidiMessages); // You implement this
-
-    // For deterministic random, compute quarter note index
-    int64_t SongPositionSamples = TransportInfo.timeInSamples;
-    int QuarterNoteIndex = static_cast<int>(SongPositionSamples / SamplesPerQuarterNote);
-
-    // Seed PRNG with QuarterNoteIndex
-    std::mt19937 RandomGenerator(QuarterNoteIndex);
-
-    // At the start of each quarter note, select a random note from held notes
-    if (isNewQuarterNote(AudioBuffer.getNumSamples())) // You detect this with a counter
+    if (!isPlaying && wasPlaying)
     {
-        if (!heldNotes.empty())
-        {
-            std::uniform_int_distribution<size_t> Distribution(0, heldNotes.size() - 1);
-            int SelectedNote = heldNotes[Distribution(RandomGenerator)];
+        // Playback just stopped - send note-off for all notes
+        for (int HeldNote : heldNotes)
+            OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, HeldNote), 0);
 
-            // Output note-on/off as needed
-            OutputMidiBuffer.addEvent(juce::MidiMessage::noteOn(1, SelectedNote, (juce::uint8)127), 0);
-            // Optionally schedule note-off later, or add note-off for previous note
-        }
+        if (noteIsOn && currentlyPlayingNote >= 0)
+            OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), 0);
+
+        noteIsOn = false;
+        currentlyPlayingNote = -1;
     }
+
+    const double SamplesPerQuarterNote = (60.0 / BPM) * getSampleRate();
+    updateHeldNotes(MidiMessages);
+
+    const int64_t SongPositionSamples = TransportInfo.timeInSamples;
+    const int blockNumSamples = AudioBuffer.getNumSamples();
+
+    // Sub-block scheduling for arpeggiator steps and note-offs
+    const double samplesPerQuarterNote = SamplesPerQuarterNote;
+    const int64_t blockStartSample = SongPositionSamples;
+
+    int64_t sampleCursor = 0;
+
+    int64_t nextQuarterNoteSample = ((blockStartSample / (int64_t)samplesPerQuarterNote) + 1) * (int64_t)samplesPerQuarterNote;
+
+    while (sampleCursor < blockNumSamples)
+    {
+        int64_t absoluteSample = blockStartSample + sampleCursor;
+
+        // Is it time for a new arpeggiator step?
+        if (absoluteSample >= nextQuarterNoteSample)
+        {
+            int QuarterNoteIndex = static_cast<int>(nextQuarterNoteSample / samplesPerQuarterNote);
+            std::mt19937 RandomGenerator(QuarterNoteIndex);
+
+            // Pick note only if notes are held
+            if (!heldNotes.empty())
+            {
+                std::uniform_int_distribution<size_t> Distribution(0, heldNotes.size() - 1);
+                int SelectedNote = heldNotes[Distribution(RandomGenerator)];
+
+                // Turn off previous note first if necessary
+                if (noteIsOn && currentlyPlayingNote != SelectedNote && currentlyPlayingNote >= 0)
+                {
+                    OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), sampleCursor);
+                }
+
+                // Turn on new note
+                OutputMidiBuffer.addEvent(juce::MidiMessage::noteOn(1, SelectedNote, (juce::uint8)127), sampleCursor);
+
+                currentlyPlayingNote = SelectedNote;
+                noteOnSamplePosition = nextQuarterNoteSample;
+                noteIsOn = true;
+            }
+            else
+            {
+                // No notes held, turn off previous note
+                if (noteIsOn && currentlyPlayingNote >= 0)
+                {
+                    OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), sampleCursor);
+                    noteIsOn = false;
+                    currentlyPlayingNote = -1;
+                    noteOnSamplePosition = -1;
+                }
+            }
+
+            nextQuarterNoteSample += (int64_t)samplesPerQuarterNote;
+        }
+
+        // Schedule note-off for currently playing note after 1 quarter note
+        if (noteIsOn && noteOnSamplePosition >= 0)
+        {
+            int64_t noteOffSample = noteOnSamplePosition + (int64_t)samplesPerQuarterNote;
+            int64_t noteOffOffset = noteOffSample - blockStartSample;
+
+            if (noteOffOffset >= sampleCursor && noteOffOffset < blockNumSamples)
+            {
+                OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), (int)noteOffOffset);
+                noteIsOn = false;
+                currentlyPlayingNote = -1;
+                noteOnSamplePosition = -1;
+            }
+        }
+
+        // Advance to next event (either next quarter note or end of block)
+        int64_t nextEventSample = juce::jmin(nextQuarterNoteSample, blockStartSample + blockNumSamples);
+        sampleCursor = nextEventSample - blockStartSample;
+    }
+
+    wasPlaying = isPlaying;
 
     MidiMessages.swapWith(OutputMidiBuffer);
 }
