@@ -86,25 +86,33 @@ void AudioPluginAudioProcessorEditor::timerCallback()
 
 	if (isFreeRate)
 	{
-		arpRateKnob->setRange(0.0, 1.0, 0.001); // Smooth
+		arpRateKnob->setRange(0.0, 1.0, 0.001); // Smooth for Hz mode
 
-		// Customize for Hz mode
 		float minHzMult = 0.03125f;
 		float maxHzMult = 1.0f;
 		float hzValue = arpRate * (maxHzMult - minHzMult) + minHzMult;
 
 		arpRateKnob->setLabelText("Arp Rate\n\n\n" + juce::String(hzValue, 2) + " Hz");
-
 		arpRateKnob->setValueToTextFunction(nullptr);
 		arpRateKnob->setTextToValueFunction(nullptr);
 	}
 	else
 	{
-		arpRateKnob->setRange(0.0, 1.0, 1.0 / 5.0); // 6 steps
+		// Snap knob to one of six beat fractions (step size = 1/5)
+		arpRateKnob->setRange(0.0, 1.0, 1.0 / 5.0);
 
 		// Quantize value to nearest step
-		int arpRateIndex = static_cast<int>(std::round(arpRate * 5.0f));
+		float snappedArpRate = std::round(arpRate * 5.0f) / 5.0f;
+
+		// If the parameter value isn't already snapped, update it
+		if (std::abs(arpRate - snappedArpRate) > 0.0001f)
+		{
+			arpRateKnob->setValue(snappedArpRate, juce::dontSendNotification);
+		}
+
+		int arpRateIndex = static_cast<int>(std::round(snappedArpRate * 5.0f));
 		arpRateIndex = juce::jlimit(0, 5, arpRateIndex);
+
 		static const juce::StringArray BeatFractions { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32" };
 		arpRateKnob->setLabelText("Arp Rate\n\n\n" + BeatFractions[arpRateIndex]);
 
