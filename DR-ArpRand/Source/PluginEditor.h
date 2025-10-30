@@ -18,5 +18,8 @@ private:
     // access the processor object that created it.
     AudioPluginAudioProcessor& processorRef;
 
+    std::unique_ptr<juce::Slider> arpRateKnob;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> arpRateAttachment;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };

@@ -11,11 +11,16 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
                       #endif
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
-                       )
+                       ),
+    parameters(*this, nullptr, "PARAMS", createParameterLayout())
 {
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
+{
+}
+
+juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::createParameterLayout()
 {
 }
 
@@ -270,18 +275,24 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
         currentlyPlayingNote = -1;
     }
 
-    const double SamplesPerQuarterNote = (60.0 / BPM) * getSampleRate();
+    int arpRateIndex = parameters.getRawParameterValue("arpRate")->load();
+
+    // Map index to actual timing
+    // 0 = 1/1, 1 = 1/2, 2 = 1/4, 3 = 1/8, etc.
+    const double rateMultipliers[] = { 1.0, 0.5, 0.25, 0.125, 0.0625, 0.03125 };
+    double rateMultiplier = rateMultipliers[arpRateIndex];
+
+    double samplesPerStep = (60.0 / BPM) * getSampleRate() * rateMultiplier;
     updateHeldNotes(MidiMessages);
 
     const int64_t SongPositionSamples = TransportInfo.timeInSamples;
     const int blockNumSamples = AudioBuffer.getNumSamples();
 
     // Sub-block scheduling for arpeggiator steps and note-offs
-    const double samplesPerQuarterNote = SamplesPerQuarterNote;
     const int64_t blockStartSample = SongPositionSamples;
 
     int64_t sampleCursor = 0;
-    int64_t nextQuarterNoteSample = ((blockStartSample / (int64_t)samplesPerQuarterNote) + 1) * (int64_t)samplesPerQuarterNote;
+    int64_t nextQuarterNoteSample = ((blockStartSample / (int64_t)samplesPerStep) + 1) * (int64_t)samplesPerStep;
 
     while (sampleCursor < blockNumSamples)
     {
@@ -293,11 +304,11 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
                 absoluteSample,
                 sampleCursor,
                 nextQuarterNoteSample,
-                samplesPerQuarterNote,
+                samplesPerStep,
                 OutputMidiBuffer
             );
 
-            nextQuarterNoteSample += (int64_t)samplesPerQuarterNote;
+            nextQuarterNoteSample += (int64_t)samplesPerStep;
         }
 
         // Advance sampleCursor to next event or end of block
