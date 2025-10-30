@@ -90,15 +90,26 @@ public:
 
     void paint(juce::Graphics& Graphics) override
     {
-        // Draw the knob as usual
         juce::Slider::paint(Graphics);
 
-        // Draw the label above the knob (top area)
-        auto textArea = getLocalBounds().removeFromTop(80);
+        auto bounds = getLocalBounds().toFloat();
+        float diameter = juce::jmin(bounds.getWidth(), bounds.getHeight()) - 8.0f;
+        float radius = diameter / 2.0f;
+        auto center = bounds.getCentre();
 
-        Graphics.setColour(juce::Colours::white); // Replace with your theme color if desired
+        float labelHeight = 24.0f;
+        float labelWidth = diameter;
+
+        juce::Rectangle<float> labelArea(
+            center.x - labelWidth / 2.0f,
+            center.y - radius - labelHeight - 4.0f,
+            labelWidth,
+            labelHeight
+        );
+
+        Graphics.setColour(juce::Colours::white);
         Graphics.setFont(15.0f);
-        Graphics.drawFittedText(labelText, textArea, juce::Justification::centred, 1);
+        Graphics.drawFittedText(labelText, labelArea.toNearestInt(), juce::Justification::centred, 1);
     }
 
 private:

@@ -33,7 +33,7 @@ public:
 
     juce::Label* createSliderTextBox(juce::Slider&) override
     {
-        auto* box = new FlatTextBox();
+        auto* box = new FlatLabel();
         return box;
     }
 
