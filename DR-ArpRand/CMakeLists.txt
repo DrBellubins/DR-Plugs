@@ -2,7 +2,7 @@
 
 cmake_minimum_required(VERSION 3.22)
 
-project(DR-UpDownGate VERSION 0.0.1)
+project(DR-ArpRand VERSION 0.0.1)
 
 
 ### Dependency versions ###
@@ -64,8 +64,8 @@ FetchContent_MakeAvailable(juce)
 juce_add_plugin("${PROJECT_NAME}"
     FORMATS Standalone AU VST3                  # The formats to build. Valid formats: Standalone Unity VST3 AU AUv3 AAX VST LV2.
                                                 # AU and AUv3 plugins will only be enabled when building on macOS.
-    PRODUCT_NAME "Dr Up-down gate"              # The name of the final executable, which can differ from the target name.
-    PLUGIN_NAME "DrBell Range Gate"             # Name of the plugin that will be displayed in the DAW. Can differ from PRODUCT_NAME.
+    PRODUCT_NAME "Dr Arp Rand"                  # The name of the final executable, which can differ from the target name.
+    PLUGIN_NAME "DrBell Arp Rand"               # Name of the plugin that will be displayed in the DAW. Can differ from PRODUCT_NAME.
 
     # ICON_BIG                                  # ICON_* arguments specify a path to an image file to use as an icon for the Standalone.
     # ICON_SMALL
@@ -75,13 +75,13 @@ juce_add_plugin("${PROJECT_NAME}"
     # COMPANY_EMAIL                             # An email address for this target's author. The value is inherited from JUCE_COMPANY_EMAIL.
     PLUGIN_MANUFACTURER_CODE 42Dr               # A four-character manufacturer id with at least one upper-case character.
                                                 # GarageBand 10.3 requires the first letter to be upper-case, and the remaining letters to be lower-case.
-    PLUGIN_CODE drUD                            # A unique four-character plugin id with exactly one upper-case character.
+    PLUGIN_CODE drAR                            # A unique four-character plugin id with exactly one upper-case character.
                                                 # GarageBand 10.3 requires the first letter to be upper-case, and the remaining letters to be lower-case.
 
     IS_SYNTH FALSE                              # Is this a synth or an effect?
-    NEEDS_MIDI_INPUT FALSE                      # Does the plugin need midi input?
-    NEEDS_MIDI_OUTPUT FALSE                     # Does the plugin need midi output?
-    IS_MIDI_EFFECT FALSE                        # Is this plugin a MIDI effect?
+    NEEDS_MIDI_INPUT TRUE                       # Does the plugin need midi input?
+    NEEDS_MIDI_OUTPUT TRUE                      # Does the plugin need midi output?
+    IS_MIDI_EFFECT TRUE                         # Is this plugin a MIDI effect?
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE           # Does the editor need keyboard focus?
 
     # VST3_CATEGORIES                           # Should be one or more, separated by spaces, of the following:
