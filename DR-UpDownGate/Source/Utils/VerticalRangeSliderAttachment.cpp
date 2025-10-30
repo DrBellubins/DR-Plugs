@@ -26,24 +26,22 @@ VerticalRangeSliderAttachment::VerticalRangeSliderAttachment(
     // Set initial slider values from parameters (will be correct after DAW restores state)
     updateSliderFromParameters();
 
-    // Attach drag callbacks: you must add these methods to your VerticalRangeSlider class!
-    // (See below for the necessary additions)
-    rangeSlider.OnUpperValueChanged = [this](float newLower)
+    rangeSlider.OnLowerValueChanged = [this](float newLowerValue)
     {
         if (!updatingSlider)
         {
             updatingParameter = true;
-            *valueTreeState.getRawParameterValue(lowerID) = newLower;
+            *valueTreeState.getRawParameterValue(lowerID) = newLowerValue;
             updatingParameter = false;
         }
     };
 
-    rangeSlider.OnUpperValueChanged = [this](float newUpper)
+    rangeSlider.OnUpperValueChanged = [this](float newUpperValue)
     {
         if (!updatingSlider)
         {
             updatingParameter = true;
-            *valueTreeState.getRawParameterValue(upperID) = newUpper;
+            *valueTreeState.getRawParameterValue(upperID) = newUpperValue;
             updatingParameter = false;
         }
     };
@@ -57,7 +55,7 @@ VerticalRangeSliderAttachment::~VerticalRangeSliderAttachment()
 
 void VerticalRangeSliderAttachment::parameterChanged(const juce::String& ParameterID, float NewValue)
 {
-    juce::MessageManagerLock lock; // Ensure thread-safe UI update
+    juce::MessageManagerLock lock;
 
     if (!updatingParameter)
     {
