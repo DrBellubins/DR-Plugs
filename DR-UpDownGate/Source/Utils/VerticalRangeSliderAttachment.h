@@ -5,8 +5,7 @@
 
 // A custom attachment that binds two AudioProcessorValueTreeState parameters to a VerticalRangeSlider.
 class VerticalRangeSliderAttachment :
-    private juce::AudioProcessorValueTreeState::Listener,
-    private juce::Timer
+    private juce::AudioProcessorValueTreeState::Listener
 {
 public:
     VerticalRangeSliderAttachment(

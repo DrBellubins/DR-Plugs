@@ -8,14 +8,32 @@ VerticalRangeSlider::VerticalRangeSlider(float min, float max)
 
 void VerticalRangeSlider::setLowerValue(float value)
 {
-    lowerValue = juce::jlimit(minValue, upperValue, value);
-    repaint();
+    float clamped = juce::jlimit(minValue, upperValue, value);
+
+    if (lowerValue != clamped)
+    {
+        lowerValue = clamped;
+
+        if (OnLowerValueChanged)
+            OnLowerValueChanged(lowerValue);
+
+        repaint();
+    }
 }
 
 void VerticalRangeSlider::setUpperValue(float value)
 {
-    upperValue = juce::jlimit(lowerValue, maxValue, value);
-    repaint();
+    float clamped = juce::jlimit(lowerValue, maxValue, value);
+
+    if (upperValue != clamped)
+    {
+        upperValue = clamped;
+
+        if (OnUpperValueChanged)
+            OnUpperValueChanged(upperValue);
+
+        repaint();
+    }
 }
 
 void VerticalRangeSlider::setRoundness(float radius)
