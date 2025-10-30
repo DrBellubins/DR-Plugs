@@ -1,6 +1,8 @@
 #include "VerticalRangeSlider.h"
 #include "Theme.h"
 
+// TODO: Slider UI is disconnected from thresholdLow & thresholdHigh
+
 VerticalRangeSlider::VerticalRangeSlider(float min, float max)
     : minValue(min), maxValue(max), lowerValue(min), upperValue(max)
 {
@@ -85,6 +87,7 @@ int VerticalRangeSlider::valueToY(float value) const
 {
     auto bounds = getLocalBounds();
     float proportion = (value - minValue) / (maxValue - minValue);
+
     return juce::jmap(1.0f - proportion, float(bounds.getY()), float(bounds.getBottom()));
 }
 
@@ -92,6 +95,7 @@ float VerticalRangeSlider::yToValue(int y) const
 {
     auto bounds = getLocalBounds();
     float proportion = 1.0f - ((float)(y - bounds.getY()) / bounds.getHeight());
+
     return juce::jlimit(minValue, maxValue, minValue + proportion * (maxValue - minValue));
 }
 

@@ -5,6 +5,7 @@ void VerticalRangeSliderAttachment::updateSliderFromParameters()
 {
     float lower = valueTreeState.getRawParameterValue(lowerID)->load();
     float upper = valueTreeState.getRawParameterValue(upperID)->load();
+
     rangeSlider.setLowerValue(lower);
     rangeSlider.setUpperValue(upper);
 }
@@ -27,16 +28,20 @@ VerticalRangeSliderAttachment::VerticalRangeSliderAttachment(
 
     // Attach drag callbacks: you must add these methods to your VerticalRangeSlider class!
     // (See below for the necessary additions)
-    rangeSlider.OnUpperValueChanged = [this](float newLower) {
-        if (!updatingSlider) {
+    rangeSlider.OnUpperValueChanged = [this](float newLower)
+    {
+        if (!updatingSlider)
+        {
             updatingParameter = true;
             *valueTreeState.getRawParameterValue(lowerID) = newLower;
             updatingParameter = false;
         }
     };
 
-    rangeSlider.OnUpperValueChanged = [this](float newUpper) {
-        if (!updatingSlider) {
+    rangeSlider.OnUpperValueChanged = [this](float newUpper)
+    {
+        if (!updatingSlider)
+        {
             updatingParameter = true;
             *valueTreeState.getRawParameterValue(upperID) = newUpper;
             updatingParameter = false;
@@ -53,6 +58,7 @@ VerticalRangeSliderAttachment::~VerticalRangeSliderAttachment()
 void VerticalRangeSliderAttachment::parameterChanged(const juce::String& ParameterID, float NewValue)
 {
     juce::MessageManagerLock lock; // Ensure thread-safe UI update
+
     if (!updatingParameter)
     {
         updatingSlider = true;
