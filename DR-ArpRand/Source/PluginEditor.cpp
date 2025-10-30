@@ -47,13 +47,23 @@ AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
 {
 }
 
-void AudioPluginAudioProcessorEditor::updateArpRateLabel()
+void AudioPluginAudioProcessorEditor::updateArpRateLabel(bool isFree)
 {
-    static const juce::StringArray BeatFractions { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32" };
-    int ArpRateIndex = static_cast<int>(processorRef.parameters.getRawParameterValue("arpRate")->load());
+    if (isFree)
+    {
+    	float arpRate = static_cast<float>(processorRef.parameters.getRawParameterValue("arpRate")->load());
+    	juce::String label = juce::String("Arp Rate\n\n\n") + BeatFractions[ArpRateIndex];
+    }
+    else
+    {
+    	int arpRateIndex = static_cast<int>(processorRef.parameters.getRawParameterValue("arpRate")->load());
 
-    juce::String label = juce::String("Arp Rate\n\n\n") + BeatFractions[ArpRateIndex];
-    arpRateKnob->setLabelText(label);
+    	static const juce::StringArray BeatFractions { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32" };
+
+
+    	juce::String label = juce::String("Arp Rate\n\n\n") + BeatFractions[arpRateIndex];
+    	arpRateKnob->setLabelText(label);
+    }
 }
 
 //==============================================================================
@@ -67,4 +77,41 @@ void AudioPluginAudioProcessorEditor::resized()
 {
     // This is generally where you'll want to lay out the positions of any
     // subcomponents in your editor.
+}
+
+void AudioPluginAudioProcessorEditor::timerCallback()
+{
+    bool IsFreeRate = processorRef.parameters.getRawParameterValue("freeRate")->load() > 0.5f;
+
+    if (IsFreeRate)
+    {
+        arpRateKnob->setRange(0.5, 24.0, 0.01); // Example Hz range
+        arpRateKnob->setTextValueSuffix(" Hz");
+
+        updateArpRateLabel(IsFreeRate);
+
+        // Optionally, update valueToTextFunction and textToValueFunction for Hz
+        arpRateKnob->setValueToTextFunction(nullptr); // Default function
+        arpRateKnob->setTextToValueFunction(nullptr);
+    }
+    else
+    {
+        arpRateKnob->setRange(0, 5, 1); // Indices for beat fractions
+        arpRateKnob->setTextValueSuffix(""); // No suffix
+
+        updateArpRateLabel(IsFreeRate); // Updates label text to fraction
+
+        arpRateKnob->setValueToTextFunction([this](double Value)
+        {
+            static const juce::StringArray BeatFractions { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32" };
+            int Index = static_cast<int>(Value);
+            return BeatFractions[Index];
+        });
+
+        arpRateKnob->setTextToValueFunction([this](const juce::String& Text)
+        {
+            static const juce::StringArray BeatFractions { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32" };
+            return (double)BeatFractions.indexOf(Text.trim());
+        });
+    }
 }

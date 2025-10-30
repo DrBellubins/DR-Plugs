@@ -16,12 +16,9 @@ public:
     void resized() override;
 
 private:
-    void timerCallback() override
-    {
-        updateArpRateLabel();
-    }
+    void timerCallback() override;
 
-    void updateArpRateLabel();
+    void updateArpRateLabel(bool);
 
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
