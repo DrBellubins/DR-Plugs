@@ -22,6 +22,16 @@ AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
 
 juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::createParameterLayout()
 {
+    std::vector<std::unique_ptr<juce::RangedAudioParameter>> parameterList;
+
+    parameterList.push_back(std::make_unique<juce::AudioParameterChoice>(
+        "arpRate",                  // Parameter ID
+        "Arp Rate",                 // Parameter name
+        juce::StringArray { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32" }, // Choices
+        2                           // Default index: "1/4"
+    ));
+
+    return { parameterList.begin(), parameterList.end() };
 }
 
 //==============================================================================
