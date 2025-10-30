@@ -281,7 +281,6 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
     const int64_t blockStartSample = SongPositionSamples;
 
     int64_t sampleCursor = 0;
-
     int64_t nextQuarterNoteSample = ((blockStartSample / (int64_t)samplesPerQuarterNote) + 1) * (int64_t)samplesPerQuarterNote;
 
     while (sampleCursor < blockNumSamples)
@@ -300,6 +299,10 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
 
             nextQuarterNoteSample += (int64_t)samplesPerQuarterNote;
         }
+
+        // Advance sampleCursor to next event or end of block
+        int64_t nextEventSample = juce::jmin(nextQuarterNoteSample, blockStartSample + blockNumSamples);
+        sampleCursor = nextEventSample - blockStartSample;
     }
 
     wasPlaying = isPlaying;
