@@ -28,8 +28,5 @@ private:
     // Called when parameter changes (from DAW, automation, etc.)
     void parameterChanged(const juce::String& ParameterID, float NewValue) override;
 
-    // Poll the slider for changes (since it doesn't have built-in listeners)
-    void timerCallback() override;
-
     void updateSliderFromParameters();
 };
