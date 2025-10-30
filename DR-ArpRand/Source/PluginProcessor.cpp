@@ -291,14 +291,22 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
         currentlyPlayingNote = -1;
     }
 
-	float arpRateValue = parameters.getRawParameterValue("arpRate")->load();
-	int arpRateIndex = static_cast<int>(std::round(arpRateValue * 5.0f));
+	float arpRate = parameters.getRawParameterValue("arpRate")->load();
+	bool isFreeRate = parameters.getRawParameterValue("arpRate")->load() > 0.5;
+
+	int arpRateIndex = static_cast<int>(std::round(arpRate * 5.0f));
 	arpRateIndex = juce::jlimit(0, 5, arpRateIndex);
 
-    // Map index to actual timing
-    // 0 = 1/1, 1 = 1/2, 2 = 1/4, 3 = 1/8, etc.
-    const double rateMultipliers[] = { 1.0, 0.5, 0.25, 0.125, 0.0625, 0.03125 };
-    double rateMultiplier = rateMultipliers[arpRateIndex];
+	double rateMultiplier = 0.0;
+
+	// Map index to actual timing
+	// 0 = 1/1, 1 = 1/2, 2 = 1/4, 3 = 1/8, etc.
+	const double rateMultipliers[] = { 1.0, 0.5, 0.25, 0.125, 0.0625, 0.03125 };
+
+	if (isFreeRate)
+		rateMultiplier = arpRate;
+	else
+		rateMultiplier = rateMultipliers[arpRateIndex];
 
     double samplesPerStep = (60.0 / BPM) * getSampleRate() * rateMultiplier;
     updateHeldNotes(MidiMessages);
