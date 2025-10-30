@@ -1,4 +1,7 @@
 #include "PluginProcessor.h"
+
+#include <random>
+
 #include "PluginEditor.h"
 
 //==============================================================================
@@ -87,8 +90,12 @@ void AudioPluginAudioProcessor::changeProgramName (int index, const juce::String
 void AudioPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     // Use this method as the place to do any pre-playback
-    // initialisation that you need..
+    // initialisation that you need.
     juce::ignoreUnused (sampleRate, samplesPerBlock);
+
+    cachedSamplesPerQuarterNote = (60.0 / BPM) * sampleRate; // Replace 120.0 with actual BPM
+    samplesProcessed = 0;
+    lastQuarterNoteIndex = -1;
 }
 
 void AudioPluginAudioProcessor::releaseResources()
@@ -121,36 +128,101 @@ bool AudioPluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layou
   #endif
 }
 
-void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
-                                              juce::MidiBuffer& midiMessages)
+void AudioPluginAudioProcessor::processBlock(
+    juce::AudioBuffer<float>& AudioBuffer,
+    juce::MidiBuffer& MidiMessages)
 {
-    juce::ignoreUnused (midiMessages);
+    juce::MidiBuffer OutputMidiBuffer;
+    juce::AudioPlayHead::CurrentPositionInfo TransportInfo;
 
-    juce::ScopedNoDenormals noDenormals;
-    auto totalNumInputChannels  = getTotalNumInputChannels();
-    auto totalNumOutputChannels = getTotalNumOutputChannels();
+    if (getPlayHead() != nullptr)
+        getPlayHead()->getCurrentPosition(TransportInfo);
 
-    // In case we have more outputs than inputs, this code clears any output
-    // channels that didn't contain input data, (because these aren't
-    // guaranteed to be empty - they may contain garbage).
-    // This is here to avoid people getting screaming feedback
-    // when they first compile a plugin, but obviously you don't need to keep
-    // this code if your algorithm always overwrites all the output channels.
-    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear (i, 0, buffer.getNumSamples());
+    // Calculate quarter note timing
+    juce::AudioPlayHead* playHead = getPlayHead();
 
-    // This is the place where you'd normally do the guts of your plugin's
-    // audio processing...
-    // Make sure to reset the state if your inner loop is processing
-    // the samples and the outer loop is handling the channels.
-    // Alternatively, you can process the samples with the channels
-    // interleaved by keeping the same state.
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
+    if (playHead != nullptr)
     {
-        auto* channelData = buffer.getWritePointer (channel);
-        juce::ignoreUnused (channelData);
-        // ..do something to the data...
+        juce::AudioPlayHead::CurrentPositionInfo positionInfo;
+
+        if (playHead->getCurrentPosition(positionInfo))
+        {
+            if (positionInfo.bpm > 0.0)
+                BPM = positionInfo.bpm;
+        }
     }
+
+    double SamplesPerQuarterNote = (60.0 / BPM) * getSampleRate();
+
+    // Track held notes (from incoming MidiMessages)
+    updateHeldNotes(MidiMessages); // You implement this
+
+    // For deterministic random, compute quarter note index
+    int64_t SongPositionSamples = TransportInfo.timeInSamples;
+    int QuarterNoteIndex = static_cast<int>(SongPositionSamples / SamplesPerQuarterNote);
+
+    // Seed PRNG with QuarterNoteIndex
+    std::mt19937 RandomGenerator(QuarterNoteIndex);
+
+    // At the start of each quarter note, select a random note from held notes
+    if (isNewQuarterNote(AudioBuffer.getNumSamples())) // You detect this with a counter
+    {
+        if (!heldNotes.empty())
+        {
+            std::uniform_int_distribution<size_t> Distribution(0, heldNotes.size() - 1);
+            int SelectedNote = heldNotes[Distribution(RandomGenerator)];
+
+            // Output note-on/off as needed
+            OutputMidiBuffer.addEvent(juce::MidiMessage::noteOn(1, SelectedNote, (juce::uint8)127), 0);
+            // Optionally schedule note-off later, or add note-off for previous note
+        }
+    }
+
+    MidiMessages.swapWith(OutputMidiBuffer);
+}
+
+void AudioPluginAudioProcessor::updateHeldNotes(const juce::MidiBuffer& MidiMessages)
+{
+    // Scan MIDI events in buffer and update heldNotes/heldNotesSet
+    for (const auto& midiEvent : MidiMessages)
+    {
+        const juce::MidiMessage& midiMessage = midiEvent.getMessage();
+
+        if (midiMessage.isNoteOn())
+        {
+            int noteNumber = midiMessage.getNoteNumber();
+
+            if (heldNotesSet.find(noteNumber) == heldNotesSet.end())
+            {
+                heldNotes.push_back(noteNumber);
+                heldNotesSet.insert(noteNumber);
+            }
+        }
+        else if (midiMessage.isNoteOff())
+        {
+            int noteNumber = midiMessage.getNoteNumber();
+
+            heldNotesSet.erase(noteNumber);
+
+            auto it = std::find(heldNotes.begin(), heldNotes.end(), noteNumber);
+
+            if (it != heldNotes.end())
+                heldNotes.erase(it);
+        }
+    }
+}
+
+bool AudioPluginAudioProcessor::isNewQuarterNote(int numSamples)
+{
+    // Call this at the start of each processBlock(), passing buffer.getNumSamples()
+    int currentQuarterNoteIndex = static_cast<int>(samplesProcessed / cachedSamplesPerQuarterNote);
+
+    bool isNew = (currentQuarterNoteIndex != lastQuarterNoteIndex);
+
+    samplesProcessed += numSamples;
+    lastQuarterNoteIndex = currentQuarterNoteIndex;
+
+    return isNew;
 }
 
 //==============================================================================

@@ -17,6 +17,10 @@ public:
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
 
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
+    void updateHeldNotes(const juce::MidiBuffer& MidiMessages);
+    bool isNewQuarterNote(int numSamples);
+
     using AudioProcessor::processBlock;
 
     //==============================================================================
@@ -31,6 +35,8 @@ public:
     bool isMidiEffect() const override;
     double getTailLengthSeconds() const override;
 
+    double BPM = 120.0;
+
     //==============================================================================
     int getNumPrograms() override;
     int getCurrentProgram() override;
@@ -44,5 +50,12 @@ public:
 
 private:
     //==============================================================================
+    std::vector<int> heldNotes;       // Vector of held MIDI note numbers, sorted
+    std::set<int> heldNotesSet;       // For quick lookup
+
+    int64_t samplesProcessed = 0;            // Total samples processed
+    int lastQuarterNoteIndex = -1;           // Last quarter note index
+    double cachedSamplesPerQuarterNote = 0;  // Cache value from prepareToPlay
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessor)
 };
