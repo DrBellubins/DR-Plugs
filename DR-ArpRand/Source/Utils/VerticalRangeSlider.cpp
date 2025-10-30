@@ -1,6 +1,8 @@
 #include "VerticalRangeSlider.h"
 #include "Theme.h"
 
+// TODO: Slider UI is disconnected from thresholdLow & thresholdHigh
+
 VerticalRangeSlider::VerticalRangeSlider(float min, float max)
     : minValue(min), maxValue(max), lowerValue(min), upperValue(max)
 {
@@ -8,14 +10,32 @@ VerticalRangeSlider::VerticalRangeSlider(float min, float max)
 
 void VerticalRangeSlider::setLowerValue(float value)
 {
-    lowerValue = juce::jlimit(minValue, upperValue, value);
-    repaint();
+    float clamped = juce::jlimit(minValue, upperValue, value);
+
+    if (lowerValue != clamped)
+    {
+        lowerValue = clamped;
+
+        if (OnLowerValueChanged)
+            OnLowerValueChanged(lowerValue);
+
+        repaint();
+    }
 }
 
 void VerticalRangeSlider::setUpperValue(float value)
 {
-    upperValue = juce::jlimit(lowerValue, maxValue, value);
-    repaint();
+    float clamped = juce::jlimit(lowerValue, maxValue, value);
+
+    if (upperValue != clamped)
+    {
+        upperValue = clamped;
+
+        if (OnUpperValueChanged)
+            OnUpperValueChanged(upperValue);
+
+        repaint();
+    }
 }
 
 void VerticalRangeSlider::setRoundness(float radius)
@@ -67,6 +87,7 @@ int VerticalRangeSlider::valueToY(float value) const
 {
     auto bounds = getLocalBounds();
     float proportion = (value - minValue) / (maxValue - minValue);
+
     return juce::jmap(1.0f - proportion, float(bounds.getY()), float(bounds.getBottom()));
 }
 
@@ -74,6 +95,7 @@ float VerticalRangeSlider::yToValue(int y) const
 {
     auto bounds = getLocalBounds();
     float proportion = 1.0f - ((float)(y - bounds.getY()) / bounds.getHeight());
+
     return juce::jlimit(minValue, maxValue, minValue + proportion * (maxValue - minValue));
 }
 

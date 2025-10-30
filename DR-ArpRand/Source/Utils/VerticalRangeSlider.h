@@ -11,10 +11,13 @@ public:
     float getLowerValue() const { return lowerValue; }
     float getUpperValue() const { return upperValue; }
 
+    std::function<void(float)> OnLowerValueChanged;
+    std::function<void(float)> OnUpperValueChanged;
+
     void setLowerValue(float value);
     void setUpperValue(float value);
 
-    void setRoundness(float radius); // <--- NEW
+    void setRoundness(float radius);
 
     void paint(juce::Graphics&) override;
     void resized() override;
