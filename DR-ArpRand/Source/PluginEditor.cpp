@@ -81,35 +81,39 @@ void AudioPluginAudioProcessorEditor::resized()
 
 void AudioPluginAudioProcessorEditor::timerCallback()
 {
-    bool IsFreeRate = processorRef.parameters.getRawParameterValue("freeRate")->load() > 0.5f;
+	bool IsFreeRate = processorRef.parameters.getRawParameterValue("freeRate")->load() > 0.5f;
+	float arpRate = processorRef.parameters.getRawParameterValue("arpRate")->load();
 
-    if (IsFreeRate)
-    {
-        arpRateKnob->setRange(0.5, 24.0, 0.01); // Example Hz range
+	if (IsFreeRate)
+	{
+		arpRateKnob->setRange(0.0, 1.0, 0.001); // Smooth
 
-        updateArpRateLabel(IsFreeRate);
+		// Customize for Hz mode
+		arpRateKnob->setLabelText("Arp Rate\n\n\n" + juce::String(arpRate * 24.0f, 2) + " Hz");
+		arpRateKnob->setValueToTextFunction(nullptr);
+		arpRateKnob->setTextToValueFunction(nullptr);
+	}
+	else
+	{
+		arpRateKnob->setRange(0.0, 1.0, 1.0 / 5.0); // 6 steps
 
-        // Optionally, update valueToTextFunction and textToValueFunction for Hz
-        arpRateKnob->setValueToTextFunction(nullptr); // Default function
-        arpRateKnob->setTextToValueFunction(nullptr);
-    }
-    else
-    {
-        arpRateKnob->setRange(0, 5, 1); // Indices for beat fractions
+		// Quantize value to nearest step
+		int arpRateIndex = static_cast<int>(std::round(arpRate * 5.0f));
+		arpRateIndex = juce::jlimit(0, 5, arpRateIndex);
+		static const juce::StringArray BeatFractions { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32" };
+		arpRateKnob->setLabelText("Arp Rate\n\n\n" + BeatFractions[arpRateIndex]);
 
-        updateArpRateLabel(IsFreeRate); // Updates label text to fraction
+		arpRateKnob->setValueToTextFunction([=](double Value)
+		{
+			int Index = static_cast<int>(std::round(Value * 5.0));
+			return BeatFractions[Index];
+		});
 
-        arpRateKnob->setValueToTextFunction([this](double Value)
-        {
-            static const juce::StringArray BeatFractions { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32" };
-            int Index = static_cast<int>(Value);
-            return BeatFractions[Index];
-        });
-
-        arpRateKnob->setTextToValueFunction([this](const juce::String& Text)
-        {
-            static const juce::StringArray BeatFractions { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32" };
-            return (double)BeatFractions.indexOf(Text.trim());
-        });
-    }
+		arpRateKnob->setTextToValueFunction([=](const juce::String& Text)
+		{
+			int Index = BeatFractions.indexOf(Text.trim());
+			return (double)Index / 5.0;
+		});
+	}
 }
+

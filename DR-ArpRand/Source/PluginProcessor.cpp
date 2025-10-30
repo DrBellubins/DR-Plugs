@@ -291,7 +291,9 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
         currentlyPlayingNote = -1;
     }
 
-    int arpRateIndex = (parameters.getRawParameterValue("arpRate")->load() * 5.0f);
+	float arpRateValue = parameters.getRawParameterValue("arpRate")->load();
+	int arpRateIndex = static_cast<int>(std::round(arpRateValue * 5.0f));
+	arpRateIndex = juce::jlimit(0, 5, arpRateIndex);
 
     // Map index to actual timing
     // 0 = 1/1, 1 = 1/2, 2 = 1/4, 3 = 1/8, etc.
