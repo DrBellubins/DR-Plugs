@@ -18,9 +18,6 @@ public:
 
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
-    void updateHeldNotes(const juce::MidiBuffer& MidiMessages);
-    bool isNewQuarterNote(int numSamples);
-
     using AudioProcessor::processBlock;
 
     //==============================================================================
@@ -49,6 +46,10 @@ public:
     void setStateInformation (const void* data, int sizeInBytes) override;
 
 private:
+    bool isNewQuarterNote(int numSamples);
+    void updateHeldNotes(const juce::MidiBuffer& MidiMessages);
+    void shuffleBarOrder(const std::vector<int>& heldNotes);
+
     //==============================================================================
     std::vector<int> heldNotes;       // Vector of held MIDI note numbers, sorted
     std::set<int> heldNotesSet;       // For quick lookup
@@ -62,6 +63,15 @@ private:
     bool noteIsOn = false;
     bool isPlaying = false;
     bool wasPlaying = false; // Track last transport state
+
+    // Algorithmic markov chain/random
+    std::vector<int> previousBarNotes;            // Notes played last bar
+    std::vector<int> currentBarNotes;             // Notes played this bar
+    int barNoteIndex = 0;                         // Note index within current bar
+    int notesPerBar = 4;                          // e.g. 4 for 4/4 quarter notes per bar
+    std::vector<int> currentBarOrder;             // The shuffled order for this bar
+    int lastPlayedNote = -1;                      // For immediate repeat prevention
+    int lastBarIndex = -1;                        // Track bar start
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessor)
 };

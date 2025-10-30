@@ -1,7 +1,5 @@
 #include "PluginProcessor.h"
-
 #include <random>
-
 #include "PluginEditor.h"
 
 //==============================================================================
@@ -127,6 +125,28 @@ bool AudioPluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layou
     return true;
   #endif
 }
+
+void shuffleBarOrder(const std::vector<int>& heldNotes)
+{
+    currentBarOrder = heldNotes;
+    std::random_device randomDevice;
+    std::mt19937 randomGenerator(randomDevice());
+
+    // Shuffle until the order is different from the previous bar
+    int maxAttempts = 10;
+    int attempts = 0;
+
+    do
+    {
+        std::shuffle(currentBarOrder.begin(), currentBarOrder.end(), randomGenerator);
+        attempts++;
+    }
+    while (attempts < maxAttempts && currentBarOrder == previousBarNotes);
+
+    currentBarNotes.clear();
+    barNoteIndex = 0;
+}
+
 
 void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuffer, juce::MidiBuffer& MidiMessages)
 {
