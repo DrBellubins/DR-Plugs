@@ -297,9 +297,17 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
 	double samplesPerStep = 0.0;
 
 	if (isFreeMode)
-		samplesPerStep = arpRate * getSampleRate();
+	{
+		float minFraction = 0.03125f;
+		float maxFraction = 1.0f;
+		float fraction = minFraction * std::pow(maxFraction / minFraction, arpRate);
+
+		samplesPerStep = getSampleRate() * fraction * 60.0f / BPM; // Correct formula for samples per step
+	}
 	else
+	{
 		samplesPerStep = (60.0 / BPM) * getSampleRate() * arpRate;
+	}
 
     updateHeldNotes(MidiMessages);
 
