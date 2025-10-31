@@ -62,8 +62,8 @@ void AudioPluginAudioProcessorEditor::resized()
 
 void AudioPluginAudioProcessorEditor::timerCallback()
 {
+	float arpRate = processorRef.parameters.getRawParameterValue("arpRate")->load();
     bool isFreeMode = processorRef.parameters.getRawParameterValue("isFreeMode")->load() > 0.5f;
-    float arpRate = processorRef.parameters.getRawParameterValue("arpRate")->load();
 
     static constexpr float beatFractionS[] = { 1.0f, 0.5f, 0.25f, 0.125f, 0.0625f, 0.03125f };
     static constexpr int numBeatFractions = 6;
@@ -75,11 +75,13 @@ void AudioPluginAudioProcessorEditor::timerCallback()
 	{
 		// Calculate fraction with log interpolation
 		float fraction = minFraction * std::pow(maxFraction / minFraction, arpRate);
-		float hzValue = processorRef.BPM * fraction / 60.0f;
+		float hzValue = processorRef.BPM * fraction * 0.0166666666667;
 
 		arpRateKnob->setLabelText("Arp Rate\n\n\n" + juce::String(hzValue, 2) + " Hz");
 		arpRateKnob->setValueToTextFunction(nullptr);
 		arpRateKnob->setTextToValueFunction(nullptr);
+
+		DBG("free mode arpRate: " << arpRate << " Knob value: " << arpRateKnob->getValue());
 	}
 	else
 	{
@@ -109,6 +111,8 @@ void AudioPluginAudioProcessorEditor::timerCallback()
 			if (Index < 0) Index = 0;
 			return (double)Index / 5.0;
 		});
+
+		//DBG("fractional mode arpRate: " << arpRate << " Knob value: " << arpRateKnob->getValue());
 	}
 }
 
