@@ -302,11 +302,20 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
 		float maxFraction = 1.0f;
 		float fraction = minFraction * std::pow(maxFraction / minFraction, arpRate);
 
-		samplesPerStep = getSampleRate() * fraction * 60.0f / BPM; // Correct formula for samples per step
+		samplesPerStep = getSampleRate() * 60.0f / (BPM * fraction);
 	}
 	else
 	{
-		samplesPerStep = (60.0 / BPM) * getSampleRate() * arpRate;
+		// Snap arpRate to nearest valid fraction
+		float snappedArpRate = std::round(arpRate * 5.0f) / 5.0f;
+		int index = static_cast<int>(std::round(snappedArpRate * 5.0f));
+
+		index = juce::jlimit(0, 5, index);
+
+		static constexpr float BeatFractionValues[] = { 1.0f, 0.5f, 0.25f, 0.125f, 0.0625f, 0.03125f };
+		float beatFraction = BeatFractionValues[index];
+
+		samplesPerStep = (60.0 / BPM) * getSampleRate() * beatFraction;
 	}
 
     updateHeldNotes(MidiMessages);
