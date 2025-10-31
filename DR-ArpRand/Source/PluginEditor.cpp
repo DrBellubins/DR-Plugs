@@ -68,8 +68,8 @@ void AudioPluginAudioProcessorEditor::timerCallback()
     static constexpr float beatFractionS[] = { 1.0f, 0.5f, 0.25f, 0.125f, 0.0625f, 0.03125f };
     static constexpr int numBeatFractions = 6;
 
-    float minFraction = beatFractionS[numBeatFractions - 1];
-    float maxFraction = beatFractionS[0];
+	float maxFraction = beatFractionS[0]; // 1/1
+	float minFraction = beatFractionS[numBeatFractions - 1]; // 1/32
 
     // Track last mode to detect switching
     static bool lastIsFreeMode = isFreeMode;
@@ -89,7 +89,7 @@ void AudioPluginAudioProcessorEditor::timerCallback()
     	arpRateKnob->setRange(0.0, 1.0, 0.001);
 
         // Calculate fraction with log interpolation
-        float fraction = minFraction * std::pow(maxFraction / minFraction, arpRate);
+    	float fraction = maxFraction * std::pow(minFraction / maxFraction, arpRate);
         float hzValue = processorRef.BPM * fraction * 0.0166666666667;
 
         arpRateKnob->setLabelText("Arp Rate\n\n\n" + juce::String(hzValue, 2) + " Hz");

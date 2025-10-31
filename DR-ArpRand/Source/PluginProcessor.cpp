@@ -28,7 +28,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
         "arpRate",                  // Parameter ID
         "Arp Rate",                 // Parameter name
         juce::NormalisableRange<float>(0.0f, 1.0f),
-		0.5f                        // Default index: "1/8"
+		0.4f                        // Default index: "1/4"
     ));
 
 	parameterList.push_back(std::make_unique<juce::AudioParameterBool>(
