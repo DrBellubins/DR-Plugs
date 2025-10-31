@@ -84,7 +84,7 @@ void AudioPluginAudioProcessorEditor::timerCallback()
 
     lastIsFreeMode = isFreeMode;
 
-    if (isFreeMode)
+    if (isFreeMode) // Free mode
     {
         // Calculate fraction with log interpolation
         float fraction = minFraction * std::pow(maxFraction / minFraction, arpRate);
@@ -96,7 +96,7 @@ void AudioPluginAudioProcessorEditor::timerCallback()
 
     	//DBG("free mode arpRate: " << arpRate << " Knob value: " << arpRateKnob->getValue());
     }
-    else
+    else // Fractional
     {
         float snappedArpRate = std::round(arpRate * 5.0f) / 5.0f;
 
