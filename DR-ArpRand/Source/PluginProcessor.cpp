@@ -307,7 +307,7 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
 	{
 		float minFraction = 0.03125f;
 		float maxFraction = 1.0f;
-		float fraction = maxFraction * std::pow(minFraction / maxFraction, arpRate);
+		float fraction = maxFraction * std::pow(minFraction / maxFraction, 1.0f - arpRate);
 
 		samplesPerStep = getSampleRate() * 60.0f / (BPM * fraction);
 	}
