@@ -62,7 +62,7 @@ void AudioPluginAudioProcessorEditor::resized()
 
 void AudioPluginAudioProcessorEditor::timerCallback()
 {
-	float arpRate = processorRef.parameters.getRawParameterValue("arpRate")->load();
+    float arpRate = processorRef.parameters.getRawParameterValue("arpRate")->load();
     bool isFreeMode = processorRef.parameters.getRawParameterValue("isFreeMode")->load() > 0.5f;
 
     static constexpr float beatFractionS[] = { 1.0f, 0.5f, 0.25f, 0.125f, 0.0625f, 0.03125f };
@@ -71,48 +71,55 @@ void AudioPluginAudioProcessorEditor::timerCallback()
     float minFraction = beatFractionS[numBeatFractions - 1];
     float maxFraction = beatFractionS[0];
 
-	if (isFreeMode)
-	{
-		// Calculate fraction with log interpolation
-		float fraction = minFraction * std::pow(maxFraction / minFraction, arpRate);
-		float hzValue = processorRef.BPM * fraction * 0.0166666666667;
+    // Track last mode to detect switching
+    static bool lastIsFreeMode = isFreeMode;
 
-		arpRateKnob->setLabelText("Arp Rate\n\n\n" + juce::String(hzValue, 2) + " Hz");
-		arpRateKnob->setValueToTextFunction(nullptr);
-		arpRateKnob->setTextToValueFunction(nullptr);
+    // Only snap and update parameter when switching into fractional mode
+    if (!isFreeMode && lastIsFreeMode)
+    {
+        // Just switched from free to fractional mode
+        float snappedArpRate = std::round(arpRate * 5.0f) / 5.0f;
+        arpRateKnob->setValue(snappedArpRate, juce::sendNotification); // This updates parameter!
+    }
 
-		DBG("free mode arpRate: " << arpRate << " Knob value: " << arpRateKnob->getValue());
-	}
-	else
-	{
-		float snappedArpRate = std::round(arpRate * 5.0f) / 5.0f;
+    lastIsFreeMode = isFreeMode;
 
-		if (std::abs(arpRate - snappedArpRate) > 0.0001f)
-		{
-			arpRateKnob->setValue(snappedArpRate, juce::dontSendNotification);
-		}
+    if (isFreeMode)
+    {
+        // Calculate fraction with log interpolation
+        float fraction = minFraction * std::pow(maxFraction / minFraction, arpRate);
+        float hzValue = processorRef.BPM * fraction * 0.0166666666667;
 
-		int arpRateIndex = static_cast<int>(std::round(snappedArpRate * 5.0f));
-		arpRateIndex = juce::jlimit(0, 5, arpRateIndex);
+        arpRateKnob->setLabelText("Arp Rate\n\n\n" + juce::String(hzValue, 2) + " Hz");
+        arpRateKnob->setValueToTextFunction(nullptr);
+        arpRateKnob->setTextToValueFunction(nullptr);
 
-		static const juce::StringArray BeatFractions { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32" };
-		arpRateKnob->setLabelText("Arp Rate\n\n\n" + BeatFractions[arpRateIndex]);
+    	//DBG("free mode arpRate: " << arpRate << " Knob value: " << arpRateKnob->getValue());
+    }
+    else
+    {
+        float snappedArpRate = std::round(arpRate * 5.0f) / 5.0f;
 
-		arpRateKnob->setValueToTextFunction([=](double Value)
-		{
-			int Index = static_cast<int>(std::round(Value * 5.0));
-			Index = juce::jlimit(0, 5, Index);
-			return BeatFractions[Index];
-		});
+        int arpRateIndex = static_cast<int>(std::round(snappedArpRate * 5.0f));
+        arpRateIndex = juce::jlimit(0, 5, arpRateIndex);
 
-		arpRateKnob->setTextToValueFunction([=](const juce::String& Text)
-		{
-			int Index = BeatFractions.indexOf(Text.trim());
-			if (Index < 0) Index = 0;
-			return (double)Index / 5.0;
-		});
+        static const juce::StringArray BeatFractions { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32" };
+        arpRateKnob->setLabelText("Arp Rate\n\n\n" + BeatFractions[arpRateIndex]);
 
-		//DBG("fractional mode arpRate: " << arpRate << " Knob value: " << arpRateKnob->getValue());
-	}
+        arpRateKnob->setValueToTextFunction([=](double Value)
+        {
+            int Index = static_cast<int>(std::round(Value * 5.0));
+            Index = juce::jlimit(0, 5, Index);
+            return BeatFractions[Index];
+        });
+
+        arpRateKnob->setTextToValueFunction([=](const juce::String& Text)
+        {
+            int Index = BeatFractions.indexOf(Text.trim());
+            if (Index < 0) Index = 0;
+            return (double)Index / 5.0;
+        });
+
+    	//DBG("fractional mode arpRate: " << arpRate << " Knob value: " << arpRateKnob->getValue());
+    }
 }
-
