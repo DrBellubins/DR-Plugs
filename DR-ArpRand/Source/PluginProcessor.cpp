@@ -300,16 +300,13 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
 	// Fractionals seem to sound one fraction higher
 	// Example: 1/4 sounds like 1/8
 
-	// TODO:
-	// Free mode is still too slow. 1/1 equivalent is synced, 1/32 equivalent is slower.
-
 	if (isFreeMode)
 	{
 		float minFraction = 0.03125f;
 		float maxFraction = 1.0f;
-		float fraction = maxFraction * std::pow(minFraction / maxFraction, 1.0f - arpRate);
+		float fraction = maxFraction * std::pow(minFraction / maxFraction, arpRate);
 
-		samplesPerStep = getSampleRate() * 60.0f / (BPM * fraction);
+		samplesPerStep = (60.0 / BPM) * getSampleRate() * fraction;
 	}
 	else
 	{
