@@ -25,8 +25,8 @@ private:
     std::unique_ptr<ThemedKnob> arpRateKnob;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> arpRateAttachment;
 
-    std::unique_ptr<ThemedCheckbox> freeRateCheckbox;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> freeRateAttachment;
+    std::unique_ptr<ThemedCheckbox> freeModeCheckbox;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> freeModeAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };

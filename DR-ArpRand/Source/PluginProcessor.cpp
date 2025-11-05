@@ -300,6 +300,18 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
 	// Fractionals seem to sound one fraction higher
 	// Example: 1/4 sounds like 1/8
 
+	// TODO:
+	// Markov random algorithm does not play nicely with free mode!
+
+    // TODO:
+    // Detect number of notes in the currently playing chord.
+    // Record that number of previously arpeggiated notes into a buffer.
+    // Make sure that sequence doesn't repeat next time.
+    // Also make sure that the next note isn't the same as the previous one.
+
+    // TODO?:
+    // Implement perlin noise similar to Vital's random.
+
 	if (isFreeMode)
 	{
 		float minFraction = 0.03125f;
@@ -416,19 +428,22 @@ juce::AudioProcessorEditor* AudioPluginAudioProcessor::createEditor()
 }
 
 //==============================================================================
-void AudioPluginAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
+void AudioPluginAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
-    juce::ignoreUnused (destData);
+	// Save all parameters as XML
+	auto xmlState = parameters.copyState().createXml();
+	copyXmlToBinary(*xmlState, destData);
 }
 
-void AudioPluginAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
+void AudioPluginAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
 {
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
-    juce::ignoreUnused (data, sizeInBytes);
+	// Load parameters from XML
+	std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
+
+	if (xmlState != nullptr)
+	{
+		parameters.replaceState(juce::ValueTree::fromXml(*xmlState));
+	}
 }
 
 //==============================================================================

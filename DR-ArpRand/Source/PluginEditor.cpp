@@ -33,14 +33,14 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     arpRateKnob->setBounds((getWidth() / 2) - 100, (getHeight() / 2) - 100, 200, 200);
 
     // Free mode checkbox
-    freeRateCheckbox = std::make_unique<ThemedCheckbox>("Free mode");
+    freeModeCheckbox = std::make_unique<ThemedCheckbox>("Free mode");
 
-    freeRateAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
-        processorRef.parameters, "isFreeMode", *freeRateCheckbox);
+    freeModeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+        processorRef.parameters, "isFreeMode", *freeModeCheckbox);
 
-    addAndMakeVisible(*freeRateCheckbox);
+    addAndMakeVisible(*freeModeCheckbox);
 
-    freeRateCheckbox->setBounds(50, 50, 150, 32); // x, y, width, height
+    freeModeCheckbox->setBounds(50, 50, 150, 32); // x, y, width, height
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
