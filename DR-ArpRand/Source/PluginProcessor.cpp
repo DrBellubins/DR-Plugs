@@ -147,104 +147,44 @@ bool AudioPluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layou
   #endif
 }
 
-void AudioPluginAudioProcessor::generateNewRandomSequence(const std::vector<int>& NoteSet, int LastNote)
-{
-	currentSequence = NoteSet;
-	std::random_device RandomDevice;
-	std::mt19937 RandomGenerator(RandomDevice());
-	int MaxAttempts = 16;
-	int Attempts = 0;
-
-	do
-	{
-		std::shuffle(currentSequence.begin(), currentSequence.end(), RandomGenerator);
-
-		bool immediateRepeat = (currentSequence.size() > 1 && currentSequence.front() == LastNote);
-		bool sameAsPrevious = (currentSequence == previousSequence);
-
-		if (!immediateRepeat && !sameAsPrevious)
-			break;
-		Attempts++;
-	}
-	while (Attempts < MaxAttempts);
-
-	currentSequenceIndex = 0;
-	// Save for repeat-avoidance next round
-	previousSequence = currentSequence;
-	previousSequenceFirstNote = !currentSequence.empty() ? currentSequence.front() : -1;
-}
-
 void AudioPluginAudioProcessor::handleArpStep(
-    int64_t AbsoluteSamplePosition,
-    int64_t SampleCursorPosition,
-    int64_t NextStepSamplePosition,
-    double SamplesPerStep,
-    juce::MidiBuffer& OutputMidiBuffer
+	int64_t AbsoluteSamplePosition,
+	int64_t SampleCursorPosition,
+	double SamplesPerStep,
+	juce::MidiBuffer& OutputMidiBuffer
 )
 {
-    // Called on each arpeggio step, regardless of free or fractional
-    bool chordChanged = (heldNotes.size() != currentSequence.size() ||
-                         !std::is_permutation(heldNotes.begin(), heldNotes.end(), currentSequence.begin()));
-    bool sequenceComplete = (!heldNotes.empty() && currentSequenceIndex >= (int)heldNotes.size());
+	if (!heldNotes.empty())
+	{
+		// Turn off previous note
+		if (noteIsOn && currentlyPlayingNote >= 0)
+		{
+			OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), (int)SampleCursorPosition);
+			noteIsOn = false;
+			currentlyPlayingNote = -1;
+		}
 
-    if ((!heldNotes.empty()) && (chordChanged || sequenceComplete))
-    {
-        generateNewRandomSequence(heldNotes, lastPlayedNote);
-    }
+		// Pick a random note to play
+		std::random_device RandomDevice;
+		std::mt19937 RandomGenerator(RandomDevice());
+		std::uniform_int_distribution<size_t> Distribution(0, heldNotes.size() - 1);
+		int selectedNote = heldNotes[Distribution(RandomGenerator)];
 
-    if (!heldNotes.empty() && !currentSequence.empty())
-    {
-        int noteIndex = currentSequenceIndex;
-        if (noteIndex >= (int)currentSequence.size())
-            noteIndex = 0;
-
-        int selectedNote = currentSequence[noteIndex];
-
-        // Prevent immediate repeat
-        if (selectedNote == lastPlayedNote && currentSequence.size() > 1)
-        {
-            for (size_t Offset = 1; Offset < currentSequence.size(); ++Offset)
-            {
-                int TryNote = currentSequence[(noteIndex + Offset) % currentSequence.size()];
-                if (TryNote != lastPlayedNote)
-                {
-                    selectedNote = TryNote;
-                    break;
-                }
-            }
-        }
-
-        // Turn off previous note if necessary
-        if (noteIsOn && currentlyPlayingNote != selectedNote && currentlyPlayingNote >= 0)
-        {
-            OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), (int)SampleCursorPosition);
-        }
-
-        // Play note on
-        OutputMidiBuffer.addEvent(juce::MidiMessage::noteOn(1, selectedNote, (juce::uint8)127), (int)SampleCursorPosition);
-
-        currentlyPlayingNote = selectedNote;
-        noteOnSamplePosition = NextStepSamplePosition;
-        noteIsOn = true;
-
-        lastPlayedNote = selectedNote;
-        currentSequenceIndex++;
-        if (currentSequenceIndex >= (int)currentSequence.size())
-        {
-            currentSequenceIndex = 0; // Next round triggers a new shuffle in the next call
-        }
-    }
-    else
-    {
-        // Nothing held -- turn off any lingering note
-        if (noteIsOn && currentlyPlayingNote >= 0)
-        {
-            OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), (int)SampleCursorPosition);
-            noteIsOn = false;
-            currentlyPlayingNote = -1;
-            noteOnSamplePosition = -1;
-        }
-    }
+		OutputMidiBuffer.addEvent(juce::MidiMessage::noteOn(1, selectedNote, (juce::uint8)127), (int)SampleCursorPosition);
+		currentlyPlayingNote = selectedNote;
+		noteOnSamplePosition = AbsoluteSamplePosition;
+		noteIsOn = true;
+	}
+	else
+	{
+		// No notes held -- turn off any lingering note
+		if (noteIsOn && currentlyPlayingNote >= 0)
+		{
+			OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), (int)SampleCursorPosition);
+			noteIsOn = false;
+			currentlyPlayingNote = -1;
+		}
+	}
 }
 
 void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuffer, juce::MidiBuffer& MidiMessages)
@@ -348,13 +288,12 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
 
         if (absoluteSample >= nextQuarterNoteSample)
         {
-            handleArpStep(
-                absoluteSample,
-                sampleCursor,
-                nextQuarterNoteSample,
-                samplesPerStep,
-                OutputMidiBuffer
-            );
+        	handleArpStep(
+				absoluteSample,
+				sampleCursor,
+				samplesPerStep,
+				OutputMidiBuffer
+			);
 
             nextQuarterNoteSample += (int64_t)samplesPerStep;
         }
@@ -363,6 +302,13 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
         int64_t nextEventSample = juce::jmin(nextQuarterNoteSample, blockStartSample + blockNumSamples);
         sampleCursor = nextEventSample - blockStartSample;
     }
+
+	if (heldNotes.empty() && noteIsOn && currentlyPlayingNote >= 0)
+	{
+		OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), 0);
+		noteIsOn = false;
+		currentlyPlayingNote = -1;
+	}
 
     wasPlaying = isPlaying;
 
