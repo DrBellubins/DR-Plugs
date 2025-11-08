@@ -96,7 +96,7 @@ void AudioPluginAudioProcessorEditor::timerCallback()
         arpRateKnob->setValueToTextFunction(nullptr);
         arpRateKnob->setTextToValueFunction(nullptr);
 
-    	DBG("free mode arpRate: " << arpRate << " Knob value: " << arpRateKnob->getValue());
+    	//DBG("free mode arpRate: " << arpRate << " Knob value: " << arpRateKnob->getValue());
     }
     else // Fractional
     {
