@@ -52,6 +52,7 @@ private:
     bool isNewQuarterNote(int numSamples);
     void updateHeldNotes(const juce::MidiBuffer& MidiMessages);
     void shuffleBarOrder(const std::vector<int>& heldNotes);
+	void generateNewRandomSequence(const std::vector<int>& NoteSet, int LastNote);
 
     void handleArpStep(
         int64_t AbsoluteSamplePosition,
@@ -75,14 +76,12 @@ private:
     bool isPlaying = false;
     bool wasPlaying = false; // Track last transport state
 
-    // Algorithmic markov chain/random
-    std::vector<int> previousBarNotes;            // Notes played last bar
-    std::vector<int> currentBarNotes;             // Notes played this bar
-    int barNoteIndex = 0;                         // Note index within current bar
-    int notesPerBar = 4;                          // e.g. 4 for 4/4 quarter notes per bar
-    std::vector<int> currentBarOrder;             // The shuffled order for this bar
-    int lastPlayedNote = -1;                      // For immediate repeat prevention
-    int lastBarIndex = -1;                        // Track bar start
+    // Algorithmic random
+	int lastPlayedNote = -1;
+	std::vector<int> currentSequence; // The random note order for the current round
+	std::vector<int> previousSequence;
+	int currentSequenceIndex = 0;
+	int previousSequenceFirstNote = -1;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessor)
 };

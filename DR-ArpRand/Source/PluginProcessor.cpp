@@ -147,90 +147,96 @@ bool AudioPluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layou
   #endif
 }
 
-void AudioPluginAudioProcessor::shuffleBarOrder(const std::vector<int>& heldNotes)
+void AudioPluginAudioProcessor::generateNewRandomSequence(const std::vector<int>& NoteSet, int LastNote)
 {
-    currentBarOrder = heldNotes;
-    std::random_device randomDevice;
-    std::mt19937 randomGenerator(randomDevice());
+	currentSequence = NoteSet;
+	std::random_device RandomDevice;
+	std::mt19937 RandomGenerator(RandomDevice());
+	int MaxAttempts = 16;
+	int Attempts = 0;
 
-    // Shuffle until the order is different from the previous bar
-    int maxAttempts = 10;
-    int attempts = 0;
+	do
+	{
+		std::shuffle(currentSequence.begin(), currentSequence.end(), RandomGenerator);
 
-    do
-    {
-        std::shuffle(currentBarOrder.begin(), currentBarOrder.end(), randomGenerator);
-        attempts++;
-    }
-    while (attempts < maxAttempts && currentBarOrder == previousBarNotes);
+		bool immediateRepeat = (currentSequence.size() > 1 && currentSequence.front() == LastNote);
+		bool sameAsPrevious = (currentSequence == previousSequence);
 
-    currentBarNotes.clear();
-    barNoteIndex = 0;
+		if (!immediateRepeat && !sameAsPrevious)
+			break;
+		Attempts++;
+	}
+	while (Attempts < MaxAttempts);
+
+	currentSequenceIndex = 0;
+	// Save for repeat-avoidance next round
+	previousSequence = currentSequence;
+	previousSequenceFirstNote = !currentSequence.empty() ? currentSequence.front() : -1;
 }
 
 void AudioPluginAudioProcessor::handleArpStep(
     int64_t AbsoluteSamplePosition,
     int64_t SampleCursorPosition,
-    int64_t NextQuarterNoteSamplePosition,
-    double SamplesPerQuarterNote,
+    int64_t NextStepSamplePosition,
+    double SamplesPerStep,
     juce::MidiBuffer& OutputMidiBuffer
 )
 {
-    // Calculate bar index
-    int QuartersPerBar = notesPerBar;
-    int64_t SamplesPerBar = SamplesPerQuarterNote * QuartersPerBar;
-    int CurrentBarIndex = static_cast<int>(AbsoluteSamplePosition / SamplesPerBar);
+    // Called on each arpeggio step, regardless of free or fractional
+    bool chordChanged = (heldNotes.size() != currentSequence.size() ||
+                         !std::is_permutation(heldNotes.begin(), heldNotes.end(), currentSequence.begin()));
+    bool sequenceComplete = (!heldNotes.empty() && currentSequenceIndex >= (int)heldNotes.size());
 
-    // If the bar changed or held notes changed, reshuffle
-    bool BarChanged = (CurrentBarIndex != lastBarIndex);
-    bool NotesChanged = (heldNotes.size() != currentBarOrder.size() ||
-                         !std::equal(heldNotes.begin(), heldNotes.end(), currentBarOrder.begin()));
-
-    if ((BarChanged || NotesChanged) && !heldNotes.empty())
+    if ((!heldNotes.empty()) && (chordChanged || sequenceComplete))
     {
-        shuffleBarOrder(heldNotes);
-        lastBarIndex = CurrentBarIndex;
+        generateNewRandomSequence(heldNotes, lastPlayedNote);
     }
 
-    // Pick note if notes are held
-    if (!heldNotes.empty())
+    if (!heldNotes.empty() && !currentSequence.empty())
     {
-        int NoteIndex = barNoteIndex % currentBarOrder.size();
-        int SelectedNote = currentBarOrder[NoteIndex];
+        int noteIndex = currentSequenceIndex;
+        if (noteIndex >= (int)currentSequence.size())
+            noteIndex = 0;
+
+        int selectedNote = currentSequence[noteIndex];
 
         // Prevent immediate repeat
-        if (SelectedNote == lastPlayedNote && currentBarOrder.size() > 1)
+        if (selectedNote == lastPlayedNote && currentSequence.size() > 1)
         {
-            for (size_t Offset = 1; Offset < currentBarOrder.size(); ++Offset)
+            for (size_t Offset = 1; Offset < currentSequence.size(); ++Offset)
             {
-                int TryNote = currentBarOrder[(NoteIndex + Offset) % currentBarOrder.size()];
+                int TryNote = currentSequence[(noteIndex + Offset) % currentSequence.size()];
                 if (TryNote != lastPlayedNote)
                 {
-                    SelectedNote = TryNote;
+                    selectedNote = TryNote;
                     break;
                 }
             }
         }
 
-        // Turn off previous note first if necessary
-        if (noteIsOn && currentlyPlayingNote != SelectedNote && currentlyPlayingNote >= 0)
+        // Turn off previous note if necessary
+        if (noteIsOn && currentlyPlayingNote != selectedNote && currentlyPlayingNote >= 0)
         {
             OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), (int)SampleCursorPosition);
         }
 
-        // Turn on new note
-        OutputMidiBuffer.addEvent(juce::MidiMessage::noteOn(1, SelectedNote, (juce::uint8)127), (int)SampleCursorPosition);
+        // Play note on
+        OutputMidiBuffer.addEvent(juce::MidiMessage::noteOn(1, selectedNote, (juce::uint8)127), (int)SampleCursorPosition);
 
-        currentlyPlayingNote = SelectedNote;
-        noteOnSamplePosition = NextQuarterNoteSamplePosition;
+        currentlyPlayingNote = selectedNote;
+        noteOnSamplePosition = NextStepSamplePosition;
         noteIsOn = true;
 
-        currentBarNotes.push_back(SelectedNote);
-        lastPlayedNote = SelectedNote;
-        barNoteIndex++;
+        lastPlayedNote = selectedNote;
+        currentSequenceIndex++;
+        if (currentSequenceIndex >= (int)currentSequence.size())
+        {
+            currentSequenceIndex = 0; // Next round triggers a new shuffle in the next call
+        }
     }
     else
     {
+        // Nothing held -- turn off any lingering note
         if (noteIsOn && currentlyPlayingNote >= 0)
         {
             OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), (int)SampleCursorPosition);
@@ -238,13 +244,6 @@ void AudioPluginAudioProcessor::handleArpStep(
             currentlyPlayingNote = -1;
             noteOnSamplePosition = -1;
         }
-    }
-
-    // End of bar: Save current bar notes as previousBarNotes
-    if ((barNoteIndex % notesPerBar) == 0 && !currentBarNotes.empty())
-    {
-        previousBarNotes = currentBarNotes;
-        currentBarNotes.clear();
     }
 }
 
@@ -317,15 +316,13 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
 		float minFraction = 0.03125f;
 		float maxFraction = 1.0f;
 		float fraction = maxFraction * std::pow(minFraction / maxFraction, arpRate);
-
 		samplesPerStep = (60.0 / BPM) * getSampleRate() * fraction;
 	}
 	else
 	{
-		// Snap arpRate to nearest valid fraction
+		// Snap arpRate to 0, 0.2, 0.4, 0.6, 0.8, 1.0
 		float snappedArpRate = std::round(arpRate * 5.0f) / 5.0f;
-		int index = static_cast<int>(std::round(snappedArpRate * 5.0f));
-
+		int index = static_cast<int>(snappedArpRate * 5.0f + 0.5f);
 		index = juce::jlimit(0, 5, index);
 
 		static constexpr float BeatFractionValues[] = { 1.0f, 0.5f, 0.25f, 0.125f, 0.0625f, 0.03125f };
