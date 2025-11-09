@@ -130,13 +130,9 @@ void HorizontalRangeSlider::mouseDrag(const juce::MouseEvent& MouseEvent)
     float value = xToValue(mouseX);
 
     if (dragging == Lower)
-    {
         setLowerValue(value);
-    }
     else if (dragging == Upper)
-    {
         setUpperValue(value);
-    }
 }
 
 void HorizontalRangeSlider::mouseMove(const juce::MouseEvent& MouseEvent)

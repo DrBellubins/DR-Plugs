@@ -38,7 +38,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     arpRateKnob->setBounds(arpRateX, arpRateY - 50, arpRateWidthHeight, arpRateWidthHeight);
 
 	// Octave range slider
-	octaveRangeSlider = std::make_unique<HorizontalRangeSlider>(0.0f, 1.0f);
+	octaveRangeSlider = std::make_unique<HorizontalRangeSlider>(-48.0f, 48.0f);
 
 	addAndMakeVisible(*octaveRangeSlider);
 

@@ -33,7 +33,5 @@ private:
     std::unique_ptr<ThemedCheckbox> freeModeCheckbox;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> freeModeAttachment;
 
-
-
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };
