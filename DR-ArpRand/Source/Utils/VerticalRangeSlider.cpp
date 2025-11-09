@@ -1,8 +1,6 @@
 #include "VerticalRangeSlider.h"
 #include "Theme.h"
 
-// TODO: Slider UI is disconnected from thresholdLow & thresholdHigh
-
 VerticalRangeSlider::VerticalRangeSlider(float min, float max)
     : minValue(min), maxValue(max), lowerValue(min), upperValue(max)
 {

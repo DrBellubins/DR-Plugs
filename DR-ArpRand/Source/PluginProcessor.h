@@ -73,5 +73,8 @@ private:
     bool isPlaying = false;
     bool wasPlaying = false; // Track last transport state
 
+	int currentlyPlayedNote = -1;
+	int previousPlayedNote = -1;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessor)
 };

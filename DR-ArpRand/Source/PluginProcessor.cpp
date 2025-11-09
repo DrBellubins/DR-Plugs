@@ -164,16 +164,22 @@ void AudioPluginAudioProcessor::handleArpStep(
 			currentlyPlayingNote = -1;
 		}
 
-		// Pick a random note to play
-		std::random_device RandomDevice;
-		std::mt19937 RandomGenerator(RandomDevice());
-		std::uniform_int_distribution<size_t> Distribution(0, heldNotes.size() - 1);
-		int selectedNote = heldNotes[Distribution(RandomGenerator)];
+		// Prevent the same note from being repeated
+		while (currentlyPlayedNote == previousPlayedNote)
+		{
+			// Pick a random note to play
+			std::random_device RandomDevice;
+			std::mt19937 RandomGenerator(RandomDevice());
+			std::uniform_int_distribution<size_t> Distribution(0, heldNotes.size() - 1);
 
-		OutputMidiBuffer.addEvent(juce::MidiMessage::noteOn(1, selectedNote, (juce::uint8)127), (int)SampleCursorPosition);
-		currentlyPlayingNote = selectedNote;
+			currentlyPlayedNote = heldNotes[Distribution(RandomGenerator)];
+		}
+
+		OutputMidiBuffer.addEvent(juce::MidiMessage::noteOn(1, currentlyPlayedNote, (juce::uint8)127), (int)SampleCursorPosition);
+		currentlyPlayingNote = currentlyPlayedNote;
 		noteOnSamplePosition = AbsoluteSamplePosition;
 		noteIsOn = true;
+		previousPlayedNote = currentlyPlayedNote;
 	}
 	else
 	{

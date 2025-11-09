@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "Utils/FlatRotaryLookAndFeel.h"
+#include "Utils/HorizontalRangeSlider.h"
 #include "Utils/Theme.h"
 #include "Utils/ThemedCheckbox.h"
 
@@ -30,7 +31,27 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     addAndMakeVisible(*arpRateKnob);
 
-    arpRateKnob->setBounds((getWidth() / 2) - 100, (getHeight() / 2) - 100, 200, 200);
+	int arpRateWidthHeight = 150;
+	int arpRateX = (getWidth() / 2) - (arpRateWidthHeight / 2);
+	int arpRateY = (getHeight() / 2) - (arpRateWidthHeight / 2);
+
+    arpRateKnob->setBounds(arpRateX, arpRateY - 50, arpRateWidthHeight, arpRateWidthHeight);
+
+	// Octave range slider
+	octaveRangeSlider = std::make_unique<HorizontalRangeSlider>(0.0f, 1.0f);
+
+	addAndMakeVisible(*octaveRangeSlider);
+
+	octaveRangeSliderAttachment = std::make_unique<HorizontalRangeSliderAttachment>(
+	processor.parameters, "thresholdLow", "thresholdHigh", *octaveRangeSlider);
+
+	int octaveSliderWidth = 400;
+	int octaveSliderHeight = 25;
+	int octaveSliderX = (getWidth() / 2) - (octaveSliderWidth / 2);
+	int octaveSliderY = (getHeight() / 2) - (octaveSliderHeight / 2);
+
+	octaveRangeSlider->setBounds(octaveSliderX,  octaveSliderY + 100, octaveSliderWidth, octaveSliderHeight);
+	octaveRangeSlider->setRoundness(10.0f);
 
     // Free mode checkbox
     freeModeCheckbox = std::make_unique<ThemedCheckbox>("Free mode");

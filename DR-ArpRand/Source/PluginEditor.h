@@ -1,6 +1,8 @@
 #pragma once
 
 #include "PluginProcessor.h"
+#include "Utils/HorizontalRangeSlider.h"
+#include "Utils/HorizontalRangeSliderAttachment.h"
 #include "Utils/ThemedCheckbox.h"
 #include "Utils/ThemedKnob.h"
 
@@ -25,8 +27,13 @@ private:
     std::unique_ptr<ThemedKnob> arpRateKnob;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> arpRateAttachment;
 
+	std::unique_ptr<HorizontalRangeSlider> octaveRangeSlider;
+	std::unique_ptr<HorizontalRangeSliderAttachment> octaveRangeSliderAttachment;
+
     std::unique_ptr<ThemedCheckbox> freeModeCheckbox;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> freeModeAttachment;
+
+
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };
