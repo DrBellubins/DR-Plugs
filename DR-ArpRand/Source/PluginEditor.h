@@ -30,6 +30,9 @@ private:
 	std::unique_ptr<HorizontalRangeSlider> octaveRangeSlider;
 	std::unique_ptr<HorizontalRangeSliderAttachment> octaveRangeSliderAttachment;
 
+	std::unique_ptr<juce::Label> octaveRangeLowLabel;
+	std::unique_ptr<juce::Label> octaveRangeHighLabel;
+
     std::unique_ptr<ThemedCheckbox> freeModeCheckbox;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> freeModeAttachment;
 

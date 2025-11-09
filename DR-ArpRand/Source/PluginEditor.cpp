@@ -53,6 +53,45 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 	octaveRangeSlider->setBounds(octaveSliderX,  octaveSliderY + 100, octaveSliderWidth, octaveSliderHeight);
 	octaveRangeSlider->setRoundness(10.0f);
 
+	// Octave range labels
+	octaveRangeLowLabel = std::make_unique<juce::Label>();
+	octaveRangeHighLabel = std::make_unique<juce::Label>();
+
+	octaveRangeLowLabel->setJustificationType(juce::Justification::centredLeft);
+	octaveRangeHighLabel->setJustificationType(juce::Justification::centredRight);
+
+	addAndMakeVisible(*octaveRangeLowLabel);
+	addAndMakeVisible(*octaveRangeHighLabel);
+
+	octaveRangeLowLabel->setText(juce::String(octaveRangeSlider->getLowerValue(), 1), juce::dontSendNotification);
+	octaveRangeHighLabel->setText(juce::String(octaveRangeSlider->getUpperValue(), 1), juce::dontSendNotification);
+
+	// Low
+	int lowLabelWidth = octaveRangeLowLabel->getFont().getStringWidth(octaveRangeLowLabel->getText());
+	int lowLabelHeight = octaveRangeLowLabel->getFont().getHeight();
+	int lowLabelX = 100 - (lowLabelWidth / 2);
+	int lowLabelY = (getHeight() - 53) - (lowLabelHeight / 2);
+
+	octaveRangeLowLabel->setBounds(lowLabelX, lowLabelY, lowLabelWidth, lowLabelHeight);
+
+	octaveRangeSlider->OnLowerValueChanged = [this](float NewValue)
+	{
+		octaveRangeLowLabel->setText(juce::String(NewValue, 1), juce::dontSendNotification);
+	};
+
+	// High
+	int highLabelWidth = octaveRangeLowLabel->getFont().getStringWidth(octaveRangeLowLabel->getText());
+	int highLabelHeight = octaveRangeLowLabel->getFont().getHeight();
+	int highLabelX = (getWidth() - (highLabelWidth / 2)) - 100;
+	int highLabelY = (getHeight() - 53) - (highLabelHeight / 2);
+
+	octaveRangeHighLabel->setBounds(highLabelX, highLabelY, highLabelWidth, highLabelHeight);
+
+	octaveRangeSlider->OnUpperValueChanged = [this](float NewValue)
+	{
+		octaveRangeHighLabel->setText(juce::String(NewValue, 1), juce::dontSendNotification);
+	};
+
     // Free mode checkbox
     freeModeCheckbox = std::make_unique<ThemedCheckbox>("Free mode");
 
