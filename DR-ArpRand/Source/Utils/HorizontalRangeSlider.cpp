@@ -4,6 +4,7 @@
 HorizontalRangeSlider::HorizontalRangeSlider(float MinimumValue, float MaximumValue)
     : minValue(MinimumValue), maxValue(MaximumValue), lowerValue(MinimumValue), upperValue(MaximumValue)
 {
+	Enable();
 }
 
 void HorizontalRangeSlider::setLowerValue(float NewValue)
@@ -40,6 +41,20 @@ void HorizontalRangeSlider::setUpperValue(float NewValue)
     }
 }
 
+void HorizontalRangeSlider::Enable()
+{
+	Enabled = true;
+	currentColour = ThemePink;
+	repaint();
+}
+
+void HorizontalRangeSlider::Disable()
+{
+	Enabled = false;
+	currentColour = AccentGray;
+	repaint();
+}
+
 void HorizontalRangeSlider::setRoundness(float Radius)
 {
     roundness = Radius;
@@ -64,11 +79,11 @@ void HorizontalRangeSlider::paint(juce::Graphics& Graphics)
     juce::Rectangle<float> rangeRect(lowerX, sliderY, rangeWidth, sliderHeight);
 
     // Draw range rectangle
-    Graphics.setColour(ThemePink);
+    Graphics.setColour(currentColour);
     Graphics.fillRoundedRectangle(rangeRect, roundness);
 
     // Draw handles (flat lines)
-    Graphics.setColour(ThemePink.darker(0.2f));
+    Graphics.setColour(currentColour.darker(0.2f));
     float handleInset = handleMargin;
     float handleY1 = rangeRect.getY() + handleInset;
     float handleY2 = rangeRect.getBottom() - handleInset;

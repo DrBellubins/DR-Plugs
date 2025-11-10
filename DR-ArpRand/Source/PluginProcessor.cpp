@@ -24,6 +24,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> parameterList;
 
+	// Arp rate
     parameterList.push_back(std::make_unique<juce::AudioParameterFloat>(
         "arpRate",                  // Parameter ID
         "Arp Rate",                 // Parameter name
@@ -31,10 +32,25 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
 		0.4f                        // Default index: "1/4"
     ));
 
+	// Octave range
+	std::make_unique<juce::AudioParameterFloat>("octaveLower", "Octave Lower",
+		juce::NormalisableRange<float>(-48.0f, 48.0f), -12.0f);
+
+	std::make_unique<juce::AudioParameterFloat>("octaveHigher", "Octave Higher",
+		juce::NormalisableRange<float>(-48.0f, 48.0f), 12.0f);
+
+	// Free mode toggle
 	parameterList.push_back(std::make_unique<juce::AudioParameterBool>(
 		"isFreeMode",              // Parameter ID
 		"Free Mode Toggle",        // Parameter name
 		false                      // Default value
+	));
+
+	// Octaves toggle
+	parameterList.push_back(std::make_unique<juce::AudioParameterBool>(
+		"isOctaves",				// Parameter ID
+		"Octaves Toggle",			// Parameter name
+		false						// Default value
 	));
 
     return { parameterList.begin(), parameterList.end() };

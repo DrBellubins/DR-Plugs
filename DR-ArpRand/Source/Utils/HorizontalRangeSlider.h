@@ -6,6 +6,7 @@
 class HorizontalRangeSlider : public juce::Component
 {
 public:
+	bool Enabled;
 	float minValue, maxValue;
 	float lowerValue, upperValue;
 
@@ -20,6 +21,9 @@ public:
 
 	virtual void setLowerValue(float NewValue);
 	virtual void setUpperValue(float NewValue);
+
+	void Enable();
+	void Disable();
 
 	void setRoundness(float Radius);
 
@@ -42,6 +46,8 @@ private:
 
 	int handleThickness = 4; // Thickness of the drag handles
 	int handleMargin = 8;    // Margin inside the range rect for handles
+
+	juce::Colour currentColour;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(HorizontalRangeSlider)
 };
