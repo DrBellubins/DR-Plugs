@@ -301,7 +301,16 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
 
 	if (transportJumped)
 	{
-		waitingForFirstNote = true;
+		// Do this BEFORE scanning the buffer for note-ons later in the block!
+		if (currentHeldNoteCount > 0)
+		{
+			handleArpStep(SongPositionSamples, 0, samplesPerStep, OutputMidiBuffer);
+			waitingForFirstNote = false; // clear arm
+		}
+		else
+		{
+			waitingForFirstNote = true;
+		}
 	}
 
 	// Priority 1: Handle new notes appearing when previously there were none (MIDI event driven)
