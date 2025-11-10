@@ -1,5 +1,6 @@
 #pragma once
 
+#include <random>
 #include <juce_audio_processors/juce_audio_processors.h>
 
 //==============================================================================
@@ -82,6 +83,8 @@ private:
 	int previousHeldNoteCount = 0;
 	double stepPhase = 0.0;
 	bool arpStepFiredThisBlock = false;
+
+	std::mt19937 randomGenerator;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessor)
 };

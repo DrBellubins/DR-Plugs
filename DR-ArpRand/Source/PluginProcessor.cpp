@@ -14,6 +14,9 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
                        ),
     parameters(*this, nullptr, "PARAMS", createParameterLayout())
 {
+	std::random_device rd;
+	std::seed_seq seed { rd(), rd(), rd(), rd() };
+	randomGenerator.seed (seed);
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
@@ -22,38 +25,32 @@ AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
 
 juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::createParameterLayout()
 {
-    std::vector<std::unique_ptr<juce::RangedAudioParameter>> parameterList;
+	std::vector<std::unique_ptr<juce::RangedAudioParameter>> parameterList;
 
 	// Arp rate
-    parameterList.push_back(std::make_unique<juce::AudioParameterFloat>(
-        "arpRate",                  // Parameter ID
-        "Arp Rate",                 // Parameter name
-        juce::NormalisableRange<float>(0.0f, 1.0f),
-		0.4f                        // Default index: "1/4"
-    ));
+	parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
+		"arpRate", "Arp Rate",
+		juce::NormalisableRange<float>(0.0f, 1.0f), 0.4f));
 
-	// Octave range
-	std::make_unique<juce::AudioParameterFloat>("octaveLower", "Octave Lower",
-		juce::NormalisableRange<float>(-48.0f, 48.0f), -12.0f);
+	// <<< OCTAVE RANGE – MUST BE PUSHED >>>
+	parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
+		"octaveLower", "Octave Lower",
+		juce::NormalisableRange<float>(-48.0f, 48.0f), -12.0f));
 
-	std::make_unique<juce::AudioParameterFloat>("octaveHigher", "Octave Higher",
-		juce::NormalisableRange<float>(-48.0f, 48.0f), 12.0f);
+	parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
+		"octaveHigher", "Octave Higher",
+		juce::NormalisableRange<float>(-48.0f, 48.0f), 12.0f));
+	// <<< END >>>
 
 	// Free mode toggle
-	parameterList.push_back(std::make_unique<juce::AudioParameterBool>(
-		"isFreeMode",              // Parameter ID
-		"Free Mode Toggle",        // Parameter name
-		false                      // Default value
-	));
+	parameterList.push_back (std::make_unique<juce::AudioParameterBool>(
+		"isFreeMode", "Free Mode Toggle", false));
 
 	// Octaves toggle
-	parameterList.push_back(std::make_unique<juce::AudioParameterBool>(
-		"isOctaves",				// Parameter ID
-		"Octaves Toggle",			// Parameter name
-		false						// Default value
-	));
+	parameterList.push_back (std::make_unique<juce::AudioParameterBool>(
+		"isOctaves", "Octaves Toggle", false));
 
-    return { parameterList.begin(), parameterList.end() };
+	return { parameterList.begin(), parameterList.end() };
 }
 
 //==============================================================================
@@ -163,72 +160,104 @@ bool AudioPluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layou
   #endif
 }
 
-void AudioPluginAudioProcessor::handleArpStep(
-	int64_t AbsoluteSamplePosition,
-	int64_t SampleCursorPosition,
-	double SamplesPerStep,
-	juce::MidiBuffer& OutputMidiBuffer
-)
+void AudioPluginAudioProcessor::handleArpStep (
+    int64_t AbsoluteSamplePosition,
+    int64_t SampleCursorPosition,
+    double  SamplesPerStep,
+    juce::MidiBuffer& OutputMidiBuffer)
 {
-	if (!heldNotes.empty())
-	{
-		// Turn off previous note
-		if (noteIsOn && currentlyPlayingNote >= 0)
-		{
-			OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), (int)SampleCursorPosition);
-			noteIsOn = false;
-			currentlyPlayingNote = -1;
-		}
+    // --------------------------------------------------------------
+    // 1. Turn off the note that is currently playing
+    // --------------------------------------------------------------
+    if (noteIsOn && currentlyPlayingNote >= 0)
+    {
+        OutputMidiBuffer.addEvent (
+            juce::MidiMessage::noteOff (1, currentlyPlayingNote),
+            static_cast<int> (SampleCursorPosition));
 
-		// Prevent the same note from being repeated
-		while (currentlyPlayedNote == previousPlayedNote)
-		{
-			// Pick a random note to play
-			std::random_device RandomDevice;
-			std::mt19937 RandomGenerator(RandomDevice());
-			std::uniform_int_distribution<size_t> Distribution(0, heldNotes.size() - 1);
+        noteIsOn = false;
+        currentlyPlayingNote = -1;
+    }
 
-			currentlyPlayedNote = heldNotes[Distribution(RandomGenerator)];
-		}
+    // --------------------------------------------------------------
+    // 2. Nothing held → stay silent
+    // --------------------------------------------------------------
+    if (heldNotes.empty())
+        return;
 
-		OutputMidiBuffer.addEvent(juce::MidiMessage::noteOn(1, currentlyPlayedNote, (juce::uint8)127), (int)SampleCursorPosition);
-		currentlyPlayingNote = currentlyPlayedNote;
-		noteOnSamplePosition = AbsoluteSamplePosition;
-		noteIsOn = true;
-		previousPlayedNote = currentlyPlayedNote;
-	}
-	else
-	{
-		// No notes held -- turn off any lingering note
-		if (noteIsOn && currentlyPlayingNote >= 0)
-		{
-			OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), (int)SampleCursorPosition);
-			noteIsOn = false;
-			currentlyPlayingNote = -1;
-		}
-	}
+    // --------------------------------------------------------------
+    // 3. Pick a random held note (no repeats)
+    // --------------------------------------------------------------
+    std::uniform_int_distribution<size_t> noteDist (0, heldNotes.size() - 1);
+    int selectedNote = heldNotes[noteDist (randomGenerator)];
+
+    while (selectedNote == previousPlayedNote && heldNotes.size() > 1)
+        selectedNote = heldNotes[noteDist (randomGenerator)];
+
+    // --------------------------------------------------------------
+    // 4. Octave transposition (safe parameter access)
+    // --------------------------------------------------------------
+    auto* octToggle = parameters.getRawParameterValue ("isOctaves");
+    jassert (octToggle);
+    const bool isOctavesEnabled = octToggle ? (octToggle->load() > 0.5f) : false;
+
+    if (isOctavesEnabled)
+    {
+        auto* lowerParam = parameters.getRawParameterValue ("octaveLower");
+        jassert (lowerParam);
+        const float lower = lowerParam ? lowerParam->load() : -12.0f;
+
+        auto* higherParam = parameters.getRawParameterValue ("octaveHigher");
+        jassert (higherParam);
+        const float higher = higherParam ? higherParam->load() : 12.0f;
+
+        const int minOct = static_cast<int> (std::lround (lower  / 12.0f));
+        const int maxOct = static_cast<int> (std::lround (higher / 12.0f));
+
+        if (minOct < maxOct)
+        {
+            std::uniform_int_distribution<int> octDist (minOct, maxOct);
+            const int octaveOffset = octDist (randomGenerator);
+            selectedNote += octaveOffset * 12;
+            selectedNote = juce::jlimit (0, 127, selectedNote);
+        }
+    }
+
+    // --------------------------------------------------------------
+    // 5. Send note-on
+    // --------------------------------------------------------------
+    OutputMidiBuffer.addEvent (
+        juce::MidiMessage::noteOn (1,
+                                   selectedNote,
+                                   static_cast<juce::uint8> (127)),
+        static_cast<int> (SampleCursorPosition));
+
+    currentlyPlayingNote = selectedNote;
+    noteOnSamplePosition = AbsoluteSamplePosition;
+    noteIsOn             = true;
+    previousPlayedNote   = selectedNote;
 }
 
 // TODO: On midi track repeat causes first note to play slightly delayed.
 // TODO: Free mode automation does not update current time signature to play next note at newer relative signature.
 void AudioPluginAudioProcessor::processBlock(
-    juce::AudioBuffer<float>& AudioBuffer,
-    juce::MidiBuffer& MidiMessages
+    juce::AudioBuffer<float>& audioBuffer,
+    juce::MidiBuffer& midiMessages
 )
 {
     if (BPM <= 0.0)
     {
-        MidiMessages.clear();
+        midiMessages.clear();
         return;
     }
 
-    juce::MidiBuffer OutputMidiBuffer;
-    juce::AudioPlayHead::CurrentPositionInfo TransportInfo;
+    juce::MidiBuffer outputMidiBuffer;
+    juce::AudioPlayHead::CurrentPositionInfo transportInfo;
 
     // Query transport position (sample-accurate)
     if (getPlayHead() != nullptr)
     {
-        getPlayHead()->getCurrentPosition(TransportInfo);
+        getPlayHead()->getCurrentPosition(transportInfo);
     }
 
     // Update BPM from playhead, if available
@@ -236,30 +265,30 @@ void AudioPluginAudioProcessor::processBlock(
 
     if (playHead != nullptr)
     {
-        juce::AudioPlayHead::CurrentPositionInfo PositionInfo;
+        juce::AudioPlayHead::CurrentPositionInfo positionInfo;
 
-        if (playHead->getCurrentPosition(PositionInfo))
+        if (playHead->getCurrentPosition(positionInfo))
         {
-            if (PositionInfo.bpm > 0.0)
+            if (positionInfo.bpm > 0.0)
             {
-                BPM = PositionInfo.bpm;
+                BPM = positionInfo.bpm;
             }
         }
     }
 
-    isPlaying = TransportInfo.isPlaying;
+    isPlaying = transportInfo.isPlaying;
 
     // On playback stop, immediately turn off any held or played notes
     if (!isPlaying && wasPlaying)
     {
-        for (int HeldNote : heldNotes)
+        for (int heldNote : heldNotes)
         {
-            OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, HeldNote), 0);
+            outputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, heldNote), 0);
         }
 
         if (noteIsOn && currentlyPlayingNote >= 0)
         {
-            OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), 0);
+            outputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), 0);
         }
 
         noteIsOn = false;
@@ -294,25 +323,25 @@ void AudioPluginAudioProcessor::processBlock(
         int index = static_cast<int>(snappedArpRate * 5.0f);
         index = juce::jlimit(0, 5, index);
 
-        static constexpr float BeatFractionValues[] = { 1.0f, 0.5f, 0.25f, 0.125f, 0.0625f, 0.03125f };
-        float beatFraction = BeatFractionValues[index];
+        static constexpr float beatFractionValues[] = { 1.0f, 0.5f, 0.25f, 0.125f, 0.0625f, 0.03125f };
+        float beatFraction = beatFractionValues[index];
 
         samplesPerStep = (60.0 / BPM) * getSampleRate() * beatFraction;
     }
 
     // Get time position and buffer info
-    const int64_t SongPositionSamples = TransportInfo.timeInSamples;
-    int blockNumSamples = AudioBuffer.getNumSamples();
-    int64_t blockStartSample = SongPositionSamples;
+    const int64_t songPositionSamples = transportInfo.timeInSamples;
+    int blockNumSamples = audioBuffer.getNumSamples();
+    int64_t blockStartSample = songPositionSamples;
 
     // Always update held notes BEFORE state logic
-    updateHeldNotes(MidiMessages);
+    updateHeldNotes(midiMessages);
     int currentHeldNoteCount = static_cast<int>(heldNotes.size());
 
     // -------- Detect start-of-block transport regions or playback events --------
     bool transportJumped = (
         lastSongPositionSamples < 0
-        || SongPositionSamples != lastSongPositionSamples + lastBlockNumSamples
+        || songPositionSamples != lastSongPositionSamples + lastBlockNumSamples
         || (!wasPlaying && isPlaying)
     );
 
@@ -325,7 +354,7 @@ void AudioPluginAudioProcessor::processBlock(
         // Always flush note at jump (prevents hanging notes)
         if (noteIsOn && currentlyPlayingNote >= 0)
         {
-            OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), 0);
+            outputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), 0);
             noteIsOn = false;
             currentlyPlayingNote = -1;
         }
@@ -337,10 +366,11 @@ void AudioPluginAudioProcessor::processBlock(
                 blockStartSample,
                 0,
                 samplesPerStep,
-                OutputMidiBuffer
+                outputMidiBuffer
             );
             waitingForFirstNote = false;
             arpStepTriggeredThisBlock = true;
+            if (isFreeMode) stepPhase = 0.0;  // Reset phase after initial trigger
         }
         else
         {
@@ -352,14 +382,29 @@ void AudioPluginAudioProcessor::processBlock(
     // Don't double-trigger if transport-trigger did it already
     if (!arpStepTriggeredThisBlock && (currentHeldNoteCount > 0 && previousHeldNoteCount == 0))
     {
-        handleArpStep(
-            blockStartSample,
-            0,
-            samplesPerStep,
-            OutputMidiBuffer
-        );
-        waitingForFirstNote = false;
-        arpStepTriggeredThisBlock = true;
+        // Find the earliest note-on position in the buffer for accurate timing
+        int earliestNoteOnPosition = blockNumSamples;
+        for (const auto& midiEvent : midiMessages)
+        {
+            const juce::MidiMessage& midiMessage = midiEvent.getMessage();
+            if (midiMessage.isNoteOn())
+            {
+                earliestNoteOnPosition = juce::jmin(earliestNoteOnPosition, midiEvent.samplePosition);
+            }
+        }
+
+        if (earliestNoteOnPosition < blockNumSamples)
+        {
+            handleArpStep(
+                blockStartSample + earliestNoteOnPosition,
+                earliestNoteOnPosition,
+                samplesPerStep,
+                outputMidiBuffer
+            );
+            waitingForFirstNote = false;
+            arpStepTriggeredThisBlock = true;
+            if (isFreeMode) stepPhase = 0.0;  // Reset phase after re-start trigger
+        }
     }
     // --------- On transport jump, wait for first note-on if necessary ---------
     else if (waitingForFirstNote && !arpStepTriggeredThisBlock)
@@ -367,7 +412,7 @@ void AudioPluginAudioProcessor::processBlock(
         bool anyNoteOn = false;
         int noteOnSamplePosition = 0;
 
-        for (const auto& midiEvent : MidiMessages)
+        for (const auto& midiEvent : midiMessages)
         {
             const juce::MidiMessage& midiMessage = midiEvent.getMessage();
 
@@ -375,7 +420,7 @@ void AudioPluginAudioProcessor::processBlock(
             {
                 anyNoteOn = true;
                 noteOnSamplePosition = midiEvent.samplePosition;
-                break;
+                break;  // Use the first (earliest) note-on
             }
         }
 
@@ -385,11 +430,12 @@ void AudioPluginAudioProcessor::processBlock(
                 blockStartSample + noteOnSamplePosition,
                 noteOnSamplePosition,
                 samplesPerStep,
-                OutputMidiBuffer
+                outputMidiBuffer
             );
 
             waitingForFirstNote = false;
             arpStepTriggeredThisBlock = true;
+            if (isFreeMode) stepPhase = 0.0;  // Reset phase after first trigger
         }
     }
 
@@ -417,7 +463,7 @@ void AudioPluginAudioProcessor::processBlock(
                         blockStartSample + triggerPosition,
                         triggerPosition,
                         samplesPerStep,
-                        OutputMidiBuffer
+                        outputMidiBuffer
                     );
 
                     arpStepTriggeredThisBlock = true;
@@ -449,7 +495,7 @@ void AudioPluginAudioProcessor::processBlock(
                         absoluteSample,
                         static_cast<int>(sampleCursor),
                         samplesPerStep,
-                        OutputMidiBuffer
+                        outputMidiBuffer
                     );
 
                     arpStepTriggeredThisBlock = true;
@@ -466,19 +512,19 @@ void AudioPluginAudioProcessor::processBlock(
     // Always turn off current note if no keys are held
     if (heldNotes.empty() && noteIsOn && currentlyPlayingNote >= 0)
     {
-        OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), 0);
+        outputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), 0);
         noteIsOn = false;
         currentlyPlayingNote = -1;
     }
 
     // Update state for next block
     wasPlaying = isPlaying;
-    lastSongPositionSamples = SongPositionSamples;
+    lastSongPositionSamples = songPositionSamples;
     lastBlockNumSamples = blockNumSamples;
     previousHeldNoteCount = currentHeldNoteCount;
 
     // Output Result
-    MidiMessages.swapWith(OutputMidiBuffer);
+    midiMessages.swapWith(outputMidiBuffer);
 }
 
 void AudioPluginAudioProcessor::updateHeldNotes(const juce::MidiBuffer& MidiMessages)
