@@ -19,19 +19,7 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
-	void parameterChanged(const juce::String& parameterID, float newValue) override
-	{
-		if (parameterID == "isOctaves" && octaveRangeSlider)
-		{
-			juce::MessageManager::callAsync([this, state = (newValue >= 0.5f)]()
-			{
-				if (state)
-					octaveRangeSlider->Enable();
-				else
-					octaveRangeSlider->Disable();
-			});
-		}
-	}
+	void parameterChanged(const juce::String& parameterID, float newValue) override;
 
 private:
     void timerCallback() override;

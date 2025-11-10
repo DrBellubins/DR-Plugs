@@ -8,16 +8,16 @@
 static FlatRotaryLookAndFeel flatKnobLAF;
 
 //==============================================================================
-AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor& processor)
-    : AudioProcessorEditor (&processor), processorRef (processor)
+AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor(AudioPluginAudioProcessor& processor)
+    : AudioProcessorEditor(&processor), processorRef(processor)
 {
-    juce::ignoreUnused (processorRef);
+    juce::ignoreUnused(processorRef);
 
 	processorRef.parameters.addParameterListener("isOctaves", this);
+	processorRef.parameters.addParameterListener("octaveLower", this);
+	processorRef.parameters.addParameterListener("octaveHigher", this);
 
-    // Make sure that before the constructor has finished, you've set the
-    // editor's size to whatever you need it to be.
-    setSize (700, 300);
+    setSize(700, 300);
 
     startTimerHz(20); // Update 20 times per second
 
@@ -33,69 +33,77 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     addAndMakeVisible(*arpRateKnob);
 
-	int arpRateWidthHeight = 150;
-	int arpRateX = (getWidth() / 2) - (arpRateWidthHeight / 2);
-	int arpRateY = (getHeight() / 2) - (arpRateWidthHeight / 2);
+    int arpRateWidthHeight = 150;
+    int arpRateX = (getWidth() / 2) - (arpRateWidthHeight / 2);
+    int arpRateY = (getHeight() / 2) - (arpRateWidthHeight / 2);
 
     arpRateKnob->setBounds(arpRateX, arpRateY - 25, arpRateWidthHeight, arpRateWidthHeight);
 
-	// Octave range slider
-	octaveRangeSlider = std::make_unique<SteppedHorizontalRangeSlider>(-48.0f, 48.0f, 12.0f);
+    // Octave range slider
+    octaveRangeSlider = std::make_unique<SteppedHorizontalRangeSlider>(-48.0f, 48.0f, 12.0f);
 
-	addAndMakeVisible(*octaveRangeSlider);
+    addAndMakeVisible(*octaveRangeSlider);
 
-	octaveRangeSliderAttachment = std::make_unique<HorizontalRangeSliderAttachment>(
-		processorRef.parameters,            // APVTS
-		"octaveLower",                      // lower param
-		"octaveHigher",                     // upper param
-		*octaveRangeSlider);
+    octaveRangeSliderAttachment = std::make_unique<HorizontalRangeSliderAttachment>(
+        processorRef.parameters,            // APVTS
+        "octaveLower",                      // lower param
+        "octaveHigher",                     // upper param
+        *octaveRangeSlider);
 
-	int octaveSliderWidth = 400;
-	int octaveSliderHeight = 25;
-	int octaveSliderX = (getWidth() / 2) - (octaveSliderWidth / 2);
-	int octaveSliderY = (getHeight() / 2) - (octaveSliderHeight / 2);
+    int octaveSliderWidth = 400;
+    int octaveSliderHeight = 25;
+    int octaveSliderX = (getWidth() / 2) - (octaveSliderWidth / 2);
+    int octaveSliderY = (getHeight() / 2) - (octaveSliderHeight / 2);
 
-	octaveRangeSlider->setBounds(octaveSliderX,  octaveSliderY + 100, octaveSliderWidth, octaveSliderHeight);
-	octaveRangeSlider->setRoundness(10.0f);
+    octaveRangeSlider->setBounds(octaveSliderX, octaveSliderY + 100, octaveSliderWidth, octaveSliderHeight);
+    octaveRangeSlider->setRoundness(10.0f);
 
-	// Octave range labels
-	octaveRangeLowLabel = std::make_unique<juce::Label>();
-	octaveRangeHighLabel = std::make_unique<juce::Label>();
+    // Octave range labels
+    octaveRangeLowLabel = std::make_unique<juce::Label>();
+    octaveRangeHighLabel = std::make_unique<juce::Label>();
 
-	octaveRangeLowLabel->setJustificationType(juce::Justification::centredLeft);
-	octaveRangeHighLabel->setJustificationType(juce::Justification::centredRight);
+    octaveRangeLowLabel->setJustificationType(juce::Justification::centredLeft);
+    octaveRangeHighLabel->setJustificationType(juce::Justification::centredRight);
 
-	addAndMakeVisible(*octaveRangeLowLabel);
-	addAndMakeVisible(*octaveRangeHighLabel);
+    addAndMakeVisible(*octaveRangeLowLabel);
+    addAndMakeVisible(*octaveRangeHighLabel);
 
-	octaveRangeLowLabel->setText(juce::String(octaveRangeSlider->getLowerValue(), 1), juce::dontSendNotification);
-	octaveRangeHighLabel->setText(juce::String(octaveRangeSlider->getUpperValue(), 1), juce::dontSendNotification);
+    // Initialize label text from parameter values
+    auto updateOctaveRangeLabels = [this]()
+    {
+        if (octaveRangeLowLabel && octaveRangeHighLabel && octaveRangeSlider)
+        {
+            octaveRangeLowLabel->setText(
+                juce::String(octaveRangeSlider->getLowerValue(), 1),
+                juce::dontSendNotification);
 
-	// Low
-	int lowLabelWidth = octaveRangeLowLabel->getFont().getStringWidth(octaveRangeLowLabel->getText());
-	int lowLabelHeight = octaveRangeLowLabel->getFont().getHeight();
-	int lowLabelX = 100 - (lowLabelWidth / 2);
-	int lowLabelY = (getHeight() - 53) - (lowLabelHeight / 2);
+            octaveRangeHighLabel->setText(
+                juce::String(octaveRangeSlider->getUpperValue(), 1),
+                juce::dontSendNotification);
+        }
+    };
 
-	octaveRangeLowLabel->setBounds(lowLabelX, lowLabelY, lowLabelWidth, lowLabelHeight);
+    updateOctaveRangeLabels();
 
-	octaveRangeSlider->OnLowerValueChanged = [this](float NewValue)
-	{
-		octaveRangeLowLabel->setText(juce::String(NewValue, 1), juce::dontSendNotification);
-	};
+    // Position low label
+    int lowLabelWidth = octaveRangeLowLabel->getFont().getStringWidth(octaveRangeLowLabel->getText());
+    int lowLabelHeight = octaveRangeLowLabel->getFont().getHeight();
+    int lowLabelX = 100 - (lowLabelWidth / 2);
+    int lowLabelY = (getHeight() - 53) - (lowLabelHeight / 2);
 
-	// High
-	int highLabelWidth = octaveRangeLowLabel->getFont().getStringWidth(octaveRangeLowLabel->getText());
-	int highLabelHeight = octaveRangeLowLabel->getFont().getHeight();
-	int highLabelX = (getWidth() - (highLabelWidth / 2)) - 100;
-	int highLabelY = (getHeight() - 53) - (highLabelHeight / 2);
+    octaveRangeLowLabel->setBounds(lowLabelX, lowLabelY, lowLabelWidth, lowLabelHeight);
 
-	octaveRangeHighLabel->setBounds(highLabelX, highLabelY, highLabelWidth, highLabelHeight);
+    // Position high label
+    int highLabelWidth = octaveRangeLowLabel->getFont().getStringWidth(octaveRangeLowLabel->getText());
+    int highLabelHeight = octaveRangeLowLabel->getFont().getHeight();
+    int highLabelX = (getWidth() - (highLabelWidth / 2)) - 100;
+    int highLabelY = (getHeight() - 53) - (highLabelHeight / 2);
 
-	octaveRangeSlider->OnUpperValueChanged = [this](float NewValue)
-	{
-		octaveRangeHighLabel->setText(juce::String(NewValue, 1), juce::dontSendNotification);
-	};
+    octaveRangeHighLabel->setBounds(highLabelX, highLabelY, highLabelWidth, highLabelHeight);
+
+    // Add listeners to update labels when parameters change (works for both mouse and automation)
+    auto* lowerParam = processorRef.parameters.getParameter("octaveLower");
+    auto* upperParam = processorRef.parameters.getParameter("octaveHigher");
 
     // Free mode checkbox
     freeModeCheckbox = std::make_unique<ThemedCheckbox>("Free mode");
@@ -107,22 +115,26 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     freeModeCheckbox->setBounds(50, 50, 150, 32); // x, y, width, height
 
-	// Octaves checkbox
-	octavesCheckbox = std::make_unique<ThemedCheckbox>("Enable octaves");
+    // Octaves checkbox
+    octavesCheckbox = std::make_unique<ThemedCheckbox>("Enable octaves");
 
-	octavesAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
-		processorRef.parameters, "isOctaves", *octavesCheckbox);
+    octavesAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+        processorRef.parameters, "isOctaves", *octavesCheckbox);
 
-	addAndMakeVisible(*octavesCheckbox);
+    addAndMakeVisible(*octavesCheckbox);
 
-	octavesCheckbox->setBounds(50, 10, 150, 32); // x, y, width, height
+    octavesCheckbox->setBounds(50, 10, 150, 32); // x, y, width, height
 
-	bool octavesEnabled = processorRef.parameters.getRawParameterValue("isOctaves")->load() > 0.5f;
+    bool octavesEnabled = processorRef.parameters.getRawParameterValue("isOctaves")->load() > 0.5f;
 
-	if (octavesEnabled)
-		octaveRangeSlider->Enable();
-	else
-		octaveRangeSlider->Disable();
+    if (octavesEnabled)
+    {
+        octaveRangeSlider->Enable();
+    }
+    else
+    {
+        octaveRangeSlider->Disable();
+    }
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
@@ -140,6 +152,31 @@ void AudioPluginAudioProcessorEditor::resized()
 {
     // This is generally where you'll want to lay out the positions of any
     // subcomponents in your editor.
+}
+
+void AudioPluginAudioProcessorEditor::parameterChanged(const juce::String& parameterID, float newValue)
+{
+	if (parameterID == "isOctaves" && octaveRangeSlider)
+	{
+		juce::MessageManager::callAsync([this, state = (newValue >= 0.5f)]()
+		{
+			if (state)
+				octaveRangeSlider->Enable();
+			else
+				octaveRangeSlider->Disable();
+		});
+	}
+	else if ((parameterID == "octaveLower" || parameterID == "octaveHigher") && octaveRangeSlider)
+	{
+		juce::MessageManager::callAsync([this]()
+		{
+			if (octaveRangeLowLabel)
+				octaveRangeLowLabel->setText(juce::String(octaveRangeSlider->getLowerValue(), 1), juce::dontSendNotification);
+
+			if (octaveRangeHighLabel)
+				octaveRangeHighLabel->setText(juce::String(octaveRangeSlider->getUpperValue(), 1), juce::dontSendNotification);
+		});
+	}
 }
 
 void AudioPluginAudioProcessorEditor::timerCallback()
