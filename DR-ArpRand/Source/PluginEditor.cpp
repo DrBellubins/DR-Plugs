@@ -13,8 +13,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 {
     juce::ignoreUnused (processorRef);
 
-	// TODO: Octave range slider needs VST parameter.
-	// TODO: So does octaves checkbox.
+	processorRef.parameters.addParameterListener("isOctaves", this);
 
     // Make sure that before the constructor has finished, you've set the
     // editor's size to whatever you need it to be.
@@ -137,7 +136,6 @@ void AudioPluginAudioProcessorEditor::timerCallback()
 {
     float arpRate = processorRef.parameters.getRawParameterValue("arpRate")->load();
     bool isFreeMode = processorRef.parameters.getRawParameterValue("isFreeMode")->load() > 0.5f;
-	bool isOctaves = processorRef.parameters.getRawParameterValue("isOctaves")->load() > 0.5f;
 
     static constexpr float beatFractionS[] = { 1.0f, 0.5f, 0.25f, 0.125f, 0.0625f, 0.03125f };
     static constexpr int numBeatFractions = 6;

@@ -4,7 +4,7 @@
 HorizontalRangeSlider::HorizontalRangeSlider(float MinimumValue, float MaximumValue)
     : minValue(MinimumValue), maxValue(MaximumValue), lowerValue(MinimumValue), upperValue(MaximumValue)
 {
-	Enable();
+	Disable(); // Since isOctaves is disabled by default
 }
 
 void HorizontalRangeSlider::setLowerValue(float NewValue)
@@ -51,7 +51,7 @@ void HorizontalRangeSlider::Enable()
 void HorizontalRangeSlider::Disable()
 {
 	Enabled = false;
-	currentColour = AccentGray;
+	currentColour = UnfocusedGray;
 	repaint();
 }
 

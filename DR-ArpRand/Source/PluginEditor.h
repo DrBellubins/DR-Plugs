@@ -8,7 +8,8 @@
 #include "Utils/ThemedKnob.h"
 
 //==============================================================================
-class AudioPluginAudioProcessorEditor : public juce::AudioProcessorEditor, private juce::Timer
+class AudioPluginAudioProcessorEditor : public juce::AudioProcessorEditor, private juce::Timer,
+	private juce::AudioProcessorValueTreeState::Listener
 {
 public:
     explicit AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor&);
@@ -17,6 +18,20 @@ public:
     //==============================================================================
     void paint (juce::Graphics&) override;
     void resized() override;
+
+	void parameterChanged(const juce::String& parameterID, float newValue) override
+	{
+		if (parameterID == "isOctaves" && octaveRangeSlider)
+		{
+			juce::MessageManager::callAsync([this, state = (newValue >= 0.5f)]()
+			{
+				if (state)
+					octaveRangeSlider->Enable();
+				else
+					octaveRangeSlider->Disable();
+			});
+		}
+	}
 
 private:
     void timerCallback() override;
