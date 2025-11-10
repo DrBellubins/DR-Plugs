@@ -69,6 +69,7 @@ private:
     int lastQuarterNoteIndex = -1;           // Last quarter note index
     double cachedSamplesPerQuarterNote = 0;  // Cache value from prepareToPlay
 
+	bool waitingForFirstNote = false;
     int currentlyPlayingNote = -1;
     int64_t noteOnSamplePosition = -1;
     bool noteIsOn = false;

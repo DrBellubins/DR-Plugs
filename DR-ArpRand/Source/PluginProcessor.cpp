@@ -211,7 +211,6 @@ void AudioPluginAudioProcessor::handleArpStep(
 
 void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuffer, juce::MidiBuffer& MidiMessages)
 {
-    // We're stopped, clear midi and bypass processing.
     if (BPM <= 0.0)
     {
         MidiMessages.clear();
@@ -237,11 +236,10 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
         }
     }
 
-    isPlaying = TransportInfo.isPlaying; // Get from DAW
+    isPlaying = TransportInfo.isPlaying;
 
     if (!isPlaying && wasPlaying)
     {
-        // Playback just stopped - send note-off for all notes
         for (int HeldNote : heldNotes)
             OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, HeldNote), 0);
 
@@ -252,63 +250,70 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
         currentlyPlayingNote = -1;
     }
 
-	float arpRate = parameters.getRawParameterValue("arpRate")->load();
-	bool isFreeMode = parameters.getRawParameterValue("isFreeMode")->load() > 0.5;
+    float arpRate = parameters.getRawParameterValue("arpRate")->load();
+    bool isFreeMode = parameters.getRawParameterValue("isFreeMode")->load() > 0.5;
 
-	double samplesPerStep = 0.0;
+    double samplesPerStep = 0.0;
 
-    // TODO:
-    // Detect number of notes in the currently playing chord.
-    // Record that number of previously arpeggiated notes into a buffer.
-    // Make sure that sequence doesn't repeat next time.
-    // Also make sure that the next note isn't the same as the previous one.
+    if (isFreeMode)
+    {
+        float minFraction = 0.03125f;
+        float maxFraction = 1.0f;
+        float fraction = maxFraction * std::pow(minFraction / maxFraction, arpRate);
+        samplesPerStep = (60.0 / BPM) * getSampleRate() * fraction;
+    }
+    else
+    {
+        float snappedArpRate = std::round(arpRate * 5.0f) / 5.0f;
+        int index = static_cast<int>(snappedArpRate * 5.0f);
+        index = juce::jlimit(0, 5, index);
 
-    // TODO?:
-    // Implement perlin noise similar to Vital's random.
+        static constexpr float BeatFractionValues[] = { 1.0f, 0.5f, 0.25f, 0.125f, 0.0625f, 0.03125f };
+        float beatFraction = BeatFractionValues[index];
 
-	if (isFreeMode)
-	{
-		float minFraction = 0.03125f;
-		float maxFraction = 1.0f;
-		float fraction = maxFraction * std::pow(minFraction / maxFraction, arpRate);
-		samplesPerStep = (60.0 / BPM) * getSampleRate() * fraction;
-	}
-	else
-	{
-		// Snap arpRate to 0, 0.2, 0.4, 0.6, 0.8, 1.0
-		float snappedArpRate = std::round(arpRate * 5.0f) / 5.0f;
-		int index = static_cast<int>(snappedArpRate * 5.0f);
-		index = juce::jlimit(0, 5, index);
-
-		static constexpr float BeatFractionValues[] = { 1.0f, 0.5f, 0.25f, 0.125f, 0.0625f, 0.03125f };
-		float beatFraction = BeatFractionValues[index];
-
-		samplesPerStep = (60.0 / BPM) * getSampleRate() * beatFraction;
-	}
+        samplesPerStep = (60.0 / BPM) * getSampleRate() * beatFraction;
+    }
 
     updateHeldNotes(MidiMessages);
 
     const int64_t SongPositionSamples = TransportInfo.timeInSamples;
     const int blockNumSamples = AudioBuffer.getNumSamples();
 
-	// Only trigger immediately if playback started, song position jumped, or this is the first processBlock ever
-	if (lastSongPositionSamples < 0
-	|| SongPositionSamples != lastSongPositionSamples + lastBlockNumSamples
-	|| (!wasPlaying && isPlaying)
-   )
-	{
-		if (!heldNotes.empty())
-		{
-			handleArpStep(SongPositionSamples, 0, samplesPerStep, OutputMidiBuffer);
-		}
-		else
-		{
-			// No notes held yet after loop -- try to trigger on next step automatically
-		}
-	}
+    // Detect transport jump/start/loop. Arm to step on next note-on (to cover DAW boundary edge-case).
+    if (lastSongPositionSamples < 0
+        || SongPositionSamples != lastSongPositionSamples + lastBlockNumSamples
+        || (!wasPlaying && isPlaying))
+    {
+        waitingForFirstNote = true;
+    }
 
-	lastSongPositionSamples = SongPositionSamples;
-	lastBlockNumSamples = blockNumSamples;
+    // Only trigger an arp step immediately at block start if not in "wait for first note" mode.
+    // That is, rely on the "first note" logic below for jump/loop/start; otherwise normal sub-block stepping handles ongoing timing.
+
+    // If we're waiting for the first post-jump note, look for a note-on in this block.
+    if (waitingForFirstNote)
+    {
+        for (const auto& midiEvent : MidiMessages)
+        {
+            const juce::MidiMessage& midiMessage = midiEvent.getMessage();
+
+            if (midiMessage.isNoteOn())
+            {
+                // Arp step at note-on's sample position (relative to this processBlock)
+                handleArpStep(
+                    SongPositionSamples + midiEvent.samplePosition, // Absolute sample
+                    midiEvent.samplePosition,                       // Relative to block
+                    samplesPerStep,
+                    OutputMidiBuffer
+                );
+                waitingForFirstNote = false;
+                break;
+            }
+        }
+    }
+
+    lastSongPositionSamples = SongPositionSamples;
+    lastBlockNumSamples = blockNumSamples;
 
     // Sub-block scheduling for arpeggiator steps and note-offs
     const int64_t blockStartSample = SongPositionSamples;
@@ -322,27 +327,26 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
 
         if (absoluteSample >= nextQuarterNoteSample)
         {
-        	handleArpStep(
-				absoluteSample,
-				sampleCursor,
-				samplesPerStep,
-				OutputMidiBuffer
-			);
+            handleArpStep(
+                absoluteSample,
+                sampleCursor,
+                samplesPerStep,
+                OutputMidiBuffer
+            );
 
             nextQuarterNoteSample += (int64_t)samplesPerStep;
         }
 
-        // Advance sampleCursor to next event or end of block
         int64_t nextEventSample = juce::jmin(nextQuarterNoteSample, blockStartSample + blockNumSamples);
         sampleCursor = nextEventSample - blockStartSample;
     }
 
-	if (heldNotes.empty() && noteIsOn && currentlyPlayingNote >= 0)
-	{
-		OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), 0);
-		noteIsOn = false;
-		currentlyPlayingNote = -1;
-	}
+    if (heldNotes.empty() && noteIsOn && currentlyPlayingNote >= 0)
+    {
+        OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), 0);
+        noteIsOn = false;
+        currentlyPlayingNote = -1;
+    }
 
     wasPlaying = isPlaying;
 
