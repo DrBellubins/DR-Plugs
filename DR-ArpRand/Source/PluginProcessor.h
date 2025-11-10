@@ -70,6 +70,7 @@ private:
     double cachedSamplesPerQuarterNote = 0;  // Cache value from prepareToPlay
 
 	bool waitingForFirstNote = false;
+	bool pendingInitialStep = false;
     int currentlyPlayingNote = -1;
     int64_t noteOnSamplePosition = -1;
     bool noteIsOn = false;

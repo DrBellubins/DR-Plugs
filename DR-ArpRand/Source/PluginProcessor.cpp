@@ -221,7 +221,9 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
     juce::AudioPlayHead::CurrentPositionInfo TransportInfo;
 
     if (getPlayHead() != nullptr)
+    {
         getPlayHead()->getCurrentPosition(TransportInfo);
+    }
 
     juce::AudioPlayHead* playHead = getPlayHead();
 
@@ -232,7 +234,9 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
         if (playHead->getCurrentPosition(positionInfo))
         {
             if (positionInfo.bpm > 0.0)
+            {
                 BPM = positionInfo.bpm;
+            }
         }
     }
 
@@ -241,17 +245,21 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
     if (!isPlaying && wasPlaying)
     {
         for (int HeldNote : heldNotes)
+        {
             OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, HeldNote), 0);
+        }
 
         if (noteIsOn && currentlyPlayingNote >= 0)
+        {
             OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), 0);
+        }
 
         noteIsOn = false;
         currentlyPlayingNote = -1;
     }
 
     float arpRate = parameters.getRawParameterValue("arpRate")->load();
-    bool isFreeMode = parameters.getRawParameterValue("isFreeMode")->load() > 0.5;
+    bool isFreeMode = parameters.getRawParameterValue("isFreeMode")->load() > 0.5f;
 
     double samplesPerStep = 0.0;
 
@@ -279,43 +287,69 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
     const int64_t SongPositionSamples = TransportInfo.timeInSamples;
     const int blockNumSamples = AudioBuffer.getNumSamples();
 
-    // Detect transport jump/start/loop. Arm to step on next note-on (to cover DAW boundary edge-case).
-    if (lastSongPositionSamples < 0
+    // Detect transport jump/start/loop. Arm to step on next held note, but be robust
+    bool transportJumped = (
+        lastSongPositionSamples < 0
         || SongPositionSamples != lastSongPositionSamples + lastBlockNumSamples
-        || (!wasPlaying && isPlaying))
+        || (!wasPlaying && isPlaying)
+    );
+
+    if (transportJumped)
     {
         waitingForFirstNote = true;
+        pendingInitialStep = true; // will be handled below
     }
 
-    // Only trigger an arp step immediately at block start if not in "wait for first note" mode.
-    // That is, rely on the "first note" logic below for jump/loop/start; otherwise normal sub-block stepping handles ongoing timing.
+    // Strongest DAW-robustness: handle these cases:
+    //  - If a NoteOn is present, and we were waiting for first, fire step and clear both flags
+    //  - If heldNotes is populated and we are waiting, but grid-aligned NoteOn is not in buffer
+    //          (for DAWs that only send note ons at block start), fire step at sample 0, and clear both flags
 
-    // If we're waiting for the first post-jump note, look for a note-on in this block.
+    bool noteOnFoundInBlock = false;
+    int noteOnSamplePosition = 0;
+    for (const auto& midiEvent : MidiMessages)
+    {
+        const juce::MidiMessage& midiMessage = midiEvent.getMessage();
+        if (midiMessage.isNoteOn())
+        {
+            noteOnFoundInBlock = true;
+            noteOnSamplePosition = midiEvent.samplePosition;
+            break;
+        }
+    }
+
     if (waitingForFirstNote)
     {
-        for (const auto& midiEvent : MidiMessages)
+        if (noteOnFoundInBlock)
         {
-            const juce::MidiMessage& midiMessage = midiEvent.getMessage();
-
-            if (midiMessage.isNoteOn())
-            {
-                // Arp step at note-on's sample position (relative to this processBlock)
-                handleArpStep(
-                    SongPositionSamples + midiEvent.samplePosition, // Absolute sample
-                    midiEvent.samplePosition,                       // Relative to block
-                    samplesPerStep,
-                    OutputMidiBuffer
-                );
-                waitingForFirstNote = false;
-                break;
-            }
+            handleArpStep(
+                SongPositionSamples + noteOnSamplePosition,
+                noteOnSamplePosition,
+                samplesPerStep,
+                OutputMidiBuffer
+            );
+            waitingForFirstNote = false;
+            pendingInitialStep = false;
         }
+        else if (!heldNotes.empty() && pendingInitialStep)
+        {
+            // No explicit NoteOn event, but held notes present (for DAWs that do not send note-ons on loop)
+            handleArpStep(
+                SongPositionSamples,
+                0,
+                samplesPerStep,
+                OutputMidiBuffer
+            );
+            waitingForFirstNote = false;
+            pendingInitialStep = false;
+        }
+        // Otherwise, continue waiting for incoming MIDI in future blocks
     }
 
     lastSongPositionSamples = SongPositionSamples;
     lastBlockNumSamples = blockNumSamples;
 
-    // Sub-block scheduling for arpeggiator steps and note-offs
+    // Sub-block scheduling for arpeggiator steps and note-offs (regular)
     const int64_t blockStartSample = SongPositionSamples;
 
     int64_t sampleCursor = 0;
