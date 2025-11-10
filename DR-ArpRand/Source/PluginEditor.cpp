@@ -13,6 +13,10 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 {
     juce::ignoreUnused (processorRef);
 
+
+	// TODO: Octave range slider needs VST parameter.
+	// TODO: So does octaves checkbox.
+
     // Make sure that before the constructor has finished, you've set the
     // editor's size to whatever you need it to be.
     setSize (700, 300);
@@ -35,10 +39,10 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 	int arpRateX = (getWidth() / 2) - (arpRateWidthHeight / 2);
 	int arpRateY = (getHeight() / 2) - (arpRateWidthHeight / 2);
 
-    arpRateKnob->setBounds(arpRateX, arpRateY - 50, arpRateWidthHeight, arpRateWidthHeight);
+    arpRateKnob->setBounds(arpRateX, arpRateY - 25, arpRateWidthHeight, arpRateWidthHeight);
 
 	// Octave range slider
-	octaveRangeSlider = std::make_unique<HorizontalRangeSlider>(-48.0f, 48.0f);
+	octaveRangeSlider = std::make_unique<SteppedHorizontalRangeSlider>(-48.0f, 48.0f, 12.0f);
 
 	addAndMakeVisible(*octaveRangeSlider);
 
@@ -101,6 +105,16 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     addAndMakeVisible(*freeModeCheckbox);
 
     freeModeCheckbox->setBounds(50, 50, 150, 32); // x, y, width, height
+
+	// Octaves checkbox
+	octavesCheckbox = std::make_unique<ThemedCheckbox>("Enable octaves");
+
+	octavesAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+		processorRef.parameters, "isOctaves", *octavesCheckbox);
+
+	addAndMakeVisible(*octavesCheckbox);
+
+	octavesCheckbox->setBounds(50, 50, 150, 32); // x, y, width, height
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
