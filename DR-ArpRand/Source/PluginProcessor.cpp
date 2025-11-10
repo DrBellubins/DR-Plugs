@@ -211,7 +211,10 @@ void AudioPluginAudioProcessor::handleArpStep(
 
 // TODO: On midi track repeat causes first note to play slightly delayed.
 // TODO: Free mode automation does not update current time signature to play next note at newer relative signature.
-void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuffer, juce::MidiBuffer& MidiMessages)
+void AudioPluginAudioProcessor::processBlock(
+    juce::AudioBuffer<float>& AudioBuffer,
+    juce::MidiBuffer& MidiMessages
+)
 {
     if (BPM <= 0.0)
     {
@@ -222,28 +225,31 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
     juce::MidiBuffer OutputMidiBuffer;
     juce::AudioPlayHead::CurrentPositionInfo TransportInfo;
 
+    // Query transport position (sample-accurate)
     if (getPlayHead() != nullptr)
     {
         getPlayHead()->getCurrentPosition(TransportInfo);
     }
 
+    // Update BPM from playhead, if available
     juce::AudioPlayHead* playHead = getPlayHead();
 
     if (playHead != nullptr)
     {
-        juce::AudioPlayHead::CurrentPositionInfo positionInfo;
+        juce::AudioPlayHead::CurrentPositionInfo PositionInfo;
 
-        if (playHead->getCurrentPosition(positionInfo))
+        if (playHead->getCurrentPosition(PositionInfo))
         {
-            if (positionInfo.bpm > 0.0)
+            if (PositionInfo.bpm > 0.0)
             {
-                BPM = positionInfo.bpm;
+                BPM = PositionInfo.bpm;
             }
         }
     }
 
     isPlaying = TransportInfo.isPlaying;
 
+    // On playback stop, immediately turn off any held or played notes
     if (!isPlaying && wasPlaying)
     {
         for (int HeldNote : heldNotes)
@@ -258,8 +264,18 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
 
         noteIsOn = false;
         currentlyPlayingNote = -1;
+        heldNotes.clear();
+        heldNotesSet.clear();
+        waitingForFirstNote = false;
+        pendingInitialStep = false;
+        previousPlayedNote = -1;
+        currentlyPlayedNote = -1;
+        previousHeldNoteCount = 0;
+        lastSongPositionSamples = -1;
+        lastBlockNumSamples = 0;
     }
 
+    // ------- Calculate arpeggiator rate for this block -------
     float arpRate = parameters.getRawParameterValue("arpRate")->load();
     bool isFreeMode = parameters.getRawParameterValue("isFreeMode")->load() > 0.5f;
 
@@ -284,122 +300,149 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
         samplesPerStep = (60.0 / BPM) * getSampleRate() * beatFraction;
     }
 
-	const int64_t SongPositionSamples = TransportInfo.timeInSamples;
-	int currentHeldNoteCount = (int)heldNotes.size();
-	int blockNumSamples = AudioBuffer.getNumSamples();
+    // Get time position and buffer info
+    const int64_t SongPositionSamples = TransportInfo.timeInSamples;
+    int blockNumSamples = AudioBuffer.getNumSamples();
+    int64_t blockStartSample = SongPositionSamples;
 
+    // Always update held notes BEFORE state logic
     updateHeldNotes(MidiMessages);
+    int currentHeldNoteCount = static_cast<int>(heldNotes.size());
 
-    // Detect transport jump/start/loop. Arm to step on next held note, but be robust
-	bool transportJumped = (
-		lastSongPositionSamples < 0
-		|| SongPositionSamples != lastSongPositionSamples + lastBlockNumSamples
-		|| (!wasPlaying && isPlaying)
-	);
+    // -------- Detect start-of-block transport regions or playback events --------
+    bool transportJumped = (
+        lastSongPositionSamples < 0
+        || SongPositionSamples != lastSongPositionSamples + lastBlockNumSamples
+        || (!wasPlaying && isPlaying)
+    );
 
-	if (transportJumped)
-	{
-		stepPhase = 0.0;
+    bool arpStepTriggeredThisBlock = false;
 
-		// Do this BEFORE scanning the buffer for note-ons later in the block!
-		if (currentHeldNoteCount > 0)
-		{
-			handleArpStep(SongPositionSamples, 0, samplesPerStep, OutputMidiBuffer);
-			waitingForFirstNote = false; // clear arm
-		}
-		else
-		{
-			waitingForFirstNote = true;
-		}
-	}
+    if (transportJumped)
+    {
+        stepPhase = 0.0;
 
-	// Priority 1: Handle new notes appearing when previously there were none (MIDI event driven)
-	// This covers the JSFX arpeggiator approach: always fire first step when notes reappear
-	if (currentHeldNoteCount > 0 && previousHeldNoteCount == 0)
-	{
-		// Immediate arp step at sample 0 of this block (JSFX approach)
-		handleArpStep(
-			SongPositionSamples,
-			0,
-			samplesPerStep,
-			OutputMidiBuffer
-		);
+        // Always flush note at jump (prevents hanging notes)
+        if (noteIsOn && currentlyPlayingNote >= 0)
+        {
+            OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), 0);
+            noteIsOn = false;
+            currentlyPlayingNote = -1;
+        }
 
-		waitingForFirstNote = false; // clear wait if it was set
-	}
-	// Priority 2: If after a transport jump we're still waiting for a note, handle if we see a note-on in block
-	else if (waitingForFirstNote)
-	{
-		bool anyNoteOn = false;
-		int noteOnSamplePosition = 0;
+        // If any notes are ALREADY held at block start, trigger a step IMMEDIATELY at sample 0
+        if (currentHeldNoteCount > 0)
+        {
+            handleArpStep(
+                blockStartSample,
+                0,
+                samplesPerStep,
+                OutputMidiBuffer
+            );
+            waitingForFirstNote = false;
+            arpStepTriggeredThisBlock = true;
+        }
+        else
+        {
+            waitingForFirstNote = true;
+        }
+    }
 
-		for (const auto& midiEvent : MidiMessages)
-		{
-			const juce::MidiMessage& midiMessage = midiEvent.getMessage();
+    // --------- React immediately to new notes (notes going from 0->N held) ---------
+    // Don't double-trigger if transport-trigger did it already
+    if (!arpStepTriggeredThisBlock && (currentHeldNoteCount > 0 && previousHeldNoteCount == 0))
+    {
+        handleArpStep(
+            blockStartSample,
+            0,
+            samplesPerStep,
+            OutputMidiBuffer
+        );
+        waitingForFirstNote = false;
+        arpStepTriggeredThisBlock = true;
+    }
+    // --------- On transport jump, wait for first note-on if necessary ---------
+    else if (waitingForFirstNote && !arpStepTriggeredThisBlock)
+    {
+        bool anyNoteOn = false;
+        int noteOnSamplePosition = 0;
 
-			if (midiMessage.isNoteOn())
-			{
-				anyNoteOn = true;
-				noteOnSamplePosition = midiEvent.samplePosition;
-				break;
-			}
-		}
+        for (const auto& midiEvent : MidiMessages)
+        {
+            const juce::MidiMessage& midiMessage = midiEvent.getMessage();
 
-		if (anyNoteOn)
-		{
-			handleArpStep(
-				SongPositionSamples + noteOnSamplePosition,
-				noteOnSamplePosition,
-				samplesPerStep,
-				OutputMidiBuffer
-			);
+            if (midiMessage.isNoteOn())
+            {
+                anyNoteOn = true;
+                noteOnSamplePosition = midiEvent.samplePosition;
+                break;
+            }
+        }
 
-			waitingForFirstNote = false;
-		}
-		// else: still waiting
-	}
+        if (anyNoteOn)
+        {
+            handleArpStep(
+                blockStartSample + noteOnSamplePosition,
+                noteOnSamplePosition,
+                samplesPerStep,
+                OutputMidiBuffer
+            );
 
-    lastSongPositionSamples = SongPositionSamples;
-    lastBlockNumSamples = blockNumSamples;
+            waitingForFirstNote = false;
+            arpStepTriggeredThisBlock = true;
+        }
+    }
 
-    // Sub-block scheduling for arpeggiator steps and note-offs (regular)
-    const int64_t blockStartSample = SongPositionSamples;
-
+    // --------- Step Scheduling: only if not already triggered in block ---------
+    // (avoids two notes in one block right at start, especially after jumps)
     int64_t sampleCursor = 0;
-    int64_t nextQuarterNoteSample = ((blockStartSample / (int64_t)samplesPerStep) + 1) * (int64_t)samplesPerStep;
+    int64_t nextStepSample = ((blockStartSample / static_cast<int64_t>(samplesPerStep)) + 1) * static_cast<int64_t>(samplesPerStep);
 
     while (sampleCursor < blockNumSamples)
     {
         int64_t absoluteSample = blockStartSample + sampleCursor;
 
-        if (absoluteSample >= nextQuarterNoteSample)
+        // Guard: Do not fire on current block's sample 0 if already ARP'd
+        if (absoluteSample >= nextStepSample)
         {
-            handleArpStep(
-                absoluteSample,
-                sampleCursor,
-                samplesPerStep,
-                OutputMidiBuffer
-            );
+            // Skip step at sample 0 if arpStepTriggeredThisBlock already happened this block & same sample
+            bool isSameSampleAsStart = (nextStepSample == blockStartSample);
 
-            nextQuarterNoteSample += (int64_t)samplesPerStep;
+            if (!isSameSampleAsStart || !arpStepTriggeredThisBlock)
+            {
+                handleArpStep(
+                    absoluteSample,
+                    static_cast<int>(sampleCursor),
+                    samplesPerStep,
+                    OutputMidiBuffer
+                );
+
+                arpStepTriggeredThisBlock = true;
+            }
+
+            nextStepSample += static_cast<int64_t>(samplesPerStep);
         }
 
-        int64_t nextEventSample = juce::jmin(nextQuarterNoteSample, blockStartSample + blockNumSamples);
+        int64_t nextEventSample = juce::jmin(nextStepSample, blockStartSample + blockNumSamples);
         sampleCursor = nextEventSample - blockStartSample;
     }
 
-	if (heldNotes.empty() && noteIsOn && currentlyPlayingNote >= 0)
-	{
-		OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), 0);
-		noteIsOn = false;
-		currentlyPlayingNote = -1;
-	}
+    // Always turn off current note if no keys are held
+    if (heldNotes.empty() && noteIsOn && currentlyPlayingNote >= 0)
+    {
+        OutputMidiBuffer.addEvent(juce::MidiMessage::noteOff(1, currentlyPlayingNote), 0);
+        noteIsOn = false;
+        currentlyPlayingNote = -1;
+    }
 
+    // Update state for next block
     wasPlaying = isPlaying;
+    lastSongPositionSamples = SongPositionSamples;
+    lastBlockNumSamples = blockNumSamples;
+    previousHeldNoteCount = currentHeldNoteCount;
 
+    // Output Result
     MidiMessages.swapWith(OutputMidiBuffer);
-
-	previousHeldNoteCount = currentHeldNoteCount;
 }
 
 void AudioPluginAudioProcessor::updateHeldNotes(const juce::MidiBuffer& MidiMessages)

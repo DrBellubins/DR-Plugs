@@ -81,6 +81,7 @@ private:
 	int previousPlayedNote = -1;
 	int previousHeldNoteCount = 0;
 	double stepPhase = 0.0;
+	bool arpStepFiredThisBlock = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessor)
 };
