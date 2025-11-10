@@ -45,7 +45,10 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 	addAndMakeVisible(*octaveRangeSlider);
 
 	octaveRangeSliderAttachment = std::make_unique<HorizontalRangeSliderAttachment>(
-	processor.parameters, "thresholdLow", "thresholdHigh", *octaveRangeSlider);
+		processorRef.parameters,            // APVTS
+		"octaveLower",                      // lower param
+		"octaveHigher",                     // upper param
+		*octaveRangeSlider);
 
 	int octaveSliderWidth = 400;
 	int octaveSliderHeight = 25;
@@ -113,6 +116,13 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 	addAndMakeVisible(*octavesCheckbox);
 
 	octavesCheckbox->setBounds(50, 10, 150, 32); // x, y, width, height
+
+	bool octavesEnabled = processorRef.parameters.getRawParameterValue("isOctaves")->load() > 0.5f;
+
+	if (octavesEnabled)
+		octaveRangeSlider->Enable();
+	else
+		octaveRangeSlider->Disable();
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
