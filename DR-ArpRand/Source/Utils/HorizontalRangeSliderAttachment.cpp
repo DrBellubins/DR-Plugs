@@ -19,6 +19,8 @@ HorizontalRangeSliderAttachment::HorizontalRangeSliderAttachment(
 
     rangeSlider.OnLowerValueChanged = [this](float NewValue)
     {
+    	DBG("lower value updated" << NewValue << "\n");
+
         if (!updatingParameter)
         {
             updatingSlider = true;
@@ -34,6 +36,8 @@ HorizontalRangeSliderAttachment::HorizontalRangeSliderAttachment(
 
     rangeSlider.OnUpperValueChanged = [this](float NewValue)
     {
+    	DBG("upper value updated" << NewValue << "\n");
+
         if (!updatingParameter)
         {
             updatingSlider = true;
