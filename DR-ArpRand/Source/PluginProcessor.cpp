@@ -286,9 +286,7 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
 
 	const int64_t SongPositionSamples = TransportInfo.timeInSamples;
 	int currentHeldNoteCount = (int)heldNotes.size();
-	float incrementPerSample = 1.0f / (float)samplesPerStep;
 	int blockNumSamples = AudioBuffer.getNumSamples();
-	int sampleIndex = 0;
 
     updateHeldNotes(MidiMessages);
 
@@ -301,6 +299,8 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
 
 	if (transportJumped)
 	{
+		stepPhase = 0.0;
+
 		// Do this BEFORE scanning the buffer for note-ons later in the block!
 		if (currentHeldNoteCount > 0)
 		{
