@@ -292,12 +292,19 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
     const int blockNumSamples = AudioBuffer.getNumSamples();
 
 	// Only trigger immediately if playback started, song position jumped, or this is the first processBlock ever
-	if (lastSongPositionSamples < 0 ||                 // First ever
-		SongPositionSamples != lastSongPositionSamples + lastBlockNumSamples // Jump, loop, seek
-		|| (!wasPlaying && isPlaying)                  // Just went from stopped -> started
-	   )
+	if (lastSongPositionSamples < 0
+	|| SongPositionSamples != lastSongPositionSamples + lastBlockNumSamples
+	|| (!wasPlaying && isPlaying)
+   )
 	{
-		handleArpStep(SongPositionSamples, 0, samplesPerStep, OutputMidiBuffer);
+		if (!heldNotes.empty())
+		{
+			handleArpStep(SongPositionSamples, 0, samplesPerStep, OutputMidiBuffer);
+		}
+		else
+		{
+			// No notes held yet after loop -- try to trigger on next step automatically
+		}
 	}
 
 	lastSongPositionSamples = SongPositionSamples;
