@@ -79,6 +79,8 @@ private:
 
 	int currentlyPlayedNote = -1;
 	int previousPlayedNote = -1;
+	int previousHeldNoteCount = 0;
+	double stepPhase = 0.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessor)
 };

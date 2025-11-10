@@ -282,69 +282,53 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
         samplesPerStep = (60.0 / BPM) * getSampleRate() * beatFraction;
     }
 
+	const int64_t SongPositionSamples = TransportInfo.timeInSamples;
+	int currentHeldNoteCount = (int)heldNotes.size();
+	float incrementPerSample = 1.0f / (float)samplesPerStep;
+	int blockNumSamples = AudioBuffer.getNumSamples();
+	int sampleIndex = 0;
+
     updateHeldNotes(MidiMessages);
 
-    const int64_t SongPositionSamples = TransportInfo.timeInSamples;
-    const int blockNumSamples = AudioBuffer.getNumSamples();
-
     // Detect transport jump/start/loop. Arm to step on next held note, but be robust
-    bool transportJumped = (
-        lastSongPositionSamples < 0
-        || SongPositionSamples != lastSongPositionSamples + lastBlockNumSamples
-        || (!wasPlaying && isPlaying)
-    );
+	bool transportJumped = (
+		lastSongPositionSamples < 0
+		|| SongPositionSamples != lastSongPositionSamples + lastBlockNumSamples
+		|| (!wasPlaying && isPlaying)
+	);
 
-    if (transportJumped)
-    {
-        waitingForFirstNote = true;
-        pendingInitialStep = true; // will be handled below
-    }
+	if (transportJumped)
+	{
+		waitingForFirstNote = true;
+	}
 
-    // Strongest DAW-robustness: handle these cases:
-    //  - If a NoteOn is present, and we were waiting for first, fire step and clear both flags
-    //  - If heldNotes is populated and we are waiting, but grid-aligned NoteOn is not in buffer
-    //          (for DAWs that only send note ons at block start), fire step at sample 0, and clear both flags
+	while (sampleIndex < blockNumSamples)
+	{
+		float samplesToNextStep = (1.0f - (float)stepPhase) / incrementPerSample;
+		int samplesToStep = juce::jlimit(0, blockNumSamples - sampleIndex, (int)std::ceil(samplesToNextStep));
 
-    bool noteOnFoundInBlock = false;
-    int noteOnSamplePosition = 0;
-    for (const auto& midiEvent : MidiMessages)
-    {
-        const juce::MidiMessage& midiMessage = midiEvent.getMessage();
-        if (midiMessage.isNoteOn())
-        {
-            noteOnFoundInBlock = true;
-            noteOnSamplePosition = midiEvent.samplePosition;
-            break;
-        }
-    }
+		if (samplesToStep > 0)
+		{
+			// Advance if there is a gap
+			stepPhase += incrementPerSample * samplesToStep;
+			sampleIndex += samplesToStep;
+		}
 
-    if (waitingForFirstNote)
-    {
-        if (noteOnFoundInBlock)
-        {
-            handleArpStep(
-                SongPositionSamples + noteOnSamplePosition,
-                noteOnSamplePosition,
-                samplesPerStep,
-                OutputMidiBuffer
-            );
-            waitingForFirstNote = false;
-            pendingInitialStep = false;
-        }
-        else if (!heldNotes.empty() && pendingInitialStep)
-        {
-            // No explicit NoteOn event, but held notes present (for DAWs that do not send note-ons on loop)
-            handleArpStep(
-                SongPositionSamples,
-                0,
-                samplesPerStep,
-                OutputMidiBuffer
-            );
-            waitingForFirstNote = false;
-            pendingInitialStep = false;
-        }
-        // Otherwise, continue waiting for incoming MIDI in future blocks
-    }
+		if (stepPhase >= 1.0f && sampleIndex < blockNumSamples)
+		{
+			// Fire step! Make sure sampleIndex is in bounds
+			handleArpStep(
+				SongPositionSamples + sampleIndex,
+				sampleIndex,
+				samplesPerStep, // Or ignore parameter here
+				OutputMidiBuffer
+			);
+
+			stepPhase -= 1.0f;
+
+			// Optionally: handle >1 step if automating to very high rate
+		}
+	}
 
     lastSongPositionSamples = SongPositionSamples;
     lastBlockNumSamples = blockNumSamples;
@@ -385,6 +369,8 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
     wasPlaying = isPlaying;
 
     MidiMessages.swapWith(OutputMidiBuffer);
+
+	previousHeldNoteCount = currentHeldNoteCount;
 }
 
 void AudioPluginAudioProcessor::updateHeldNotes(const juce::MidiBuffer& MidiMessages)
