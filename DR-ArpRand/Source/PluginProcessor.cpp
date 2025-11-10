@@ -395,36 +395,72 @@ void AudioPluginAudioProcessor::processBlock(
 
     // --------- Step Scheduling: only if not already triggered in block ---------
     // (avoids two notes in one block right at start, especially after jumps)
-    int64_t sampleCursor = 0;
-    int64_t nextStepSample = ((blockStartSample / static_cast<int64_t>(samplesPerStep)) + 1) * static_cast<int64_t>(samplesPerStep);
-
-    while (sampleCursor < blockNumSamples)
+    if (isFreeMode)
     {
-        int64_t absoluteSample = blockStartSample + sampleCursor;
+        // Phase accumulator for smooth rate changes in free mode
+        double delta = 1.0 / samplesPerStep;
+        double phase = stepPhase;
 
-        // Guard: Do not fire on current block's sample 0 if already ARP'd
-        if (absoluteSample >= nextStepSample)
+        for (int sampleIndex = 0; sampleIndex < blockNumSamples; ++sampleIndex)
         {
-            // Skip step at sample 0 if arpStepTriggeredThisBlock already happened this block & same sample
-            bool isSameSampleAsStart = (nextStepSample == blockStartSample);
+            double oldPhase = phase;
+            phase += delta;
 
-            if (!isSameSampleAsStart || !arpStepTriggeredThisBlock)
+            if (oldPhase < 1.0 && phase >= 1.0)
             {
-                handleArpStep(
-                    absoluteSample,
-                    static_cast<int>(sampleCursor),
-                    samplesPerStep,
-                    OutputMidiBuffer
-                );
+                int triggerPosition = sampleIndex;
+                bool isSameAsStart = (triggerPosition == 0);
 
-                arpStepTriggeredThisBlock = true;
+                if (!isSameAsStart || !arpStepTriggeredThisBlock)
+                {
+                    handleArpStep(
+                        blockStartSample + triggerPosition,
+                        triggerPosition,
+                        samplesPerStep,
+                        OutputMidiBuffer
+                    );
+
+                    arpStepTriggeredThisBlock = true;
+                }
+
+                phase -= std::floor(phase);
             }
-
-            nextStepSample += static_cast<int64_t>(samplesPerStep);
         }
 
-        int64_t nextEventSample = juce::jmin(nextStepSample, blockStartSample + blockNumSamples);
-        sampleCursor = nextEventSample - blockStartSample;
+        stepPhase = phase;
+    }
+    else
+    {
+        // Original grid-based scheduling for synced/fractional mode
+        int64_t sampleCursor = 0;
+        int64_t nextStepSample = ((blockStartSample / static_cast<int64_t>(samplesPerStep)) + 1) * static_cast<int64_t>(samplesPerStep);
+
+        while (sampleCursor < blockNumSamples)
+        {
+            int64_t absoluteSample = blockStartSample + sampleCursor;
+
+            if (absoluteSample >= nextStepSample)
+            {
+                bool isSameSampleAsStart = (nextStepSample == blockStartSample);
+
+                if (!isSameSampleAsStart || !arpStepTriggeredThisBlock)
+                {
+                    handleArpStep(
+                        absoluteSample,
+                        static_cast<int>(sampleCursor),
+                        samplesPerStep,
+                        OutputMidiBuffer
+                    );
+
+                    arpStepTriggeredThisBlock = true;
+                }
+
+                nextStepSample += static_cast<int64_t>(samplesPerStep);
+            }
+
+            int64_t nextEventSample = juce::jmin(nextStepSample, blockStartSample + blockNumSamples);
+            sampleCursor = nextEventSample - blockStartSample;
+        }
     }
 
     // Always turn off current note if no keys are held
