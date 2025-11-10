@@ -64,6 +64,8 @@ private:
     std::set<int> heldNotesSet;       // For quick lookup
 
     int64_t samplesProcessed = 0;            // Total samples processed
+	int64_t lastSongPositionSamples = -1;
+	int64_t lastBlockNumSamples = 0;
     int lastQuarterNoteIndex = -1;           // Last quarter note index
     double cachedSamplesPerQuarterNote = 0;  // Cache value from prepareToPlay
 

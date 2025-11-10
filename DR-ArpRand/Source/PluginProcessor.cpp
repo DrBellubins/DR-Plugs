@@ -257,13 +257,6 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
 
 	double samplesPerStep = 0.0;
 
-	// TODO:
-	// Fractionals seem to sound one fraction higher
-	// Example: 1/4 sounds like 1/8
-
-	// TODO:
-	// Markov random algorithm does not play nicely with free mode!
-
     // TODO:
     // Detect number of notes in the currently playing chord.
     // Record that number of previously arpeggiated notes into a buffer.
@@ -284,7 +277,7 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
 	{
 		// Snap arpRate to 0, 0.2, 0.4, 0.6, 0.8, 1.0
 		float snappedArpRate = std::round(arpRate * 5.0f) / 5.0f;
-		int index = static_cast<int>(snappedArpRate * 5.0f + 0.5f);
+		int index = static_cast<int>(snappedArpRate * 5.0f);
 		index = juce::jlimit(0, 5, index);
 
 		static constexpr float BeatFractionValues[] = { 1.0f, 0.5f, 0.25f, 0.125f, 0.0625f, 0.03125f };
@@ -297,6 +290,18 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& AudioBuff
 
     const int64_t SongPositionSamples = TransportInfo.timeInSamples;
     const int blockNumSamples = AudioBuffer.getNumSamples();
+
+	// Only trigger immediately if playback started, song position jumped, or this is the first processBlock ever
+	if (lastSongPositionSamples < 0 ||                 // First ever
+		SongPositionSamples != lastSongPositionSamples + lastBlockNumSamples // Jump, loop, seek
+		|| (!wasPlaying && isPlaying)                  // Just went from stopped -> started
+	   )
+	{
+		handleArpStep(SongPositionSamples, 0, samplesPerStep, OutputMidiBuffer);
+	}
+
+	lastSongPositionSamples = SongPositionSamples;
+	lastBlockNumSamples = blockNumSamples;
 
     // Sub-block scheduling for arpeggiator steps and note-offs
     const int64_t blockStartSample = SongPositionSamples;
