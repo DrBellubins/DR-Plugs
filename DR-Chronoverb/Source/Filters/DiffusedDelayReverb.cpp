@@ -14,6 +14,7 @@ DiffusedDelayReverb::DiffusedDelayReverb()
 
     smoothedDiffusionAmount.reset(44100, 0.05f);
     smoothedWetDry.reset(44100, 0.05f);
+    smoothedFeedbackAmount.reset(44100, 0.05f);
 }
 
 //==============================================================================
@@ -45,6 +46,7 @@ void DiffusedDelayReverb::PrepareToPlay(double newSampleRate, float maxDelaySeco
     // Reset smoothing
     smoothedDiffusionAmount.setCurrentAndTargetValue(diffusionAmount);
     smoothedWetDry.setCurrentAndTargetValue(wetDryMix);
+    smoothedFeedbackAmount.setCurrentAndTargetValue(feedbackAmount);
 }
 
 //==============================================================================
@@ -78,6 +80,12 @@ void DiffusedDelayReverb::SetWetDryMix(float mix)
     smoothedWetDry.setTargetValue(wetDryMix);
 }
 
+void DiffusedDelayReverb::SetFeedback(float FeedbackAmount)
+{
+    feedbackAmount = juce::jlimit(0.0f, 1.0f, FeedbackAmount);
+    smoothedFeedbackAmount.setTargetValue(feedbackAmount);
+}
+
 //==============================================================================
 void DiffusedDelayReverb::ProcessBlock(juce::AudioBuffer<float>& buffer)
 {
@@ -88,6 +96,8 @@ void DiffusedDelayReverb::ProcessBlock(juce::AudioBuffer<float>& buffer)
     // Update smoothed parameters
     smoothedDiffusionAmount.skip(numSamples);
     smoothedWetDry.skip(numSamples);
+    smoothedFeedbackAmount.skip(numSamples);
+    
     const float currentDiffAmt = smoothedDiffusionAmount.getNextValue();
     const float currentWetDry = smoothedWetDry.getNextValue();
 
@@ -183,18 +193,25 @@ float DiffusedDelayReverb::ProcessFDNChannel(int channel, float input)
 
     const float delayed = delayData[readPos];
 
-    // Apply feedback from all channels
-    float feedback = 0.0f;
+    // --- Add this: fetch latest smoothed feedback value
+    const float feedback = smoothedFeedbackAmount.getNextValue();
 
+    // Apply feedback from all channels
+    float feedbackSum = 0.0f;
     for (int src = 0; src < numFdnChannels; ++src)
     {
         float* srcData = delayBuffer.getWritePointer(src);
         const int srcReadPos = (writePos[src] - delaySamples[src] + bufferSize) % bufferSize;
-        feedback += feedbackMatrix(channel, src) * srcData[srcReadPos];
+        feedbackSum += feedbackMatrix(channel, src) * srcData[srcReadPos];
     }
 
-    const float output = delayed + feedback * feedbackGains[channel];
-    delayData[writePos[channel]] = input + output * 0.7f; // Tone control
+    // --- Apply feedback scaling
+    const float output = delayed + (feedbackSum * feedback * feedbackGains[channel]);
+
+    // If you want to optionally preserve "decay time" control, combine as you see fit:
+    // float output = delayed + (feedbackSum * feedback * feedbackGains[channel]);
+
+    delayData[writePos[channel]] = input + output * 0.7f;
 
     return output;
 }

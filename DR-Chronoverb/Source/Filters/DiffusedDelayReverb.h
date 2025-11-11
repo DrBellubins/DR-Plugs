@@ -68,6 +68,12 @@ public:
     void SetWetDryMix(float mix);
 
     /**
+     * @brief Sets the feedback amount
+     * @param Set the feedback amount (0.0 = no feedback, 1.0 = max feedback)
+     */
+    void SetFeedback(float FeedbackAmount);
+
+    /**
      * @brief Processes an audio block.
      * @param buffer Input/output audio buffer (modified in-place).
      */
@@ -138,6 +144,7 @@ private:
     float diffusionSize = 0.5f;       // 0.0 = small, 1.0 = large
     float diffusionQuality = 0.5f;    // 0.0 = chaotic, 1.0 = lush
     float wetDryMix = 0.5f;           // 0.0 = dry, 1.0 = wet
+    float feedbackAmount = 0.5f;      // Default to 50%
 
     // === Buffers ===
     juce::AudioBuffer<float> delayBuffer;      // FDN delay lines (4 channels)
@@ -157,6 +164,7 @@ private:
     // === Smoothing ===
     juce::SmoothedValue<float> smoothedDiffusionAmount;
     juce::SmoothedValue<float> smoothedWetDry;
+    juce::SmoothedValue<float> smoothedFeedbackAmount;
 
     // === Constants ===
     static constexpr float feedbackDecayBase = 0.5f;
