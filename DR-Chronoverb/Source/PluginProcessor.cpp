@@ -13,6 +13,12 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
                        ),
     parameters(*this, nullptr, "PARAMS", createParameterLayout())
 {
+    // TEMP
+    DelayReverb.SetDelayTime(0.3f);           // 300 ms base delay
+    DelayReverb.SetDiffusionAmount(0.7f);     // 70% reverb
+    DelayReverb.SetDiffusionSize(0.6f);       // Medium-large space
+    DelayReverb.SetDiffusionQuality(0.9f);    // Lush reverb
+    DelayReverb.SetWetDryMix(0.4f);           // 40% wet
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
@@ -97,8 +103,10 @@ void AudioPluginAudioProcessor::changeProgramName (int index, const juce::String
 void AudioPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     // Use this method as the place to do any pre-playback
-    // initialisation that you need..
+    // initialisation that you need.
     juce::ignoreUnused (sampleRate, samplesPerBlock);
+
+    DelayReverb.PrepareToPlay(sampleRate);
 }
 
 void AudioPluginAudioProcessor::releaseResources()
@@ -192,7 +200,7 @@ void AudioPluginAudioProcessor::setStateInformation(const void* data, int sizeIn
 }
 
 //==============================================================================
-// This creates new instances of the plugin..
+// This creates new instances of the plugin.
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new AudioPluginAudioProcessor();

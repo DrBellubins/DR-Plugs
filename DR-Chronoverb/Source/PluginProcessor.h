@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Filters/DiffusedDelayReverb.h"
 #include <juce_audio_processors/juce_audio_processors.h>
 
 //==============================================================================
@@ -12,6 +13,8 @@ public:
 
     juce::AudioProcessorValueTreeState parameters;
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+
+    DiffusedDelayReverb DelayReverb;
 
     //==============================================================================
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;

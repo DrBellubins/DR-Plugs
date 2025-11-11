@@ -5,6 +5,7 @@
 
 # Gather all .cpp and .h files in Utils
 file(GLOB UTILS_SOURCES "Utils/*.cpp" "Utils/*.h")
+file(GLOB FILTERS_SOURCES "Filters/*.cpp" "Utils/*.h")
 
 target_sources("${PROJECT_NAME}"
     PRIVATE
@@ -12,7 +13,9 @@ target_sources("${PROJECT_NAME}"
         PluginEditor.cpp
         PluginProcessor.h
         PluginProcessor.cpp
-        ${UTILS_SOURCES})
+        ${UTILS_SOURCES}
+        ${FILTERS_SOURCES}
+)
 
 # Add subdirectories with source files, if present
 # add_subdirectory(<name>)
