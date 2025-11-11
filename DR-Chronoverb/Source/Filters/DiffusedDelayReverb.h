@@ -62,16 +62,16 @@ public:
     void SetDiffusionQuality(float quality);
 
     /**
-     * @brief Sets wet/dry mix for the effect.
-     * @param mix Normalized value [0.0, 1.0] → dry to wet.
-     */
-    void SetWetDryMix(float mix);
-
-    /**
      * @brief Sets the feedback amount
      * @param Set the feedback amount (0.0 = no feedback, 1.0 = max feedback)
      */
     void SetFeedback(float FeedbackAmount);
+
+    /**
+     * @brief Sets wet/dry mix for the effect.
+     * @param mix Normalized value [0.0, 1.0] → dry to wet.
+     */
+    void SetWetDryMix(float mix);
 
     /**
      * @brief Processes an audio block.

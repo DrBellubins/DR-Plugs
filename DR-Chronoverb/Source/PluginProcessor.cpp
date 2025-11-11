@@ -108,7 +108,8 @@ void AudioPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
     DelayReverb.SetDelayTime(0.3f);           // 300 ms base delay
     DelayReverb.SetDiffusionAmount(0.7f);     // 70% reverb
     DelayReverb.SetDiffusionSize(0.6f);       // Medium-large space
-    DelayReverb.SetDiffusionQuality(0.9f);    // Lush reverb
+    DelayReverb.SetDiffusionQuality(0.2f);    // Lush reverb
+    DelayReverb.SetFeedback(0.5f);            // 50% feedback
     DelayReverb.SetWetDryMix(0.4f);           // 40% wet
 }
 
