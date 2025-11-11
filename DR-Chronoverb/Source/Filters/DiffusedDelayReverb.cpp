@@ -170,6 +170,8 @@ void DiffusedDelayReverb::UpdateDelayBuffer()
     {
         const int baseMs = basePrimes[i];
         const float targetMs = baseMs * scale;
+
+        //delaySamples[i] = 1;
         delaySamples[i] = juce::jlimit(10, bufferSize - 1, static_cast<int>(targetMs * 0.001f * sampleRate));
 
         // Compute per-sample feedback decay
