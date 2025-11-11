@@ -185,6 +185,7 @@ float DiffusedDelayReverb::ProcessFDNChannel(int channel, float input)
 
     // Apply feedback from all channels
     float feedback = 0.0f;
+
     for (int src = 0; src < numFdnChannels; ++src)
     {
         float* srcData = delayBuffer.getWritePointer(src);
