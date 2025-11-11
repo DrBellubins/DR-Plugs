@@ -194,7 +194,7 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     const int squareTestOffSamples = static_cast<int>(squareTestSampleRate * 3.0);   // 3 sec OFF
     const double squareTestPhasePerSample = squareTestFrequency / squareTestSampleRate;
 
-    for (int SampleIndex = 0; SampleIndex < squareTestNumSamples; ++SampleIndex)
+    /*for (int SampleIndex = 0; SampleIndex < squareTestNumSamples; ++SampleIndex)
     {
         // Square ON for X samples, then OFF for Y samples, repeat
         if (squareTestWaveOn)
@@ -234,7 +234,7 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             squareTestSampleCounter = 0;
             squareTestPhase = 0.0; // Optional: reset phase at re-trigger
         }
-    }
+    }*/
 
     // Process reverb
     DelayReverb.ProcessBlock(buffer);
