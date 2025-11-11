@@ -8,7 +8,7 @@ project(Chronoverb VERSION 0.0.1)
 
 ### Dependency versions ###
 
-set(LIB_JUCE_TAG "7.0.8")
+set(LIB_JUCE_TAG "8.0.10")
 
 
 ### IDE Generator pre-config ###
@@ -60,7 +60,7 @@ FetchContent_MakeAvailable(juce)
 # Check the readme at `docs/CMake API.md` in the JUCE repo for the full list.
 
 juce_add_plugin("${PROJECT_NAME}"
-    FORMATS AU VST3                             # The formats to build. Valid formats: Standalone Unity VST3 AU AUv3 AAX VST LV2.
+    FORMATS Standalone AU VST3                  # The formats to build. Valid formats: Standalone Unity VST3 AU AUv3 AAX VST LV2.
 
     # CHANGE                                    # AU and AUv3 plugins will only be enabled when building on macOS.
     PRODUCT_NAME "Dr Chronoverb"                # The name of the final executable, which can differ from the target name.

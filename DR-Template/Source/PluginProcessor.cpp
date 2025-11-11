@@ -19,6 +19,15 @@ AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
 {
 }
 
+juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::createParameterLayout()
+{
+    std::vector<std::unique_ptr<juce::RangedAudioParameter>> parameterList;
+
+    // Add parameters here
+
+    return { parameterList.begin(), parameterList.end() };
+}
+
 //==============================================================================
 const juce::String AudioPluginAudioProcessor::getName() const
 {
