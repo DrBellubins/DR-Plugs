@@ -3,12 +3,16 @@
 # then a visibility parameter for the sources (which should normally be PRIVATE).
 # Finally, we supply a list of source files that will be built into the target.
 
+# Gather all .cpp and .h files in Utils
+file(GLOB UTILS_SOURCES "Utils/*.cpp" "Utils/*.h")
+
 target_sources("${PROJECT_NAME}"
     PRIVATE
         PluginEditor.h
         PluginEditor.cpp
         PluginProcessor.h
-        PluginProcessor.cpp)
+        PluginProcessor.cpp
+        ${UTILS_SOURCES})
 
 # Add subdirectories with source files, if present
 # add_subdirectory(<name>)
