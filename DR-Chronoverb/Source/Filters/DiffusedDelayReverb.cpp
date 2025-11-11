@@ -186,7 +186,7 @@ void DiffusedDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
 }
 
 //==============================================================================
-void DiffusedDelayReverb::UpdateDelayBuffer()
+/*void DiffusedDelayReverb::UpdateDelayBuffer()
 {
     const int bufferSize = delayBuffer.getNumSamples();
 
@@ -208,6 +208,45 @@ void DiffusedDelayReverb::UpdateDelayBuffer()
     }
 
     UpdateFeedbackMatrix();
+}*/
+
+void DiffusedDelayReverb::UpdateDelayBuffer()
+{
+    const int bufferSize = delayBuffer.getNumSamples();
+
+    if (diffusionAmount < 0.001f)
+    {
+        // PURE DELAY: All FDN lines are set to the requested delay time
+        int pureDelaySamples = juce::jlimit(10, bufferSize - 1, static_cast<int>(delayTimeSeconds * sampleRate));
+
+        for (int i = 0; i < numFdnChannels; ++i)
+        {
+            delaySamples[i] = pureDelaySamples;
+            feedbackGains[i] = delayTimeSeconds; // Set for desired decay
+        }
+
+        // Set feedbackMatrix to identity!
+        feedbackMatrix.identity(0.0f);
+
+        for (int i = 0; i < numFdnChannels; ++i)
+            feedbackMatrix(i, i) = 1.0f;
+    }
+    else
+    {
+        // REVERB: Short prime delays, cross-mixing
+        const std::array<int, numFdnChannels> basePrimes = { 29, 37, 41, 53 };
+        const float scale = delayTimeSeconds / 0.5f; // Normalize around 500ms
+
+        for (int i = 0; i < numFdnChannels; ++i)
+        {
+            const int baseMs = basePrimes[i];
+            const float targetMs = baseMs * scale;
+            delaySamples[i] = juce::jlimit(10, bufferSize - 1, static_cast<int>(targetMs * 0.001f * sampleRate));
+            feedbackGains[i] = ...;
+        }
+
+        UpdateFeedbackMatrix(); // Hadamard or Householder, as you do now
+    }
 }
 
 void DiffusedDelayReverb::UpdateFeedbackMatrix()
