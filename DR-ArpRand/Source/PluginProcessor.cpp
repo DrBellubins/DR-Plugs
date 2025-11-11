@@ -2,6 +2,9 @@
 #include <random>
 #include "PluginEditor.h"
 
+// TODO: When going from vital to arprand, and then changing a value it crashes.
+// TODO: Attach debugger to reaper and mess around till it crashes
+
 //==============================================================================
 AudioPluginAudioProcessor::AudioPluginAudioProcessor()
      : AudioProcessor (BusesProperties()
