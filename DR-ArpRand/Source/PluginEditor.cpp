@@ -139,6 +139,9 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor(AudioPluginAudi
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
 {
+	processorRef.parameters.removeParameterListener("isOctaves", this);
+	processorRef.parameters.removeParameterListener("octaveLower", this);
+	processorRef.parameters.removeParameterListener("octaveHigher", this);
 }
 
 //==============================================================================
