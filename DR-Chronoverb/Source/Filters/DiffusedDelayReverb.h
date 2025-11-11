@@ -44,6 +44,12 @@ public:
     void SetDelayTime(float timeSeconds);
 
     /**
+     * @brief Sets the decay time
+     * @param decay Sets the decay time (0.0 = instant decay, 1.0 = 1 second decay)
+     */
+    void SetDecayTime(float decay);
+
+    /**
      * @brief Sets diffusion amount (0.0 = delay only, 1.0 = full reverb).
      * @param amount Normalized value [0.0, 1.0].
      */
@@ -60,12 +66,6 @@ public:
      * @param quality Normalized value [0.0, 1.0] → chaotic to lush.
      */
     void SetDiffusionQuality(float quality);
-
-    /**
-     * @brief Sets the feedback amount
-     * @param Set the feedback amount (0.0 = no feedback, 1.0 = max feedback)
-     */
-    void SetFeedback(float FeedbackAmount);
 
     /**
      * @brief Sets wet/dry mix for the effect.
@@ -140,11 +140,11 @@ private:
     float maxDelayTimeSeconds = 3.0f;
 
     float delayTimeSeconds = 0.5f;
+    float decayTimeSeconds = 0.5f;
     float diffusionAmount = 0.0f;     // 0.0 = delay, 1.0 = reverb
     float diffusionSize = 0.5f;       // 0.0 = small, 1.0 = large
     float diffusionQuality = 0.5f;    // 0.0 = chaotic, 1.0 = lush
     float wetDryMix = 0.5f;           // 0.0 = dry, 1.0 = wet
-    float feedbackAmount = 0.5f;      // Default to 50%
 
     // === Buffers ===
     juce::AudioBuffer<float> delayBuffer;      // FDN delay lines (4 channels)
@@ -164,7 +164,6 @@ private:
     // === Smoothing ===
     juce::SmoothedValue<float> smoothedDiffusionAmount;
     juce::SmoothedValue<float> smoothedWetDry;
-    juce::SmoothedValue<float> smoothedFeedbackAmount;
 
     // === Constants ===
     static constexpr float feedbackDecayBase = 0.5f;
