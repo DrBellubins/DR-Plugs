@@ -116,12 +116,23 @@ void DiffusedDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
             const int DryReadPos = (inputWritePos - static_cast<int>(PreDelaySamples) + inputBuffer.getNumSamples()) % inputBuffer.getNumSamples();
             const float DryDelay = InputData[DryReadPos];
 
-            // --- 3. Diffusion ---
-            const float Diffused = diffusionStage.Process(DryDelay);
-
             // --- 4. Blend ---
             const float CurrentDiffusionAmount = smoothedDiffusionAmount.getNextValue();
-            const float FdnInput = DryDelay * (1.0f - CurrentDiffusionAmount) + Diffused * CurrentDiffusionAmount;
+
+            float FdnInput;
+
+            if (CurrentDiffusionAmount < 0.001f)
+            {
+                FdnInput = DryDelay;
+                // Optional: set feedbackMatrix to identity or diagonal, so only each channel's own delay is used.
+            }
+            else
+            {
+                float Diffused = diffusionStage.Process(DryDelay);
+                FdnInput = Diffused;
+                // Normal cross-matrix feedback
+            }
+
             const float PerChannelInput = FdnInput / static_cast<float>(numFdnChannels);
 
             // --- 5. Process ALL FDN channels for this sample ---
