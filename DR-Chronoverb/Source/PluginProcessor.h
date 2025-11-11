@@ -50,5 +50,10 @@ public:
 
 private:
     //==============================================================================
+    // --- Square wave tests ---
+    double squareTestPhase = 0.0;
+    int squareTestSampleCounter = 0;
+    bool squareTestWaveOn = true;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessor)
 };

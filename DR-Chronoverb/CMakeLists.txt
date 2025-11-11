@@ -84,7 +84,7 @@ juce_add_plugin("${PROJECT_NAME}"
     IS_MIDI_EFFECT FALSE                        # Is this plugin a MIDI effect?
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE           # Does the editor need keyboard focus?
 
-    # VST3_CATEGORIES                           # Should be one or more, separated by spaces, of the following:
+    VST3_CATEGORIES Fx,Reverb                   # Should be one or more, separated by spaces, of the following:
                                                 # Fx, Instrument, Analyzer, Delay, Distortion, Drum, Dynamics, EQ, External,
                                                 # Filter, Generator, Mastering, Modulation, Mono, Network, NoOfflineProcess,
                                                 # OnlyOfflineProcess, OnlyRT, Pitch Shift, Restoration, Reverb, Sampler, Spatial,

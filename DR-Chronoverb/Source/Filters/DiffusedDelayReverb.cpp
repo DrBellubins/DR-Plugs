@@ -138,6 +138,13 @@ void DiffusedDelayReverb::ProcessBlock(juce::AudioBuffer<float>& buffer)
             // Final wet/dry mix
             const float wetSignal = fdnOutput * currentWetDry;
             const float drySignal = input * (1.0f - currentWetDry);
+
+            // ADD THIS LINE to print first sample of first channel (or wherever you need)
+            if (channel == 0 && i < 3) // Just log first 3 samples for brevity
+            {
+                juce::Logger::outputDebugString("wet: " + juce::String(wetSignal));
+            }
+
             channelData[i] = drySignal + wetSignal;
 
             // Advance write position
