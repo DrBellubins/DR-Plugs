@@ -87,74 +87,91 @@ void DiffusedDelayReverb::SetWetDryMix(float mix)
 }
 
 //==============================================================================
-void DiffusedDelayReverb::ProcessBlock(juce::AudioBuffer<float>& buffer)
+void DiffusedDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
 {
-    const int numSamples = buffer.getNumSamples();
-    const int numChannels = buffer.getNumChannels();
-    const int bufferSize = delayBuffer.getNumSamples();
+    const int NumSamples   = AudioBuffer.getNumSamples();
+    const int NumChannels  = AudioBuffer.getNumChannels();
 
-    // Update smoothed parameters
-    smoothedDiffusionAmount.skip(numSamples);
-    smoothedWetDry.skip(numSamples);
-    smoothedFeedbackAmount.skip(numSamples);
-    
-    const float currentDiffAmt = smoothedDiffusionAmount.getNextValue();
-    const float currentWetDry = smoothedWetDry.getNextValue();
+    // ---- Smoothing (per-sample) ----
+    smoothedDiffusionAmount.skip(NumSamples);
+    smoothedWetDry.skip(NumSamples);
+    smoothedFeedbackAmount.skip(NumSamples);
 
-    // Pre-delay length in samples
-    const int preDelaySamples = static_cast<int>(delayTimeSeconds * sampleRate);
+    const float PreDelaySamples = delayTimeSeconds * sampleRate;
 
-    for (int channel = 0; channel < numChannels; ++channel)
+    for (int Channel = 0; Channel < NumChannels; ++Channel)
     {
-        float* channelData = buffer.getWritePointer(channel);
-        float* inputData = inputBuffer.getWritePointer(0);
+        float* ChannelData = AudioBuffer.getWritePointer(Channel);
+        float* InputData   = inputBuffer.getWritePointer(0);
 
-        for (int i = 0; i < numSamples; ++i)
+        for (int Sample = 0; Sample < NumSamples; ++Sample)
         {
-            const float input = channelData[i];
+            const float InputSample = ChannelData[Sample];
 
-            // Write input to circular input buffer
-            inputData[inputWritePos] = input;
+            // --- 1. Write to input buffer ---
+            InputData[inputWritePos] = InputSample;
+            const int NextInputWritePos = (inputWritePos + 1) % inputBuffer.getNumSamples();
 
-            // Read dry delayed signal (before diffusion)
-            const int dryReadPos = (inputWritePos - preDelaySamples + inputBuffer.getNumSamples()) % inputBuffer.getNumSamples();
-            const float dryDelay = inputData[dryReadPos];
+            // --- 2. Dry tap ---
+            const int DryReadPos = (inputWritePos - static_cast<int>(PreDelaySamples) + inputBuffer.getNumSamples()) % inputBuffer.getNumSamples();
+            const float DryDelay = InputData[DryReadPos];
 
-            // Apply diffusion stage
-            const float diffused = diffusionStage.Process(dryDelay);
+            // --- 3. Diffusion ---
+            const float Diffused = diffusionStage.Process(DryDelay);
 
-            // Blend dry delay and diffused signal
-            const float fdnInput = dryDelay * (1.0f - currentDiffAmt) + diffused * currentDiffAmt;
+            // --- 4. Blend ---
+            const float CurrentDiffusionAmount = smoothedDiffusionAmount.getNextValue();
+            const float FdnInput = DryDelay * (1.0f - CurrentDiffusionAmount) + Diffused * CurrentDiffusionAmount;
+            const float PerChannelInput = FdnInput / static_cast<float>(numFdnChannels);
 
-            // Distribute to all FDN channels
-            float fdnOutput = 0.0f;
+            // --- 5. Process ALL FDN channels for this sample ---
+            std::array<float, numFdnChannels> FdnOutputs{};
+            float FdnOutputSum = 0.0f;
 
-            for (int fdnCh = 0; fdnCh < numFdnChannels; ++fdnCh)
+            const float CurrentFeedback = smoothedFeedbackAmount.getNextValue();
+
+            for (int FdnChannel = 0; FdnChannel < numFdnChannels; ++FdnChannel)
             {
-                const float channelInput = fdnInput * 0.25f; // Equal distribution
-                fdnOutput += ProcessFDNChannel(fdnCh, channelInput);
+                float* ChannelDataFdn = delayBuffer.getWritePointer(FdnChannel);
+                const int BufferSize = delayBuffer.getNumSamples();
+
+                // Read delayed sample
+                const int ReadPosition = (writePos[FdnChannel] - delaySamples[FdnChannel] + BufferSize) % BufferSize;
+                const float DelayedSample = ChannelDataFdn[ReadPosition];
+
+                // Compute feedback from all lines
+                float FeedbackSum = 0.0f;
+                for (int Source = 0; Source < numFdnChannels; ++Source)
+                {
+                    float* SrcData = delayBuffer.getWritePointer(Source);
+                    const int SrcReadPos = (writePos[Source] - delaySamples[Source] + BufferSize) % BufferSize;
+                    FeedbackSum += feedbackMatrix(FdnChannel, Source) * SrcData[SrcReadPos];
+                }
+
+                const float AttenuatedFeedback = FeedbackSum * CurrentFeedback * feedbackGains[FdnChannel];
+                const float NewSample = PerChannelInput + AttenuatedFeedback;
+
+                // Write new sample
+                ChannelDataFdn[writePos[FdnChannel]] = NewSample;
+
+                // *** ADVANCE WRITE POS PER SAMPLE ***
+                writePos[FdnChannel] = (writePos[FdnChannel] + 1) % BufferSize;
+
+                FdnOutputs[FdnChannel] = DelayedSample;
+                FdnOutputSum += DelayedSample;
             }
 
-            // Final wet/dry mix
-            const float wetSignal = fdnOutput * currentWetDry;
-            const float drySignal = input * (1.0f - currentWetDry);
+            // --- 6. Wet/dry mix ---
+            const float CurrentWetDry = smoothedWetDry.getNextValue();
+            const float WetSignal = FdnOutputSum * CurrentWetDry;
+            const float DrySignal = InputSample * (1.0f - CurrentWetDry);
 
-            // ADD THIS LINE to print first sample of first channel (or wherever you need)
-            if (channel == 0 && i < 3) // Just log first 3 samples for brevity
-            {
-                juce::Logger::outputDebugString("wet: " + juce::String(wetSignal));
-            }
+            ChannelData[Sample] = DrySignal + WetSignal;
 
-            channelData[i] = drySignal + wetSignal;
-
-            // Advance write position
-            inputWritePos = (inputWritePos + 1) % inputBuffer.getNumSamples();
+            // --- 7. Advance input write pos ---
+            inputWritePos = NextInputWritePos;
         }
     }
-
-    // Advance FDN write positions
-    for (auto& pos : writePos)
-        pos = (pos + numSamples) % bufferSize;
 }
 
 //==============================================================================
@@ -184,45 +201,43 @@ void DiffusedDelayReverb::UpdateDelayBuffer()
 
 void DiffusedDelayReverb::UpdateFeedbackMatrix()
 {
-    // Simple orthogonal matrix for diffuse feedback
-    for (int i = 0; i < numFdnChannels; ++i)
-    {
-        for (int j = 0; j < numFdnChannels; ++j)
-        {
-            feedbackMatrix(i, j) = (i == j ? 0.5f : -0.25f);
-        }
-    }
+    const float s = 1.0f / std::sqrt(2.0f);
+    feedbackMatrix(0,0) =  s; feedbackMatrix(0,1) =  s; feedbackMatrix(0,2) =  s; feedbackMatrix(0,3) =  s;
+    feedbackMatrix(1,0) =  s; feedbackMatrix(1,1) =  s; feedbackMatrix(1,2) = -s; feedbackMatrix(1,3) = -s;
+    feedbackMatrix(2,0) =  s; feedbackMatrix(2,1) = -s; feedbackMatrix(2,2) =  s; feedbackMatrix(2,3) = -s;
+    feedbackMatrix(3,0) =  s; feedbackMatrix(3,1) = -s; feedbackMatrix(3,2) = -s; feedbackMatrix(3,3) =  s;
 }
 
-float DiffusedDelayReverb::ProcessFDNChannel(int channel, float input)
+float DiffusedDelayReverb::ProcessFDNChannel(int ChannelIndex, float InputSample)
 {
-    float* delayData = delayBuffer.getWritePointer(channel);
-    const int bufferSize = delayBuffer.getNumSamples();
-    const int readPos = (writePos[channel] - delaySamples[channel] + bufferSize) % bufferSize;
+  // ----- 1. Read delayed sample -----
+  float* ChannelData = delayBuffer.getWritePointer(ChannelIndex);
+  const int BufferSize = delayBuffer.getNumSamples();
+  const int ReadPosition = (writePos[ChannelIndex] - delaySamples[ChannelIndex] + BufferSize) % BufferSize;
+  const float DelayedSample = ChannelData[ReadPosition];
 
-    const float delayed = delayData[readPos];
+  // ----- 2. Gather feedback from every other line -----
+  const float CurrentFeedback = smoothedFeedbackAmount.getNextValue();
+  float FeedbackSum = 0.0f;
+  for (int SourceChannel = 0; SourceChannel < numFdnChannels; ++SourceChannel)
+  {
+    float* SourceData = delayBuffer.getWritePointer(SourceChannel);
+    const int SourceReadPos = (writePos[SourceChannel] - delaySamples[SourceChannel] + BufferSize) % BufferSize;
+    FeedbackSum += feedbackMatrix(ChannelIndex, SourceChannel) * SourceData[SourceReadPos];
+  }
 
-    // --- Add this: fetch latest smoothed feedback value
-    const float feedback = smoothedFeedbackAmount.getNextValue();
+  // ----- 3. Apply per-line attenuation (60 dB decay) -----
+  const float AttenuatedFeedback = FeedbackSum * CurrentFeedback * feedbackGains[ChannelIndex];
 
-    // Apply feedback from all channels
-    float feedbackSum = 0.0f;
-    for (int src = 0; src < numFdnChannels; ++src)
-    {
-        float* srcData = delayBuffer.getWritePointer(src);
-        const int srcReadPos = (writePos[src] - delaySamples[src] + bufferSize) % bufferSize;
-        feedbackSum += feedbackMatrix(channel, src) * srcData[srcReadPos];
-    }
+  // ----- 4. Write new sample (input + feedback) -----
+  const float NewSample = InputSample + AttenuatedFeedback;
+  ChannelData[writePos[ChannelIndex]] = NewSample;
 
-    // --- Apply feedback scaling
-    const float output = delayed + (feedbackSum * feedback * feedbackGains[channel]);
+  // ----- 5. Advance write position (done outside in ProcessBlock) -----
+  // (no increment here – caller does it in bulk)
 
-    // If you want to optionally preserve "decay time" control, combine as you see fit:
-    // float output = delayed + (feedbackSum * feedback * feedbackGains[channel]);
-
-    delayData[writePos[channel]] = input + output * 0.7f;
-
-    return output;
+  // ----- 6. Return the delayed sample (what the mixer hears) -----
+  return DelayedSample;
 }
 
 //==============================================================================
