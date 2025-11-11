@@ -1,6 +1,4 @@
 #include "DiffusedDelayReverb.h"
-#include <cmath>
-#include "juce_core/maths/juce_MathsFunctions.h"
 
 //==============================================================================
 DiffusedDelayReverb::DiffusedDelayReverb()
