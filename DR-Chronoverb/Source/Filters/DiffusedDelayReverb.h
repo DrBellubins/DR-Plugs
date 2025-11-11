@@ -3,8 +3,8 @@
 #include <array>
 #include <vector>
 
-#include "juce_dsp/maths/juce_Matrix.h"
 #include "juce_audio_processors/juce_audio_processors.h"
+#include "juce_dsp/maths/juce_Matrix.h"
 
 /**
  * @class DiffusedDelayReverb

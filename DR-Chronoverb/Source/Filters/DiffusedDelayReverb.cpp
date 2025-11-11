@@ -2,18 +2,18 @@
 
 //==============================================================================
 DiffusedDelayReverb::DiffusedDelayReverb()
+    : feedbackMatrix(numFdnChannels, numFdnChannels)
 {
-    // Initialize feedback matrix (Hadamard-like for energy preservation)
-    feedbackMatrix = juce::dsp::Matrix<float>(numFdnChannels, numFdnChannels);
     UpdateFeedbackMatrix();
 
     // Prime delays for FDN (in milliseconds, will be scaled)
     const std::array<int, numFdnChannels> primeDelaysMs = { 29, 37, 41, 53 };
+
     for (int i = 0; i < numFdnChannels; ++i)
         delaySamples[i] = static_cast<int>(primeDelaysMs[i] * 0.001f * sampleRate);
 
-    smoothedDiffusionAmount.reset(44100, 0.05);
-    smoothedWetDry.reset(44100, 0.05);
+    smoothedDiffusionAmount.reset(44100, 0.05f);
+    smoothedWetDry.reset(44100, 0.05f);
 }
 
 //==============================================================================

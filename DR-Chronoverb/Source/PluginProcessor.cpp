@@ -13,12 +13,6 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
                        ),
     parameters(*this, nullptr, "PARAMS", createParameterLayout())
 {
-    // TEMP
-    DelayReverb.SetDelayTime(0.3f);           // 300 ms base delay
-    DelayReverb.SetDiffusionAmount(0.7f);     // 70% reverb
-    DelayReverb.SetDiffusionSize(0.6f);       // Medium-large space
-    DelayReverb.SetDiffusionQuality(0.9f);    // Lush reverb
-    DelayReverb.SetWetDryMix(0.4f);           // 40% wet
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
@@ -107,6 +101,14 @@ void AudioPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
     juce::ignoreUnused (sampleRate, samplesPerBlock);
 
     DelayReverb.PrepareToPlay(sampleRate);
+
+    // Temporary
+    // Only set parameters AFTER PrepareToPlay
+    DelayReverb.SetDelayTime(0.3f);           // 300 ms base delay
+    DelayReverb.SetDiffusionAmount(0.7f);     // 70% reverb
+    DelayReverb.SetDiffusionSize(0.6f);       // Medium-large space
+    DelayReverb.SetDiffusionQuality(0.9f);    // Lush reverb
+    DelayReverb.SetWetDryMix(0.4f);           // 40% wet
 }
 
 void AudioPluginAudioProcessor::releaseResources()
