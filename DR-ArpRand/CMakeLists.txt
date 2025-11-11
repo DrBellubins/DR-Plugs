@@ -65,7 +65,7 @@ juce_add_plugin("${PROJECT_NAME}"
     FORMATS Standalone AU VST3                  # The formats to build. Valid formats: Standalone Unity VST3 AU AUv3 AAX VST LV2.
                                                 # AU and AUv3 plugins will only be enabled when building on macOS.
     PRODUCT_NAME "Dr Arp Rand"                  # The name of the final executable, which can differ from the target name.
-    PLUGIN_NAME "DrBell Arp Rand"               # Name of the plugin that will be displayed in the DAW. Can differ from PRODUCT_NAME.
+    PLUGIN_NAME "Arp Rand"                      # Name of the plugin that will be displayed in the DAW. Can differ from PRODUCT_NAME.
 
     # ICON_BIG                                  # ICON_* arguments specify a path to an image file to use as an icon for the Standalone.
     # ICON_SMALL

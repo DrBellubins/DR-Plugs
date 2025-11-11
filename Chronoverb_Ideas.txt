@@ -1,0 +1,116 @@
+Delay/Reverb plugin
+
+Delay rate has 4 modes (millisecond, normal sync, triplet sync, dotted sync).
+
+Has 3 knobs (Diffusion Amount, Diffusion Size, Diffusion Quality, functionality described below).
+
+Octave echos (both delay and reverb), can be set to -48 to +48, can be randomly pitched to different octaves, or start from lowest and to highest octave.
+
+Morphing allpass filters used in reverb convolution. Morphing speed can be automated (doesn't need to be UI option though).
+
+
+Plugin functionality desciption:
+
+The Deelay plugin by Sixth Sample integrates delay and reverb functionalities through a unified processing architecture that leverages **diffused delay networks**. This design enables a seamless transition from a pure delay effect to a dense reverberant tail by manipulating the internal feedback structure and scattering properties of the delay lines. Below is a detailed explanation of the probable internal mechanisms, inferred from the described controls—diffusion amount, diffusion size, and diffusion quality—and their auditory outcomes.
+
+---
+
+### Core Architecture: Diffused Feedback Delay Network (FDN)
+
+The plugin likely employs a **Feedback Delay Network (FDN)** as its foundational structure, augmented with **diffusion stages**. An FDN consists of multiple parallel delay lines whose outputs are cross-fed into each other via a feedback matrix, creating complex recirculating echoes that simulate early reflections and late reverberation.
+
+- **Pure Delay (Diffusion Amount = 0)**:
+  When diffusion is disabled, the network operates as a set of independent delay lines with direct feedback paths (or minimal cross-mixing). This produces discrete, rhythmic echoes characteristic of a standard delay.
+
+- **Reverb (Diffusion Amount > 0)**:
+  As diffusion increases, the feedback paths incorporate **allpass diffusers** or **scattering junctions**, which smear the signal in time and frequency, transforming discrete echoes into a smooth, dense tail.
+
+---
+
+### Control Mapping and Internal Implementation
+
+#### 1. **Diffusion Amount**
+Controls the **proportion of the signal routed through diffuser stages** before entering the FDN.
+
+- **Implementation**:
+  A wet/dry mix (or parallel routing) blends the dry delayed signal with a diffused version. Internally:
+  ```cpp
+  diffusedSignal = DiffusionStage(dryDelayOutput) * diffusionAmount;
+  fdnInput = dryDelayOutput * (1 - diffusionAmount) + diffusedSignal;
+  ```
+- At 0%: Only clean delay taps feed the FDN → **pure delay**.
+- At 100%: Fully diffused input → **early onset of reverb**.
+
+#### 2. **Diffusion Size**
+Adjusts the **delay times within the pre-FDN diffuser network** (typically a series of nested allpass filters or short delay lines).
+
+- **Implementation**:
+  A chain of allpass filters with prime-length delays (e.g., 7 ms, 11 ms, 17 ms, etc.):
+  ```cpp
+  AllpassFilter(delaySamples = diffusionSize * baseSizeFactor);
+  ```
+- Larger size → longer impulse smearing → **larger perceived space**.
+- Smaller size → tighter, more focused diffusion → **smaller room or plate-like character**.
+
+#### 3. **Diffusion Quality**
+Modulates the **density and smoothness of scattering** within the diffuser.
+
+- **Low Quality (Chaotic Delay)**:
+  Uses **sparse, unevenly spaced delays** or **low-order allpass filters** with minimal overlap. This creates irregular, granular echoes—audible as "chaotic" or "fluctuating" repeats.
+
+- **High Quality (Lush Reverb)**:
+  Employs **high-density diffuser networks**:
+  - Multiple parallel allpass lines with **incommensurate (prime-based) delays**.
+  - **Velocity-dependent modulation** (tiny LFOs on delay times) to avoid metallic resonances.
+  - **Frequency-dependent decay** (low-pass filtering in feedback) to shape tonal warmth.
+
+  This generates a **smooth, exponentially decaying impulse response** with high modal density—perceived as lush, natural reverb.
+
+---
+
+### Signal Flow Summary
+
+```
+Input
+  │
+  ├──► [Pre-Delay] ──► [Delay Taps] ──► Output (dry echo component)
+  │
+  ▼
+[Diffusion Stage] (controlled by Size & Quality)
+  │
+  ▼
+[Feedback Delay Network (FDN)]
+  │        ↖︎ Feedback Matrix (tonal shaping, decay)
+  ▼
+Smoothed Reverb Tail ──► Output (wet component)
+```
+
+- **Diffusion Amount** blends between the upper (delay) and lower (reverb) paths.
+- **Diffusion Size** scales internal diffuser delay times.
+- **Diffusion Quality** adjusts diffuser density and modulation depth.
+
+---
+
+### Why This Feels Like "One Effect"
+
+By embedding the reverb diffusion *within* the delay’s feedback path and allowing continuous morphing via a single parameter (Diffusion Amount), the plugin avoids abrupt transitions. The same delay lines contribute to both rhythmic repeats and ambient wash, unified under one processing core.
+
+---
+
+### Technical Notes on Real-Time Efficiency
+
+- Delay times in the FDN are **prime-length** to maximize echo density.
+- Allpass filters use **single-pole designs** (e.g., Schroeder allpass) for low CPU.
+- Interpolation (linear or higher-order) ensures smooth delay time changes.
+- Perceptual tuning: high frequencies decay faster than lows in feedback loops.
+
+---
+
+### Conclusion
+
+Deelay likely implements a **diffused FDN with parameterizable pre-scattering**, where:
+- **Diffusion Amount** = blend into reverb,
+- **Diffusion Size** = spatial scale,
+- **Diffusion Quality** = scatter density and smoothness.
+
+This architecture allows a single effect to morph continuously from a **clean digital delay** to a **lush algorithmic reverb**, using a compact, CPU-efficient design suitable for real-time plugin use. The "chaotic delay" and "lush reverb" extremes emerge naturally from reducing vs. maximizing diffusion density and modulation.

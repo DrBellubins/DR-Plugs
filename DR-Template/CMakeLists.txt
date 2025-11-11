@@ -2,7 +2,7 @@
 
 cmake_minimum_required(VERSION 3.22)
 
-project(DR-UpDownGate VERSION 0.0.1)
+project(PluginTemplate VERSION 0.0.1)
 
 
 ### Dependency versions ###
@@ -15,9 +15,6 @@ set(LIB_JUCE_TAG "7.0.8")
 # Xcode: Disable automatic build scheme generation globally.
 #        Instead, we explicitely specify which targets require schemes.
 set(CMAKE_XCODE_GENERATE_SCHEME OFF)
-
-# Optimize release build for size
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -s")
 
 # IDEs:  Enable grouping of source files into folders in IDEs.
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -62,20 +59,20 @@ FetchContent_MakeAvailable(juce)
 # Check the readme at `docs/CMake API.md` in the JUCE repo for the full list.
 
 juce_add_plugin("${PROJECT_NAME}"
-    FORMATS Standalone AU VST3                  # The formats to build. Valid formats: Standalone Unity VST3 AU AUv3 AAX VST LV2.
+    FORMATS AU VST3                             # The formats to build. Valid formats: Standalone Unity VST3 AU AUv3 AAX VST LV2.
                                                 # AU and AUv3 plugins will only be enabled when building on macOS.
-    PRODUCT_NAME "Dr Up-down gate"              # The name of the final executable, which can differ from the target name.
-    PLUGIN_NAME "Range Gate"                    # Name of the plugin that will be displayed in the DAW. Can differ from PRODUCT_NAME.
+    PRODUCT_NAME "Plugin Template"              # The name of the final executable, which can differ from the target name.
+    # PLUGIN_NAME                               # Name of the plugin that will be displayed in the DAW. Can differ from PRODUCT_NAME.
 
     # ICON_BIG                                  # ICON_* arguments specify a path to an image file to use as an icon for the Standalone.
     # ICON_SMALL
-    COMPANY_NAME DrBell                         # The name of this target's author. The value is inherited from JUCE_COMPANY_NAME.
+    COMPANY_NAME yourcompany                    # The name of this target's author. The value is inherited from JUCE_COMPANY_NAME.
     # COMPANY_WEBSITE                           # The address of a website related to this target in some way.
                                                 # The value is inherited from JUCE_COMPANY_WEBSITE.
     # COMPANY_EMAIL                             # An email address for this target's author. The value is inherited from JUCE_COMPANY_EMAIL.
-    PLUGIN_MANUFACTURER_CODE 42Dr               # A four-character manufacturer id with at least one upper-case character.
+    PLUGIN_MANUFACTURER_CODE Manu               # A four-character manufacturer id with at least one upper-case character.
                                                 # GarageBand 10.3 requires the first letter to be upper-case, and the remaining letters to be lower-case.
-    PLUGIN_CODE drUD                            # A unique four-character plugin id with exactly one upper-case character.
+    PLUGIN_CODE Dem0                            # A unique four-character plugin id with exactly one upper-case character.
                                                 # GarageBand 10.3 requires the first letter to be upper-case, and the remaining letters to be lower-case.
 
     IS_SYNTH FALSE                              # Is this a synth or an effect?
@@ -127,9 +124,7 @@ target_compile_definitions("${PROJECT_NAME}"
         # JUCE_WEB_BROWSER and JUCE_USE_CURL would be on by default, but you might not need them.
         JUCE_WEB_BROWSER=0  # If you remove this, add `NEEDS_WEB_BROWSER TRUE` to the `juce_add_plugin` call
         JUCE_USE_CURL=0     # If you remove this, add `NEEDS_CURL TRUE` to the `juce_add_plugin` call
-        JUCE_VST3_CAN_REPLACE_VST2=0
-        JUCE_DISPLAY_SPLASH_SCREEN=0
-)
+        JUCE_VST3_CAN_REPLACE_VST2=0)
 
 # If your target needs extra binary assets, you can add them here.
 # NOTE: Conversion to binary-data happens when the target is built.
