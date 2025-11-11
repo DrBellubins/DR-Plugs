@@ -54,9 +54,9 @@ void DiffusedDelayReverb::SetDelayTime(float timeSeconds)
     UpdateDelayBuffer();
 }
 
-void DiffusedDelayReverb::SetDecayTime(float decay)
+void DiffusedDelayReverb::SetFeedbackTime(float feedback)
 {
-    decayTimeSeconds = decay;
+    feedbackTimeSeconds = feedback;
     UpdateDelayBuffer();
 }
 
@@ -196,7 +196,7 @@ void DiffusedDelayReverb::UpdateDelayBuffer()
             const float delayTimeInSeconds = delaySamples[i] / sampleRate;
 
             delaySamples[i] = pureDelaySamples;
-            feedbackGains[i] = std::pow(0.001f, delayTimeInSeconds / decayTimeSeconds);
+            feedbackGains[i] = std::pow(0.001f, delayTimeInSeconds / feedbackTimeSeconds);
         }
 
         // Set feedbackMatrix to identity!
@@ -218,7 +218,7 @@ void DiffusedDelayReverb::UpdateDelayBuffer()
             const float delayTimeInSeconds = delaySamples[i] / sampleRate;
 
             delaySamples[i] = juce::jlimit(10, bufferSize - 1, static_cast<int>(targetMs * 0.001f * sampleRate));
-            feedbackGains[i] = std::pow(0.001f, delayTimeInSeconds / decayTimeSeconds);
+            feedbackGains[i] = std::pow(0.001f, delayTimeInSeconds / feedbackTimeSeconds);
         }
 
         UpdateFeedbackMatrix(); // Hadamard or Householder, as you do now

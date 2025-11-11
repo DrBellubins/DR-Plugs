@@ -45,9 +45,9 @@ public:
 
     /**
      * @brief Sets the decay time
-     * @param decay Sets the decay time (0.0 = instant decay, 1.0 = 1 second decay)
+     * @param feedback Sets the decay time (0.0 = instant decay, 1.0 = 1 second decay)
      */
-    void SetDecayTime(float decay);
+    void SetFeedbackTime(float feedback);
 
     /**
      * @brief Sets diffusion amount (0.0 = delay only, 1.0 = full reverb).
@@ -140,7 +140,7 @@ private:
     float maxDelayTimeSeconds = 3.0f;
 
     float delayTimeSeconds = 0.5f;
-    float decayTimeSeconds = 0.5f;
+    float feedbackTimeSeconds = 0.5f;
     float diffusionAmount = 0.0f;     // 0.0 = delay, 1.0 = reverb
     float diffusionSize = 0.5f;       // 0.0 = small, 1.0 = large
     float diffusionQuality = 0.5f;    // 0.0 = chaotic, 1.0 = lush

@@ -25,6 +25,36 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
 
     // Add parameters here
 
+    // Delay time
+    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
+        "delayTime", "Delay Time",
+        juce::NormalisableRange<float>(0.0f, 1.0f), 0.3f)); // 300 ms default
+
+    // Feedback time
+    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
+        "feedbackTime", "Feedback Time",
+        juce::NormalisableRange<float>(0.0f, 10.0f), 3.0f));
+
+    // Diffusion amount
+    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
+        "diffusionAmount", "Diffusion Amount",
+        juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f));
+
+    // Diffusion size
+    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
+        "diffusionSize", "Diffusion Size",
+        juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f));
+
+    // Diffusion quality
+    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
+        "diffusionQuality", "Diffusion Quality",
+        juce::NormalisableRange<float>(0.0f, 1.0f), 1.0f));
+
+    // Dry/Wet mix
+    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
+        "dryWetMix", "Dry/Wet mix",
+        juce::NormalisableRange<float>(0.0f, 1.0f), 1.0f));
+
     return { parameterList.begin(), parameterList.end() };
 }
 
@@ -105,8 +135,8 @@ void AudioPluginAudioProcessor::prepareToPlay(double sampleRate, int samplesPerB
 
     // Temporary
     // Only set parameters AFTER PrepareToPlay
-    DelayReverb.SetDelayTime(1.0f);           // 1 second base delay
-    DelayReverb.SetDecayTime(3.0f);           // 3 second decay
+    DelayReverb.SetDelayTime(1.0f);           // 1 second delay
+    DelayReverb.SetFeedbackTime(3.0f);        // 3 second decay
     DelayReverb.SetDiffusionAmount(1.0f);     // 70% reverb
     DelayReverb.SetDiffusionSize(0.6f);       // Medium-large space
     DelayReverb.SetDiffusionQuality(0.9f);    // Lush reverb
