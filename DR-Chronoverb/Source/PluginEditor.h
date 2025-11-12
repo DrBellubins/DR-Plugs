@@ -20,6 +20,7 @@ private:
     // access the processor object that created it.
     AudioPluginAudioProcessor& processorRef;
 
+    // Knobs
     std::unique_ptr<ThemedKnob> delayTimeKnob;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> delayTimeAttachment;
 
@@ -37,6 +38,9 @@ private:
 
     std::unique_ptr<ThemedKnob> dryWetMixKnob;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> dryWetMixAttachment;
+
+    // Labels
+    std::unique_ptr<LabelAttachment> delayTimeLabel;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };

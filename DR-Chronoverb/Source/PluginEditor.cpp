@@ -17,6 +17,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     // editor's size to whatever you need it to be.
     setSize(800, 400);
 
+    // ------ KNOBS ------
     // Delay time
     delayTimeKnob = std::make_unique<ThemedKnob>(
         "Delay", nullptr, nullptr, " Rate", juce::Slider::NoTextBox);
@@ -33,9 +34,6 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     int delayTimeY = (getHeight() / 2) - (delayTimeWidthHeight / 2) - 25;
 
     delayTimeKnob->setBounds(delayTimeX, delayTimeY, delayTimeWidthHeight, delayTimeWidthHeight);
-
-    auto* delayTimeLabel = new LabelAttachment("My Label", delayTimeKnob.get(), LabelAttachment::Position::Above);
-    addAndMakeVisible(*delayTimeLabel);
 
     // Feedback time
     feedbackTimeKnob = std::make_unique<ThemedKnob>(
@@ -70,6 +68,12 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     int diffusionAmountY = (getHeight() / 2) - (diffusionAmountWidthHeight / 2) - 100;
 
     diffusionAmountKnob->setBounds(diffusionAmountX, diffusionAmountY, diffusionAmountWidthHeight, diffusionAmountWidthHeight);
+
+    // ------ Labels ------
+    delayTimeLabel = std::make_unique<LabelAttachment>("Delay", delayTimeKnob.get(), LabelAttachment::Position::Above);
+    addAndMakeVisible(*delayTimeLabel);
+
+    delayTimeLabel->setBounds(delayTimeX, delayTimeY, 100, 32);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
