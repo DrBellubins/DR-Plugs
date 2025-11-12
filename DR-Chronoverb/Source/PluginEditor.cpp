@@ -14,7 +14,25 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     // Make sure that before the constructor has finished, you've set the
     // editor's size to whatever you need it to be.
-    setSize (400, 300);
+    setSize (800, 400);
+
+    // Delay time
+    delayTimeKnob = std::make_unique<ThemedKnob>(
+        "Delay Time", nullptr, nullptr, " Rate", juce::Slider::NoTextBox);
+
+    delayTimeKnob->setTextValueSuffix(" Rate");
+    delayTimeKnob->setLookAndFeel(&flatKnobLAF);
+
+    delayTimeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        processorRef.parameters, "delayTime", *delayTimeKnob);
+
+    addAndMakeVisible(*delayTimeKnob);
+
+    int delayTimeWidthHeight = 50;
+    int delayTimeX = (getWidth() / 2) - (delayTimeWidthHeight / 2);
+    int delayTimeY = (getHeight() / 2) - (delayTimeWidthHeight / 2);
+
+    delayTimeKnob->setBounds(delayTimeX, delayTimeY - 25, delayTimeWidthHeight, delayTimeWidthHeight);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
@@ -26,23 +44,6 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
 {
     // (Our component is opaque, so we must completely fill the background with a solid colour)
     graphics.fillAll(BGGray);
-
-    delayTimeKnob = std::make_unique<ThemedKnob>(
-        "Arp Rate", nullptr, nullptr, " Rate", juce::Slider::NoTextBox);
-
-    delayTimeKnob->setTextValueSuffix(" Rate");
-    delayTimeKnob->setLookAndFeel(&flatKnobLAF);
-
-    delayTimeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        processorRef.parameters, "delayTime", *delayTimeKnob);
-
-    addAndMakeVisible(*delayTimeKnob);
-
-    int delayTimeWidthHeight = 150;
-    int delayTimeX = (getWidth() / 2) - (delayTimeWidthHeight / 2);
-    int delayTimeY = (getHeight() / 2) - (delayTimeWidthHeight / 2);
-
-    delayTimeKnob->setBounds(delayTimeX, delayTimeY - 25, delayTimeWidthHeight, delayTimeWidthHeight);
 }
 
 void AudioPluginAudioProcessorEditor::resized()
