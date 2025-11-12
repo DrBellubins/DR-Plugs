@@ -106,9 +106,9 @@ public:
             diameter
         );
 
-        Graphics.setColour(juce::Colours::white);
+        /*Graphics.setColour(juce::Colours::white);
         Graphics.setFont(15.0f);
-        Graphics.drawFittedText(labelText, knobCircleArea.toNearestInt(), juce::Justification::centred, 1);
+        Graphics.drawFittedText(labelText, knobCircleArea.toNearestInt(), juce::Justification::centred, 1);*/
     }
 
 private:
