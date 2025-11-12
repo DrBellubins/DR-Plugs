@@ -95,20 +95,21 @@ public:
     {
         juce::Slider::paint(Graphics);
 
-        // Use the bounds of just the knob (excluding text box)
-        juce::Rectangle<int> KnobBounds = getSliderBounds();
-        juce::Rectangle<float> KnobBoundsF = KnobBounds.toFloat();
-        float Diameter = juce::jmin(KnobBoundsF.getWidth(), KnobBoundsF.getHeight());
+        // Find the area for the rotary knob, excluding the text box
+        juce::Rectangle<int> KnobArea = getLocalBounds();
 
-        // Shrink for margin to create the inner circle (adjust as desired)
-        float Margin = Diameter * 0.23f;
+        if (getTextBoxPosition() == juce::Slider::TextBoxBelow && getTextBoxHeight() > 0)
+            KnobArea.setHeight(KnobArea.getHeight() - getTextBoxHeight());
+
+        juce::Rectangle<float> KnobAreaF = KnobArea.toFloat();
+        float Diameter = juce::jmin(KnobAreaF.getWidth(), KnobAreaF.getHeight());
+        float Margin = Diameter * 0.3f;
         float InnerDiameter = Diameter - Margin;
 
-        juce::Point<float> Center = KnobBoundsF.getCentre();
+        juce::Point<float> Center = KnobAreaF.getCentre();
         float InnerRadius = InnerDiameter / 2.0f;
 
-        // Draw the inner circle in the rotary center, not the whole component!
-        Graphics.setColour(UnfocusedGray);
+        Graphics.setColour(AccentGray.darker(0.2));
         Graphics.fillEllipse(Center.x - InnerRadius, Center.y - InnerRadius, InnerDiameter, InnerDiameter);
     }
 
