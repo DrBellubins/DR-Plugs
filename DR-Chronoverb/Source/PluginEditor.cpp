@@ -14,7 +14,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     // Make sure that before the constructor has finished, you've set the
     // editor's size to whatever you need it to be.
-    setSize (800, 400);
+    setSize(800, 400);
 
     // Delay time
     delayTimeKnob = std::make_unique<ThemedKnob>(
@@ -28,7 +28,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     addAndMakeVisible(*delayTimeKnob);
 
-    int delayTimeWidthHeight = 50;
+    int delayTimeWidthHeight = 100;
     int delayTimeX = (getWidth() / 2) - (delayTimeWidthHeight / 2);
     int delayTimeY = (getHeight() / 2) - (delayTimeWidthHeight / 2);
 
