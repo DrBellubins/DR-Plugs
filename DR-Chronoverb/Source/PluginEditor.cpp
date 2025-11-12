@@ -73,9 +73,12 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     createLabel(delayTimeLabel, "Delay");
 
     int delayTimeLabelWidth = getLabelWidth(delayTimeLabel);
-    int delayTimeLabelOffsetX = 35;
 
-    delayTimeLabel->setBounds(delayTimeX + delayTimeLabelOffsetX, delayTimeY, delayTimeLabelWidth, 20);
+    juce::Rectangle<int> delayTimeKnobBounds = delayTimeKnob->getBounds();
+    int delayTimeLabelX = delayTimeKnobBounds.getCentreX() - (delayTimeLabelWidth / 2);
+    int delayTimeLabelY = delayTimeKnobBounds.getCentreY() - 110;
+
+    delayTimeLabel->setBounds(delayTimeLabelX, delayTimeLabelY, delayTimeLabelWidth, 20);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
@@ -86,13 +89,18 @@ void AudioPluginAudioProcessorEditor::createLabel(std::unique_ptr<juce::Label>& 
 {
     label = std::make_unique<juce::Label>();
     label->setText(Text, juce::dontSendNotification);
+
+    juce::Font font = juce::Font(20.0f);
+
+    font.setTypefaceName("");
+
     label->setFont(juce::Font(20.0f));
     label->setJustificationType(juce::Justification::centred);
 
     addAndMakeVisible(*label);
 }
 
-int getLabelWidth(std::unique_ptr<juce::Label>& label)
+int AudioPluginAudioProcessorEditor::getLabelWidth(std::unique_ptr<juce::Label>& label)
 {
     return label->getFont().getStringWidth(label->getText());
 }
@@ -102,6 +110,23 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
 {
     // (Our component is opaque, so we must completely fill the background with a solid colour)
     graphics.fillAll(BGGray);
+
+    // Draw bounding box for this component
+    /*graphics.setColour(juce::Colours::red);
+    graphics.drawRect(getLocalBounds(), 2);
+
+    // Draw bounding boxes for children
+    for (int ChildIndex = 0; ChildIndex < getNumChildComponents(); ++ChildIndex)
+    {
+        auto* Child = getChildComponent(ChildIndex);
+
+        if (Child != nullptr)
+        {
+            juce::Rectangle<int> ChildBounds = Child->getBounds();
+            graphics.setColour(juce::Colours::green);
+            graphics.drawRect(ChildBounds, 2);
+        }
+    }*/
 }
 
 void AudioPluginAudioProcessorEditor::resized()
