@@ -29,6 +29,8 @@ private:
     // access the processor object that created it.
     AudioPluginAudioProcessor& processorRef;
 
+    juce::Image logo;
+
     // Knobs
     std::unique_ptr<ThemedKnob> delayTimeKnob;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> delayTimeAttachment;

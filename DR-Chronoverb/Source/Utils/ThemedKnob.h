@@ -3,6 +3,8 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <functional>
 
+#include "juce_core/unit_tests/juce_UnitTestCategories.h"
+
 // ThemedKnob: Customizable rotary knob with a label and flexible value/text handling.
 class ThemedKnob : public juce::Slider
 {
@@ -92,23 +94,6 @@ public:
     void paint(juce::Graphics& Graphics) override
     {
         juce::Slider::paint(Graphics);
-
-        auto bounds = getLocalBounds().toFloat();
-        float diameter = juce::jmin(bounds.getWidth(), bounds.getHeight()) - 8.0f;
-        auto center = bounds.getCentre();
-
-        float verticalNudge = 6.0f; // For optical centering of label
-
-        juce::Rectangle<float> knobCircleArea(
-            center.x - diameter / 2.0f,
-            center.y - diameter / 2.0f - verticalNudge,
-            diameter,
-            diameter
-        );
-
-        /*Graphics.setColour(juce::Colours::white);
-        Graphics.setFont(15.0f);
-        Graphics.drawFittedText(labelText, knobCircleArea.toNearestInt(), juce::Justification::centred, 1);*/
     }
 
 private:
