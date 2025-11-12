@@ -55,7 +55,13 @@ public:
     void resized() override
     {
         auto area = getLocalBounds();
-        label.setBounds(area.removeFromTop(labelHeight));
+
+        // Add extra horizontal margin for label:
+        int labelSideMargin = 10; // Adjust as needed for aesthetics
+
+        auto labelArea = area.removeFromTop(labelHeight);
+        label.setBounds(labelArea.reduced(labelSideMargin, 0)); // wider label than knob
+
         knob.setBounds(area);
     }
 
