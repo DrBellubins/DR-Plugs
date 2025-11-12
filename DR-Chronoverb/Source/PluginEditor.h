@@ -11,7 +11,10 @@ public:
     explicit AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor&);
     ~AudioPluginAudioProcessorEditor() override;
 
-    void createLabel(std::unique_ptr<juce::Label>& label, juce::String Text);
+    void createKnob(std::unique_ptr<ThemedKnob>& knob, juce::String paramID,
+        int widthHeight, int offsetFromCenterX, int offsetFromCenterY);
+
+    void createKnobLabel(std::unique_ptr<juce::Label>& label, std::unique_ptr<ThemedKnob> knob, juce::String text);
 
     int getLabelWidth(std::unique_ptr<juce::Label>& label);
 

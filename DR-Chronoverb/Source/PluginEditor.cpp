@@ -18,86 +18,57 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     setSize(800, 400);
 
     // ------ KNOBS ------
-    // Delay time
-    delayTimeKnob = std::make_unique<ThemedKnob>(
-        "Delay", nullptr, nullptr, " Rate", juce::Slider::NoTextBox);
-
-    delayTimeKnob->setLookAndFeel(&flatKnobLAF);
-
-    delayTimeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        processorRef.parameters, "delayTime", *delayTimeKnob);
-
-    addAndMakeVisible(*delayTimeKnob);
-
-    int delayTimeWidthHeight = 150;
-    int delayTimeX = (getWidth() / 2) - (delayTimeWidthHeight / 2);
-    int delayTimeY = (getHeight() / 2) - (delayTimeWidthHeight / 2) - 25;
-
-    delayTimeKnob->setBounds(delayTimeX, delayTimeY, delayTimeWidthHeight, delayTimeWidthHeight);
-
-    // Feedback time
-    feedbackTimeKnob = std::make_unique<ThemedKnob>(
-        "Feedback", nullptr, nullptr, " Rate", juce::Slider::NoTextBox);
-
-    feedbackTimeKnob->setLookAndFeel(&flatKnobLAF);
-
-    feedbackTimeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        processorRef.parameters, "feedbackTime", *feedbackTimeKnob);
-
-    addAndMakeVisible(*feedbackTimeKnob);
-
-    int feedbackTimeWidthHeight = 80;
-    int feedbackTimeX = (getWidth() / 2) - (feedbackTimeWidthHeight / 2) + 300;
-    int feedbackTimeY = (getHeight() / 2) - (feedbackTimeWidthHeight / 2) - 25;
-
-    feedbackTimeKnob->setBounds(feedbackTimeX, feedbackTimeY, feedbackTimeWidthHeight, feedbackTimeWidthHeight);
-
-    // Diffusion amount
-    diffusionAmountKnob = std::make_unique<ThemedKnob>(
-        "Diffusion amount", nullptr, nullptr, " Rate", juce::Slider::NoTextBox);
-
-    diffusionAmountKnob->setLookAndFeel(&flatKnobLAF);
-
-    diffusionAmountAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        processorRef.parameters, "diffusionAmount", *diffusionAmountKnob);
-
-    addAndMakeVisible(*diffusionAmountKnob);
-
-    int diffusionAmountWidthHeight = 80;
-    int diffusionAmountX = (getWidth() / 2) - (diffusionAmountWidthHeight / 2) - 300;
-    int diffusionAmountY = (getHeight() / 2) - (diffusionAmountWidthHeight / 2) - 100;
-
-    diffusionAmountKnob->setBounds(diffusionAmountX, diffusionAmountY, diffusionAmountWidthHeight, diffusionAmountWidthHeight);
+    createKnob(delayTimeKnob, "delayTime", 150, 0, -25);
+    createKnob(feedbackTimeKnob, "feedbackTime", 80, 300, -25);
+    createKnob(diffusionAmountKnob, "diffusionAmount", 80, -300, -100);
 
     // ------ Labels ------
-    createLabel(delayTimeLabel, "Delay");
-
-    int delayTimeLabelWidth = getLabelWidth(delayTimeLabel);
-
-    juce::Rectangle<int> delayTimeKnobBounds = delayTimeKnob->getBounds();
-    int delayTimeLabelX = delayTimeKnobBounds.getCentreX() - (delayTimeLabelWidth / 2);
-    int delayTimeLabelY = delayTimeKnobBounds.getCentreY() - 110;
-
-    delayTimeLabel->setBounds(delayTimeLabelX, delayTimeLabelY, delayTimeLabelWidth, 20);
+    createKnobLabel(delayTimeLabel, delayTimeKnob, "Delay");
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
 {
 }
 
-void AudioPluginAudioProcessorEditor::createLabel(std::unique_ptr<juce::Label>& label, juce::String Text)
+void AudioPluginAudioProcessorEditor::createKnob(std::unique_ptr<ThemedKnob>& knob, juce::String paramID,
+        int widthHeight, int offsetFromCenterX, int offsetFromCenterY)
+{
+    knob = std::make_unique<ThemedKnob>(
+        "Delay", nullptr, nullptr, " Rate", juce::Slider::NoTextBox);
+
+    knob->setLookAndFeel(&flatKnobLAF);
+
+    delayTimeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        processorRef.parameters, paramID, *knob);
+
+    addAndMakeVisible(*knob);
+
+    int knobX = (getWidth() / 2) - (widthHeight / 2) + offsetFromCenterX;
+    int knobY = (getHeight() / 2) - (widthHeight / 2) + offsetFromCenterY;
+
+    knob->setBounds(knobX, knobY, widthHeight, widthHeight);
+}
+
+void AudioPluginAudioProcessorEditor::createKnobLabel(std::unique_ptr<juce::Label>& label, std::unique_ptr<ThemedKnob> knob, juce::String text)
 {
     label = std::make_unique<juce::Label>();
-    label->setText(Text, juce::dontSendNotification);
+    label->setText(text, juce::dontSendNotification);
 
-    juce::Font font = juce::Font(20.0f);
+    juce::Font MainFont("Liberation Sans", 20.0f, juce::Font::bold);
+    MainFont.setExtraKerningFactor(0.05f);
 
-    font.setTypefaceName("");
-
-    label->setFont(juce::Font(20.0f));
+    label->setFont(MainFont);
     label->setJustificationType(juce::Justification::centred);
 
     addAndMakeVisible(*label);
+
+    int labelWidth = getLabelWidth(delayTimeLabel);
+
+    juce::Rectangle<int> delayTimeKnobBounds = knob->getBounds();
+    int labelX = delayTimeKnobBounds.getCentreX() - (labelWidth / 2);
+    int labelY = delayTimeKnobBounds.getCentreY() - 110;
+
+    label->setBounds(labelX, labelY, labelWidth, 20);
 }
 
 int AudioPluginAudioProcessorEditor::getLabelWidth(std::unique_ptr<juce::Label>& label)
