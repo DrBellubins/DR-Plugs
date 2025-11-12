@@ -56,11 +56,10 @@ public:
     {
         auto area = getLocalBounds();
 
-        // Add extra horizontal margin for label:
-        int labelSideMargin = 10; // Adjust as needed for aesthetics
-
+        // Give the label the full width!
         auto labelArea = area.removeFromTop(labelHeight);
-        label.setBounds(labelArea.reduced(labelSideMargin, 0)); // wider label than knob
+
+        label.setBounds(labelArea); // No "reduced" at all
 
         knob.setBounds(area);
     }
