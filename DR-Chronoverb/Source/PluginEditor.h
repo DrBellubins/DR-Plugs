@@ -40,7 +40,7 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> dryWetMixAttachment;
 
     // Labels
-    std::unique_ptr<LabelAttachment> delayTimeLabel;
+
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };

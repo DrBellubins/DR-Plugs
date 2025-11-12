@@ -70,10 +70,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     diffusionAmountKnob->setBounds(diffusionAmountX, diffusionAmountY, diffusionAmountWidthHeight, diffusionAmountWidthHeight);
 
     // ------ Labels ------
-    delayTimeLabel = std::make_unique<LabelAttachment>("Delay", delayTimeKnob.get(), LabelAttachment::Position::Above);
-    addAndMakeVisible(*delayTimeLabel);
-
-    delayTimeLabel->setBounds(delayTimeX, delayTimeY, 100, 32);
+    
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
