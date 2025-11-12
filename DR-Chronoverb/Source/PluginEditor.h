@@ -2,6 +2,7 @@
 
 #include "PluginProcessor.h"
 #include "Utils/ThemedKnob.h"
+#include "Utils/LabelAttachment.h"
 
 //==============================================================================
 class AudioPluginAudioProcessorEditor  : public juce::AudioProcessorEditor
