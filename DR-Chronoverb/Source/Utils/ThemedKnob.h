@@ -94,6 +94,21 @@ public:
     void paint(juce::Graphics& Graphics) override
     {
         juce::Slider::paint(Graphics);
+
+        // Get knob bounds and find the optimal circle size
+        auto bounds = getLocalBounds().toFloat();
+        float diameter = juce::jmin(bounds.getWidth(), bounds.getHeight());
+
+        // Shrink for margin to leave visible border
+        float margin = diameter * 0.23f; // tune (0.20-0.25) for thickness
+        float innerDiameter = diameter - margin;
+
+        auto center = bounds.getCentre();
+        float innerRadius = innerDiameter / 2.0f;
+
+        // Colour from theme
+        Graphics.setColour(UnfocusedGray);
+        Graphics.fillEllipse(center.x - innerRadius, center.y - innerRadius, innerDiameter, innerDiameter);
     }
 
 private:
