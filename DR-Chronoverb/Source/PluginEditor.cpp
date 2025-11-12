@@ -18,9 +18,11 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     setSize(800, 400);
 
     // ------ KNOBS ------
-    createKnob(delayTimeKnob, "delayTime", 150, 0, -25);
-    createKnob(feedbackTimeKnob, "feedbackTime", 80, 300, -25);
-    createKnob(diffusionAmountKnob, "diffusionAmount", 80, -300, -100);
+
+    // TODO: delayTimeKnob needs to have its suffix value * 1000 for accurate ms display
+    createKnob(delayTimeKnob, "delayTime", " ms", 150, 0, -25);
+    createKnob(feedbackTimeKnob, "feedbackTime", "", 80, 300, -25);
+    createKnob(diffusionAmountKnob, "diffusionAmount", "", 80, -300, -100);
 
     // ------ Labels ------
     createKnobLabel(delayTimeLabel, *delayTimeKnob, "Delay", 110);
@@ -32,11 +34,11 @@ AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
 {
 }
 
-void AudioPluginAudioProcessorEditor::createKnob(std::unique_ptr<ThemedKnob>& knob, juce::String paramID,
+void AudioPluginAudioProcessorEditor::createKnob(std::unique_ptr<ThemedKnob>& knob, juce::String paramID, juce::String suffix,
         int widthHeight, int offsetFromCenterX, int offsetFromCenterY)
 {
     knob = std::make_unique<ThemedKnob>(
-        "Delay", nullptr, nullptr, " Rate", juce::Slider::NoTextBox);
+        "", nullptr, nullptr, suffix, juce::Slider::TextBoxBelow);
 
     knob->setLookAndFeel(&flatKnobLAF);
 

@@ -12,7 +12,7 @@ public:
     ~AudioPluginAudioProcessorEditor() override;
 
     void createKnob(std::unique_ptr<ThemedKnob>& knob, juce::String paramID,
-        int widthHeight, int offsetFromCenterX, int offsetFromCenterY);
+        juce::String suffix, int widthHeight, int offsetFromCenterX, int offsetFromCenterY);
 
     void createKnobLabel(std::unique_ptr<juce::Label>& label, ThemedKnob& knob, juce::String text, int offsetY);
 
