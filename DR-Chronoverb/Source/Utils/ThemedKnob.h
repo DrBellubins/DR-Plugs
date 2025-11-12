@@ -105,12 +105,12 @@ public:
         int height = KnobArea.getHeight();
         int size = juce::jmin(width, height);
 
-        float diameter = static_cast<float>(size) - 16.0f;
+        float diameter = static_cast<float>(size) - 20.0f;
         float radius = diameter / 2.0f;
         juce::Point<float> center = KnobArea.toFloat().getCentre();
 
         // Now draw the inner circle using the same base as the arc
-        Graphics.setColour(UnfocusedGray); // <- your inner disk color
+        Graphics.setColour(AccentGray.darker(0.2f));
         Graphics.fillEllipse(center.x - radius, center.y - radius, diameter, diameter);
     }
 
