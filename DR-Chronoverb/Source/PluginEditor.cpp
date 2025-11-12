@@ -34,7 +34,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     delayTimeKnob->setBounds(delayTimeX, delayTimeY, delayTimeWidthHeight, delayTimeWidthHeight);
 
-    auto* delayTimeLabel = new LabelAttachment("My Label", delayTimeKnob, LabelAttachment::Position::Above);
+    auto* delayTimeLabel = new LabelAttachment("My Label", delayTimeKnob.get(), LabelAttachment::Position::Above);
 
     // Feedback time
     feedbackTimeKnob = std::make_unique<ThemedKnob>(
