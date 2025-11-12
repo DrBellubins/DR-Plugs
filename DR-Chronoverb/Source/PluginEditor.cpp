@@ -18,7 +18,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     // Delay time
     delayTimeKnob = std::make_unique<ThemedKnob>(
-        "Delay Time", nullptr, nullptr, " Rate", juce::Slider::NoTextBox);
+        "Delay", nullptr, nullptr, " Rate", juce::Slider::NoTextBox);
 
     delayTimeKnob->setTextValueSuffix(" Rate");
     delayTimeKnob->setLookAndFeel(&flatKnobLAF);
@@ -28,11 +28,47 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     addAndMakeVisible(*delayTimeKnob);
 
-    int delayTimeWidthHeight = 100;
+    int delayTimeWidthHeight = 150;
     int delayTimeX = (getWidth() / 2) - (delayTimeWidthHeight / 2);
-    int delayTimeY = (getHeight() / 2) - (delayTimeWidthHeight / 2);
+    int delayTimeY = (getHeight() / 2) - (delayTimeWidthHeight / 2) - 25;
 
-    delayTimeKnob->setBounds(delayTimeX, delayTimeY - 25, delayTimeWidthHeight, delayTimeWidthHeight);
+    delayTimeKnob->setBounds(delayTimeX, delayTimeY, delayTimeWidthHeight, delayTimeWidthHeight);
+
+    // Feedback time
+    feedbackTimeKnob = std::make_unique<ThemedKnob>(
+        "Feedback", nullptr, nullptr, " Rate", juce::Slider::NoTextBox);
+
+    feedbackTimeKnob->setTextValueSuffix(" Rate");
+    feedbackTimeKnob->setLookAndFeel(&flatKnobLAF);
+
+    delayTimeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        processorRef.parameters, "feedbackTime", *feedbackTimeKnob);
+
+    addAndMakeVisible(*feedbackTimeKnob);
+
+    int feedbackTimeWidthHeight = 80;
+    int feedbackTimeX = (getWidth() / 2) - (feedbackTimeWidthHeight / 2) + 300;
+    int feedbackTimeY = (getHeight() / 2) - (feedbackTimeWidthHeight / 2) - 25;
+
+    feedbackTimeKnob->setBounds(feedbackTimeX, feedbackTimeY, feedbackTimeWidthHeight, feedbackTimeWidthHeight);
+
+    // Diffusion amount
+    diffusionAmountKnob = std::make_unique<ThemedKnob>(
+        "Diffusion amount", nullptr, nullptr, " Rate", juce::Slider::NoTextBox);
+
+    diffusionAmountKnob->setTextValueSuffix(" Rate");
+    diffusionAmountKnob->setLookAndFeel(&flatKnobLAF);
+
+    diffusionAmountAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        processorRef.parameters, "diffusionAmount", *diffusionAmountKnob);
+
+    addAndMakeVisible(*diffusionAmountKnob);
+
+    int diffusionAmountWidthHeight = 80;
+    int diffusionAmountX = (getWidth() / 2) - (diffusionAmountWidthHeight / 2) - 300;
+    int diffusionAmountY = (getHeight() / 2) - (diffusionAmountWidthHeight / 2) - 100;
+
+    diffusionAmountKnob->setBounds(diffusionAmountX, diffusionAmountY, diffusionAmountWidthHeight, diffusionAmountWidthHeight);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
