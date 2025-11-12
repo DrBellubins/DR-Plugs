@@ -95,22 +95,23 @@ public:
     {
         juce::Slider::paint(Graphics);
 
-        // Find the area for the rotary knob, excluding the text box
+        // replicate arc/ellipse calculation from FlatRotaryLookAndFeel
         juce::Rectangle<int> KnobArea = getLocalBounds();
 
         if (getTextBoxPosition() == juce::Slider::TextBoxBelow && getTextBoxHeight() > 0)
             KnobArea.setHeight(KnobArea.getHeight() - getTextBoxHeight());
 
-        juce::Rectangle<float> KnobAreaF = KnobArea.toFloat();
-        float Diameter = juce::jmin(KnobAreaF.getWidth(), KnobAreaF.getHeight());
-        float Margin = Diameter * 0.3f;
-        float InnerDiameter = Diameter - Margin;
+        int width = KnobArea.getWidth();
+        int height = KnobArea.getHeight();
+        int size = juce::jmin(width, height);
 
-        juce::Point<float> Center = KnobAreaF.getCentre();
-        float InnerRadius = InnerDiameter / 2.0f;
+        float diameter = static_cast<float>(size) - 16.0f;
+        float radius = diameter / 2.0f;
+        juce::Point<float> center = KnobArea.toFloat().getCentre();
 
-        Graphics.setColour(AccentGray.darker(0.2));
-        Graphics.fillEllipse(Center.x - InnerRadius, Center.y - InnerRadius, InnerDiameter, InnerDiameter);
+        // Now draw the inner circle using the same base as the arc
+        Graphics.setColour(UnfocusedGray); // <- your inner disk color
+        Graphics.fillEllipse(center.x - radius, center.y - radius, diameter, diameter);
     }
 
 private:
