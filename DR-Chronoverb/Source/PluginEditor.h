@@ -14,7 +14,7 @@ public:
     void createKnob(std::unique_ptr<ThemedKnob>& knob, juce::String paramID,
         int widthHeight, int offsetFromCenterX, int offsetFromCenterY);
 
-    void createKnobLabel(std::unique_ptr<juce::Label>& label, std::unique_ptr<ThemedKnob> knob, juce::String text);
+    void createKnobLabel(std::unique_ptr<juce::Label>& label, ThemedKnob& knob, juce::String text, int offsetY);
 
     int getLabelWidth(std::unique_ptr<juce::Label>& label);
 
@@ -48,6 +48,8 @@ private:
 
     // Labels
     std::unique_ptr<juce::Label> delayTimeLabel;
+    std::unique_ptr<juce::Label> feedbackLabel;
+    std::unique_ptr<juce::Label> diffusionAmountLabel;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };
