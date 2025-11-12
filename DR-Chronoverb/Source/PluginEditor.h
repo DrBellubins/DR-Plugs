@@ -1,8 +1,8 @@
 #pragma once
 
 #include "PluginProcessor.h"
+#include "Utils/FlatLabel.h"
 #include "Utils/ThemedKnob.h"
-#include "Utils/LabelAttachment.h"
 
 //==============================================================================
 class AudioPluginAudioProcessorEditor  : public juce::AudioProcessorEditor
@@ -10,6 +10,10 @@ class AudioPluginAudioProcessorEditor  : public juce::AudioProcessorEditor
 public:
     explicit AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor&);
     ~AudioPluginAudioProcessorEditor() override;
+
+    void createLabel(std::unique_ptr<juce::Label>& label, juce::String Text);
+
+    int getLabelWidth(std::unique_ptr<juce::Label>& label);
 
     //==============================================================================
     void paint (juce::Graphics&) override;
@@ -40,7 +44,7 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> dryWetMixAttachment;
 
     // Labels
-
+    std::unique_ptr<juce::Label> delayTimeLabel;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };

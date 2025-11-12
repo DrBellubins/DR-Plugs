@@ -70,11 +70,31 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     diffusionAmountKnob->setBounds(diffusionAmountX, diffusionAmountY, diffusionAmountWidthHeight, diffusionAmountWidthHeight);
 
     // ------ Labels ------
-    
+    createLabel(delayTimeLabel, "Delay");
+
+    int delayTimeLabelWidth = getLabelWidth(delayTimeLabel);
+    int delayTimeLabelOffsetX = 35;
+
+    delayTimeLabel->setBounds(delayTimeX + delayTimeLabelOffsetX, delayTimeY, delayTimeLabelWidth, 20);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
 {
+}
+
+void AudioPluginAudioProcessorEditor::createLabel(std::unique_ptr<juce::Label>& label, juce::String Text)
+{
+    label = std::make_unique<juce::Label>();
+    label->setText(Text, juce::dontSendNotification);
+    label->setFont(juce::Font(20.0f));
+    label->setJustificationType(juce::Justification::centred);
+
+    addAndMakeVisible(*label);
+}
+
+int getLabelWidth(std::unique_ptr<juce::Label>& label)
+{
+    return label->getFont().getStringWidth(label->getText());
 }
 
 //==============================================================================
