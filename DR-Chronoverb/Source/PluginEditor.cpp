@@ -24,8 +24,8 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     // ------ Labels ------
     createKnobLabel(delayTimeLabel, *delayTimeKnob, "Delay", 110);
-    createKnobLabel(feedbackLabel, *feedbackTimeKnob, "Feedback", 65);
-    createKnobLabel(diffusionAmountLabel, *diffusionAmountKnob, "Diffusion Amount", 65);
+    createKnobLabel(feedbackLabel, *feedbackTimeKnob, "Feedback", 70);
+    createKnobLabel(diffusionAmountLabel, *diffusionAmountKnob, "Diffusion Amount", 70);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
@@ -65,7 +65,7 @@ void AudioPluginAudioProcessorEditor::createKnobLabel(std::unique_ptr<juce::Labe
 
     addAndMakeVisible(*label);
 
-    int labelWidth = getLabelWidth(delayTimeLabel);
+    int labelWidth = getLabelWidth(label);
 
     juce::Rectangle<int> delayTimeKnobBounds = knob.getBounds();
     int labelX = delayTimeKnobBounds.getCentreX() - (labelWidth / 2);
