@@ -3,6 +3,7 @@
 
 #include "Utils/FlatRotaryLookAndFeel.h"
 #include "Utils/Theme.h"
+#include "Utils/ThemedKnob.h"
 
 static FlatRotaryLookAndFeel flatKnobLAF;
 
@@ -17,13 +18,13 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     setSize(800, 400);
 
     // Delay time
-    delayTimeKnob = std::make_unique<ThemedKnobWithLabel>(
+    delayTimeKnob = std::make_unique<ThemedKnob>(
         "Delay", nullptr, nullptr, " Rate", juce::Slider::NoTextBox);
 
     delayTimeKnob->setLookAndFeel(&flatKnobLAF);
 
     delayTimeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        processorRef.parameters, "delayTime", delayTimeKnob->getKnob());
+        processorRef.parameters, "delayTime", *delayTimeKnob);
 
     addAndMakeVisible(*delayTimeKnob);
 
@@ -34,13 +35,13 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     delayTimeKnob->setBounds(delayTimeX, delayTimeY, delayTimeWidthHeight, delayTimeWidthHeight);
 
     // Feedback time
-    feedbackTimeKnob = std::make_unique<ThemedKnobWithLabel>(
+    feedbackTimeKnob = std::make_unique<ThemedKnob>(
         "Feedback", nullptr, nullptr, " Rate", juce::Slider::NoTextBox);
 
     feedbackTimeKnob->setLookAndFeel(&flatKnobLAF);
 
-    delayTimeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        processorRef.parameters, "feedbackTime", feedbackTimeKnob->getKnob());
+    feedbackTimeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        processorRef.parameters, "feedbackTime", *feedbackTimeKnob);
 
     addAndMakeVisible(*feedbackTimeKnob);
 
@@ -51,13 +52,13 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     feedbackTimeKnob->setBounds(feedbackTimeX, feedbackTimeY, feedbackTimeWidthHeight, feedbackTimeWidthHeight);
 
     // Diffusion amount
-    diffusionAmountKnob = std::make_unique<ThemedKnobWithLabel>(
+    diffusionAmountKnob = std::make_unique<ThemedKnob>(
         "Diffusion amount", nullptr, nullptr, " Rate", juce::Slider::NoTextBox);
 
     diffusionAmountKnob->setLookAndFeel(&flatKnobLAF);
 
     diffusionAmountAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        processorRef.parameters, "diffusionAmount", diffusionAmountKnob->getKnob());
+        processorRef.parameters, "diffusionAmount", *diffusionAmountKnob);
 
     addAndMakeVisible(*diffusionAmountKnob);
 
