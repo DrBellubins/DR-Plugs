@@ -1,9 +1,14 @@
 #pragma once
 
+#include "BinaryData.h"
 #include "PluginProcessor.h"
+
+#include "Utils/FlatRotaryLookAndFeel.h"
+#include "Utils/Theme.h"
+#include "Utils/ThemedKnob.h"
 #include "Utils/FlatLabel.h"
 #include "Utils/ThemedKnob.h"
-#include "BinaryData.h"
+#include "Utils/ThemedSlider.h"
 
 //==============================================================================
 class AudioPluginAudioProcessorEditor  : public juce::AudioProcessorEditor
@@ -11,6 +16,12 @@ class AudioPluginAudioProcessorEditor  : public juce::AudioProcessorEditor
 public:
     explicit AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor&);
     ~AudioPluginAudioProcessorEditor() override;
+
+    void createSlider(std::unique_ptr<ThemedSlider>& slider, std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>& attachment, juce::String paramID,
+        int width, int height, int offsetFromCenterX, int offsetFromCenterY);
+
+    void createSliderLabel(std::unique_ptr<juce::Label>& label, ThemedSlider& slider,
+        juce::String text, float fontSize, int offsetX);
 
     void createKnob(std::unique_ptr<ThemedKnob>& knob, std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>& attachment, juce::String paramID,
         juce::String suffix, int widthHeight, int offsetFromCenterX, int offsetFromCenterY);
@@ -45,7 +56,7 @@ private:
     std::unique_ptr<ThemedKnob> diffusionSizeKnob;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> diffusionSizeAttachment;
 
-    std::unique_ptr<ThemedKnob> diffusionQualityKnob;
+    std::unique_ptr<ThemedSlider> diffusionQualitySlider;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> diffusionQualityAttachment;
 
     std::unique_ptr<ThemedKnob> dryWetMixKnob;
