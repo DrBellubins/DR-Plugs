@@ -148,6 +148,8 @@ juce_add_binary_data(Assets
 # we're linking our executable target to the `juce::juce_audio_utils` module. Inter-module
 # dependencies are resolved automatically.
 
+set_target_properties(Assets PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 target_link_libraries("${PROJECT_NAME}"
     PRIVATE
         Assets                # If we'd created a binary data target, we'd link to it here
