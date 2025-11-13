@@ -17,6 +17,9 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     // editor's size to whatever you need it to be.
     setSize(800, 400);
 
+    // Background
+    background = juce::ImageFileFormat::loadFrom(BinaryData::bg_png, BinaryData::bg_pngSize);
+
     // Logo
     logo = juce::ImageFileFormat::loadFrom(BinaryData::logo_png, BinaryData::logo_pngSize);
 
@@ -24,7 +27,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     // TODO: delayTimeKnob needs to have its suffix value * 1000 for accurate ms display
     createKnob(delayTimeKnob, delayTimeAttachment, "delayTime", " ms", 150, 0, -25);
-    createKnob(feedbackTimeKnob, feedbackTimeAttachment, "feedbackTime", "", 80, 300, 0);
+    createKnob(feedbackTimeKnob, feedbackTimeAttachment, "feedbackTime", "", 80, 150, 50);
     createKnob(diffusionAmountKnob, diffusionAmountAttachment, "diffusionAmount", "", 80, -300, -50);
     createKnob(diffusionSizeKnob, diffusionSizeAttachment, "diffusionSize", "", 80, -150, -50);
 
@@ -93,7 +96,11 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
     graphics.fillAll(BGGray);
 
     if (logo.isValid())
-        graphics.drawImageWithin(logo, 0, -30, 256, 128, juce::RectanglePlacement::centred);
+    {
+        graphics.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
+        graphics.drawImage(logo, juce::Rectangle<float>(0, 0, 256.0f, 60.0f), juce::RectanglePlacement::centred);
+
+    }
 
     // Draw bounding box for this component
     /*graphics.setColour(juce::Colours::red);

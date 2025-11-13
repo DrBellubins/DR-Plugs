@@ -29,6 +29,7 @@ private:
     // access the processor object that created it.
     AudioPluginAudioProcessor& processorRef;
 
+    juce::Image background;
     juce::Image logo;
 
     // Knobs
