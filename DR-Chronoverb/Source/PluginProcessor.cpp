@@ -140,7 +140,7 @@ void AudioPluginAudioProcessor::prepareToPlay(double sampleRate, int samplesPerB
     DelayReverb.SetDiffusionAmount(1.0f);     // 70% reverb
     DelayReverb.SetDiffusionSize(0.6f);       // Medium-large space
     DelayReverb.SetDiffusionQuality(0.9f);    // Lush reverb
-    DelayReverb.SetWetDryMix(0.5f);           // 40% wet
+    DelayReverb.SetDryWetMix(0.5f);           // 40% wet
 }
 
 void AudioPluginAudioProcessor::releaseResources()
@@ -180,6 +180,15 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
     juce::ScopedNoDenormals noDenormals;
 
+    // Parameter
+    float delayTime = parameters.getRawParameterValue("delayTime")->load();
+    float feedbackTime = parameters.getRawParameterValue("feedbackTime")->load();
+    float diffusionAmount = parameters.getRawParameterValue("diffusionAmount")->load();
+    float diffusionSize = parameters.getRawParameterValue("diffusionSize")->load();
+    float diffusionQuality = parameters.getRawParameterValue("diffusionQuality")->load();
+    float dryWetMix = parameters.getRawParameterValue("dryWetMix")->load();
+
+    // Square wave test
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
@@ -194,7 +203,7 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     const int squareTestOffSamples = static_cast<int>(squareTestSampleRate * 3.0);   // 3 sec OFF
     const double squareTestPhasePerSample = squareTestFrequency / squareTestSampleRate;
 
-    /*for (int SampleIndex = 0; SampleIndex < squareTestNumSamples; ++SampleIndex)
+    for (int SampleIndex = 0; SampleIndex < squareTestNumSamples; ++SampleIndex)
     {
         // Square ON for X samples, then OFF for Y samples, repeat
         if (squareTestWaveOn)
@@ -234,9 +243,16 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             squareTestSampleCounter = 0;
             squareTestPhase = 0.0; // Optional: reset phase at re-trigger
         }
-    }*/
+    }
 
     // Process reverb
+    DelayReverb.SetDelayTime(delayTime);
+    DelayReverb.SetFeedbackTime(feedbackTime);
+    DelayReverb.SetDiffusionAmount(diffusionAmount);
+    DelayReverb.SetDiffusionSize(diffusionSize);
+    DelayReverb.SetDiffusionQuality(diffusionQuality);
+    DelayReverb.SetDryWetMix(dryWetMix);
+
     DelayReverb.ProcessBlock(buffer);
 }
 

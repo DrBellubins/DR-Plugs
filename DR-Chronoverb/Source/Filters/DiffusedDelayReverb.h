@@ -71,7 +71,7 @@ public:
      * @brief Sets wet/dry mix for the effect.
      * @param mix Normalized value [0.0, 1.0] → dry to wet.
      */
-    void SetWetDryMix(float mix);
+    void SetDryWetMix(float mix);
 
     /**
      * @brief Processes an audio block.

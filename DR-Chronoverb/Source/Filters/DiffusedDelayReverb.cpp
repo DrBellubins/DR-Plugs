@@ -78,7 +78,7 @@ void DiffusedDelayReverb::SetDiffusionQuality(float quality)
     UpdateDiffusionNetwork();
 }
 
-void DiffusedDelayReverb::SetWetDryMix(float mix)
+void DiffusedDelayReverb::SetDryWetMix(float mix)
 {
     wetDryMix = juce::jlimit(0.0f, 1.0f, mix);
     smoothedWetDry.setTargetValue(wetDryMix);
