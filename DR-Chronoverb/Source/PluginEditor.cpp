@@ -147,7 +147,7 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
         graphics.drawImage(logo, juce::Rectangle<float>(0, 0, 256.0f, 60.0f), juce::RectanglePlacement::centred);
 
     // Draw bounding box for this component
-    graphics.setColour(juce::Colours::red);
+    /*graphics.setColour(juce::Colours::red);
     graphics.drawRect(getLocalBounds(), 2);
 
     // Draw bounding boxes for children
@@ -161,7 +161,7 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
             graphics.setColour(juce::Colours::green);
             graphics.drawRect(ChildBounds, 2);
         }
-    }
+    }*/
 }
 
 void AudioPluginAudioProcessorEditor::resized()

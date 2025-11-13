@@ -4,7 +4,7 @@
 #include <functional>
 #include "Theme.h"
 
-// ThemedSlider: Customizable horizontal slider with themed appearance, matching ThemedKnob.
+// ThemedSlider: Flat horizontal slider matching ThemedKnob, full rect, no thumb, no shadow.
 class ThemedSlider : public juce::Slider
 {
 public:
@@ -93,34 +93,20 @@ public:
     {
         juce::Slider::paint(Graphics);
 
-        // Draw track background
-        juce::Rectangle<int> trackArea = getLocalBounds().reduced(4, getHeight() / 3);
-        Graphics.setColour(AccentGray);
-        Graphics.fillRect(trackArea.withHeight(6));
+        juce::Rectangle<int> SliderArea = getLocalBounds();
 
-        // Draw value fill
-        double proportion = (getValue() - getMinimum()) / (getMaximum() - getMinimum());
-        int fillWidth = static_cast<int>(trackArea.getWidth() * proportion);
-        juce::Rectangle<int> valueRect = trackArea.withWidth(fillWidth);
+        // Background track (full bounds, flat, no shadow)
+        Graphics.setColour(AccentGray.darker(0.2f));
+        Graphics.fillRect(SliderArea);
+
+        // Value fill (overlay, full height)
+        double Proportion = (getValue() - getMinimum()) / (getMaximum() - getMinimum());
+
+        int FillWidth = static_cast<int>(SliderArea.getWidth() * Proportion);
+        juce::Rectangle<int> ValueRect = SliderArea.withWidth(FillWidth);
 
         Graphics.setColour(ThemePink);
-        Graphics.fillRect(valueRect.withHeight(6));
-
-        // Draw thumb
-        int thumbX = trackArea.getX() + fillWidth;
-        int thumbY = trackArea.getCentreY();
-        int thumbRadius = 8;
-        Graphics.setColour(juce::Colours::white);
-        Graphics.fillEllipse(static_cast<float>(thumbX - thumbRadius), 
-                            static_cast<float>(thumbY - thumbRadius),
-                            static_cast<float>(2 * thumbRadius),
-                            static_cast<float>(2 * thumbRadius));
-        Graphics.setColour(FocusedGray);
-        Graphics.drawEllipse(static_cast<float>(thumbX - thumbRadius),
-                             static_cast<float>(thumbY - thumbRadius),
-                             static_cast<float>(2 * thumbRadius),
-                             static_cast<float>(2 * thumbRadius),
-                             2.0f);
+        Graphics.fillRect(ValueRect);
     }
 
 private:
