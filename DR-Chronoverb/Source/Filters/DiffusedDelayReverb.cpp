@@ -75,7 +75,9 @@ void DiffusedDelayReverb::SetDiffusionSize(float size)
 void DiffusedDelayReverb::SetDiffusionQuality(float quality)
 {
     diffusionQuality = juce::jlimit(0.0f, 1.0f, quality);
-    UpdateDiffusionNetwork();
+
+    // Rebuild the diffusion topology so numSeries/numParallel and buffers update with quality
+    diffusionStage.Prepare(sampleRate, diffusionSize, diffusionQuality);
 }
 
 void DiffusedDelayReverb::SetDryWetMix(float mix)
@@ -109,22 +111,10 @@ void DiffusedDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
             const int DryReadPos = (inputWritePos - static_cast<int>(PreDelaySamples) + inputBuffer.getNumSamples()) % inputBuffer.getNumSamples();
             const float DryDelay = InputData[DryReadPos];
 
-            // --- 4. Blend ---
+            // --- 4. Continuous Dry/Diffused crossfade into FDN input ---
             const float CurrentDiffusionAmount = smoothedDiffusionAmount.getNextValue();
-
-            float FdnInput;
-
-            if (CurrentDiffusionAmount < 0.001f)
-            {
-                FdnInput = DryDelay;
-                // Optional: set feedbackMatrix to identity or diagonal, so only each channel's own delay is used.
-            }
-            else
-            {
-                float Diffused = diffusionStage.Process(DryDelay);
-                FdnInput = Diffused;
-                // Normal cross-matrix feedback
-            }
+            const float Diffused = diffusionStage.Process(DryDelay);
+            const float FdnInput = DryDelay + CurrentDiffusionAmount * (Diffused - DryDelay);
 
             const float PerChannelInput = FdnInput / static_cast<float>(numFdnChannels);
 
@@ -182,47 +172,30 @@ void DiffusedDelayReverb::UpdateDelayBuffer()
 {
     const int bufferSize = delayBuffer.getNumSamples();
 
-    if (bufferSize == 0) return;
-
-    if (diffusionAmount < 0.001f)
+    if (bufferSize == 0)
     {
-        // PURE DELAY: All FDN lines are set to the requested delay time
-        int pureDelaySamples = juce::jlimit(10, bufferSize - 1, static_cast<int>(delayTimeSeconds * sampleRate));
-
-        for (int i = 0; i < numFdnChannels; ++i)
-        {
-            delaySamples[i] = pureDelaySamples;
-            const float delayTimeInSeconds = delaySamples[i] / sampleRate; // MUST BE SET AFTER delaySamples[i]
-
-            feedbackGains[i] = std::pow(0.001f, delayTimeInSeconds / feedbackTimeSeconds);
-        }
-
-        // Set feedbackMatrix to identity!
-        feedbackMatrix.identity(0.0f);
-
-        for (int i = 0; i < numFdnChannels; ++i)
-            feedbackMatrix(i, i) = 1.0f;
+        return;
     }
-    else
+
+    // Always use short prime-based delays and a proper scattering feedback matrix.
+    // Decouple from diffusionAmount so Amount can be changed at runtime without topology switches.
+    const std::array<int, numFdnChannels> basePrimes = { 29, 37, 41, 53 };
+    const float scale = delayTimeSeconds / 0.5f; // Normalize around ~500 ms
+
+    for (int i = 0; i < numFdnChannels; ++i)
     {
-        // REVERB: Short prime delays, cross-mixing
-        const std::array<int, numFdnChannels> basePrimes = { 29, 37, 41, 53 };
-        const float scale = delayTimeSeconds / 0.5f; // Normalize around 500ms
+        const int baseMs = basePrimes[i];
+        const float targetMs = baseMs * scale;
 
-        for (int i = 0; i < numFdnChannels; ++i)
-        {
-            const int baseMs = basePrimes[i];
-            const float targetMs = baseMs * scale;
+        delaySamples[i] = juce::jlimit(10, bufferSize - 1, static_cast<int>(targetMs * 0.001f * sampleRate));
 
-            delaySamples[i] = juce::jlimit(10, bufferSize - 1, static_cast<int>(targetMs * 0.001f * sampleRate));
+        const float delayTimeInSeconds = delaySamples[i] / sampleRate; // MUST BE SET AFTER delaySamples[i]
 
-            const float delayTimeInSeconds = delaySamples[i] / sampleRate; // MUST BE SET AFTER delaySamples[i]
-
-            feedbackGains[i] = std::pow(0.001f, delayTimeInSeconds / feedbackTimeSeconds);
-        }
-
-        UpdateFeedbackMatrix(); // Hadamard or Householder, as you do now
+        // 60 dB decay time per line = feedbackTimeSeconds
+        feedbackGains[i] = std::pow(0.001f, delayTimeInSeconds / feedbackTimeSeconds);
     }
+
+    UpdateFeedbackMatrix(); // Use Hadamard-like fixed scattering
 }
 
 void DiffusedDelayReverb::UpdateFeedbackMatrix()
@@ -298,10 +271,13 @@ float DiffusedDelayReverb::AllpassDiffuser::Process(float input)
 //==============================================================================
 void DiffusedDelayReverb::DiffusionStage::Prepare(float SampleRate, float Size, float Quality)
 {
+    sampleRate = SampleRate;
     currentSize = Size;
     currentQuality = Quality;
 
-    const int MaxSamples = static_cast<int>(200.0f * SampleRate / 44100.0f);
+    // Allocate enough headroom in samples based on sampleRate (about 250 ms max)
+    const float MaxDelayMs = 250.0f;
+    const int MaxSamples = static_cast<int>((MaxDelayMs * 0.001f) * sampleRate);
 
     // ---- SERIES DIFFUSERS -------------------------------------------------
     numSeries = 1 + static_cast<int>(Quality * 3);  // 1 to 4
@@ -312,7 +288,7 @@ void DiffusedDelayReverb::DiffusionStage::Prepare(float SampleRate, float Size, 
     for (int Index = 0; Index < numSeries; ++Index)
     {
         seriesDiffusers.emplace_back();                    // Direct construct
-        seriesDiffusers.back().Prepare(SampleRate, MaxSamples);
+        seriesDiffusers.back().Prepare(sampleRate, MaxSamples);
     }
 
     // ---- PARALLEL DIFFUSERS -----------------------------------------------
@@ -324,7 +300,7 @@ void DiffusedDelayReverb::DiffusionStage::Prepare(float SampleRate, float Size, 
     for (int Index = 0; Index < numParallel; ++Index)
     {
         parallelDiffusers.emplace_back();
-        parallelDiffusers.back().Prepare(SampleRate, MaxSamples);
+        parallelDiffusers.back().Prepare(sampleRate, MaxSamples);
     }
 
     UpdateParameters(Size, Quality);
@@ -336,25 +312,25 @@ void DiffusedDelayReverb::DiffusionStage::UpdateParameters(float size, float qua
     currentQuality = quality;
 
     const float baseSizeMs = 5.0f + size * 40.0f; // 5 to 45 ms
-    const int baseSamples = static_cast<int>(baseSizeMs * 0.001f * 44100.0f);
+    const int baseSamples = static_cast<int>(baseSizeMs * 0.001f * sampleRate);
 
     // Prime offsets for incommensurate delays
     const std::vector<int> primes = { 2, 3, 5, 7, 11, 13, 17, 19, 23 };
 
     // Series chain
-    for (int i = 0; i < seriesDiffusers.size(); ++i)
+    for (int i = 0; i < static_cast<int>(seriesDiffusers.size()); ++i)
     {
-        const int offset = primes[i % primes.size()];
+        const int offset = primes[static_cast<size_t>(i) % primes.size()];
         const int samples = baseSamples * (i + 1) * offset / 7;
-        seriesDiffusers[i].SetDelaySamples(samples);
+        seriesDiffusers[static_cast<size_t>(i)].SetDelaySamples(samples);
     }
 
     // Parallel bank
-    for (int i = 0; i < parallelDiffusers.size(); ++i)
+    for (int i = 0; i < static_cast<int>(parallelDiffusers.size()); ++i)
     {
-        const int offset = primes[(i + 3) % primes.size()];
+        const int offset = primes[(static_cast<size_t>(i) + 3) % primes.size()];
         const int samples = baseSamples * offset / 5;
-        parallelDiffusers[i].SetDelaySamples(samples);
+        parallelDiffusers[static_cast<size_t>(i)].SetDelaySamples(samples);
     }
 }
 

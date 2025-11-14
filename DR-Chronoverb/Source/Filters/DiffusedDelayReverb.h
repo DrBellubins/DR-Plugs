@@ -127,6 +127,7 @@ private:
         int numParallel = 3;
         float currentSize = 0.5f;
         float currentQuality = 0.5f;
+        float sampleRate = 44100.0f; // used for ms->samples conversions in UpdateParameters
     };
 
     // === Core Processing Functions ===
