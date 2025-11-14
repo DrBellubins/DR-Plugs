@@ -90,10 +90,6 @@ void DiffusedDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
     const int NumSamples   = AudioBuffer.getNumSamples();
     const int NumChannels  = AudioBuffer.getNumChannels();
 
-    // ---- Smoothing (per-sample) ----
-    smoothedDiffusionAmount.skip(NumSamples);
-    smoothedWetDry.skip(NumSamples);
-
     const float PreDelaySamples = delayTimeSeconds * sampleRate;
 
     for (int Channel = 0; Channel < NumChannels; ++Channel)
@@ -227,7 +223,7 @@ void DiffusedDelayReverb::UpdateDelayBuffer()
 
 void DiffusedDelayReverb::UpdateFeedbackMatrix()
 {
-    const float s = 1.0f / std::sqrt(2.0f);
+    const float s = 1.0f / std::sqrt(static_cast<float>(numFdnChannels));  // 0.5 for N=4
     feedbackMatrix(0,0) =  s; feedbackMatrix(0,1) =  s; feedbackMatrix(0,2) =  s; feedbackMatrix(0,3) =  s;
     feedbackMatrix(1,0) =  s; feedbackMatrix(1,1) =  s; feedbackMatrix(1,2) = -s; feedbackMatrix(1,3) = -s;
     feedbackMatrix(2,0) =  s; feedbackMatrix(2,1) = -s; feedbackMatrix(2,2) =  s; feedbackMatrix(2,3) = -s;

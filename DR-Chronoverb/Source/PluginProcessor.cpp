@@ -173,20 +173,24 @@ bool AudioPluginAudioProcessor::isBusesLayoutSupported(const BusesLayout& layout
   #endif
 }
 
+void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID, float newValue)
+{
+    if (parameterID == "delayTime") DelayReverb.SetDelayTime(newValue);
+    if (parameterID == "feedbackTime") DelayReverb.SetFeedbackTime(newValue);
+    if (parameterID == "diffusionAmount") DelayReverb.SetDiffusionAmount(newValue);
+    if (parameterID == "diffusionSize") DelayReverb.SetDiffusionSize(newValue);
+    if (parameterID == "diffusionQuality") DelayReverb.SetDiffusionQuality(newValue);
+    if (parameterID == "dryWetMix") DelayReverb.SetDryWetMix(newValue);
+
+    DBG("Changed: " << parameterID << " to " << newValue);
+}
+
 void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                                               juce::MidiBuffer& midiMessages)
 {
     juce::ignoreUnused (midiMessages);
 
     juce::ScopedNoDenormals noDenormals;
-
-    // Parameter
-    float delayTime = parameters.getRawParameterValue("delayTime")->load();
-    float feedbackTime = parameters.getRawParameterValue("feedbackTime")->load();
-    float diffusionAmount = parameters.getRawParameterValue("diffusionAmount")->load();
-    float diffusionSize = parameters.getRawParameterValue("diffusionSize")->load();
-    float diffusionQuality = parameters.getRawParameterValue("diffusionQuality")->load();
-    float dryWetMix = parameters.getRawParameterValue("dryWetMix")->load();
 
     // Square wave test
     auto totalNumInputChannels  = getTotalNumInputChannels();
@@ -246,13 +250,6 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     }
 
     // Process reverb
-    DelayReverb.SetDelayTime(delayTime);
-    DelayReverb.SetFeedbackTime(feedbackTime);
-    DelayReverb.SetDiffusionAmount(diffusionAmount);
-    DelayReverb.SetDiffusionSize(diffusionSize);
-    DelayReverb.SetDiffusionQuality(diffusionQuality);
-    DelayReverb.SetDryWetMix(dryWetMix);
-
     DelayReverb.ProcessBlock(buffer);
 
     // ---- Volume Clipper Section ----
