@@ -182,6 +182,8 @@ void DiffusedDelayReverb::UpdateDelayBuffer()
 {
     const int bufferSize = delayBuffer.getNumSamples();
 
+    if (bufferSize == 0) return;
+
     if (diffusionAmount < 0.001f)
     {
         // PURE DELAY: All FDN lines are set to the requested delay time
