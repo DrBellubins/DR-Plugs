@@ -99,31 +99,30 @@ void DiffusedDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
 {
     const int NumSamples  = AudioBuffer.getNumSamples();
     const int NumChannels = AudioBuffer.getNumChannels();
+    const int FdnBufferSize = delayBuffer.getNumSamples();
 
-    // We process the echo + diffusion + FDN ONCE per sample.
-    // Then distribute wet signal to all output channels.
     for (int SampleIndex = 0; SampleIndex < NumSamples; ++SampleIndex)
     {
         // 1. Gather/merge input for FDN drive (use average for multi-channel)
         float MixedInput = 0.0f;
+
         for (int ChannelIndex = 0; ChannelIndex < NumChannels; ++ChannelIndex)
-        {
             MixedInput += AudioBuffer.getWritePointer(ChannelIndex)[SampleIndex];
-        }
+
         MixedInput /= juce::jmax(1, NumChannels);
 
         // 2. Echo path (mono feed). Use channel 0 echo buffer.
-        float* EchoData = echoBuffer.getWritePointer(0);
+        float* EchoDataLeft = echoBuffer.getWritePointer(0);
         const int EchoBufferSize = echoBuffer.getNumSamples();
         const int EchoReadPos = (echoWritePos[0] - echoDelaySamples + EchoBufferSize) % EchoBufferSize;
-        const float EchoOut = EchoData[EchoReadPos];
+        const float EchoOut = EchoDataLeft[EchoReadPos];
 
         // Write new echo sample with feedback
         const float EchoWriteSample = MixedInput + EchoOut * echoFeedbackGain;
-        EchoData[echoWritePos[0]] = EchoWriteSample;
+        EchoDataLeft[echoWritePos[0]] = EchoWriteSample;
         echoWritePos[0] = (echoWritePos[0] + 1) % EchoBufferSize;
 
-        // (Optional) Keep second channel echo in sync if stereo
+        // Keep second echo channel (if present) in sync
         if (echoBuffer.getNumChannels() > 1)
         {
             float* EchoDataRight = echoBuffer.getWritePointer(1);
@@ -136,54 +135,73 @@ void DiffusedDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
         const float DiffusedEcho = diffusionStage.Process(EchoOut);
         const float FdnInput = EchoOut + CurrentDiffusionAmount * (DiffusedEcho - EchoOut);
 
-        // 4. FDN processing (advance once per sample, NOT per channel)
-        float FdnOutputSum = 0.0f;
-        for (int FdnChannel = 0; FdnChannel < numFdnChannels; ++FdnChannel)
+        // 4. FDN processing (TWO-PHASE UPDATE)
+
+        // Phase A: Snapshot all delayed outputs BEFORE any writes
+        std::array<float, numFdnChannels> Delayed{};
+
+        for (int FdnChannelIndex = 0; FdnChannelIndex < numFdnChannels; ++FdnChannelIndex)
         {
-            float* ChannelDataFdn = delayBuffer.getWritePointer(FdnChannel);
-            const int BufferSize = delayBuffer.getNumSamples();
+            float* ChannelDataFdn = delayBuffer.getWritePointer(FdnChannelIndex);
+            const int ReadPosition = (writePos[FdnChannelIndex] - delaySamples[FdnChannelIndex] + FdnBufferSize) % FdnBufferSize;
 
-            // Read delayed sample
-            const int ReadPosition = (writePos[FdnChannel] - delaySamples[FdnChannel] + BufferSize) % BufferSize;
-            const float DelayedSample = ChannelDataFdn[ReadPosition];
+            Delayed[FdnChannelIndex] = ChannelDataFdn[ReadPosition];
+        }
 
-            // Feedback sum
-            float FeedbackSum = 0.0f;
-            for (int Source = 0; Source < numFdnChannels; ++Source)
-            {
-                float* SrcData = delayBuffer.getWritePointer(Source);
-                const int SrcReadPos = (writePos[Source] - delaySamples[Source] + BufferSize) % BufferSize;
-                FeedbackSum += feedbackMatrix(FdnChannel, Source) * SrcData[SrcReadPos];
-            }
+        // Phase B: Compute feedback sums using only the snapshot values
+        std::array<float, numFdnChannels> FeedbackSums{};
+        for (int DestChannelIndex = 0; DestChannelIndex < numFdnChannels; ++DestChannelIndex)
+        {
+            float Sum = 0.0f;
 
-            // (Optional) Simple HF damping: one-pole lowpass on feedbackSum
-            // Removes fizz for very short delay settings.
-            // Uncomment if desired:
-            // static std::array<float, numFdnChannels> feedbackLpState { 0.0f, 0.0f, 0.0f, 0.0f };
-            // const float lpCoeff = 0.2f; // lower = more damping
-            // feedbackLpState[FdnChannel] = feedbackLpState[FdnChannel] + lpCoeff * (FeedbackSum - feedbackLpState[FdnChannel]);
-            // FeedbackSum = feedbackLpState[FdnChannel];
+            for (int SrcChannelIndex = 0; SrcChannelIndex < numFdnChannels; ++SrcChannelIndex)
+                Sum += feedbackMatrix(DestChannelIndex, SrcChannelIndex) * Delayed[SrcChannelIndex];
 
-            const float AttenuatedFeedback = FeedbackSum * feedbackGains[FdnChannel];
-            const float PerChannelInput = FdnInput / static_cast<float>(numFdnChannels);
-            const float NewSample = PerChannelInput + AttenuatedFeedback;
+            FeedbackSums[DestChannelIndex] = Sum;
+        }
 
-            ChannelDataFdn[writePos[FdnChannel]] = NewSample;
-            writePos[FdnChannel] = (writePos[FdnChannel] + 1) % BufferSize;
+        // HF damping (still stable because it uses FeedbackSums derived from Delayed snapshot)
+        static std::array<float, numFdnChannels> feedbackLpState { 0.0f, 0.0f, 0.0f, 0.0f };
+        const float lpCoeff = 0.2f;
 
-            FdnOutputSum += DelayedSample;
+        for (int D = 0; D < numFdnChannels; ++D)
+        {
+            feedbackLpState[D] = feedbackLpState[D] + lpCoeff * (FeedbackSums[D] - feedbackLpState[D]);
+            FeedbackSums[D] = feedbackLpState[D];
+        }
+
+        // Phase C: Write new samples (simultaneous logical time) and advance pointers
+        const float PerChannelInput = FdnInput / static_cast<float>(numFdnChannels);
+        float FdnOutputSum = 0.0f;
+
+        for (int FdnChannelIndex = 0; FdnChannelIndex < numFdnChannels; ++FdnChannelIndex)
+        {
+            float* ChannelDataFdn = delayBuffer.getWritePointer(FdnChannelIndex);
+
+            const float NewSample =
+                PerChannelInput
+                + feedbackGains[FdnChannelIndex] * FeedbackSums[FdnChannelIndex];
+
+            ChannelDataFdn[writePos[FdnChannelIndex]] = NewSample;
+            writePos[FdnChannelIndex] = (writePos[FdnChannelIndex] + 1) % FdnBufferSize;
+
+            // Sum the OUTPUTS as they were at the start of this time step
+            FdnOutputSum += Delayed[FdnChannelIndex];
         }
 
         // 5. Wet morph: pure delay ↔ reverb
-        const float CombinedWet = (1.0f - CurrentDiffusionAmount) * EchoOut
-                                + CurrentDiffusionAmount * FdnOutputSum;
+        const float CombinedWet =
+              (1.0f - CurrentDiffusionAmount) * EchoOut
+            + CurrentDiffusionAmount * FdnOutputSum;
 
         // 6. Wet/dry mix and write per channel
         const float CurrentWetDry = smoothedWetDry.getNextValue();
+
         for (int ChannelIndex = 0; ChannelIndex < NumChannels; ++ChannelIndex)
         {
             float* ChannelData = AudioBuffer.getWritePointer(ChannelIndex);
             const float DrySample = ChannelData[SampleIndex];
+
             ChannelData[SampleIndex] = DrySample * (1.0f - CurrentWetDry)
                                      + CombinedWet * CurrentWetDry;
         }
@@ -194,10 +212,9 @@ void DiffusedDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
 void DiffusedDelayReverb::UpdateDelayBuffer()
 {
     const int BufferSize = delayBuffer.getNumSamples();
+
     if (BufferSize == 0)
-    {
         return;
-    }
 
     // Keep FDN delays largely independent of user delayTimeSeconds
     // so that shrinking the user delay does not collapse FDN structure.
@@ -225,9 +242,7 @@ void DiffusedDelayReverb::UpdateDelayBuffer()
 
         // Safety cap for extremely short lines
         if (delaySamples[ChannelIndex] < 25)
-        {
             feedbackGains[ChannelIndex] = juce::jmin(feedbackGains[ChannelIndex], 0.995f);
-        }
     }
 
     UpdateFeedbackMatrix();
