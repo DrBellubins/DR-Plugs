@@ -52,9 +52,14 @@ public:
     {
         if (TextEditor != nullptr)
         {
-            // Force editor to match flat look
             TextEditor->setJustification(juce::Justification::centred);
             TextEditor->setBorder(juce::BorderSize<int>(0));
+
+            // Reassert flat colours (some platforms may override on focus)
+            TextEditor->setColour(juce::TextEditor::backgroundColourId, AccentGray);
+            TextEditor->setColour(juce::TextEditor::textColourId, juce::Colours::white);
+            TextEditor->setColour(juce::TextEditor::outlineColourId, juce::Colours::transparentBlack);
+            TextEditor->setColour(juce::TextEditor::focusedOutlineColourId, juce::Colours::transparentBlack);
         }
     }
 

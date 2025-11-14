@@ -3,6 +3,8 @@
 
 static FlatRotaryLookAndFeel flatKnobLAF;
 
+// TODO: Create fractional time buttons (ms, normal, triplet, dot)
+
 //==============================================================================
 AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor& processor)
     : AudioProcessorEditor (&processor), processorRef (processor)
@@ -91,7 +93,7 @@ void AudioPluginAudioProcessorEditor::createKnob(std::unique_ptr<ThemedKnob>& kn
     juce::String paramID, juce::String suffix, int widthHeight, int offsetFromCenterX, int offsetFromCenterY)
 {
     knob = std::make_unique<ThemedKnob>(
-        "", nullptr, nullptr, suffix, juce::Slider::TextBoxBelow);
+        "", nullptr, nullptr, suffix, juce::Slider::NoTextBox);
 
     knob->setLookAndFeel(&flatKnobLAF);
 
@@ -105,10 +107,7 @@ void AudioPluginAudioProcessorEditor::createKnob(std::unique_ptr<ThemedKnob>& kn
 
     knob->setBounds(knobX, knobY, widthHeight, widthHeight);
 
-    knob->setTextBoxStyle(juce::Slider::TextBoxBelow,
-                      false,   // readOnly? false so user can type
-                      54,      // width matches FlatRotaryLookAndFeel box
-                      22);     // height matches
+    //knob->setTextBoxStyle(juce::Slider::TextBoxBelow, false, 54, 22);
 }
 
 void AudioPluginAudioProcessorEditor::createKnobLabel(std::unique_ptr<juce::Label>& label,

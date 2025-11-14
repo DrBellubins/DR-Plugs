@@ -46,20 +46,29 @@ public:
     {
         auto* ValueBox = new FlatLabel();
 
+        // Size: tweak for your design
         int BoxWidth = 54;
         int BoxHeight = 22;
 
+        // TextBox style already chosen by Slider (TextBoxBelow / Right)
+        // We enforce size here:
         ValueBox->setSize(BoxWidth, BoxHeight);
 
+        // Font (optional)
         juce::Font Font("Liberation Sans", 12.0f, juce::Font::bold);
         ValueBox->setFont(Font);
+
+        // Centred text
         ValueBox->setJustificationType(juce::Justification::centred);
+
+        // Remove any shadow/border artifacts
         ValueBox->setBorderSize(juce::BorderSize<int>(0));
 
+        // Colours already set in FlatLabel constructor; ensure consistency:
         ValueBox->setColour(juce::Label::backgroundColourId, AccentGray);
         ValueBox->setColour(juce::Label::textColourId, juce::Colours::white);
 
-        // Prevent JUCE from drawing its default outline
+        // Ensure slider's colour lookups do not override
         Slider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
 
         return ValueBox;
@@ -73,7 +82,7 @@ public:
         juce::ignoreUnused(TextEditor);
 
         // Flat editor outline (if we ever allow focus border)
-        Graphics.setColour(FocusedGray);
-        Graphics.drawRect(0, 0, Width, Height, 1);
+        Graphics.setColour(AccentGray.brighter(0.1));
+        Graphics.drawRect(0, 0, Width, Height, 2);
     }
 };
