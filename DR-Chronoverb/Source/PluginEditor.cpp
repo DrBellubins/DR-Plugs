@@ -104,6 +104,11 @@ void AudioPluginAudioProcessorEditor::createKnob(std::unique_ptr<ThemedKnob>& kn
     int knobY = (getHeight() / 2) - (widthHeight / 2) + offsetFromCenterY;
 
     knob->setBounds(knobX, knobY, widthHeight, widthHeight);
+
+    knob->setTextBoxStyle(juce::Slider::TextBoxBelow,
+                      false,   // readOnly? false so user can type
+                      54,      // width matches FlatRotaryLookAndFeel box
+                      22);     // height matches
 }
 
 void AudioPluginAudioProcessorEditor::createKnobLabel(std::unique_ptr<juce::Label>& label,
