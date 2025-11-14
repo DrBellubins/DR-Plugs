@@ -5,6 +5,7 @@ DiffusedDelayReverb::DiffusedDelayReverb()
     : feedbackMatrix(numFdnChannels, numFdnChannels)
 {
     UpdateFeedbackMatrix();
+    UpdateStereoMixMatrices();
 
     // Prime delays for FDN (in milliseconds, will be scaled)
     const std::array<int, numFdnChannels> primeDelaysMs = { 29, 37, 41, 53 };
@@ -32,7 +33,7 @@ void DiffusedDelayReverb::PrepareToPlay(double newSampleRate, float maxDelaySeco
     delayBuffer.clear();
     std::fill(writePos.begin(), writePos.end(), 0);
 
-    // Resize dedicated echo buffer (mono/stereo)
+    // Resize dedicated echo buffer (stereo)
     const int MaxEchoSamples = juce::nextPowerOfTwo(static_cast<int>(maxDelayTimeSeconds * sampleRate) + 1);
     echoBuffer.setSize(2, MaxEchoSamples, false, true, false);
     echoBuffer.clear();
@@ -47,8 +48,9 @@ void DiffusedDelayReverb::PrepareToPlay(double newSampleRate, float maxDelaySeco
     // Update FDN delays
     UpdateDelayBuffer();
 
-    // Prepare diffusion stage
-    diffusionStage.Prepare(sampleRate, diffusionSize, diffusionQuality);
+    // Prepare diffusion stages (one per channel)
+    diffusionStageLeft.Prepare(sampleRate, diffusionSize, diffusionQuality);
+    diffusionStageRight.Prepare(sampleRate, diffusionSize, diffusionQuality);
 
     // Reset smoothing
     smoothedDiffusionAmount.setCurrentAndTargetValue(diffusionAmount);
@@ -85,7 +87,8 @@ void DiffusedDelayReverb::SetDiffusionQuality(float quality)
     diffusionQuality = juce::jlimit(0.0f, 1.0f, quality);
 
     // Rebuild the diffusion topology so numSeries/numParallel and buffers update with quality
-    diffusionStage.Prepare(sampleRate, diffusionSize, diffusionQuality);
+    diffusionStageLeft.Prepare(sampleRate, diffusionSize, diffusionQuality);
+    diffusionStageRight.Prepare(sampleRate, diffusionSize, diffusionQuality);
 }
 
 void DiffusedDelayReverb::SetDryWetMix(float mix)
@@ -103,37 +106,39 @@ void DiffusedDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
 
     for (int SampleIndex = 0; SampleIndex < NumSamples; ++SampleIndex)
     {
-        // 1. Gather/merge input for FDN drive (use average for multi-channel)
-        float MixedInput = 0.0f;
+        // 1. Gather input per channel (fallback to mono if only 1 channel)
+        const float InputLeft  = (NumChannels > 0) ? AudioBuffer.getWritePointer(0)[SampleIndex] : 0.0f;
+        const float InputRight = (NumChannels > 1) ? AudioBuffer.getWritePointer(1)[SampleIndex] : InputLeft;
 
-        for (int ChannelIndex = 0; ChannelIndex < NumChannels; ++ChannelIndex)
-            MixedInput += AudioBuffer.getWritePointer(ChannelIndex)[SampleIndex];
-
-        MixedInput /= juce::jmax(1, NumChannels);
-
-        // 2. Echo path (mono feed). Use channel 0 echo buffer.
+        // 2. Echo paths (stereo)
         float* EchoDataLeft = echoBuffer.getWritePointer(0);
+        float* EchoDataRight = echoBuffer.getWritePointer(1);
         const int EchoBufferSize = echoBuffer.getNumSamples();
-        const int EchoReadPos = (echoWritePos[0] - echoDelaySamples + EchoBufferSize) % EchoBufferSize;
-        const float EchoOut = EchoDataLeft[EchoReadPos];
 
-        // Write new echo sample with feedback
-        const float EchoWriteSample = MixedInput + EchoOut * echoFeedbackGain;
-        EchoDataLeft[echoWritePos[0]] = EchoWriteSample;
+        const int EchoReadPosLeft  = (echoWritePos[0] - echoDelaySamples + EchoBufferSize) % EchoBufferSize;
+        const int EchoReadPosRight = (echoWritePos[1] - echoDelaySamples + EchoBufferSize) % EchoBufferSize;
+
+        const float EchoOutLeft  = EchoDataLeft[EchoReadPosLeft];
+        const float EchoOutRight = EchoDataRight[EchoReadPosRight];
+
+        // Write new echo samples with per-channel feedback
+        const float EchoWriteSampleLeft  = InputLeft  + EchoOutLeft  * echoFeedbackGain;
+        const float EchoWriteSampleRight = InputRight + EchoOutRight * echoFeedbackGain;
+
+        EchoDataLeft[echoWritePos[0]]  = EchoWriteSampleLeft;
+        EchoDataRight[echoWritePos[1]] = EchoWriteSampleRight;
+
         echoWritePos[0] = (echoWritePos[0] + 1) % EchoBufferSize;
+        echoWritePos[1] = (echoWritePos[1] + 1) % EchoBufferSize;
 
-        // Keep second echo channel (if present) in sync
-        if (echoBuffer.getNumChannels() > 1)
-        {
-            float* EchoDataRight = echoBuffer.getWritePointer(1);
-            EchoDataRight[echoWritePos[1]] = EchoWriteSample;
-            echoWritePos[1] = (echoWritePos[1] + 1) % EchoBufferSize;
-        }
-
-        // 3. Pre-FDN diffusion crossfade
+        // 3. Pre-FDN diffusion crossfade (per channel)
         const float CurrentDiffusionAmount = smoothedDiffusionAmount.getNextValue();
-        const float DiffusedEcho = diffusionStage.Process(EchoOut);
-        const float FdnInput = EchoOut + CurrentDiffusionAmount * (DiffusedEcho - EchoOut);
+
+        const float DiffusedEchoLeft  = diffusionStageLeft.Process(EchoOutLeft);
+        const float DiffusedEchoRight = diffusionStageRight.Process(EchoOutRight);
+
+        const float FdnInputLeft  = EchoOutLeft  + CurrentDiffusionAmount * (DiffusedEchoLeft  - EchoOutLeft);
+        const float FdnInputRight = EchoOutRight + CurrentDiffusionAmount * (DiffusedEchoRight - EchoOutRight);
 
         // 4. FDN processing (TWO-PHASE UPDATE)
 
@@ -155,7 +160,9 @@ void DiffusedDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
             float Sum = 0.0f;
 
             for (int SrcChannelIndex = 0; SrcChannelIndex < numFdnChannels; ++SrcChannelIndex)
+            {
                 Sum += feedbackMatrix(DestChannelIndex, SrcChannelIndex) * Delayed[SrcChannelIndex];
+            }
 
             FeedbackSums[DestChannelIndex] = Sum;
         }
@@ -171,28 +178,36 @@ void DiffusedDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
         }
 
         // Phase C: Write new samples (simultaneous logical time) and advance pointers
-        const float PerChannelInput = FdnInput / static_cast<float>(numFdnChannels);
-        float FdnOutputSum = 0.0f;
+        float FdnOutputLeft = 0.0f;
+        float FdnOutputRight = 0.0f;
 
         for (int FdnChannelIndex = 0; FdnChannelIndex < numFdnChannels; ++FdnChannelIndex)
         {
             float* ChannelDataFdn = delayBuffer.getWritePointer(FdnChannelIndex);
 
+            const float InputSum =
+                inputMixLeft[FdnChannelIndex]  * FdnInputLeft +
+                inputMixRight[FdnChannelIndex] * FdnInputRight;
+
             const float NewSample =
-                PerChannelInput
-                + feedbackGains[FdnChannelIndex] * FeedbackSums[FdnChannelIndex];
+                InputSum + feedbackGains[FdnChannelIndex] * FeedbackSums[FdnChannelIndex];
 
             ChannelDataFdn[writePos[FdnChannelIndex]] = NewSample;
             writePos[FdnChannelIndex] = (writePos[FdnChannelIndex] + 1) % FdnBufferSize;
 
-            // Sum the OUTPUTS as they were at the start of this time step
-            FdnOutputSum += Delayed[FdnChannelIndex];
+            // Stereo output mix uses the snapshot values to avoid instantaneous feedback coupling
+            FdnOutputLeft  += outputMixLeft[FdnChannelIndex]  * Delayed[FdnChannelIndex];
+            FdnOutputRight += outputMixRight[FdnChannelIndex] * Delayed[FdnChannelIndex];
         }
 
-        // 5. Wet morph: pure delay ↔ reverb
-        const float CombinedWet =
-              (1.0f - CurrentDiffusionAmount) * EchoOut
-            + CurrentDiffusionAmount * FdnOutputSum;
+        // 5. Wet morph: pure delay ↔ reverb (per channel)
+        const float CombinedWetLeft =
+              (1.0f - CurrentDiffusionAmount) * EchoOutLeft
+            + CurrentDiffusionAmount * FdnOutputLeft;
+
+        const float CombinedWetRight =
+              (1.0f - CurrentDiffusionAmount) * EchoOutRight
+            + CurrentDiffusionAmount * FdnOutputRight;
 
         // 6. Wet/dry mix and write per channel
         const float CurrentWetDry = smoothedWetDry.getNextValue();
@@ -202,8 +217,10 @@ void DiffusedDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
             float* ChannelData = AudioBuffer.getWritePointer(ChannelIndex);
             const float DrySample = ChannelData[SampleIndex];
 
+            const float WetSample = (ChannelIndex % 2 == 0) ? CombinedWetLeft : CombinedWetRight;
+
             ChannelData[SampleIndex] = DrySample * (1.0f - CurrentWetDry)
-                                     + CombinedWet * CurrentWetDry;
+                                     + WetSample * CurrentWetDry;
         }
     }
 }
@@ -290,6 +307,17 @@ void DiffusedDelayReverb::UpdateFeedbackMatrix()
     feedbackMatrix(1, 0) =  s; feedbackMatrix(1, 1) =  s; feedbackMatrix(1, 2) = -s; feedbackMatrix(1, 3) = -s;
     feedbackMatrix(2, 0) =  s; feedbackMatrix(2, 1) = -s; feedbackMatrix(2, 2) =  s; feedbackMatrix(2, 3) = -s;
     feedbackMatrix(3, 0) =  s; feedbackMatrix(3, 1) = -s; feedbackMatrix(3, 2) = -s; feedbackMatrix(3, 3) =  s;
+}
+
+void DiffusedDelayReverb::UpdateStereoMixMatrices()
+{
+    // Distribute left input into FDN channels 0 and 2; right input into channels 1 and 3
+    inputMixLeft  = { 0.5f, 0.0f, 0.5f, 0.0f };
+    inputMixRight = { 0.0f, 0.5f, 0.0f, 0.5f };
+
+    // Decorrelated stereo output from the 4 FDN lines
+    outputMixLeft  = {  0.5f, -0.5f,  0.5f, -0.5f };
+    outputMixRight = { -0.5f,  0.5f, -0.5f,  0.5f };
 }
 
 float DiffusedDelayReverb::ProcessFDNChannel(int ChannelIndex, float InputSample)
@@ -444,5 +472,6 @@ float DiffusedDelayReverb::DiffusionStage::Process(float input)
 //==============================================================================
 void DiffusedDelayReverb::UpdateDiffusionNetwork()
 {
-    diffusionStage.UpdateParameters(diffusionSize, diffusionQuality);
+    diffusionStageLeft.UpdateParameters(diffusionSize, diffusionQuality);
+    diffusionStageRight.UpdateParameters(diffusionSize, diffusionQuality);
 }

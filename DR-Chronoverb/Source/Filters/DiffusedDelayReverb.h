@@ -133,10 +133,9 @@ private:
     void UpdateDelayBuffer();
     void UpdateDiffusionNetwork();
     void UpdateFeedbackMatrix();
-    float ProcessFDNChannel(int channel, float input);
-
-    // Echo/delay settings
     void UpdateEchoSettings();
+    void UpdateStereoMixMatrices();
+    float ProcessFDNChannel(int channel, float input);
 
     // === Parameters ===
     float sampleRate = 44100.0f;
@@ -155,8 +154,8 @@ private:
     std::array<int, 4> writePos{};             // Write positions per FDN channel
     int inputWritePos = 0;
 
-    // Dedicated echo/delay buffer (classic delay path)
-    juce::AudioBuffer<float> echoBuffer;       // 2 channels (mono/stereo)
+    // Dedicated echo/delay buffer (stereo)
+    juce::AudioBuffer<float> echoBuffer;       // 2 channels
     std::array<int, 2> echoWritePos{};         // Write positions per echo channel
     int echoDelaySamples = 1;
     float echoFeedbackGain = 0.0f;
@@ -167,8 +166,15 @@ private:
     std::array<float, numFdnChannels> feedbackGains{};
     juce::dsp::Matrix<float> feedbackMatrix;
 
+    // Stereo in/out mix for FDN
+    std::array<float, numFdnChannels> inputMixLeft{};
+    std::array<float, numFdnChannels> inputMixRight{};
+    std::array<float, numFdnChannels> outputMixLeft{};
+    std::array<float, numFdnChannels> outputMixRight{};
+
     // === Diffusion ===
-    DiffusionStage diffusionStage;
+    DiffusionStage diffusionStageLeft;
+    DiffusionStage diffusionStageRight;
 
     // === Smoothing ===
     juce::SmoothedValue<float> smoothedDiffusionAmount;
