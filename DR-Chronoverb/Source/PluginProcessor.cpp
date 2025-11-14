@@ -254,6 +254,33 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     DelayReverb.SetDryWetMix(dryWetMix);
 
     DelayReverb.ProcessBlock(buffer);
+
+    // ---- Volume Clipper Section ----
+    const float ClipperThreshold = 0.9f; // or 0.9f etc.
+    const int NumChannels = buffer.getNumChannels();
+    const int NumSamples = buffer.getNumSamples();
+
+    for (int ChannelIndex = 0; ChannelIndex < NumChannels; ++ChannelIndex)
+    {
+        float* ChannelData = buffer.getWritePointer(ChannelIndex);
+
+        for (int SampleIndex = 0; SampleIndex < NumSamples; ++SampleIndex)
+        {
+            float InputSample = ChannelData[SampleIndex];
+
+            // Simple hard-clip to [-ClipperThreshold, +ClipperThreshold]
+            if (InputSample > ClipperThreshold)
+            {
+                InputSample = ClipperThreshold;
+            }
+            else if (InputSample < -ClipperThreshold)
+            {
+                InputSample = -ClipperThreshold;
+            }
+
+            ChannelData[SampleIndex] = InputSample;
+        }
+    }
 }
 
 //==============================================================================
