@@ -140,8 +140,8 @@ target_compile_definitions("${PROJECT_NAME}"
 #   SOURCES ...)                    # List of asset files of any kind that should be built into the static library
 
 juce_add_binary_data(Assets
+        #SOURCES Assets/bg.png
         SOURCES Assets/logo.png
-        SOURCES Assets/bg.png
 )
 
 # `target_link_libraries` links libraries and JUCE modules to other libraries or executables. Here,
