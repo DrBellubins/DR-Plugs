@@ -110,7 +110,7 @@ public:
         juce::Point<float> center = KnobArea.toFloat().getCentre();
 
         // Now draw the inner circle using the same base as the arc
-        Graphics.setColour(AccentGray.darker(0.2f));
+        Graphics.setColour(AccentGray);
         Graphics.fillEllipse(center.x - radius, center.y - radius, diameter, diameter);
     }
 

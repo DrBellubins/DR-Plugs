@@ -15,9 +15,7 @@ void HorizontalRangeSlider::setLowerValue(float NewValue)
         lowerValue = clampedValue;
 
         if (OnLowerValueChanged)
-        {
             OnLowerValueChanged(lowerValue);
-        }
 
         repaint();
     }
@@ -32,9 +30,7 @@ void HorizontalRangeSlider::setUpperValue(float NewValue)
         upperValue = clampedValue;
 
         if (OnUpperValueChanged)
-        {
             OnUpperValueChanged(upperValue);
-        }
 
         repaint();
     }

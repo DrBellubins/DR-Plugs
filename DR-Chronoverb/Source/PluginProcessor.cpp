@@ -213,7 +213,7 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         buffer.clear (i, 0, buffer.getNumSamples());
 
     // --------- Start: Square wave test generator (440 Hz, on 1s, off 3s) ---------
-    const double squareTestFrequency = 250.0;
+    /*const double squareTestFrequency = 250.0;
     const double squareTestSampleRate = getSampleRate();
     const int squareTestNumSamples = buffer.getNumSamples();
     const int squareTestOnSamples = static_cast<int>(squareTestSampleRate * 0.3);    // 1 sec ON
@@ -260,13 +260,13 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             squareTestSampleCounter = 0;
             squareTestPhase = 0.0; // Optional: reset phase at re-trigger
         }
-    }
+    }*/
 
     // Process reverb
     DelayReverb.ProcessBlock(buffer);
 
     // ---- Volume Clipper Section ----
-    const float ClipperThreshold = 0.9f; // or 0.9f etc.
+    /*const float ClipperThreshold = 0.9f; // or 0.9f etc.
     const int NumChannels = buffer.getNumChannels();
     const int NumSamples = buffer.getNumSamples();
 
@@ -290,7 +290,7 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
             ChannelData[SampleIndex] = InputSample;
         }
-    }
+    }*/
 }
 
 //==============================================================================

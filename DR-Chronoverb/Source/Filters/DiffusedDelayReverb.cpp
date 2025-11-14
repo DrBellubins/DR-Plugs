@@ -252,10 +252,9 @@ void DiffusedDelayReverb::UpdateDelayBuffer()
 void DiffusedDelayReverb::UpdateEchoSettings()
 {
     const int EchoBufferSamples = echoBuffer.getNumSamples();
+
     if (EchoBufferSamples <= 1)
-    {
         return;
-    }
 
     echoDelaySamples = juce::jlimit(1,
                                     EchoBufferSamples - 1,
@@ -278,6 +277,7 @@ void DiffusedDelayReverb::UpdateEchoSettings()
         // Blend toward a lower max (0.90–0.95) to keep repeats but stop fizz
         const float ShortBlend = 1.0f - (EchoDelaySeconds / 0.02f); // 1 at 0s, 0 at 20ms
         const float MaxShortGain = 0.94f;  // ceiling for very short echoes
+
         echoFeedbackGain = echoFeedbackGain * (1.0f - ShortBlend) + MaxShortGain * ShortBlend;
         echoFeedbackGain = juce::jmin(echoFeedbackGain, MaxShortGain);
     }

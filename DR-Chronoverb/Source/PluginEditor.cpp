@@ -140,8 +140,8 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
     // (Our component is opaque, so we must completely fill the background with a solid colour)
     graphics.fillAll(BGGray);
 
-    if (background.isValid())
-        graphics.drawImageAt(background, 0, 0);
+    //if (background.isValid())
+    //    graphics.drawImageAt(background, 0, 0);
 
     if (logo.isValid())
         graphics.drawImage(logo, juce::Rectangle<float>(0, 0, 256.0f, 60.0f), juce::RectanglePlacement::centred);

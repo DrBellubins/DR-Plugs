@@ -96,7 +96,7 @@ public:
         juce::Rectangle<int> SliderArea = getLocalBounds();
 
         // Background track (full bounds, flat, no shadow)
-        Graphics.setColour(AccentGray.darker(0.2f));
+        Graphics.setColour(AccentGray);
         Graphics.fillRect(SliderArea);
 
         // Value fill (overlay, full height)

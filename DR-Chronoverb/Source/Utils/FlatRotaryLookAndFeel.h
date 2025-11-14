@@ -18,7 +18,7 @@ public:
         auto center = bounds.getCentre();
 
         // Background
-        graphics.setColour(AccentGray);
+        graphics.setColour(AccentGray.brighter(0.1));
         graphics.fillEllipse(center.x - radius, center.y - radius, diameter, diameter);
 
         // Value arc
