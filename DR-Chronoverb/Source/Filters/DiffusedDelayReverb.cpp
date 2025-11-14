@@ -9,8 +9,10 @@ DiffusedDelayReverb::DiffusedDelayReverb()
     // Prime delays for FDN (in milliseconds, will be scaled)
     const std::array<int, numFdnChannels> primeDelaysMs = { 29, 37, 41, 53 };
 
-    for (int i = 0; i < numFdnChannels; ++i)
-        delaySamples[i] = static_cast<int>(primeDelaysMs[i] * 0.001f * sampleRate);
+    for (int Index = 0; Index < numFdnChannels; ++Index)
+    {
+        delaySamples[Index] = static_cast<int>(primeDelaysMs[Index] * 0.001f * sampleRate);
+    }
 
     smoothedDiffusionAmount.reset(44100, 0.05f);
     smoothedWetDry.reset(44100, 0.05f);
@@ -22,17 +24,23 @@ void DiffusedDelayReverb::PrepareToPlay(double newSampleRate, float maxDelaySeco
     sampleRate = static_cast<float>(newSampleRate);
     maxDelayTimeSeconds = maxDelaySeconds;
 
-    // Resize main delay buffer (power of two)
-    const int maxSamples = static_cast<int>(maxDelayTimeSeconds * sampleRate) + 1;
-    const int bufferSize = juce::nextPowerOfTwo(maxSamples);
+    // Resize FDN delay buffer (power of two)
+    const int MaxFdnSamples = static_cast<int>(maxDelayTimeSeconds * sampleRate) + 1;
+    const int FdnBufferSize = juce::nextPowerOfTwo(MaxFdnSamples);
 
-    delayBuffer.setSize(numFdnChannels, bufferSize, false, true, false);
+    delayBuffer.setSize(numFdnChannels, FdnBufferSize, false, true, false);
     delayBuffer.clear();
     std::fill(writePos.begin(), writePos.end(), 0);
 
-    // Resize input buffer for pre-delay and dry tap
-    const int maxInputSamples = static_cast<int>(maxPreDelayMs * 0.001f * sampleRate) + bufferSize;
-    inputBuffer.setSize(1, juce::nextPowerOfTwo(maxInputSamples), false, true, false);
+    // Resize dedicated echo buffer (mono/stereo)
+    const int MaxEchoSamples = juce::nextPowerOfTwo(static_cast<int>(maxDelayTimeSeconds * sampleRate) + 1);
+    echoBuffer.setSize(2, MaxEchoSamples, false, true, false);
+    echoBuffer.clear();
+    echoWritePos = { 0, 0 };
+
+    // Keep inputBuffer (not used for echo now), clear it
+    const int MaxInputSamples = juce::nextPowerOfTwo(static_cast<int>(maxPreDelayMs * 0.001f * sampleRate) + FdnBufferSize);
+    inputBuffer.setSize(1, MaxInputSamples, false, true, false);
     inputBuffer.clear();
     inputWritePos = 0;
 
@@ -89,37 +97,39 @@ void DiffusedDelayReverb::SetDryWetMix(float mix)
 //==============================================================================
 void DiffusedDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
 {
-    const int NumSamples   = AudioBuffer.getNumSamples();
-    const int NumChannels  = AudioBuffer.getNumChannels();
-
-    const float PreDelaySamples = delayTimeSeconds * sampleRate;
+    const int NumSamples = AudioBuffer.getNumSamples();
+    const int NumChannels = AudioBuffer.getNumChannels();
 
     for (int Channel = 0; Channel < NumChannels; ++Channel)
     {
         float* ChannelData = AudioBuffer.getWritePointer(Channel);
-        float* InputData   = inputBuffer.getWritePointer(0);
+
+        // Echo buffer pointers
+        float* EchoData = echoBuffer.getWritePointer(juce::jmin(Channel, echoBuffer.getNumChannels() - 1));
+        const int EchoBufferSize = echoBuffer.getNumSamples();
 
         for (int Sample = 0; Sample < NumSamples; ++Sample)
         {
             const float InputSample = ChannelData[Sample];
 
-            // --- 1. Write to input buffer ---
-            InputData[inputWritePos] = InputSample;
-            const int NextInputWritePos = (inputWritePos + 1) % inputBuffer.getNumSamples();
+            // ===================== Echo/Delay Path =====================
+            const int EchoReadPos = (echoWritePos[Channel] - echoDelaySamples + EchoBufferSize) % EchoBufferSize;
+            const float EchoOut = EchoData[EchoReadPos];
 
-            // --- 2. Dry tap ---
-            const int DryReadPos = (inputWritePos - static_cast<int>(PreDelaySamples) + inputBuffer.getNumSamples()) % inputBuffer.getNumSamples();
-            const float DryDelay = InputData[DryReadPos];
+            // Feedback write: input + feedback * previous echo
+            const float EchoWriteSample = InputSample + EchoOut * echoFeedbackGain;
+            EchoData[echoWritePos[Channel]] = EchoWriteSample;
 
-            // --- 4. Continuous Dry/Diffused crossfade into FDN input ---
+            // Advance echo write position
+            echoWritePos[Channel] = (echoWritePos[Channel] + 1) % EchoBufferSize;
+
+            // ===================== Pre-FDN Diffusion Crossfade =====================
             const float CurrentDiffusionAmount = smoothedDiffusionAmount.getNextValue();
-            const float Diffused = diffusionStage.Process(DryDelay);
-            const float FdnInput = DryDelay + CurrentDiffusionAmount * (Diffused - DryDelay);
-
+            const float Diffused = diffusionStage.Process(EchoOut);
+            const float FdnInput = EchoOut + CurrentDiffusionAmount * (Diffused - EchoOut);
             const float PerChannelInput = FdnInput / static_cast<float>(numFdnChannels);
 
-            // --- 5. Process ALL FDN channels for this sample ---
-            std::array<float, numFdnChannels> FdnOutputs{};
+            // ===================== FDN Processing (all lines per sample) =====================
             float FdnOutputSum = 0.0f;
 
             for (int FdnChannel = 0; FdnChannel < numFdnChannels; ++FdnChannel)
@@ -147,22 +157,22 @@ void DiffusedDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
                 // Write new sample
                 ChannelDataFdn[writePos[FdnChannel]] = NewSample;
 
-                // *** ADVANCE WRITE POS PER SAMPLE ***
+                // Advance write position
                 writePos[FdnChannel] = (writePos[FdnChannel] + 1) % BufferSize;
 
-                FdnOutputs[FdnChannel] = DelayedSample;
                 FdnOutputSum += DelayedSample;
             }
 
-            // --- 6. Wet/dry mix ---
+            // ===================== Wet Mix: Delay ↔ Reverb Morph =====================
+            const float CombinedWet = (1.0f - CurrentDiffusionAmount) * EchoOut
+                                    + (CurrentDiffusionAmount) * FdnOutputSum;
+
+            // ===================== Final Wet/Dry =====================
             const float CurrentWetDry = smoothedWetDry.getNextValue();
-            const float WetSignal = FdnOutputSum * CurrentWetDry;
-            const float DrySignal = InputSample * (1.0f - CurrentWetDry);
+            const float OutputSample = InputSample * (1.0f - CurrentWetDry)
+                                     + CombinedWet * CurrentWetDry;
 
-            ChannelData[Sample] = DrySignal + WetSignal;
-
-            // --- 7. Advance input write pos ---
-            inputWritePos = NextInputWritePos;
+            ChannelData[Sample] = OutputSample;
         }
     }
 }
@@ -170,9 +180,9 @@ void DiffusedDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
 //==============================================================================
 void DiffusedDelayReverb::UpdateDelayBuffer()
 {
-    const int bufferSize = delayBuffer.getNumSamples();
+    const int BufferSize = delayBuffer.getNumSamples();
 
-    if (bufferSize == 0)
+    if (BufferSize == 0)
     {
         return;
     }
@@ -182,29 +192,55 @@ void DiffusedDelayReverb::UpdateDelayBuffer()
     const std::array<int, numFdnChannels> basePrimes = { 29, 37, 41, 53 };
     const float scale = delayTimeSeconds / 0.5f; // Normalize around ~500 ms
 
-    for (int i = 0; i < numFdnChannels; ++i)
+    for (int Index = 0; Index < numFdnChannels; ++Index)
     {
-        const int baseMs = basePrimes[i];
+        const int baseMs = basePrimes[Index];
         const float targetMs = baseMs * scale;
 
-        delaySamples[i] = juce::jlimit(10, bufferSize - 1, static_cast<int>(targetMs * 0.001f * sampleRate));
+        delaySamples[Index] = juce::jlimit(10, BufferSize - 1, static_cast<int>(targetMs * 0.001f * sampleRate));
 
-        const float delayTimeInSeconds = delaySamples[i] / sampleRate; // MUST BE SET AFTER delaySamples[i]
+        const float DelayTimeInSeconds = static_cast<float>(delaySamples[Index]) / sampleRate;
 
         // 60 dB decay time per line = feedbackTimeSeconds
-        feedbackGains[i] = std::pow(0.001f, delayTimeInSeconds / feedbackTimeSeconds);
+        feedbackGains[Index] = std::pow(0.001f, DelayTimeInSeconds / juce::jmax(0.001f, feedbackTimeSeconds));
     }
 
     UpdateFeedbackMatrix(); // Use Hadamard-like fixed scattering
+
+    // Update classic echo settings (uses main delay time and feedback time)
+    UpdateEchoSettings();
+}
+
+void DiffusedDelayReverb::UpdateEchoSettings()
+{
+    if (echoBuffer.getNumSamples() <= 1)
+    {
+        return;
+    }
+
+    echoDelaySamples = juce::jlimit(1, echoBuffer.getNumSamples() - 1,
+                                    static_cast<int>(std::round(delayTimeSeconds * sampleRate)));
+
+    const float EchoDelaySeconds = static_cast<float>(echoDelaySamples) / sampleRate;
+
+    if (feedbackTimeSeconds <= 0.0001f)
+    {
+        echoFeedbackGain = 0.0f;
+    }
+    else
+    {
+        // 60 dB decay over 'feedbackTimeSeconds'
+        echoFeedbackGain = std::pow(0.001f, EchoDelaySeconds / feedbackTimeSeconds);
+    }
 }
 
 void DiffusedDelayReverb::UpdateFeedbackMatrix()
 {
     const float s = 1.0f / std::sqrt(static_cast<float>(numFdnChannels));  // 0.5 for N=4
-    feedbackMatrix(0,0) =  s; feedbackMatrix(0,1) =  s; feedbackMatrix(0,2) =  s; feedbackMatrix(0,3) =  s;
-    feedbackMatrix(1,0) =  s; feedbackMatrix(1,1) =  s; feedbackMatrix(1,2) = -s; feedbackMatrix(1,3) = -s;
-    feedbackMatrix(2,0) =  s; feedbackMatrix(2,1) = -s; feedbackMatrix(2,2) =  s; feedbackMatrix(2,3) = -s;
-    feedbackMatrix(3,0) =  s; feedbackMatrix(3,1) = -s; feedbackMatrix(3,2) = -s; feedbackMatrix(3,3) =  s;
+    feedbackMatrix(0, 0) =  s; feedbackMatrix(0, 1) =  s; feedbackMatrix(0, 2) =  s; feedbackMatrix(0, 3) =  s;
+    feedbackMatrix(1, 0) =  s; feedbackMatrix(1, 1) =  s; feedbackMatrix(1, 2) = -s; feedbackMatrix(1, 3) = -s;
+    feedbackMatrix(2, 0) =  s; feedbackMatrix(2, 1) = -s; feedbackMatrix(2, 2) =  s; feedbackMatrix(2, 3) = -s;
+    feedbackMatrix(3, 0) =  s; feedbackMatrix(3, 1) = -s; feedbackMatrix(3, 2) = -s; feedbackMatrix(3, 3) =  s;
 }
 
 float DiffusedDelayReverb::ProcessFDNChannel(int ChannelIndex, float InputSample)
@@ -232,10 +268,7 @@ float DiffusedDelayReverb::ProcessFDNChannel(int ChannelIndex, float InputSample
     const float NewSample = InputSample + AttenuatedFeedback;
     ChannelData[writePos[ChannelIndex]] = NewSample;
 
-    // ----- 5. Advance write position (done outside in ProcessBlock) -----
-    // (no increment here – caller does it in bulk)
-
-    // ----- 6. Return the delayed sample (what the mixer hears) -----
+    // ----- 5. Return the delayed sample (what the mixer hears) -----
     return DelayedSample;
 }
 
@@ -287,7 +320,7 @@ void DiffusedDelayReverb::DiffusionStage::Prepare(float SampleRate, float Size, 
 
     for (int Index = 0; Index < numSeries; ++Index)
     {
-        seriesDiffusers.emplace_back();                    // Direct construct
+        seriesDiffusers.emplace_back();
         seriesDiffusers.back().Prepare(sampleRate, MaxSamples);
     }
 
@@ -340,13 +373,17 @@ float DiffusedDelayReverb::DiffusionStage::Process(float input)
 
     // Series diffusion
     for (auto& d : seriesDiffusers)
+    {
         out = d.Process(out);
+    }
 
     // Parallel diffusion (sum)
     float parallelSum = 0.0f;
 
     for (auto& d : parallelDiffusers)
+    {
         parallelSum += d.Process(out);
+    }
 
     parallelSum /= static_cast<float>(parallelDiffusers.size());
 

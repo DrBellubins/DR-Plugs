@@ -100,7 +100,6 @@ private:
 
         AllpassDiffuser(const AllpassDiffuser&) = delete;
         AllpassDiffuser& operator=(const AllpassDiffuser&) = delete;
-        // ----------------------------------------------------------------
 
     private:
         juce::AudioBuffer<float> buffer;
@@ -136,6 +135,9 @@ private:
     void UpdateFeedbackMatrix();
     float ProcessFDNChannel(int channel, float input);
 
+    // Echo/delay settings
+    void UpdateEchoSettings();
+
     // === Parameters ===
     float sampleRate = 44100.0f;
     float maxDelayTimeSeconds = 3.0f;
@@ -149,9 +151,15 @@ private:
 
     // === Buffers ===
     juce::AudioBuffer<float> delayBuffer;      // FDN delay lines (4 channels)
-    juce::AudioBuffer<float> inputBuffer;      // For pre-delay and dry tap
+    juce::AudioBuffer<float> inputBuffer;      // Unused now for predelay (kept for potential future use)
     std::array<int, 4> writePos{};             // Write positions per FDN channel
     int inputWritePos = 0;
+
+    // Dedicated echo/delay buffer (classic delay path)
+    juce::AudioBuffer<float> echoBuffer;       // 2 channels (mono/stereo)
+    std::array<int, 2> echoWritePos{};         // Write positions per echo channel
+    int echoDelaySamples = 1;
+    float echoFeedbackGain = 0.0f;
 
     // === FDN Configuration ===
     static constexpr int numFdnChannels = 4;
