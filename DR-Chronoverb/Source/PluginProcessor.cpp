@@ -13,6 +13,13 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
                        ),
     parameters(*this, nullptr, "PARAMS", createParameterLayout())
 {
+    // IMPORTANT!
+    parameters.addParameterListener("delayTime", this);
+    parameters.addParameterListener("feedbackTime", this);
+    parameters.addParameterListener("diffusionAmount", this);
+    parameters.addParameterListener("diffusionSize", this);
+    parameters.addParameterListener("diffusionQuality", this);
+    parameters.addParameterListener("dryWetMix", this);
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
@@ -132,15 +139,6 @@ void AudioPluginAudioProcessor::prepareToPlay(double sampleRate, int samplesPerB
 
     // Temporary - Needs to be delay range of the knob.
     DelayReverb.PrepareToPlay(sampleRate, 10.0f);
-
-    // Temporary
-    // Only set parameters AFTER PrepareToPlay
-    DelayReverb.SetDelayTime(1.0f);           // 1 second delay
-    DelayReverb.SetFeedbackTime(3.0f);        // 3 second decay
-    DelayReverb.SetDiffusionAmount(1.0f);     // 70% reverb
-    DelayReverb.SetDiffusionSize(0.6f);       // Medium-large space
-    DelayReverb.SetDiffusionQuality(0.9f);    // Lush reverb
-    DelayReverb.SetDryWetMix(0.5f);           // 40% wet
 }
 
 void AudioPluginAudioProcessor::releaseResources()
