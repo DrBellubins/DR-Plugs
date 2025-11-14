@@ -20,6 +20,21 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     parameters.addParameterListener("diffusionSize", this);
     parameters.addParameterListener("diffusionQuality", this);
     parameters.addParameterListener("dryWetMix", this);
+
+    // Set delay initial values
+    float delayTime = parameters.getRawParameterValue("delayTime")->load();
+    float feedbackTime = parameters.getRawParameterValue("feedbackTime")->load();
+    float diffusionAmount = parameters.getRawParameterValue("diffusionAmount")->load();
+    float diffusionSize = parameters.getRawParameterValue("diffusionSize")->load();
+    float diffusionQuality = parameters.getRawParameterValue("diffusionQuality")->load();
+    float dryWetMix = parameters.getRawParameterValue("dryWetMix")->load();
+
+    DelayReverb.SetDelayTime(delayTime);
+    DelayReverb.SetFeedbackTime(feedbackTime);
+    DelayReverb.SetDiffusionAmount(diffusionAmount);
+    DelayReverb.SetDiffusionSize(diffusionSize);
+    DelayReverb.SetDiffusionQuality(diffusionQuality);
+    DelayReverb.SetDryWetMix(dryWetMix);
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
@@ -198,10 +213,10 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         buffer.clear (i, 0, buffer.getNumSamples());
 
     // --------- Start: Square wave test generator (440 Hz, on 1s, off 3s) ---------
-    const double squareTestFrequency = 440.0;
+    const double squareTestFrequency = 250.0;
     const double squareTestSampleRate = getSampleRate();
     const int squareTestNumSamples = buffer.getNumSamples();
-    const int squareTestOnSamples = static_cast<int>(squareTestSampleRate * 1.0);    // 1 sec ON
+    const int squareTestOnSamples = static_cast<int>(squareTestSampleRate * 0.3);    // 1 sec ON
     const int squareTestOffSamples = static_cast<int>(squareTestSampleRate * 3.0);   // 3 sec OFF
     const double squareTestPhasePerSample = squareTestFrequency / squareTestSampleRate;
 

@@ -191,9 +191,9 @@ void DiffusedDelayReverb::UpdateDelayBuffer()
 
         for (int i = 0; i < numFdnChannels; ++i)
         {
-            const float delayTimeInSeconds = delaySamples[i] / sampleRate;
-
             delaySamples[i] = pureDelaySamples;
+            const float delayTimeInSeconds = delaySamples[i] / sampleRate; // MUST BE SET AFTER delaySamples[i]
+
             feedbackGains[i] = std::pow(0.001f, delayTimeInSeconds / feedbackTimeSeconds);
         }
 
@@ -213,9 +213,11 @@ void DiffusedDelayReverb::UpdateDelayBuffer()
         {
             const int baseMs = basePrimes[i];
             const float targetMs = baseMs * scale;
-            const float delayTimeInSeconds = delaySamples[i] / sampleRate;
 
             delaySamples[i] = juce::jlimit(10, bufferSize - 1, static_cast<int>(targetMs * 0.001f * sampleRate));
+
+            const float delayTimeInSeconds = delaySamples[i] / sampleRate; // MUST BE SET AFTER delaySamples[i]
+
             feedbackGains[i] = std::pow(0.001f, delayTimeInSeconds / feedbackTimeSeconds);
         }
 
