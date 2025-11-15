@@ -130,7 +130,6 @@ private:
     };
 
     // === Core Processing Functions ===
-    void UpdateSmearAndAdvance();         // Recompute diffuser delays + advance
     void UpdateDelayBuffer();
     void UpdateDiffusionNetwork();
     void UpdateFeedbackMatrix();
@@ -180,16 +179,6 @@ private:
     // === Smoothing ===
     juce::SmoothedValue<float> smoothedDiffusionAmount;
     juce::SmoothedValue<float> smoothedWetDry;
-
-    // Pre-delay smear
-    AllpassDiffuser preEchoSmearLeftA;
-    AllpassDiffuser preEchoSmearLeftB;
-    AllpassDiffuser preEchoSmearRightA;
-    AllpassDiffuser preEchoSmearRightB;
-
-    // Advance scaling (max milliseconds of earlier shift applied to diffused path)
-    float maxSmearAdvanceMs = 12.0f;      // Tune: 6–15 ms typical
-    int currentAdvanceSamples = 0;        // Computed each update
 
     // === Constants ===
     static constexpr float feedbackDecayBase = 0.5f;
