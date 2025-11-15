@@ -29,12 +29,17 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     float diffusionQuality = parameters.getRawParameterValue("diffusionQuality")->load();
     float dryWetMix = parameters.getRawParameterValue("dryWetMix")->load();
 
-    DelayReverb.SetDelayTime(delayTime);
+    /*DelayReverb.SetDelayTime(delayTime);
     DelayReverb.SetFeedbackTime(feedbackTime);
     DelayReverb.SetDiffusionAmount(diffusionAmount);
     DelayReverb.SetDiffusionSize(diffusionSize);
     DelayReverb.SetDiffusionQuality(diffusionQuality);
-    DelayReverb.SetDryWetMix(dryWetMix);
+    DelayReverb.SetDryWetMix(dryWetMix);*/
+
+    simpleDelayReverb.SetDelayTime(delayTime);
+    simpleDelayReverb.SetDiffusionAmount(diffusionAmount);
+    simpleDelayReverb.SetDiffusionSize(diffusionSize);
+    simpleDelayReverb.SetDiffusionQuality(diffusionQuality);
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
@@ -153,7 +158,8 @@ void AudioPluginAudioProcessor::prepareToPlay(double sampleRate, int samplesPerB
     juce::ignoreUnused (sampleRate, samplesPerBlock);
 
     // Temporary - Needs to be delay range of the knob.
-    DelayReverb.PrepareToPlay(sampleRate, 10.0f);
+    //DelayReverb.PrepareToPlay(sampleRate, 10.0f);
+    simpleDelayReverb.PrepareToPlay(sampleRate, 1.0f);
 }
 
 void AudioPluginAudioProcessor::releaseResources()
@@ -188,12 +194,17 @@ bool AudioPluginAudioProcessor::isBusesLayoutSupported(const BusesLayout& layout
 
 void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID, float newValue)
 {
-    if (parameterID == "delayTime") DelayReverb.SetDelayTime(newValue);
+    /*if (parameterID == "delayTime") DelayReverb.SetDelayTime(newValue);
     if (parameterID == "feedbackTime") DelayReverb.SetFeedbackTime(newValue);
     if (parameterID == "diffusionAmount") DelayReverb.SetDiffusionAmount(newValue);
     if (parameterID == "diffusionSize") DelayReverb.SetDiffusionSize(newValue);
     if (parameterID == "diffusionQuality") DelayReverb.SetDiffusionQuality(newValue);
-    if (parameterID == "dryWetMix") DelayReverb.SetDryWetMix(newValue);
+    if (parameterID == "dryWetMix") DelayReverb.SetDryWetMix(newValue);*/
+
+    if (parameterID == "delayTime") simpleDelayReverb.SetDelayTime(newValue);
+    if (parameterID == "diffusionAmount") simpleDelayReverb.SetDiffusionAmount(newValue);
+    if (parameterID == "diffusionSize") simpleDelayReverb.SetDiffusionSize(newValue);
+    if (parameterID == "diffusionQuality") simpleDelayReverb.SetDiffusionQuality(newValue);
 
     DBG("Changed: " << parameterID << " to " << newValue);
 }
@@ -213,7 +224,7 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         buffer.clear (i, 0, buffer.getNumSamples());
 
     // --------- Start: Square wave test generator (440 Hz, on 1s, off 3s) ---------
-    /*const double squareTestFrequency = 250.0;
+    const double squareTestFrequency = 250.0;
     const double squareTestSampleRate = getSampleRate();
     const int squareTestNumSamples = buffer.getNumSamples();
     const int squareTestOnSamples = static_cast<int>(squareTestSampleRate * 0.3);    // 1 sec ON
@@ -260,13 +271,14 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             squareTestSampleCounter = 0;
             squareTestPhase = 0.0; // Optional: reset phase at re-trigger
         }
-    }*/
+    }
 
     // Process reverb
-    DelayReverb.ProcessBlock(buffer);
+    //DelayReverb.ProcessBlock(buffer);
+    simpleDelayReverb.ProcessBlock(buffer);
 
     // ---- Volume Clipper Section ----
-    /*const float ClipperThreshold = 0.9f; // or 0.9f etc.
+    const float ClipperThreshold = 0.9f; // or 0.9f etc.
     const int NumChannels = buffer.getNumChannels();
     const int NumSamples = buffer.getNumSamples();
 
@@ -290,7 +302,7 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
             ChannelData[SampleIndex] = InputSample;
         }
-    }*/
+    }
 }
 
 //==============================================================================

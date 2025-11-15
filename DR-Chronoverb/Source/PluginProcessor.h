@@ -3,6 +3,8 @@
 #include "Filters/DiffusedDelayReverb.h"
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "Filters/SimpleDelayReverb.h"
+
 //==============================================================================
 class AudioPluginAudioProcessor  : public juce::AudioProcessor, public juce::AudioProcessorValueTreeState::Listener
 {
@@ -14,7 +16,8 @@ public:
     juce::AudioProcessorValueTreeState parameters;
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
-    DiffusedDelayReverb DelayReverb;
+    //DiffusedDelayReverb DelayReverb;
+    SimpleDelayReverb simpleDelayReverb;
 
     //==============================================================================
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
