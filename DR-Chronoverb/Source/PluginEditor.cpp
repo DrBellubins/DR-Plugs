@@ -15,6 +15,9 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     // editor's size to whatever you need it to be.
     setSize(880, 580);
 
+    setWantsKeyboardFocus(true);
+    addKeyListener(this);
+
     // Background
     //background = juce::ImageFileFormat::loadFrom(BinaryData::bg_png, BinaryData::bg_pngSize);
 
