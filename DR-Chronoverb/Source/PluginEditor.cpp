@@ -173,3 +173,77 @@ void AudioPluginAudioProcessorEditor::resized()
     // This is generally where you'll want to lay out the positions of any
     // subcomponents in your editor.
 }
+
+// Forward keyboard input to the Keyboard Synth in the processor.
+bool AudioPluginAudioProcessorEditor::keyPressed(const juce::KeyPress& key, juce::Component* originatingComponent)
+{
+    juce::ignoreUnused(originatingComponent);
+
+    int KeyCode = 0;
+
+    // Prefer text character when available (letters), fallback to key code.
+    if (key.getTextCharacter() != 0)
+    {
+        KeyCode = static_cast<int>(key.getTextCharacter());
+    }
+    else
+    {
+        KeyCode = key.getKeyCode();
+    }
+
+    processorRef.keyboardSynth.HandleKeyChange(KeyCode, true);
+    lastHeldKeyCodes.insert(KeyCode);
+    return true; // Consume
+}
+
+bool AudioPluginAudioProcessorEditor::keyStateChanged(bool isKeyDown, juce::Component* originatingComponent)
+{
+    juce::ignoreUnused(isKeyDown, originatingComponent);
+
+    // Poll the mapped key set and compare against lastHeldKeyCodes to detect releases/presses.
+    std::unordered_set<int> currentHeld;
+
+    for (int KeyCode : processorRef.keyboardSynth.GetMappedKeyCodes())
+    {
+        // Check lower-case and upper-case variants
+        int LowerKey = KeyCode;
+        int UpperKey = KeyCode;
+
+        if (KeyCode >= 'a' && KeyCode <= 'z')
+        {
+            UpperKey = static_cast<int>(KeyCode - 'a' + 'A');
+        }
+        else if (KeyCode >= 'A' && KeyCode <= 'Z')
+        {
+            LowerKey = static_cast<int>(KeyCode - 'A' + 'a');
+        }
+
+        if (juce::KeyPress::isKeyCurrentlyDown(KeyCode)
+            || juce::KeyPress::isKeyCurrentlyDown(LowerKey)
+            || juce::KeyPress::isKeyCurrentlyDown(UpperKey))
+        {
+            currentHeld.insert(KeyCode);
+        }
+    }
+
+    // Newly pressed
+    for (int KeyCode : currentHeld)
+    {
+        if (lastHeldKeyCodes.find(KeyCode) == lastHeldKeyCodes.end())
+        {
+            processorRef.keyboardSynth.HandleKeyChange(KeyCode, true);
+        }
+    }
+
+    // Released
+    for (int KeyCode : lastHeldKeyCodes)
+    {
+        if (currentHeld.find(KeyCode) == currentHeld.end())
+        {
+            processorRef.keyboardSynth.HandleKeyChange(KeyCode, false);
+        }
+    }
+
+    lastHeldKeyCodes.swap(currentHeld);
+    return true; // Consume
+}

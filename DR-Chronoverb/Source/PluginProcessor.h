@@ -3,6 +3,7 @@
 #include "Filters/DiffusedDelayReverb.h"
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "Filters/ComputerKeyboardSquareSynth.h"
 #include "Filters/SimpleDelayReverb.h"
 
 //==============================================================================
@@ -18,6 +19,8 @@ public:
 
     //DiffusedDelayReverb DelayReverb;
     SimpleDelayReverb simpleDelayReverb;
+
+    ComputerKeyboardSquareSynth keyboardSynth;
 
     //==============================================================================
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;

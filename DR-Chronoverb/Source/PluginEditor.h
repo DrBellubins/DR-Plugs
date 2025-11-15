@@ -35,6 +35,10 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
+    // KeyListener overrides to forward computer keyboard input to the synth.
+    bool keyPressed(const juce::KeyPress& key, juce::Component* originatingComponent) override;
+    bool keyStateChanged(bool isKeyDown, juce::Component* originatingComponent) override;
+
 private:
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
@@ -69,6 +73,8 @@ private:
     std::unique_ptr<juce::Label> diffusionSizeLabel;
     std::unique_ptr<juce::Label> diffusionQualityLabel;
     std::unique_ptr<juce::Label> dryWetMixLabel;
+
+    std::unordered_set<int> lastHeldKeyCodes;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };

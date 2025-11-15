@@ -157,7 +157,8 @@ void AudioPluginAudioProcessor::prepareToPlay(double sampleRate, int samplesPerB
     // initialisation that you need.
     juce::ignoreUnused (sampleRate, samplesPerBlock);
 
-    // Temporary - Needs to be delay range of the knob.
+    keyboardSynth.PrepareToPlay(sampleRate);
+
     //DelayReverb.PrepareToPlay(sampleRate, 10.0f);
     simpleDelayReverb.PrepareToPlay(sampleRate, 1.0f);
 }
@@ -223,55 +224,8 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    // --------- Start: Square wave test generator (440 Hz, on 1s, off 3s) ---------
-    const double squareTestFrequency = 250.0;
-    const double squareTestSampleRate = getSampleRate();
-    const int squareTestNumSamples = buffer.getNumSamples();
-    const int squareTestOnSamples = static_cast<int>(squareTestSampleRate * 0.3);    // 1 sec ON
-    const int squareTestOffSamples = static_cast<int>(squareTestSampleRate * 3.0);   // 3 sec OFF
-    const double squareTestPhasePerSample = squareTestFrequency / squareTestSampleRate;
-
-    for (int SampleIndex = 0; SampleIndex < squareTestNumSamples; ++SampleIndex)
-    {
-        // Square ON for X samples, then OFF for Y samples, repeat
-        if (squareTestWaveOn)
-        {
-            // Write to ALL channels for audibility
-            for (int Channel = 0; Channel < buffer.getNumChannels(); ++Channel)
-            {
-                float* channelData = buffer.getWritePointer(Channel);
-
-                // Simple 0.5/-0.5 square (gentle on ears)
-                if (squareTestPhase < 0.5)
-                    channelData[SampleIndex] = 0.5f;
-                else
-                    channelData[SampleIndex] = -0.5f;
-            }
-        }
-
-        // Silence in OFF section already handled by buffer initialization.
-
-        // Advance phase
-        squareTestPhase += squareTestPhasePerSample;
-
-        if (squareTestPhase >= 1.0)
-            squareTestPhase -= 1.0;
-
-        // Advance and handle on/off switching
-        squareTestSampleCounter++;
-
-        if (squareTestWaveOn && squareTestSampleCounter >= squareTestOnSamples)
-        {
-            squareTestWaveOn = false;
-            squareTestSampleCounter = 0;
-        }
-        else if (!squareTestWaveOn && squareTestSampleCounter >= squareTestOffSamples)
-        {
-            squareTestWaveOn = true;
-            squareTestSampleCounter = 0;
-            squareTestPhase = 0.0; // Optional: reset phase at re-trigger
-        }
-    }
+    // Computer Keyboard Square Synth
+    keyboardSynth.Process(buffer);
 
     // Process reverb
     //DelayReverb.ProcessBlock(buffer);
@@ -292,13 +246,9 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
             // Simple hard-clip to [-ClipperThreshold, +ClipperThreshold]
             if (InputSample > ClipperThreshold)
-            {
                 InputSample = ClipperThreshold;
-            }
             else if (InputSample < -ClipperThreshold)
-            {
                 InputSample = -ClipperThreshold;
-            }
 
             ChannelData[SampleIndex] = InputSample;
         }
