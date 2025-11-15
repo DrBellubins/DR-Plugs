@@ -101,6 +101,12 @@ private:
         AllpassDiffuser(const AllpassDiffuser&) = delete;
         AllpassDiffuser& operator=(const AllpassDiffuser&) = delete;
 
+        // Expose buffer size for guarded clamping (internal use only)
+        int getAllocatedSize() const
+        {
+            return buffer.getNumSamples();
+        }
+
     private:
         juce::AudioBuffer<float> buffer;
         int writePos = 0;
@@ -130,6 +136,7 @@ private:
     };
 
     // === Core Processing Functions ===
+    void UpdateSmearAndAdvance();         // Recompute diffuser delays + advance (guarded)
     void UpdateDelayBuffer();
     void UpdateDiffusionNetwork();
     void UpdateFeedbackMatrix();
@@ -179,6 +186,17 @@ private:
     // === Smoothing ===
     juce::SmoothedValue<float> smoothedDiffusionAmount;
     juce::SmoothedValue<float> smoothedWetDry;
+
+    // Pre-echo smear diffusers (two per channel)
+    AllpassDiffuser preEchoSmearLeftA;
+    AllpassDiffuser preEchoSmearLeftB;
+    AllpassDiffuser preEchoSmearRightA;
+    AllpassDiffuser preEchoSmearRightB;
+
+    // Advance scaling (max milliseconds of earlier shift applied to diffused path)
+    float maxSmearAdvanceMs = 12.0f;      // Tune: 6–15 ms typical
+    int currentAdvanceSamples = 0;        // Integer advance (guard / legacy)
+    bool smearDiffusersReady = false;     // Set true after PrepareToPlay allocates diffusers
 
     // === Constants ===
     static constexpr float feedbackDecayBase = 0.5f;
