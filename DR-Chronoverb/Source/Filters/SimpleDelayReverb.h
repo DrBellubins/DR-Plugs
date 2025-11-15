@@ -12,9 +12,10 @@
 // 1) Input Signal Acquisition and Initial Delay
 //    - The incoming signal is written to a per-channel circular delay buffer sized by PrepareToPlay.
 //    - A nominal delay time (in seconds) determines the base echo time.
+//    - NEW: A "base tap" at the nominal delay is always available.
 //
 // 2) Diffusion Parameter Scaling
-//    - DiffusionAmount: Overall blur intensity and feedback drive (0: no blur, 1: full reverb).
+//    - DiffusionAmount: Crossfades between the base tap (0) and the diffused cluster (1).
 //    - DiffusionSize: Temporal spread of the cluster (small: tight cluster, large: spacious).
 //    - DiffusionQuality: Density granularity (low: few sparse taps, high: many smooth taps).
 //
@@ -25,9 +26,9 @@
 //    - Offsets are deterministic and pseudo prime-based to avoid ringing, scaled by DiffusionSize.
 //
 // 4) Density Buildup via Feedback
-//    - The diffused cluster is recirculated via a feedback loop.
+//    - The recirculated signal crossfades between base tap (pure delay repeats) and diffused cluster (reverberant tail).
 //    - A simple one-pole low-pass damping filter in the feedback path shapes a natural decay.
-//    - Higher DiffusionQuality increases the number of tap pairs (density).
+//    - Feedback gain is mapped from a user T60 ("feedbackTime"), so pure delay repeats exist at Amount = 0.
 //
 // 5) Pitch Modulation Handling
 //    - Real-time changes to delay time and spread are smoothed with one-pole lag processors.
@@ -38,8 +39,7 @@
 // - Set parameters at any time from the audio thread via the Set* methods (they are atomic).
 // - ProcessBlock adds the wet signal on top of the existing buffer content (dry path remains intact).
 //   If you need a dry/wet control, do it outside this class or extend this class accordingly.
-// - This class does not manage host parameter storage. Use AudioProcessorValueTreeState in your
-//   AudioProcessor to own parameters and call the setters here.
+// - External parameter ownership should be done with AudioProcessorValueTreeState in your processor.
 
 class SimpleDelayReverb
 {
@@ -56,14 +56,16 @@ public:
 
     // Parameter setters (thread-safe, real-time safe).
     // Ranges:
-    // - DelayTimeSeconds: [0.0, MaximumDelaySeconds] (clamped internally)
-    // - DiffusionAmount:  [0.0, 1.0]
-    // - DiffusionSize:    [0.0, 1.0]
-    // - DiffusionQuality: [0.0, 1.0]
+    // - DelayTimeSeconds:   [0.0, MaximumDelaySeconds] (clamped internally)
+    // - DiffusionAmount:    [0.0, 1.0]
+    // - DiffusionSize:      [0.0, 1.0]
+    // - DiffusionQuality:   [0.0, 1.0]
+    // - FeedbackTimeSeconds:[0.0, 10.0]  (T60 target in seconds; 0 disables feedback)
     void SetDelayTime(float DelayTimeSeconds);
     void SetDiffusionAmount(float DiffusionAmount);
     void SetDiffusionSize(float DiffusionSize);
     void SetDiffusionQuality(float DiffusionQuality);
+    void SetFeedbackTime(float FeedbackTimeSeconds);
 
     // Main audio processing. Adds wet signal on top of input buffer content (in-place).
     void ProcessBlock(juce::AudioBuffer<float>& AudioBuffer);
@@ -104,6 +106,10 @@ private:
         return static_cast<float>(Seconds * static_cast<float>(SampleRate));
     }
 
+    // Map T60 decay time to per-loop feedback gain given the current loop period (nominal delay).
+    // g = 10^(-3 * LoopSeconds / T60Seconds). T60Seconds == 0 => 0.
+    float t60ToFeedbackGain(float LoopSeconds, float T60Seconds) const;
+
     // Sample rate and buffer sizing
     double SampleRate = 44100.0;
     int MaxDelayBufferSamples = 1;            // Allocated per channel
@@ -118,6 +124,7 @@ private:
     std::atomic<float> TargetDiffusionAmount  { 0.00f  };
     std::atomic<float> TargetDiffusionSize    { 0.00f  };
     std::atomic<float> TargetDiffusionQuality { 1.00f  };
+    std::atomic<float> TargetFeedbackTimeSeconds { 3.00f };
 
     // Smoothed parameters used inside the tight loop
     float SmoothedDelayTimeSeconds = 0.300f;

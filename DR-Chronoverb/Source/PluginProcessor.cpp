@@ -40,6 +40,7 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     simpleDelayReverb.SetDiffusionAmount(diffusionAmount);
     simpleDelayReverb.SetDiffusionSize(diffusionSize);
     simpleDelayReverb.SetDiffusionQuality(diffusionQuality);
+    simpleDelayReverb.SetFeedbackTime(feedbackTime);
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()

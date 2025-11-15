@@ -81,6 +81,13 @@ void SimpleDelayReverb::SetDiffusionQuality(float DiffusionQuality)
     recomputeTargetTapLayout();
 }
 
+void SimpleDelayReverb::SetFeedbackTime(float FeedbackTimeSeconds)
+{
+    // Clamp a reasonable T60 range; 0 disables feedback
+    float Clamped = juce::jlimit(0.0f, 10.0f, FeedbackTimeSeconds);
+    TargetFeedbackTimeSeconds.store(Clamped, std::memory_order_relaxed);
+}
+
 // ============================== Internal Helpers ==============================
 
 void SimpleDelayReverb::ensureChannelState(int RequiredChannels)
@@ -183,6 +190,19 @@ float SimpleDelayReverb::computeDampingCoefficient(float CurrentSampleRate) cons
     return Alpha;
 }
 
+float SimpleDelayReverb::t60ToFeedbackGain(float LoopSeconds, float T60Seconds) const
+{
+    // Convert desired 60 dB decay time to per-loop linear gain.
+    // Guard: zero or tiny T60 => no feedback; tiny loop => clamp.
+    if (T60Seconds <= 0.0f || LoopSeconds <= 0.0f)
+    {
+        return 0.0f;
+    }
+
+    float Gain = std::pow(10.0f, -3.0f * (LoopSeconds / T60Seconds));
+    return juce::jlimit(0.0f, 0.9995f, Gain);
+}
+
 void SimpleDelayReverb::updateBlockSmoothing(int NumSamples)
 {
     // Smooth delay time and spread over the block.
@@ -274,10 +294,11 @@ void SimpleDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
     // Cache parameters for this block
     const float Amount = TargetDiffusionAmount.load(std::memory_order_relaxed);
     const float Quality = TargetDiffusionQuality.load(std::memory_order_relaxed);
+    const float T60Seconds = TargetFeedbackTimeSeconds.load(std::memory_order_relaxed);
 
-    // Feedback gain derived from diffusion amount.
-    // Keep conservative to avoid runaway at high densities.
-    const float FeedbackGain = juce::jlimit(0.0f, 0.95f, juce::jmap(Amount, 0.0f, 1.0f, 0.0f, 0.78f));
+    // Equal-power crossfade coefficients for smoother morph (Amount in [0..1])
+    const float AmountA = std::cos(Amount * juce::MathConstants<float>::halfPi); // base tap weight
+    const float AmountB = std::sin(Amount * juce::MathConstants<float>::halfPi); // diffused cluster weight
 
     // Feedback damping coefficient (one-pole LPF)
     const float DampingAlpha = computeDampingCoefficient(static_cast<float>(SampleRate));
@@ -319,11 +340,13 @@ void SimpleDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
         SmoothedDelayTimeSeconds = smoothOnePole(SmoothedDelayTimeSeconds, TargetDelayTimeSecondsLocal, DelayTimeSmoothCoefficient);
         SmoothedDiffusionSize    = smoothOnePole(SmoothedDiffusionSize,    TargetSizeLocal,             SizeSmoothCoefficient);
 
+        // Base delay and dynamic spread
         const float BaseDelaySamples = secondsToSamples(juce::jlimit(0.0f, MaximumDelaySeconds, SmoothedDelayTimeSeconds));
         const float SpreadSamples    = secondsToSamples(juce::jlimit(0.0f, MaximumSpreadSeconds, SmoothedDiffusionSize * MaximumSpreadSeconds));
 
-        // Generate per-sample cluster scaling factor (Amount controls blur intensity)
-        const float ClusterMix = Amount; // 0 => no blur, 1 => full diffused cluster
+        // Compute per-loop feedback gain from T60 (use current nominal delay as loop period)
+        const float LoopSeconds = std::max(1.0e-4f, SmoothedDelayTimeSeconds);
+        const float FeedbackGain = t60ToFeedbackGain(LoopSeconds, T60Seconds);
 
         for (int ChannelIndex = 0; ChannelIndex < NumChannels; ++ChannelIndex)
         {
@@ -335,14 +358,14 @@ void SimpleDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
             const float InputSample = ChannelData[SampleIndex];
 
             // 2) Diffusion Parameter Scaling
-            //    - Already mapped above via ClusterMix, SpreadSamples, and tap count via Quality.
+            //    - Already mapped above via AmountA/AmountB (equal-power morph), SpreadSamples, and tap count via Quality.
 
-            // 3) Symmetric Cluster Generation
-            //    - Replace the discrete tap with a symmetric set of taps around the nominal delay.
-            //    - Implement "negative" offsets causally using LookaheadSamples.
+            // --- Base nominal delay tap (no diffusion) ---
+            const float BaseTap = readFromDelayBuffer(State, BaseDelaySamples);
+
+            // 3) Symmetric Cluster Generation (diffused cluster around nominal, using look-ahead for negative offsets)
             float ClusterSum = 0.0f;
 
-            // Tap loop: normalized offsets in [-1..+1], scaled by SpreadSamples
             for (int TapIndex = 0; TapIndex < TotalTaps; ++TapIndex)
             {
                 const float NormalizedOffset = NormalizedSymmetricOffsets[static_cast<size_t>(TapIndex)];
@@ -362,16 +385,19 @@ void SimpleDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
             }
 
             // Normalize summed taps to avoid level build-up as density increases
-            ClusterSum *= WeightNorm;
+            const float DiffusedCluster = ClusterSum * WeightNorm;
 
-            // Apply diffusion amount (ClusterMix) to control how much of the cluster contributes
-            float DiffusedEcho = ClusterMix * ClusterSum;
+            // Crossfade between base tap (pure delay) and cluster (full diffusion)
+            const float WetEcho = (AmountA * BaseTap) + (AmountB * DiffusedCluster);
 
             // 4) Density Buildup via Feedback
             //    - Low-pass damping in the feedback loop for a natural tail.
-            //    - Feed the diffused cluster back into the line (recirculation).
+            //    - Feed a morphing mix back into the line:
+            //      base repeats at Amount=0, diffused tail at Amount=1.
+            const float FeedbackInput = WetEcho;
+
             // One-pole low-pass on feedback content
-            State.FeedbackState = State.FeedbackState + DampingAlpha * (DiffusedEcho - State.FeedbackState);
+            State.FeedbackState = State.FeedbackState + DampingAlpha * (FeedbackInput - State.FeedbackState);
 
             const float FeedbackSample = State.FeedbackState * FeedbackGain;
 
@@ -386,8 +412,8 @@ void SimpleDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
             //    - The smoothed changes in BaseDelaySamples and SpreadSamples implicitly cause
             //      gentle pitch shifts when parameters move. Our one-pole smoothing mitigates artifacts.
 
-            // Wet signal output is the current diffused cluster
-            const float WetSample = DiffusedEcho;
+            // Wet signal output is the current crossfaded echo
+            const float WetSample = WetEcho;
 
             // In-place: add wet on top of dry (leave external dry/wet mixing to the caller/host)
             ChannelData[SampleIndex] += WetSample;
