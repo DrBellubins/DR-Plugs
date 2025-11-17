@@ -186,13 +186,9 @@ bool AudioPluginAudioProcessorEditor::keyPressed(const juce::KeyPress& key, juce
 
     // Prefer text character when available (letters), fallback to key code.
     if (key.getTextCharacter() != 0)
-    {
         KeyCode = static_cast<int>(key.getTextCharacter());
-    }
     else
-    {
         KeyCode = key.getKeyCode();
-    }
 
     processorRef.keyboardSynth.HandleKeyChange(KeyCode, true);
     lastHeldKeyCodes.insert(KeyCode);

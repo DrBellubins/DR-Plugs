@@ -63,6 +63,13 @@ void SimpleDelayReverb::SetDelayTime(float DelayTimeSeconds)
     TargetDelayTimeSeconds.store(Clamped, std::memory_order_relaxed);
 }
 
+void SimpleDelayReverb::SetFeedbackTime(float FeedbackTimeSeconds)
+{
+    // Clamp a reasonable T60 range; 0 disables feedback
+    float Clamped = juce::jlimit(0.0f, 10.0f, FeedbackTimeSeconds);
+    TargetFeedbackTimeSeconds.store(Clamped, std::memory_order_relaxed);
+}
+
 void SimpleDelayReverb::SetDiffusionAmount(float DiffusionAmount)
 {
     float Clamped = juce::jlimit(0.0f, 1.0f, DiffusionAmount);
@@ -84,11 +91,10 @@ void SimpleDelayReverb::SetDiffusionQuality(float DiffusionQuality)
     recomputeTargetTapLayout();
 }
 
-void SimpleDelayReverb::SetFeedbackTime(float FeedbackTimeSeconds)
+void SimpleDelayReverb::SetDryWetMix(float DryWet)
 {
-    // Clamp a reasonable T60 range; 0 disables feedback
-    float Clamped = juce::jlimit(0.0f, 10.0f, FeedbackTimeSeconds);
-    TargetFeedbackTimeSeconds.store(Clamped, std::memory_order_relaxed);
+    float Clamped = juce::jlimit(0.0f, 1.0f, DryWet);
+    TargetDryWetMix.store(Clamped, std::memory_order_relaxed);
 }
 
 void SimpleDelayReverb::SetPreLowpassDecayAmount(float DecayAmount)
@@ -336,6 +342,10 @@ void SimpleDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
     const float Quality = TargetDiffusionQuality.load(std::memory_order_relaxed);
     const float T60Seconds = TargetFeedbackTimeSeconds.load(std::memory_order_relaxed);
 
+    const float DryWet = TargetDryWetMix.load(std::memory_order_relaxed);
+    const float DryGain = std::cos(DryWet * juce::MathConstants<float>::halfPi);
+    const float WetGain = std::sin(DryWet * juce::MathConstants<float>::halfPi);
+
     const float PreLPAmount = TargetPreLowpassDecayAmount.load(std::memory_order_relaxed);
     const float PreHPAmount = TargetPreHighpassDecayAmount.load(std::memory_order_relaxed);
 
@@ -465,8 +475,11 @@ void SimpleDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
             // Wet signal output is the current crossfaded echo
             const float WetSample = WetEcho;
 
+            // Final mix: equal-power crossfade between original input and wet
+            const float Mixed = (DryGain * InputSample) + (WetGain * WetSample);
+
             // In-place: add wet on top of dry (leave external dry/wet mixing to the caller/host)
-            ChannelData[SampleIndex] += WetSample;
+            ChannelData[SampleIndex] = Mixed;
         }
     }
 }

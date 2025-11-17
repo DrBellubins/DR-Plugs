@@ -29,18 +29,12 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     float diffusionQuality = parameters.getRawParameterValue("diffusionQuality")->load();
     float dryWetMix = parameters.getRawParameterValue("dryWetMix")->load();
 
-    /*DelayReverb.SetDelayTime(delayTime);
-    DelayReverb.SetFeedbackTime(feedbackTime);
-    DelayReverb.SetDiffusionAmount(diffusionAmount);
-    DelayReverb.SetDiffusionSize(diffusionSize);
-    DelayReverb.SetDiffusionQuality(diffusionQuality);
-    DelayReverb.SetDryWetMix(dryWetMix);*/
-
     simpleDelayReverb.SetDelayTime(delayTime);
+    simpleDelayReverb.SetFeedbackTime(feedbackTime);
     simpleDelayReverb.SetDiffusionAmount(diffusionAmount);
     simpleDelayReverb.SetDiffusionSize(diffusionSize);
     simpleDelayReverb.SetDiffusionQuality(diffusionQuality);
-    simpleDelayReverb.SetFeedbackTime(feedbackTime);
+    simpleDelayReverb.SetDryWetMix(dryWetMix);
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
@@ -204,9 +198,11 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
     if (parameterID == "dryWetMix") DelayReverb.SetDryWetMix(newValue);*/
 
     if (parameterID == "delayTime") simpleDelayReverb.SetDelayTime(newValue);
+    if (parameterID == "feedbackTime") simpleDelayReverb.SetFeedbackTime(newValue);
     if (parameterID == "diffusionAmount") simpleDelayReverb.SetDiffusionAmount(newValue);
     if (parameterID == "diffusionSize") simpleDelayReverb.SetDiffusionSize(newValue);
     if (parameterID == "diffusionQuality") simpleDelayReverb.SetDiffusionQuality(newValue);
+    if (parameterID == "dryWetMix") simpleDelayReverb.SetDryWetMix(newValue);
 
     DBG("Changed: " << parameterID << " to " << newValue);
 }

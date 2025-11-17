@@ -57,15 +57,17 @@ public:
     // Parameter setters (thread-safe, real-time safe).
     // Ranges:
     // - DelayTimeSeconds:   [0.0, MaximumDelaySeconds] (clamped internally)
+    // - FeedbackTimeSeconds:[0.0, 10.0]  (T60 target in seconds; 0 disables feedback)
     // - DiffusionAmount:    [0.0, 1.0]
     // - DiffusionSize:      [0.0, 1.0]
     // - DiffusionQuality:   [0.0, 1.0]
-    // - FeedbackTimeSeconds:[0.0, 10.0]  (T60 target in seconds; 0 disables feedback)
     void SetDelayTime(float DelayTimeSeconds);
+    void SetFeedbackTime(float FeedbackTimeSeconds);
     void SetDiffusionAmount(float DiffusionAmount);
     void SetDiffusionSize(float DiffusionSize);
     void SetDiffusionQuality(float DiffusionQuality);
-    void SetFeedbackTime(float FeedbackTimeSeconds);
+    void SetDryWetMix(float DryWet);
+
     void SetPreLowpassDecayAmount(float DecayAmount);
     void SetPreHighpassDecayAmount(float DecayAmount);
 
@@ -131,6 +133,7 @@ private:
     std::atomic<float> TargetDiffusionSize    { 0.00f  };
     std::atomic<float> TargetDiffusionQuality { 1.00f  };
     std::atomic<float> TargetFeedbackTimeSeconds { 3.00f };
+    std::atomic<float> TargetDryWetMix { 1.00f };
 
     // Lowpass/Highpass
     std::atomic<float> TargetPreLowpassDecayAmount  { 0.00f }; // 0..1
