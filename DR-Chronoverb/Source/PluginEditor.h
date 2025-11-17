@@ -66,6 +66,12 @@ private:
     std::unique_ptr<ThemedKnob> dryWetMixKnob;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> dryWetMixAttachment;
 
+    std::unique_ptr<ThemedKnob> lowPassKnob;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> lowPassAttachment;
+
+    std::unique_ptr<ThemedKnob> highPassKnob;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> highPassAttachment;
+
     // Labels
     std::unique_ptr<juce::Label> delayTimeLabel;
     std::unique_ptr<juce::Label> feedbackLabel;
@@ -73,6 +79,9 @@ private:
     std::unique_ptr<juce::Label> diffusionSizeLabel;
     std::unique_ptr<juce::Label> diffusionQualityLabel;
     std::unique_ptr<juce::Label> dryWetMixLabel;
+
+    std::unique_ptr<juce::Label> lowPassLabel;
+    std::unique_ptr<juce::Label> highPassLabel;
 
     std::unordered_set<int> lastHeldKeyCodes;
 

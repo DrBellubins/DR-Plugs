@@ -97,13 +97,13 @@ void ClusteredDiffusionDelay::SetDryWetMix(float DryWet)
     TargetDryWetMix.store(Clamped, std::memory_order_relaxed);
 }
 
-void ClusteredDiffusionDelay::SetPreLowpassDecayAmount(float DecayAmount)
+void ClusteredDiffusionDelay::SetLowpassDecay(float DecayAmount)
 {
     float Clamped = juce::jlimit(0.0f, 1.0f, DecayAmount);
     TargetPreLowpassDecayAmount.store(Clamped, std::memory_order_relaxed);
 }
 
-void ClusteredDiffusionDelay::SetPreHighpassDecayAmount(float DecayAmount)
+void ClusteredDiffusionDelay::SetHighpassDecay(float DecayAmount)
 {
     float Clamped = juce::jlimit(0.0f, 1.0f, DecayAmount);
     TargetPreHighpassDecayAmount.store(Clamped, std::memory_order_relaxed);

@@ -68,8 +68,8 @@ public:
     void SetDiffusionQuality(float DiffusionQuality);
     void SetDryWetMix(float DryWet);
 
-    void SetPreLowpassDecayAmount(float DecayAmount);
-    void SetPreHighpassDecayAmount(float DecayAmount);
+    void SetLowpassDecay(float DecayAmount);
+    void SetHighpassDecay(float DecayAmount);
 
     // Main audio processing. Adds wet signal on top of input buffer content (in-place).
     void ProcessBlock(juce::AudioBuffer<float>& AudioBuffer);

@@ -21,6 +21,9 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     parameters.addParameterListener("diffusionQuality", this);
     parameters.addParameterListener("dryWetMix", this);
 
+    parameters.addParameterListener("lowPassDecay", this);
+    parameters.addParameterListener("highPassDecay", this);
+
     // Set delay initial values
     float delayTime = parameters.getRawParameterValue("delayTime")->load();
     float feedbackTime = parameters.getRawParameterValue("feedbackTime")->load();
@@ -29,12 +32,18 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     float diffusionQuality = parameters.getRawParameterValue("diffusionQuality")->load();
     float dryWetMix = parameters.getRawParameterValue("dryWetMix")->load();
 
+    float lowPassDecay = parameters.getRawParameterValue("lowPassDecay")->load();
+    float highPassDecay = parameters.getRawParameterValue("highPassDecay")->load();
+
     simpleDelayReverb.SetDelayTime(delayTime);
     simpleDelayReverb.SetFeedbackTime(feedbackTime);
     simpleDelayReverb.SetDiffusionAmount(diffusionAmount);
     simpleDelayReverb.SetDiffusionSize(diffusionSize);
     simpleDelayReverb.SetDiffusionQuality(diffusionQuality);
     simpleDelayReverb.SetDryWetMix(dryWetMix);
+
+    simpleDelayReverb.SetLowpassDecay(lowPassDecay);
+    simpleDelayReverb.SetHighpassDecay(highPassDecay);
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
@@ -75,6 +84,16 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
     // Dry/Wet mix
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
         "dryWetMix", "Dry/Wet mix",
+        juce::NormalisableRange<float>(0.0f, 1.0f), 1.0f));
+
+    // Low pass decay
+    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
+        "lowPassDecay", "Low Pass Decay",
+        juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f));
+
+    // High pass decay
+    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
+        "highPassDecay", "High Pass Decay",
         juce::NormalisableRange<float>(0.0f, 1.0f), 1.0f));
 
     return { parameterList.begin(), parameterList.end() };
@@ -190,19 +209,15 @@ bool AudioPluginAudioProcessor::isBusesLayoutSupported(const BusesLayout& layout
 
 void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID, float newValue)
 {
-    /*if (parameterID == "delayTime") DelayReverb.SetDelayTime(newValue);
-    if (parameterID == "feedbackTime") DelayReverb.SetFeedbackTime(newValue);
-    if (parameterID == "diffusionAmount") DelayReverb.SetDiffusionAmount(newValue);
-    if (parameterID == "diffusionSize") DelayReverb.SetDiffusionSize(newValue);
-    if (parameterID == "diffusionQuality") DelayReverb.SetDiffusionQuality(newValue);
-    if (parameterID == "dryWetMix") DelayReverb.SetDryWetMix(newValue);*/
-
     if (parameterID == "delayTime") simpleDelayReverb.SetDelayTime(newValue);
     if (parameterID == "feedbackTime") simpleDelayReverb.SetFeedbackTime(newValue);
     if (parameterID == "diffusionAmount") simpleDelayReverb.SetDiffusionAmount(newValue);
     if (parameterID == "diffusionSize") simpleDelayReverb.SetDiffusionSize(newValue);
     if (parameterID == "diffusionQuality") simpleDelayReverb.SetDiffusionQuality(newValue);
     if (parameterID == "dryWetMix") simpleDelayReverb.SetDryWetMix(newValue);
+
+    if (parameterID == "lowPassDecay") simpleDelayReverb.SetLowpassDecay(newValue);
+    if (parameterID == "highPassDecay") simpleDelayReverb.SetHighpassDecay(newValue);
 
     DBG("Changed: " << parameterID << " to " << newValue);
 }

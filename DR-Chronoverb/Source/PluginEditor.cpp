@@ -29,12 +29,15 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     // TODO: delayTimeKnob needs to have its suffix value * 1000 for accurate ms display
     createKnob(delayTimeKnob, delayTimeAttachment, "delayTime", " ms", 150, 0, -25);
     createKnob(feedbackTimeKnob, feedbackTimeAttachment, "feedbackTime", "", 80, 150, 50);
-    createKnob(diffusionAmountKnob, diffusionAmountAttachment, "diffusionAmount", "", 80, -300, -50);
-    createKnob(diffusionSizeKnob, diffusionSizeAttachment, "diffusionSize", "", 80, -150, -50);
+    createKnob(diffusionAmountKnob, diffusionAmountAttachment, "diffusionAmount", "", 80, -300, -125);
+    createKnob(diffusionSizeKnob, diffusionSizeAttachment, "diffusionSize", "", 80, -150, -125);
     createKnob(dryWetMixKnob, dryWetMixAttachment, "dryWetMix", "", 80, 300, 50);
 
+    createKnob(lowPassKnob, lowPassAttachment, "lowPassDecay", "", 80, -300, 150);
+    createKnob(highPassKnob, highPassAttachment, "highPassDecay", "", 80, -150, 150);
+
     // Quality slider
-    createSlider(diffusionQualitySlider, diffusionQualityAttachment, "diffusionQuality", 200, 20, 200, -180);
+    createSlider(diffusionQualitySlider, diffusionQualityAttachment, "diffusionQuality", 200, 20, 200, -260);
     createSliderLabel(diffusionQualityLabel, *diffusionQualitySlider, "Diffusion Quality", 15.0f, 170);
 
     // ------ Knob Labels ------
@@ -43,6 +46,9 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     createKnobLabel(diffusionAmountLabel, *diffusionAmountKnob, "Diffusion Amount", 15.0f, 70);
     createKnobLabel(diffusionSizeLabel, *diffusionSizeKnob, "Diffusion Size", 15.0f, 70);
     createKnobLabel(dryWetMixLabel, *dryWetMixKnob, "Dry/Wet Mix", 15.0f, 70);
+
+    createKnobLabel(lowPassLabel, *lowPassKnob, "Low Pass", 15.0f, 70);
+    createKnobLabel(highPassLabel, *highPassKnob, "High Pass", 15.0f, 70);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()

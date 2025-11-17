@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Filters/DiffusedDelayReverb.h"
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "Filters/ClusteredDiffusionDelay.h"
