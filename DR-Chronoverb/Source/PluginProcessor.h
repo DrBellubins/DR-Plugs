@@ -3,8 +3,8 @@
 #include "Filters/DiffusedDelayReverb.h"
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "Filters/ClusteredDiffusionDelay.h"
 #include "Filters/ComputerKeyboardSquareSynth.h"
-#include "Filters/SimpleDelayReverb.h"
 
 //==============================================================================
 class AudioPluginAudioProcessor  : public juce::AudioProcessor, public juce::AudioProcessorValueTreeState::Listener
@@ -18,7 +18,7 @@ public:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
     //DiffusedDelayReverb DelayReverb;
-    SimpleDelayReverb simpleDelayReverb;
+    ClusteredDiffusionDelay simpleDelayReverb;
 
     ComputerKeyboardSquareSynth keyboardSynth;
 

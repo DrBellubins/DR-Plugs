@@ -41,11 +41,11 @@
 //   If you need a dry/wet control, do it outside this class or extend this class accordingly.
 // - External parameter ownership should be done with AudioProcessorValueTreeState in your processor.
 
-class SimpleDelayReverb
+class ClusteredDiffusionDelay
 {
 public:
-    SimpleDelayReverb();
-    ~SimpleDelayReverb();
+    ClusteredDiffusionDelay();
+    ~ClusteredDiffusionDelay();
 
     // Prepare delay lines and internal state.
     // MaximumDelaySeconds defines the headroom of the circular buffer (nominal delay + spread + safety).

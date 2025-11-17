@@ -1,17 +1,17 @@
-#include "SimpleDelayReverb.h"
 #include <algorithm>
+#include "ClusteredDiffusionDelay.h"
 
 // ============================== Construction / Setup ==============================
 
-SimpleDelayReverb::SimpleDelayReverb()
+ClusteredDiffusionDelay::ClusteredDiffusionDelay()
 {
 }
 
-SimpleDelayReverb::~SimpleDelayReverb()
+ClusteredDiffusionDelay::~ClusteredDiffusionDelay()
 {
 }
 
-void SimpleDelayReverb::PrepareToPlay(double NewSampleRate, float NewMaximumDelaySeconds)
+void ClusteredDiffusionDelay::PrepareToPlay(double NewSampleRate, float NewMaximumDelaySeconds)
 {
     // Store sample rate and sizing constraints
     SampleRate = (NewSampleRate > 0.0 ? NewSampleRate : 44100.0);
@@ -41,7 +41,7 @@ void SimpleDelayReverb::PrepareToPlay(double NewSampleRate, float NewMaximumDela
     IsPrepared = true;
 }
 
-void SimpleDelayReverb::Reset()
+void ClusteredDiffusionDelay::Reset()
 {
     for (ChannelState& State : Channels)
     {
@@ -56,33 +56,33 @@ void SimpleDelayReverb::Reset()
 
 // ============================== Parameter Setters ==============================
 
-void SimpleDelayReverb::SetDelayTime(float DelayTimeSeconds)
+void ClusteredDiffusionDelay::SetDelayTime(float DelayTimeSeconds)
 {
     // Clamp to the configured maximum
     float Clamped = juce::jlimit(0.0f, MaximumDelaySeconds, DelayTimeSeconds);
     TargetDelayTimeSeconds.store(Clamped, std::memory_order_relaxed);
 }
 
-void SimpleDelayReverb::SetFeedbackTime(float FeedbackTimeSeconds)
+void ClusteredDiffusionDelay::SetFeedbackTime(float FeedbackTimeSeconds)
 {
     // Clamp a reasonable T60 range; 0 disables feedback
     float Clamped = juce::jlimit(0.0f, 10.0f, FeedbackTimeSeconds);
     TargetFeedbackTimeSeconds.store(Clamped, std::memory_order_relaxed);
 }
 
-void SimpleDelayReverb::SetDiffusionAmount(float DiffusionAmount)
+void ClusteredDiffusionDelay::SetDiffusionAmount(float DiffusionAmount)
 {
     float Clamped = juce::jlimit(0.0f, 1.0f, DiffusionAmount);
     TargetDiffusionAmount.store(Clamped, std::memory_order_relaxed);
 }
 
-void SimpleDelayReverb::SetDiffusionSize(float DiffusionSize)
+void ClusteredDiffusionDelay::SetDiffusionSize(float DiffusionSize)
 {
     float Clamped = juce::jlimit(0.0f, 1.0f, DiffusionSize);
     TargetDiffusionSize.store(Clamped, std::memory_order_relaxed);
 }
 
-void SimpleDelayReverb::SetDiffusionQuality(float DiffusionQuality)
+void ClusteredDiffusionDelay::SetDiffusionQuality(float DiffusionQuality)
 {
     float Clamped = juce::jlimit(0.0f, 1.0f, DiffusionQuality);
     TargetDiffusionQuality.store(Clamped, std::memory_order_relaxed);
@@ -91,19 +91,19 @@ void SimpleDelayReverb::SetDiffusionQuality(float DiffusionQuality)
     recomputeTargetTapLayout();
 }
 
-void SimpleDelayReverb::SetDryWetMix(float DryWet)
+void ClusteredDiffusionDelay::SetDryWetMix(float DryWet)
 {
     float Clamped = juce::jlimit(0.0f, 1.0f, DryWet);
     TargetDryWetMix.store(Clamped, std::memory_order_relaxed);
 }
 
-void SimpleDelayReverb::SetPreLowpassDecayAmount(float DecayAmount)
+void ClusteredDiffusionDelay::SetPreLowpassDecayAmount(float DecayAmount)
 {
     float Clamped = juce::jlimit(0.0f, 1.0f, DecayAmount);
     TargetPreLowpassDecayAmount.store(Clamped, std::memory_order_relaxed);
 }
 
-void SimpleDelayReverb::SetPreHighpassDecayAmount(float DecayAmount)
+void ClusteredDiffusionDelay::SetPreHighpassDecayAmount(float DecayAmount)
 {
     float Clamped = juce::jlimit(0.0f, 1.0f, DecayAmount);
     TargetPreHighpassDecayAmount.store(Clamped, std::memory_order_relaxed);
@@ -123,7 +123,7 @@ static inline float cutoffToAlpha(float CutoffHz, float SampleRate)
     return juce::jlimit(0.0f, 1.0f, Alpha);
 }
 
-void SimpleDelayReverb::ensureChannelState(int RequiredChannels)
+void ClusteredDiffusionDelay::ensureChannelState(int RequiredChannels)
 {
     if (!IsPrepared)
         return;
@@ -142,7 +142,7 @@ void SimpleDelayReverb::ensureChannelState(int RequiredChannels)
     }
 }
 
-void SimpleDelayReverb::resizeDelayBuffers()
+void ClusteredDiffusionDelay::resizeDelayBuffers()
 {
     if (!IsPrepared)
         return;
@@ -158,7 +158,7 @@ void SimpleDelayReverb::resizeDelayBuffers()
     }
 }
 
-int SimpleDelayReverb::qualityToTapPairs(float Quality) const
+int ClusteredDiffusionDelay::qualityToTapPairs(float Quality) const
 {
     // Map [0..1] to [1..8] pairs (i.e., 2..16 taps total, symmetric about center, excluding center)
     // Lower quality => fewer taps (sparser), higher quality => more taps (denser).
@@ -167,7 +167,7 @@ int SimpleDelayReverb::qualityToTapPairs(float Quality) const
     return juce::jlimit(1, 8, Pairs);
 }
 
-void SimpleDelayReverb::recomputeTargetTapLayout()
+void ClusteredDiffusionDelay::recomputeTargetTapLayout()
 {
     // Build symmetric, deterministic offsets in normalized units [-1..+1]
     // Based on a prime-like sequence to avoid harmonic reinforcement.
@@ -221,7 +221,7 @@ PreTapFilterCoefficients computePreTapFilterCoefficients(double CurrentSampleRat
 }
 
 // Damping
-float SimpleDelayReverb::computeDampingCoefficient(float CurrentSampleRate) const
+float ClusteredDiffusionDelay::computeDampingCoefficient(float CurrentSampleRate) const
 {
     // Simple one-pole low-pass in the feedback path:
     // y[n] = y[n-1] + alpha * (x[n] - y[n-1]),  alpha in (0..1)
@@ -246,7 +246,7 @@ float SimpleDelayReverb::computeDampingCoefficient(float CurrentSampleRate) cons
     return Alpha;
 }
 
-float SimpleDelayReverb::t60ToFeedbackGain(float LoopSeconds, float T60Seconds)
+float ClusteredDiffusionDelay::t60ToFeedbackGain(float LoopSeconds, float T60Seconds)
 {
     // Convert desired 60 dB decay time to per-loop linear gain.
     // Guard: zero or tiny T60 => no feedback; tiny loop => clamp.
@@ -258,7 +258,7 @@ float SimpleDelayReverb::t60ToFeedbackGain(float LoopSeconds, float T60Seconds)
     return juce::jlimit(0.0f, 0.9995f, Gain);
 }
 
-void SimpleDelayReverb::updateBlockSmoothing(int NumSamples)
+void ClusteredDiffusionDelay::updateBlockSmoothing(int NumSamples)
 {
     // Smooth delay time and spread over the block.
     // We compute per-sample smoothing inside the loop using these coefficients.
@@ -274,13 +274,13 @@ void SimpleDelayReverb::updateBlockSmoothing(int NumSamples)
     juce::ignoreUnused(NumSamples);
 }
 
-inline float SimpleDelayReverb::smoothOnePole(float Current, float Target, float Coefficient)
+inline float ClusteredDiffusionDelay::smoothOnePole(float Current, float Target, float Coefficient)
 {
     // One-pole lag towards target: y += a * (t - y)
     return Current + Coefficient * (Target - Current);
 }
 
-inline float SimpleDelayReverb::readFromDelayBuffer(const ChannelState& State, float DelayInSamples)
+inline float ClusteredDiffusionDelay::readFromDelayBuffer(const ChannelState& State, float DelayInSamples)
 {
     // Enforce valid positive delay
     if (DelayInSamples < 0.0f)
@@ -310,7 +310,7 @@ inline float SimpleDelayReverb::readFromDelayBuffer(const ChannelState& State, f
     return SampleA + (SampleB - SampleA) * Frac;
 }
 
-inline void SimpleDelayReverb::writeToDelayBuffer(ChannelState& State, float Sample)
+inline void ClusteredDiffusionDelay::writeToDelayBuffer(ChannelState& State, float Sample)
 {
     const int BufferSize = static_cast<int>(State.DelayBuffer.size());
 
@@ -327,7 +327,7 @@ inline void SimpleDelayReverb::writeToDelayBuffer(ChannelState& State, float Sam
 
 // ============================== Processing ==============================
 
-void SimpleDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
+void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
 {
     if (!IsPrepared)
         return;
