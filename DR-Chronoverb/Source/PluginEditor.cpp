@@ -47,8 +47,8 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     createKnobLabel(diffusionSizeLabel, *diffusionSizeKnob, "Diffusion Size", 15.0f, 70);
     createKnobLabel(dryWetMixLabel, *dryWetMixKnob, "Dry/Wet Mix", 15.0f, 70);
 
-    createKnobLabel(lowPassLabel, *lowPassKnob, "Low Pass", 15.0f, 70);
-    createKnobLabel(highPassLabel, *highPassKnob, "High Pass", 15.0f, 70);
+    createKnobLabel(lowPassLabel, *lowPassKnob, "Low Pass Decay", 15.0f, 70);
+    createKnobLabel(highPassLabel, *highPassKnob, "High Pass Decay", 15.0f, 70);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()

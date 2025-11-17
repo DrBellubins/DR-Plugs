@@ -94,7 +94,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
     // High pass decay
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
         "highPassDecay", "High Pass Decay",
-        juce::NormalisableRange<float>(0.0f, 1.0f), 1.0f));
+        juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f));
 
     return { parameterList.begin(), parameterList.end() };
 }
