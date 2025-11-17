@@ -48,6 +48,9 @@ void SimpleDelayReverb::Reset()
         std::fill(State.DelayBuffer.begin(), State.DelayBuffer.end(), 0.0f);
         State.WriteIndex = 0;
         State.FeedbackState = 0.0f;
+
+        State.PreLPState = 0.0f;
+        State.PreHPState = 0.0f;
     }
 }
 
@@ -88,7 +91,31 @@ void SimpleDelayReverb::SetFeedbackTime(float FeedbackTimeSeconds)
     TargetFeedbackTimeSeconds.store(Clamped, std::memory_order_relaxed);
 }
 
+void SimpleDelayReverb::SetPreLowpassDecayAmount(float DecayAmount)
+{
+    float Clamped = juce::jlimit(0.0f, 1.0f, DecayAmount);
+    TargetPreLowpassDecayAmount.store(Clamped, std::memory_order_relaxed);
+}
+
+void SimpleDelayReverb::SetPreHighpassDecayAmount(float DecayAmount)
+{
+    float Clamped = juce::jlimit(0.0f, 1.0f, DecayAmount);
+    TargetPreHighpassDecayAmount.store(Clamped, std::memory_order_relaxed);
+}
+
 // ============================== Internal Helpers ==============================
+
+struct PreTapFilterCoefficients
+{
+    float AlphaLP = 0.0f;
+    float AlphaHP = 0.0f;
+};
+
+static inline float cutoffToAlpha(float CutoffHz, float SampleRate)
+{
+    float Alpha = 1.0f - std::exp(-2.0f * juce::MathConstants<float>::pi * CutoffHz / static_cast<float>(SampleRate));
+    return juce::jlimit(0.0f, 1.0f, Alpha);
+}
 
 void SimpleDelayReverb::ensureChannelState(int RequiredChannels)
 {
@@ -119,6 +146,9 @@ void SimpleDelayReverb::resizeDelayBuffers()
         State.DelayBuffer.assign(static_cast<size_t>(MaxDelayBufferSamples), 0.0f);
         State.WriteIndex = 0;
         State.FeedbackState = 0.0f;
+
+        State.PreLPState = 0.0f;
+        State.PreHPState = 0.0f;
     }
 }
 
@@ -163,6 +193,28 @@ void SimpleDelayReverb::recomputeTargetTapLayout()
               });
 }
 
+// Pre-tap lowpass/highpass coefficients
+PreTapFilterCoefficients computePreTapFilterCoefficients(double CurrentSampleRate,
+                                                         float LPDecayAmount,
+                                                         float HPDecayAmount)
+{
+    PreTapFilterCoefficients Coefficients;
+
+    // Map 0..1 → LP cutoff 18 kHz - 1 kHz (higher decay amount => lower cutoff)
+    float LPCutoffHz = juce::jmap(LPDecayAmount, 0.0f, 1.0f, 18000.0f, 1000.0f);
+    LPCutoffHz = juce::jlimit(100.0f, 20000.0f, LPCutoffHz);
+
+    // Map 0..1 → HP cutoff 20 Hz - 2 kHz (higher decay amount => higher cutoff)
+    float HPCutoffHz = juce::jmap(HPDecayAmount, 0.0f, 1.0f, 20.0f, 2000.0f);
+    HPCutoffHz = juce::jlimit(10.0f, 8000.0f, HPCutoffHz);
+
+    Coefficients.AlphaLP = cutoffToAlpha(LPCutoffHz, static_cast<float>(CurrentSampleRate));
+    Coefficients.AlphaHP = cutoffToAlpha(HPCutoffHz, static_cast<float>(CurrentSampleRate));
+
+    return Coefficients;
+}
+
+// Damping
 float SimpleDelayReverb::computeDampingCoefficient(float CurrentSampleRate) const
 {
     // Simple one-pole low-pass in the feedback path:
@@ -283,6 +335,13 @@ void SimpleDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
     const float Amount = TargetDiffusionAmount.load(std::memory_order_relaxed);
     const float Quality = TargetDiffusionQuality.load(std::memory_order_relaxed);
     const float T60Seconds = TargetFeedbackTimeSeconds.load(std::memory_order_relaxed);
+
+    const float PreLPAmount = TargetPreLowpassDecayAmount.load(std::memory_order_relaxed);
+    const float PreHPAmount = TargetPreHighpassDecayAmount.load(std::memory_order_relaxed);
+
+    const PreTapFilterCoefficients PreTapCoeffs = computePreTapFilterCoefficients(SampleRate,
+                                                                              PreLPAmount,
+                                                                              PreHPAmount);
 
     // Equal-power crossfade coefficients for smoother morph (Amount in [0..1])
     const float AmountA = std::cos(Amount * juce::MathConstants<float>::halfPi); // base tap weight

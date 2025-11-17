@@ -66,6 +66,8 @@ public:
     void SetDiffusionSize(float DiffusionSize);
     void SetDiffusionQuality(float DiffusionQuality);
     void SetFeedbackTime(float FeedbackTimeSeconds);
+    void SetPreLowpassDecayAmount(float DecayAmount);
+    void SetPreHighpassDecayAmount(float DecayAmount);
 
     // Main audio processing. Adds wet signal on top of input buffer content (in-place).
     void ProcessBlock(juce::AudioBuffer<float>& AudioBuffer);
@@ -77,6 +79,10 @@ private:
         std::vector<float> DelayBuffer;  // Circular delay line
         int WriteIndex = 0;              // Write pointer
         float FeedbackState = 0.0f;      // Feedback low-pass filter state
+
+        // Pre-tap filter states
+        float PreLPState = 0.0f;   // lowpass state used to realize the pre-LP
+        float PreHPState = 0.0f;   // lowpass state used to realize the pre-HP as (x - PreHPState)
     };
 
     // Internal helpers
@@ -125,6 +131,10 @@ private:
     std::atomic<float> TargetDiffusionSize    { 0.00f  };
     std::atomic<float> TargetDiffusionQuality { 1.00f  };
     std::atomic<float> TargetFeedbackTimeSeconds { 3.00f };
+
+    // Lowpass/Highpass
+    std::atomic<float> TargetPreLowpassDecayAmount  { 0.00f }; // 0..1
+    std::atomic<float> TargetPreHighpassDecayAmount { 0.00f }; // 0..1
 
     // Smoothed parameters used inside the tight loop
     float SmoothedDelayTimeSeconds = 0.300f;
