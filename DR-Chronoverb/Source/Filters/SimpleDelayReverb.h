@@ -86,13 +86,13 @@ private:
     void updateBlockSmoothing(int NumSamples);
 
     // Delay read with linear interpolation from circular buffer (fractional delays).
-    inline float readFromDelayBuffer(const ChannelState& State, float DelayInSamples) const;
+    static inline float readFromDelayBuffer(const ChannelState& State, float DelayInSamples) ;
 
     // Write a sample into the circular buffer and advance the write pointer.
-    inline void writeToDelayBuffer(ChannelState& State, float Sample);
+    static inline void writeToDelayBuffer(ChannelState& State, float Sample);
 
     // One-pole smoothing helper (for time-varying parameters).
-    inline float smoothOnePole(float Current, float Target, float Coefficient) const;
+    static inline float smoothOnePole(float Current, float Target, float Coefficient) ;
 
     // Map quality to number of symmetric tap pairs (density).
     int qualityToTapPairs(float Quality) const;
@@ -108,7 +108,7 @@ private:
 
     // Map T60 decay time to per-loop feedback gain given the current loop period (nominal delay).
     // g = 10^(-3 * LoopSeconds / T60Seconds). T60Seconds == 0 => 0.
-    float t60ToFeedbackGain(float LoopSeconds, float T60Seconds) const;
+    static float t60ToFeedbackGain(float LoopSeconds, float T60Seconds) ;
 
     // Sample rate and buffer sizing
     double SampleRate = 44100.0;

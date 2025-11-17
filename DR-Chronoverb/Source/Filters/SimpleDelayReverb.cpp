@@ -93,9 +93,7 @@ void SimpleDelayReverb::SetFeedbackTime(float FeedbackTimeSeconds)
 void SimpleDelayReverb::ensureChannelState(int RequiredChannels)
 {
     if (!IsPrepared)
-    {
         return;
-    }
 
     if (static_cast<int>(Channels.size()) < RequiredChannels)
     {
@@ -114,9 +112,7 @@ void SimpleDelayReverb::ensureChannelState(int RequiredChannels)
 void SimpleDelayReverb::resizeDelayBuffers()
 {
     if (!IsPrepared)
-    {
         return;
-    }
 
     for (ChannelState& State : Channels)
     {
@@ -131,6 +127,7 @@ int SimpleDelayReverb::qualityToTapPairs(float Quality) const
     // Map [0..1] to [1..8] pairs (i.e., 2..16 taps total, symmetric about center, excluding center)
     // Lower quality => fewer taps (sparser), higher quality => more taps (denser).
     int Pairs = 1 + static_cast<int>(std::round(Quality * 7.0f));
+
     return juce::jlimit(1, 8, Pairs);
 }
 
@@ -187,19 +184,19 @@ float SimpleDelayReverb::computeDampingCoefficient(float CurrentSampleRate) cons
 
     float Alpha = 1.0f - std::exp(-2.0f * juce::MathConstants<float>::pi * CutoffHz / static_cast<float>(CurrentSampleRate));
     Alpha = juce::jlimit(0.0f, 1.0f, Alpha);
+
     return Alpha;
 }
 
-float SimpleDelayReverb::t60ToFeedbackGain(float LoopSeconds, float T60Seconds) const
+float SimpleDelayReverb::t60ToFeedbackGain(float LoopSeconds, float T60Seconds)
 {
     // Convert desired 60 dB decay time to per-loop linear gain.
     // Guard: zero or tiny T60 => no feedback; tiny loop => clamp.
     if (T60Seconds <= 0.0f || LoopSeconds <= 0.0f)
-    {
         return 0.0f;
-    }
 
     float Gain = std::pow(10.0f, -3.0f * (LoopSeconds / T60Seconds));
+
     return juce::jlimit(0.0f, 0.9995f, Gain);
 }
 
@@ -219,34 +216,29 @@ void SimpleDelayReverb::updateBlockSmoothing(int NumSamples)
     juce::ignoreUnused(NumSamples);
 }
 
-inline float SimpleDelayReverb::smoothOnePole(float Current, float Target, float Coefficient) const
+inline float SimpleDelayReverb::smoothOnePole(float Current, float Target, float Coefficient)
 {
     // One-pole lag towards target: y += a * (t - y)
     return Current + Coefficient * (Target - Current);
 }
 
-inline float SimpleDelayReverb::readFromDelayBuffer(const ChannelState& State, float DelayInSamples) const
+inline float SimpleDelayReverb::readFromDelayBuffer(const ChannelState& State, float DelayInSamples)
 {
     // Enforce valid positive delay
     if (DelayInSamples < 0.0f)
-    {
         DelayInSamples = 0.0f;
-    }
 
     const int BufferSize = static_cast<int>(State.DelayBuffer.size());
+
     if (BufferSize <= 1)
-    {
         return 0.0f;
-    }
 
     // Read position is WriteIndex - DelayInSamples
     float ReadPosition = static_cast<float>(State.WriteIndex) - DelayInSamples;
 
     // Wrap into [0..BufferSize)
     while (ReadPosition < 0.0f)
-    {
         ReadPosition += static_cast<float>(BufferSize);
-    }
 
     // Linear interpolation
     int IndexA = static_cast<int>(ReadPosition) % BufferSize;
@@ -263,18 +255,16 @@ inline float SimpleDelayReverb::readFromDelayBuffer(const ChannelState& State, f
 inline void SimpleDelayReverb::writeToDelayBuffer(ChannelState& State, float Sample)
 {
     const int BufferSize = static_cast<int>(State.DelayBuffer.size());
+
     if (BufferSize <= 0)
-    {
         return;
-    }
 
     State.DelayBuffer[State.WriteIndex] = Sample;
 
     State.WriteIndex++;
+
     if (State.WriteIndex >= BufferSize)
-    {
         State.WriteIndex = 0;
-    }
 }
 
 // ============================== Processing ==============================
@@ -282,9 +272,7 @@ inline void SimpleDelayReverb::writeToDelayBuffer(ChannelState& State, float Sam
 void SimpleDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
 {
     if (!IsPrepared)
-    {
         return;
-    }
 
     const int NumChannels = AudioBuffer.getNumChannels();
     const int NumSamples = AudioBuffer.getNumSamples();
@@ -315,18 +303,21 @@ void SimpleDelayReverb::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
     // Sum of absolute weights for normalization (taps nearer center get slightly more weight)
     // We compute static weights from the order (closer to center -> higher weight).
     const int TotalTaps = static_cast<int>(NormalizedSymmetricOffsets.size());
+
     std::vector<float> TapWeights(static_cast<size_t>(TotalTaps), 1.0f);
     {
         // Weighting: inverse with rank by absolute offset (already sorted by abs ascending)
         // Start at 1.0, gently fall towards edges
         float Weight = 1.0f;
         const float FalloffPerTap = 0.08f; // gentle preference for inner taps
+
         for (int TapIndex = 0; TapIndex < TotalTaps; ++TapIndex)
         {
             TapWeights[static_cast<size_t>(TapIndex)] = Weight;
             Weight = std::max(0.25f, Weight - FalloffPerTap);
         }
     }
+
     const float WeightSum = std::accumulate(TapWeights.begin(), TapWeights.end(), 0.0f);
     const float WeightNorm = (WeightSum > 0.0f ? 1.0f / WeightSum : 1.0f);
 
