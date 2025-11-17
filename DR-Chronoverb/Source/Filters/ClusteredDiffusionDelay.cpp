@@ -138,6 +138,10 @@ void ClusteredDiffusionDelay::ensureChannelState(int RequiredChannels)
             Channels[ChannelIndex].DelayBuffer.assign(static_cast<size_t>(MaxDelayBufferSamples), 0.0f);
             Channels[ChannelIndex].WriteIndex = 0;
             Channels[ChannelIndex].FeedbackState = 0.0f;
+
+            // Explicitly initialize pre-filter states for safety
+            Channels[ChannelIndex].PreLPState = 0.0f;
+            Channels[ChannelIndex].PreHPState = 0.0f;
         }
     }
 }
@@ -461,9 +465,23 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
 
             const float FeedbackSample = State.FeedbackState * FeedbackGain;
 
+            // -------------------------------
+            // Apply pre-feedback highpass + lowpass shaping
+            // -------------------------------
+            // Filter the feedback sample through a simple HP -> LP chain so the
+            float FilteredFeedback = FeedbackSample;
+
+            // High-pass as: update lowpassed state (PreHPState) then HPout = x - lowpassed(x)
+            State.PreHPState = State.PreHPState + PreTapCoeffs.AlphaHP * (FilteredFeedback - State.PreHPState);
+            float HPOutput = FilteredFeedback - State.PreHPState;
+
+            // Low-pass the HP output (so overall chain is HP -> LP)
+            State.PreLPState = State.PreLPState + PreTapCoeffs.AlphaLP * (HPOutput - State.PreLPState);
+            FilteredFeedback = State.PreLPState;
+
             // Compose the signal to write into the delay line:
             // dry input plus feedback recirculation.
-            const float DelayLineInput = InputSample + FeedbackSample;
+            const float DelayLineInput = InputSample + FilteredFeedback;
 
             // Write and advance the circular buffer
             writeToDelayBuffer(State, DelayLineInput);
