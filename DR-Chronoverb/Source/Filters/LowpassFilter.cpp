@@ -1,13 +1,13 @@
 #include "LowpassFilter.h"
 
 // Constructor: initialize defaults
-LowpassFilter::LowpassFilter()
+LowpassFilter::OnePoleLowpass()
 {
     // Keep trivial defaults; real initialization happens in prepareToPlay or setCutoffFrequency.
 }
 
 // Destructor: nothing special to free (vectorless, RAII)
-LowpassFilter::~LowpassFilter()
+LowpassFilter::~OnePoleLowpass()
 {
 }
 
