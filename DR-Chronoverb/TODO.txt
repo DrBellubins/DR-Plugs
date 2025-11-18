@@ -1,0 +1,5 @@
+Compartmentalize all components of the delay (lowpass, highpass, stereo widener).
+Add ducking (duck amount, attack, release).
+Begin creation of Matrix Menu.
+Implement pitch features (oh fuck).
+Implement playback direction features.
