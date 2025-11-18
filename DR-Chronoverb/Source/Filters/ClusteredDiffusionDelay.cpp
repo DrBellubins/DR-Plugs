@@ -464,7 +464,10 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
     const float MaxSpreadSamples = secondsToSamples(MaximumSpreadSeconds);
     const float LookaheadSamples = 0.5f * MaxSpreadSamples;
 
-    // Main per-sample processing loop
+    // Cache per-sample feedback gains to keep parity with the old implementation
+    std::vector<float> FeedbackGainPerSample(static_cast<size_t>(NumSamples), 0.0f);
+
+    // Main per-sample processing loop (Stage A: build wet; also compute per-sample feedback gain)
     for (int SampleIndex = 0; SampleIndex < NumSamples; ++SampleIndex)
     {
         // Smooth delay and diffusion size each sample
@@ -478,19 +481,20 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
         const float BaseDelaySamples = secondsToSamples(juce::jlimit(0.0f, MaximumDelaySeconds, SmoothedDelayTimeSeconds));
         const float SpreadSamples    = secondsToSamples(juce::jlimit(0.0f, MaximumSpreadSeconds, SmoothedDiffusionSize * MaximumSpreadSeconds));
 
-        // Loop period in seconds for feedback gain calculation
+        // Loop period in seconds for feedback gain calculation (sample-accurate)
         const float LoopSeconds = std::max(1.0e-4f, SmoothedDelayTimeSeconds);
 
-        // Feedback gain based on desired T60
-        const float FeedbackGain = t60ToFeedbackGain(LoopSeconds, FeedbackT60Seconds);
+        // Store feedback gain for this sample (sample-accurate parity with old code)
+        FeedbackGainPerSample[static_cast<size_t>(SampleIndex)] = t60ToFeedbackGain(LoopSeconds, FeedbackT60Seconds);
 
-        // --- Stage A: Build wet (pre-stereo) echo for each channel ---
+        // --- Build wet (pre-stereo) echo for each channel ---
         for (int ChannelIndex = 0; ChannelIndex < NumChannels; ++ChannelIndex)
         {
             // Access channel state and input sample
             ChannelState& Channel = *Channels[ChannelIndex]; // Dereference unique_ptr
             float* ChannelWritePtr = AudioBuffer.getWritePointer(ChannelIndex);
             const float InputSample = ChannelWritePtr[SampleIndex];
+            juce::ignoreUnused(InputSample); // InputSample not needed to read taps
 
             // Base nominal tap read
             const float BaseTapSample = readFromDelayBuffer(Channel, BaseDelaySamples);
@@ -523,11 +527,9 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
             // Store wet echo into scratch wet buffer before stereo width processing
             WetScratchBuffer.getWritePointer(ChannelIndex)[SampleIndex] = WetEchoSample;
         }
-
-        // Note: Stereo width is applied after we build the whole wet block to keep feedback consistent.
     }
 
-    // --- Apply stereo width once for full wet buffer block (mirrors previous sample-by-sample semantics) ---
+    // --- Apply stereo width once for full wet buffer block ---
     if (StereoWidthValue != 0.0f)
     {
         StereoWidthProcessor.setStereoWidth(StereoWidthValue);
@@ -537,6 +539,9 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
     // --- Stage C: Feedback, filtering, delay write, output mix (now width-adjusted wet available) ---
     for (int SampleIndex = 0; SampleIndex < NumSamples; ++SampleIndex)
     {
+        // Fetch per-sample feedback gain that matches the smoothed delay used when taps were read
+        const float FeedbackGainForThisSample = FeedbackGainPerSample[static_cast<size_t>(SampleIndex)];
+
         for (int ChannelIndex = 0; ChannelIndex < NumChannels; ++ChannelIndex)
         {
             ChannelState& Channel = *Channels[ChannelIndex]; // Dereference unique_ptr
@@ -549,9 +554,8 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
             // Feedback damping lowpass (modular replacement for previous one-pole)
             float DampedFeedbackSample = Channel.FeedbackDampingLowpass.processSample(WetStereoSample);
 
-            // Apply feedback gain (scaled T60)
-            float FeedbackSample = DampedFeedbackSample * t60ToFeedbackGain(std::max(1.0e-4f, SmoothedDelayTimeSeconds),
-                                                                            FeedbackT60Seconds);
+            // Apply feedback gain (sample-accurate T60 mapping)
+            float FeedbackSample = DampedFeedbackSample * FeedbackGainForThisSample;
 
             // Pre highpass first (same order as before)
             float AfterHighpass = Channel.PreHighpassFilter.processSample(FeedbackSample);
