@@ -33,6 +33,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     createKnob(diffusionSizeKnob, diffusionSizeAttachment, "diffusionSize", "", 80, -200, -125);
     createKnob(dryWetMixKnob, dryWetMixAttachment, "dryWetMix", "", 80, 350, 50);
 
+    createKnob(stereoSpreadKnob, stereoSpreadAttachment, "stereoSpread", "", 80, 200, -125);
     createKnob(lowPassKnob, lowPassAttachment, "lowPassDecay", "", 80, -350, 50);
     createKnob(highPassKnob, highPassAttachment, "highPassDecay", "", 80, -200, 50);
 
@@ -47,6 +48,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     createKnobLabel(diffusionSizeLabel, *diffusionSizeKnob, "Diffusion Size", 15.0f, 70);
     createKnobLabel(dryWetMixLabel, *dryWetMixKnob, "Dry/Wet Mix", 15.0f, 70);
 
+    createKnobLabel(stereoSpreadLabel, *stereoSpreadKnob, "Stereo Spread", 15.0f, 70);
     createKnobLabel(lowPassLabel, *lowPassKnob, "Low Pass Decay", 15.0f, 70);
     createKnobLabel(highPassLabel, *highPassKnob, "High Pass Decay", 15.0f, 70);
 }

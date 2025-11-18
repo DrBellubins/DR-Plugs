@@ -47,7 +47,7 @@ private:
     juce::Image background;
     juce::Image logo;
 
-    // Knobs
+    // Delay knobs
     std::unique_ptr<ThemedKnob> delayTimeKnob;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> delayTimeAttachment;
 
@@ -66,13 +66,17 @@ private:
     std::unique_ptr<ThemedKnob> dryWetMixKnob;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> dryWetMixAttachment;
 
+    // Filter knobs
+    std::unique_ptr<ThemedKnob> stereoSpreadKnob;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> stereoSpreadAttachment;
+
     std::unique_ptr<ThemedKnob> lowPassKnob;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> lowPassAttachment;
 
     std::unique_ptr<ThemedKnob> highPassKnob;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> highPassAttachment;
 
-    // Labels
+    // Delay labels
     std::unique_ptr<juce::Label> delayTimeLabel;
     std::unique_ptr<juce::Label> feedbackLabel;
     std::unique_ptr<juce::Label> diffusionAmountLabel;
@@ -80,6 +84,8 @@ private:
     std::unique_ptr<juce::Label> diffusionQualityLabel;
     std::unique_ptr<juce::Label> dryWetMixLabel;
 
+    // Filter labels
+    std::unique_ptr<juce::Label> stereoSpreadLabel;
     std::unique_ptr<juce::Label> lowPassLabel;
     std::unique_ptr<juce::Label> highPassLabel;
 

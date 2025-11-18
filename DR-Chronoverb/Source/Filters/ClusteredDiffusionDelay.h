@@ -47,6 +47,22 @@ public:
     ClusteredDiffusionDelay();
     ~ClusteredDiffusionDelay();
 
+    // Per-channel delay state
+    struct ChannelState
+    {
+        std::vector<float> DelayBuffer;  // Circular delay line
+        int WriteIndex = 0;              // Write pointer
+        float FeedbackState = 0.0f;      // Feedback low-pass filter state
+
+        // Pre-delay haas filter
+        std::vector<float> HaasBuffer;
+        int HaasWriteIndex = 0;
+
+        // Pre-delay filter states
+        float PreLPState = 0.0f;   // lowpass state used to realize the pre-LP
+        float PreHPState = 0.0f;   // lowpass state used to realize the pre-HP as (x - PreHPState)
+    };
+
     // Prepare delay lines and internal state.
     // MaximumDelaySeconds defines the headroom of the circular buffer (nominal delay + spread + safety).
     void PrepareToPlay(double SampleRate, float MaximumDelaySeconds);
@@ -68,6 +84,10 @@ public:
     void SetDiffusionQuality(float DiffusionQuality);
     void SetDryWetMix(float DryWet);
 
+    // - Negative values [-1..0): stereo reducer (mid/side scale). -1 => fully mono.
+    // - Zero: no change.
+    // - Positive values (0..+1]: Haas widening (delays one channel by up to HaasMaxMs).
+    void SetStereoSpread(float StereoWidth);
     void SetLowpassDecay(float DecayAmount);
     void SetHighpassDecay(float DecayAmount);
 
@@ -75,18 +95,6 @@ public:
     void ProcessBlock(juce::AudioBuffer<float>& AudioBuffer);
 
 private:
-    // Per-channel delay state
-    struct ChannelState
-    {
-        std::vector<float> DelayBuffer;  // Circular delay line
-        int WriteIndex = 0;              // Write pointer
-        float FeedbackState = 0.0f;      // Feedback low-pass filter state
-
-        // Pre-tap filter states
-        float PreLPState = 0.0f;   // lowpass state used to realize the pre-LP
-        float PreHPState = 0.0f;   // lowpass state used to realize the pre-HP as (x - PreHPState)
-    };
-
     // Internal helpers
     void ensureChannelState(int RequiredChannels);
     void resizeDelayBuffers();
@@ -134,6 +142,10 @@ private:
     std::atomic<float> TargetDiffusionQuality { 1.00f  };
     std::atomic<float> TargetFeedbackTimeSeconds { 3.00f };
     std::atomic<float> TargetDryWetMix { 1.00f };
+
+    // Haas
+    std::atomic<float> TargetStereoWidth { 0.0f };
+    int HaasMaxDelaySamples = 1;
 
     // Lowpass/Highpass
     std::atomic<float> TargetPreLowpassDecayAmount  { 0.00f }; // 0..1

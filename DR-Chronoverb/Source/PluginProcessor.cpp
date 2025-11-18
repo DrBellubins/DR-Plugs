@@ -21,6 +21,7 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     parameters.addParameterListener("diffusionQuality", this);
     parameters.addParameterListener("dryWetMix", this);
 
+    parameters.addParameterListener("stereoSpread", this);
     parameters.addParameterListener("lowPassDecay", this);
     parameters.addParameterListener("highPassDecay", this);
 
@@ -32,6 +33,7 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     float diffusionQuality = parameters.getRawParameterValue("diffusionQuality")->load();
     float dryWetMix = parameters.getRawParameterValue("dryWetMix")->load();
 
+    float stereoSpread = parameters.getRawParameterValue("stereoSpread")->load();
     float lowPassDecay = parameters.getRawParameterValue("lowPassDecay")->load();
     float highPassDecay = parameters.getRawParameterValue("highPassDecay")->load();
 
@@ -42,6 +44,7 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     simpleDelayReverb.SetDiffusionQuality(diffusionQuality);
     simpleDelayReverb.SetDryWetMix(dryWetMix);
 
+    simpleDelayReverb.SetStereoSpread(stereoSpread);
     simpleDelayReverb.SetLowpassDecay(lowPassDecay);
     simpleDelayReverb.SetHighpassDecay(highPassDecay);
 }
@@ -85,6 +88,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
         "dryWetMix", "Dry/Wet mix",
         juce::NormalisableRange<float>(0.0f, 1.0f), 1.0f));
+
+    // Spread (stereo reducing/widening)
+    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
+        "stereoSpread", "Stereo Spread",
+        juce::NormalisableRange<float>(-1.0f, 1.0f), 0.0f));
 
     // Low pass decay
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
@@ -216,6 +224,7 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
     if (parameterID == "diffusionQuality") simpleDelayReverb.SetDiffusionQuality(newValue);
     if (parameterID == "dryWetMix") simpleDelayReverb.SetDryWetMix(newValue);
 
+    if (parameterID == "stereoSpread") simpleDelayReverb.SetStereoSpread(newValue);
     if (parameterID == "lowPassDecay") simpleDelayReverb.SetLowpassDecay(newValue);
     if (parameterID == "highPassDecay") simpleDelayReverb.SetHighpassDecay(newValue);
 

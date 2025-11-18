@@ -17,6 +17,10 @@ void ClusteredDiffusionDelay::PrepareToPlay(double NewSampleRate, float NewMaxim
     SampleRate = (NewSampleRate > 0.0 ? NewSampleRate : 44100.0);
     MaximumDelaySeconds = std::max(0.001f, NewMaximumDelaySeconds);
 
+    // Haas setup
+    const float HaasMaxMs = 40.0f;
+    HaasMaxDelaySamples = std::max(1, static_cast<int>(std::ceil((HaasMaxMs / 1000.0f) * static_cast<float>(SampleRate))));
+
     // Derive a maximum spread window as a fraction of the maximum delay time (capped to 150 ms)
     // Larger nominal delays allow a larger spread before becoming unwieldy.
     MaximumSpreadSeconds = std::min(0.150f, 0.25f * MaximumDelaySeconds);
@@ -97,6 +101,12 @@ void ClusteredDiffusionDelay::SetDryWetMix(float DryWet)
     TargetDryWetMix.store(Clamped, std::memory_order_relaxed);
 }
 
+void ClusteredDiffusionDelay::SetStereoSpread(float StereoWidth)
+{
+    float Clamped = juce::jlimit(-1.0f, 1.0f, StereoWidth);
+    TargetStereoWidth.store(Clamped, std::memory_order_relaxed);
+}
+
 void ClusteredDiffusionDelay::SetLowpassDecay(float DecayAmount)
 {
     float Clamped = juce::jlimit(0.0f, 1.0f, DecayAmount);
@@ -142,6 +152,10 @@ void ClusteredDiffusionDelay::ensureChannelState(int RequiredChannels)
             // Explicitly initialize pre-filter states for safety
             Channels[ChannelIndex].PreLPState = 0.0f;
             Channels[ChannelIndex].PreHPState = 0.0f;
+
+            // --- Initialize Haas buffer and index
+            Channels[ChannelIndex].HaasBuffer.assign(static_cast<size_t>(HaasMaxDelaySamples + 1), 0.0f);
+            Channels[ChannelIndex].HaasWriteIndex = 0;
         }
     }
 }
@@ -201,6 +215,31 @@ void ClusteredDiffusionDelay::recomputeTargetTapLayout()
               {
                   return std::abs(A) < std::abs(B);
               });
+}
+
+// Haas filter buffer
+inline float readFromHaasBuffer(const ClusteredDiffusionDelay::ChannelState& State, float DelayInSamples)
+{
+    const int BufferSize = static_cast<int>(State.HaasBuffer.size());
+
+    if (BufferSize <= 1)
+        return 0.0f;
+
+    // Read position is HaasWriteIndex - DelayInSamples (HaasWriteIndex points to the slot we will overwrite next)
+    float ReadPosition = static_cast<float>(State.HaasWriteIndex) - DelayInSamples;
+
+    // Wrap into [0..BufferSize)
+    while (ReadPosition < 0.0f)
+        ReadPosition += static_cast<float>(BufferSize);
+
+    int IndexA = static_cast<int>(ReadPosition) % BufferSize;
+    int IndexB = (IndexA + 1) % BufferSize;
+    float Frac = ReadPosition - static_cast<float>(IndexA);
+
+    const float SampleA = State.HaasBuffer[static_cast<size_t>(IndexA)];
+    const float SampleB = State.HaasBuffer[static_cast<size_t>(IndexB)];
+
+    return SampleA + (SampleB - SampleA) * Frac;
 }
 
 // Pre-tap lowpass/highpass coefficients
@@ -357,7 +396,7 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
                                                                               PreLPAmount,
                                                                               PreHPAmount);
 
-    // Equal-power crossfade coefficients for smoother morph (Amount in [0..1])
+    // Equal-power crossfade coefficients for morph (Amount in [0..1])
     const float AmountA = std::cos(Amount * juce::MathConstants<float>::halfPi); // base tap weight
     const float AmountB = std::sin(Amount * juce::MathConstants<float>::halfPi); // diffused cluster weight
 
@@ -368,21 +407,15 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
     updateBlockSmoothing(NumSamples);
 
     // Precompute constants for offset generation
-    // Spread (in seconds) scales with user size and the configured maximum spread window.
-    // Look-ahead shift is half the maximum spread, in samples, to allow negative offsets causally.
     const float MaxSpreadSamples = secondsToSamples(MaximumSpreadSeconds);
     const float LookaheadSamples = 0.5f * MaxSpreadSamples;
 
-    // Sum of absolute weights for normalization (taps nearer center get slightly more weight)
-    // We compute static weights from the order (closer to center -> higher weight).
     const int TotalTaps = static_cast<int>(NormalizedSymmetricOffsets.size());
 
     std::vector<float> TapWeights(static_cast<size_t>(TotalTaps), 1.0f);
     {
-        // Weighting: inverse with rank by absolute offset (already sorted by abs ascending)
-        // Start at 1.0, gently fall towards edges
         float Weight = 1.0f;
-        const float FalloffPerTap = 0.08f; // gentle preference for inner taps
+        const float FalloffPerTap = 0.08f;
 
         for (int TapIndex = 0; TapIndex < TotalTaps; ++TapIndex)
         {
@@ -397,106 +430,164 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
     // Main processing loop
     for (int SampleIndex = 0; SampleIndex < NumSamples; ++SampleIndex)
     {
-        // Smooth delay time and spread towards targets each sample to reduce zipper/pitch artifacts
+        // Smooth delay time and spread per sample
         const float TargetDelayTimeSecondsLocal = TargetDelayTimeSeconds.load(std::memory_order_relaxed);
         const float TargetSizeLocal = TargetDiffusionSize.load(std::memory_order_relaxed);
 
         SmoothedDelayTimeSeconds = smoothOnePole(SmoothedDelayTimeSeconds, TargetDelayTimeSecondsLocal, DelayTimeSmoothCoefficient);
         SmoothedDiffusionSize    = smoothOnePole(SmoothedDiffusionSize,    TargetSizeLocal,             SizeSmoothCoefficient);
 
-        // Base delay and dynamic spread
         const float BaseDelaySamples = secondsToSamples(juce::jlimit(0.0f, MaximumDelaySeconds, SmoothedDelayTimeSeconds));
         const float SpreadSamples    = secondsToSamples(juce::jlimit(0.0f, MaximumSpreadSeconds, SmoothedDiffusionSize * MaximumSpreadSeconds));
 
-        // Compute per-loop feedback gain from T60 (use current nominal delay as loop period)
         const float LoopSeconds = std::max(1.0e-4f, SmoothedDelayTimeSeconds);
         const float FeedbackGain = t60ToFeedbackGain(LoopSeconds, T60Seconds);
+
+        // --- Stage A: compute wet echo per channel (before stereo processing) ---
+        std::vector<float> WetEchoPerChannel(static_cast<size_t>(NumChannels), 0.0f);
 
         for (int ChannelIndex = 0; ChannelIndex < NumChannels; ++ChannelIndex)
         {
             float* ChannelData = AudioBuffer.getWritePointer(ChannelIndex);
             ChannelState& State = Channels[ChannelIndex];
 
-            // 1) Input Signal Acquisition and Initial Delay
-            //    - Acquire the dry input sample.
             const float InputSample = ChannelData[SampleIndex];
 
-            // 2) Diffusion Parameter Scaling
-            //    - Already mapped above via AmountA/AmountB (equal-power morph), SpreadSamples, and tap count via Quality.
-
-            // --- Base nominal delay tap (no diffusion) ---
+            // Base nominal delay tap
             const float BaseTap = readFromDelayBuffer(State, BaseDelaySamples);
 
-            // 3) Symmetric Cluster Generation (diffused cluster around nominal, using look-ahead for negative offsets)
+            // Symmetric cluster sum
             float ClusterSum = 0.0f;
 
             for (int TapIndex = 0; TapIndex < TotalTaps; ++TapIndex)
             {
                 const float NormalizedOffset = NormalizedSymmetricOffsets[static_cast<size_t>(TapIndex)];
                 const float SignedOffsetSamples = NormalizedOffset * SpreadSamples;
-
-                // Effective read delay time in samples:
-                // nominal + lookahead (to allow negative offsets) + signed offset
                 float EffectiveDelaySamples = BaseDelaySamples + LookaheadSamples + SignedOffsetSamples;
-
-                // Read from delay line at fractional position (linear interpolation)
                 float TapSample = readFromDelayBuffer(State, EffectiveDelaySamples);
 
-                // Apply tap weight
                 TapSample *= TapWeights[static_cast<size_t>(TapIndex)];
-
                 ClusterSum += TapSample;
             }
 
-            // Normalize summed taps to avoid level build-up as density increases
             const float DiffusedCluster = ClusterSum * WeightNorm;
 
-            // Crossfade between base tap (pure delay) and cluster (full diffusion)
+            // Crossfade between base tap and cluster
             const float WetEcho = (AmountA * BaseTap) + (AmountB * DiffusedCluster);
 
-            // 4) Density Buildup via Feedback
-            //    - Low-pass damping in the feedback loop for a natural tail.
-            //    - Feed a morphing mix back into the line:
-            //      base repeats at Amount=0, diffused tail at Amount=1.
-            const float FeedbackInput = WetEcho;
+            WetEchoPerChannel[static_cast<size_t>(ChannelIndex)] = WetEcho;
+        }
 
-            // One-pole low-pass on feedback content
+        // --- Stage B: stereo-width processing (mid/side reduction for negative, Haas delay for positive) ---
+        const float StereoWidth = TargetStereoWidth.load(std::memory_order_relaxed);
+
+        // Start with a copy
+        std::vector<float> ProcessedWet(static_cast<size_t>(NumChannels), 0.0f);
+
+        for (int ChannelIndex = 0; ChannelIndex < NumChannels; ++ChannelIndex)
+            ProcessedWet[static_cast<size_t>(ChannelIndex)] = WetEchoPerChannel[static_cast<size_t>(ChannelIndex)];
+
+        if (NumChannels >= 2)
+        {
+            if (StereoWidth <= 0.0f)
+            {
+                // Stereo reducer via mid/side scaling
+                const float Left = WetEchoPerChannel[0];
+                const float Right = WetEchoPerChannel[1];
+
+                const float Mid = 0.5f * (Left + Right);
+                const float Side = 0.5f * (Left - Right);
+
+                // sideScale in [0 - 1] when StereoWidth in [-1 - 0]
+                const float SideScale = 1.0f + StereoWidth;
+
+                const float NewLeft = Mid + Side * SideScale;
+                const float NewRight = Mid - Side * SideScale;
+
+                ProcessedWet[0] = NewLeft;
+                ProcessedWet[1] = NewRight;
+            }
+            else
+            {
+                // Haas widening: use per-channel HaasBuffer to delay right channel by up to HaasMaxDelaySamples
+                // We'll delay the right channel; left stays un-delayed.
+                const float HaasMaxSamplesF = static_cast<float>(std::max(1, HaasMaxDelaySamples));
+                const float HaasDelaySamples = StereoWidth * (HaasMaxSamplesF - 1.0f);
+
+                // Write current wet into each channel's Haas buffer first (so it can be read later)
+                for (int ChannelIndex = 0; ChannelIndex < NumChannels; ++ChannelIndex)
+                {
+                    ChannelState& State = Channels[ChannelIndex];
+
+                    // Place current wet into buffer at HaasWriteIndex
+                    State.HaasBuffer[static_cast<size_t>(State.HaasWriteIndex)] = WetEchoPerChannel[static_cast<size_t>(ChannelIndex)];
+                }
+
+                // For the right channel (index 1) read delayed sample
+                {
+                    ChannelState& RightState = Channels[1];
+                    float DelayedRight = readFromHaasBuffer(RightState, HaasDelaySamples);
+                    ProcessedWet[1] = DelayedRight;
+                }
+
+                // For all channels increment HaasWriteIndex (wrap)
+                for (int ChannelIndex = 0; ChannelIndex < NumChannels; ++ChannelIndex)
+                {
+                    ChannelState& State = Channels[ChannelIndex];
+                    State.HaasWriteIndex++;
+
+                    if (State.HaasWriteIndex >= static_cast<int>(State.HaasBuffer.size()))
+                        State.HaasWriteIndex = 0;
+                }
+            }
+        }
+        else
+        {
+            // Mono: no stereo stage required. Still write to Haas buffer for consistency.
+            for (int ChannelIndex = 0; ChannelIndex < NumChannels; ++ChannelIndex)
+            {
+                ChannelState& State = Channels[ChannelIndex];
+                State.HaasBuffer[static_cast<size_t>(State.HaasWriteIndex)] = WetEchoPerChannel[static_cast<size_t>(ChannelIndex)];
+                State.HaasWriteIndex++;
+
+                if (State.HaasWriteIndex >= static_cast<int>(State.HaasBuffer.size()))
+                    State.HaasWriteIndex = 0;
+            }
+        }
+
+        // --- Stage C: per-channel feedback/delay write and pre-filtering (HP -> LP) using ProcessedWet ---
+        for (int ChannelIndex = 0; ChannelIndex < NumChannels; ++ChannelIndex)
+        {
+            float* ChannelData = AudioBuffer.getWritePointer(ChannelIndex);
+            ChannelState& State = Channels[ChannelIndex];
+
+            const float InputSample = ChannelData[SampleIndex];
+
+            // Use processed wet as feedback input
+            const float FeedbackInput = ProcessedWet[static_cast<size_t>(ChannelIndex)];
+
+            // One-pole low-pass on feedback
             State.FeedbackState = State.FeedbackState + DampingAlpha * (FeedbackInput - State.FeedbackState);
-
             const float FeedbackSample = State.FeedbackState * FeedbackGain;
 
-            // -------------------------------
-            // Apply pre-feedback highpass + lowpass shaping
-            // -------------------------------
-            // Filter the feedback sample through a simple HP -> LP chain so the
+            // Pre HP/LP shaping
             float FilteredFeedback = FeedbackSample;
 
-            // High-pass as: update lowpassed state (PreHPState) then HPout = x - lowpassed(x)
+            // High-pass as: update PreHPState then HPout = x - PreHPState
             State.PreHPState = State.PreHPState + PreTapCoeffs.AlphaHP * (FilteredFeedback - State.PreHPState);
             float HPOutput = FilteredFeedback - State.PreHPState;
 
-            // Low-pass the HP output (so overall chain is HP -> LP)
+            // Low-pass the HP output
             State.PreLPState = State.PreLPState + PreTapCoeffs.AlphaLP * (HPOutput - State.PreLPState);
             FilteredFeedback = State.PreLPState;
 
-            // Compose the signal to write into the delay line:
-            // dry input plus feedback recirculation.
+            // Compose and write into delay line
             const float DelayLineInput = InputSample + FilteredFeedback;
-
-            // Write and advance the circular buffer
             writeToDelayBuffer(State, DelayLineInput);
 
-            // 5) Pitch Modulation Handling
-            //    - The smoothed changes in BaseDelaySamples and SpreadSamples implicitly cause
-            //      gentle pitch shifts when parameters move. Our one-pole smoothing mitigates artifacts.
-
-            // Wet signal output is the current crossfaded echo
-            const float WetSample = WetEcho;
-
-            // Final mix: equal-power crossfade between original input and wet
+            // Final mix to output (original behavior)
+            const float WetSample = ProcessedWet[static_cast<size_t>(ChannelIndex)];
             const float Mixed = (DryGain * InputSample) + (WetGain * WetSample);
-
-            // In-place: add wet on top of dry (leave external dry/wet mixing to the caller/host)
             ChannelData[SampleIndex] = Mixed;
         }
     }
