@@ -249,7 +249,6 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     keyboardSynth.Process(buffer);
 
     // Process reverb
-    //DelayReverb.ProcessBlock(buffer);
     simpleDelayReverb.ProcessBlock(buffer);
 
     // ---- Volume Clipper Section ----
