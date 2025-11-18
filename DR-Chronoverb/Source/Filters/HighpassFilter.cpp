@@ -1,13 +1,13 @@
 #include "HighpassFilter.h"
 
 // Constructor
-HighpassFilter::OnePoleHighpass()
+HighpassFilter::HighpassFilter()
 {
     // Defaults left simple; prepareToPlay should be called before use.
 }
 
 // Destructor
-HighpassFilter::~OnePoleHighpass()
+HighpassFilter::~HighpassFilter()
 {
 }
 
