@@ -157,7 +157,7 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
     //    graphics.drawImageAt(background, 0, 0);
 
     if (logo.isValid())
-        graphics.drawImage(logo, juce::Rectangle<float>(0, 0, 256.0f, 60.0f), juce::RectanglePlacement::centred);
+        graphics.drawImage(logo, juce::Rectangle<float>(-70, -15, 512.0f, 120.0f), juce::RectanglePlacement::centred);
 
     // Draw bounding box for this component
     /*graphics.setColour(juce::Colours::red);
