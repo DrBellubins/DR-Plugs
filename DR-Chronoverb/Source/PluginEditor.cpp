@@ -27,7 +27,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     // ------ KNOBS ------
 
     // TODO: delayTimeKnob needs to have its suffix value * 1000 for accurate ms display
-    createKnob(delayTimeKnob, delayTimeAttachment, "delayTime", " ms", 150, 0, -25);
+    createKnob(delayTimeKnob, delayTimeAttachment, "delayTime", " ms", 100, 0, 0);
     createKnob(feedbackTimeKnob, feedbackTimeAttachment, "feedbackTime", "", 80, 200, 50);
     createKnob(diffusionAmountKnob, diffusionAmountAttachment, "diffusionAmount", "", 80, -350, -125);
     createKnob(diffusionSizeKnob, diffusionSizeAttachment, "diffusionSize", "", 80, -200, -125);
@@ -42,7 +42,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     createSliderLabel(diffusionQualityLabel, *diffusionQualitySlider, "Diffusion Quality", 15.0f, 170);
 
     // ------ Knob Labels ------
-    createKnobLabel(delayTimeLabel, *delayTimeKnob, "Delay", 20.0f, 110);
+    createKnobLabel(delayTimeLabel, *delayTimeKnob, "Delay", 20.0f, 90);
     createKnobLabel(feedbackLabel, *feedbackTimeKnob, "Feedback", 15.0f, 70);
     createKnobLabel(diffusionAmountLabel, *diffusionAmountKnob, "Diffusion Amount", 15.0f, 70);
     createKnobLabel(diffusionSizeLabel, *diffusionSizeKnob, "Diffusion Size", 15.0f, 70);

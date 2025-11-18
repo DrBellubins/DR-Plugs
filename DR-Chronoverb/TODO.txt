@@ -1,8 +1,5 @@
-Make delay time knob smaller, free up space.
-Compartmentalize all components of the delay (allpass, lowpass, highpass, stereo widener).
+Add time fraction buttons (ms, nrm, trip, dot).
 Add ducking (duck amount, attack, release).
 Begin creation of Matrix Menu.
 Implement pitch features (oh fuck).
 Implement playback direction features.
-
-When generating code, do not generate full cpp and h files, only relevant code changes/additions
