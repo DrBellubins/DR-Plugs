@@ -32,3 +32,10 @@ Pitch:
 
 --- Random ---
 (3-way toggle) Random mode - whether to pitch randomly upwards, downwards, or both.
+
+Chaos:
+(Toggle) Enable - Enables any and all chaos fx, is next to catagory label.
+
+Other:
+(Toggle) Enable - Enables any and all other fx, is next to catagory label.
+(Toggle) M/S Swell - Swell from mono to stereo.
