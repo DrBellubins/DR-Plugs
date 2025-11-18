@@ -21,6 +21,7 @@ public:
         LPCutoffHz = juce::jlimit(100.0f, 20000.0f, LPCutoffHz);
 
         float Alpha = 1.0f - std::exp(-2.0f * juce::MathConstants<float>::pi * LPCutoffHz / SampleRate);
+
         return juce::jlimit(0.0f, 1.0f, Alpha);
     }
 

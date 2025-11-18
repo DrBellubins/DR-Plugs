@@ -46,9 +46,7 @@ public:
         HaasState.WriteIndex++;
 
         if (HaasState.WriteIndex >= static_cast<int>(HaasState.Buffer.size()))
-        {
             HaasState.WriteIndex = 0;
-        }
     }
 
     // Fractional read from Haas buffer with linear interpolation.
@@ -57,17 +55,13 @@ public:
         const int BufferSize = static_cast<int>(HaasState.Buffer.size());
 
         if (BufferSize <= 1)
-        {
             return 0.0f;
-        }
 
         // Read position is WriteIndex - DelayInSamples
         float ReadPosition = static_cast<float>(HaasState.WriteIndex) - DelayInSamples;
 
         while (ReadPosition < 0.0f)
-        {
             ReadPosition += static_cast<float>(BufferSize);
-        }
 
         int IndexA = static_cast<int>(ReadPosition) % BufferSize;
         int IndexB = (IndexA + 1) % BufferSize;
@@ -102,10 +96,10 @@ public:
             OutWetRight = Mid - Side * SideScale;
 
             // Keep Haas buffers consistent (still write and advance)
-            HaasStereoWidener::WriteWet(LeftHaasState, InputWetLeft);
-            HaasStereoWidener::WriteWet(RightHaasState, InputWetRight);
-            HaasStereoWidener::Advance(LeftHaasState);
-            HaasStereoWidener::Advance(RightHaasState);
+            WriteWet(LeftHaasState, InputWetLeft);
+            WriteWet(RightHaasState, InputWetRight);
+            Advance(LeftHaasState);
+            Advance(RightHaasState);
         }
         else
         {
@@ -114,16 +108,16 @@ public:
             const float HaasDelaySamples = StereoWidth * (MaxSamplesF - 1.0f);
 
             // Write current wet to buffers first
-            HaasStereoWidener::WriteWet(LeftHaasState, InputWetLeft);
-            HaasStereoWidener::WriteWet(RightHaasState, InputWetRight);
+            WriteWet(LeftHaasState, InputWetLeft);
+            WriteWet(RightHaasState, InputWetRight);
 
             // Left un-delayed, Right delayed
             OutWetLeft = InputWetLeft;
             OutWetRight = HaasStereoWidener::Read(RightHaasState, HaasDelaySamples);
 
             // Advance indices after read
-            HaasStereoWidener::Advance(LeftHaasState);
-            HaasStereoWidener::Advance(RightHaasState);
+            Advance(LeftHaasState);
+            Advance(RightHaasState);
         }
     }
 };

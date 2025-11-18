@@ -38,25 +38,19 @@ public:
     {
         // Enforce non-negative delay
         if (DelayInSamples < 0.0f)
-        {
             DelayInSamples = 0.0f;
-        }
 
         const int BufferSize = static_cast<int>(DelayState.Buffer.size());
 
         if (BufferSize <= 1)
-        {
             return 0.0f;
-        }
 
         // Compute read position relative to the write index
         float ReadPosition = static_cast<float>(DelayState.WriteIndex) - DelayInSamples;
 
         // Wrap into the circular range [0 .. BufferSize)
         while (ReadPosition < 0.0f)
-        {
             ReadPosition += static_cast<float>(BufferSize);
-        }
 
         // Linear interpolation
         int IndexA = static_cast<int>(ReadPosition) % BufferSize;
@@ -75,17 +69,13 @@ public:
         const int BufferSize = static_cast<int>(DelayState.Buffer.size());
 
         if (BufferSize <= 0)
-        {
             return;
-        }
 
         DelayState.Buffer[DelayState.WriteIndex] = Sample;
 
         DelayState.WriteIndex++;
 
         if (DelayState.WriteIndex >= BufferSize)
-        {
             DelayState.WriteIndex = 0;
-        }
     }
 };

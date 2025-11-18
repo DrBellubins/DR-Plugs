@@ -22,6 +22,7 @@ public:
         HPCutoffHz = juce::jlimit(10.0f, 8000.0f, HPCutoffHz);
 
         float Alpha = 1.0f - std::exp(-2.0f * juce::MathConstants<float>::pi * HPCutoffHz / SampleRate);
+
         return juce::jlimit(0.0f, 1.0f, Alpha);
     }
 
@@ -32,6 +33,7 @@ public:
     {
         HPState.LPFState = HPState.LPFState + AlphaHP * (InputSample - HPState.LPFState);
         float HPOutput = InputSample - HPState.LPFState;
+
         return HPOutput;
     }
 

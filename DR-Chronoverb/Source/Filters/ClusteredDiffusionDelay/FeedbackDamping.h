@@ -36,9 +36,7 @@ public:
     static inline float T60ToFeedbackGain(float LoopSeconds, float T60Seconds)
     {
         if (T60Seconds <= 0.0f || LoopSeconds <= 0.0f)
-        {
             return 0.0f;
-        }
 
         float Gain = std::pow(10.0f, -3.0f * (LoopSeconds / T60Seconds));
         return juce::jlimit(0.0f, 0.9995f, Gain);
