@@ -56,8 +56,10 @@ void ClusteredDiffusionDelay::PrepareToPlay(double NewSampleRate, float NewMaxim
 void ClusteredDiffusionDelay::Reset()
 {
     // Reset delay lines and filter states
-    for (ChannelState& Channel : Channels)
+    for (std::unique_ptr<ChannelState>& ChannelPtr : Channels)
     {
+        ChannelState& Channel = *ChannelPtr; // Dereference unique_ptr to access channel state
+
         std::fill(Channel.DelayBuffer.begin(), Channel.DelayBuffer.end(), 0.0f);
         Channel.WriteIndex = 0;
 
@@ -147,41 +149,34 @@ void ClusteredDiffusionDelay::ensureChannelState(int RequiredChannels)
 {
     // Do nothing if not prepared
     if (!IsPrepared)
+    {
         return;
-
-    // Grow channel list if needed
-    if (static_cast<int>(Channels.size()) < RequiredChannels)
-    {
-        int OldSize = static_cast<int>(Channels.size());
-        Channels.resize(RequiredChannels);
-
-        for (int ChannelIndex = OldSize; ChannelIndex < RequiredChannels; ++ChannelIndex)
-        {
-            ChannelState& Channel = Channels[ChannelIndex];
-
-            // Allocate delay buffer with maximum size
-            Channel.DelayBuffer.assign(static_cast<size_t>(MaxDelayBufferSamples), 0.0f);
-            Channel.WriteIndex = 0;
-
-            // Prepare modular filters for this channel
-            Channel.FeedbackDampingLowpass.prepareToPlay(SampleRate);
-            Channel.PreHighpassFilter.prepareToPlay(SampleRate);
-            Channel.PreLowpassFilter.prepareToPlay(SampleRate);
-
-            // (Optional future diffusion allpasses can be added here)
-
-            Channel.FiltersPrepared = true;
-        }
     }
 
-    // Ensure scratch wet buffer has correct channel count and length (allocate if mismatch)
-    const int CurrentScratchChannels = WetScratchBuffer.getNumChannels();
-    const int CurrentScratchSamples  = WetScratchBuffer.getNumSamples();
-
-    if (CurrentScratchChannels != RequiredChannels || CurrentScratchSamples != 0)
+    // Grow channel list if needed, using unique_ptr so we never copy/move ChannelState itself.
+    while (static_cast<int>(Channels.size()) < RequiredChannels)
     {
-        // Allocate scratch wet buffer with zero samples initially; will set size per block
+        // Create a new ChannelState instance on the heap
+        std::unique_ptr<ChannelState> NewChannel = std::make_unique<ChannelState>();
+
+        // Allocate delay buffer with maximum size for the new channel
+        NewChannel->DelayBuffer.assign(static_cast<size_t>(MaxDelayBufferSamples), 0.0f);
+        NewChannel->WriteIndex = 0;
+
+        // Prepare modular filters for this channel
+        NewChannel->FeedbackDampingLowpass.prepareToPlay(SampleRate);
+        NewChannel->PreHighpassFilter.prepareToPlay(SampleRate);
+        NewChannel->PreLowpassFilter.prepareToPlay(SampleRate);
+
+        // (Optional future diffusion allpasses can be prepared here)
+
+        NewChannel->FiltersPrepared = true;
+
+        // Store the prepared channel into the vector (moves the pointer, not the state)
+        Channels.emplace_back(std::move(NewChannel));
     }
+
+    // Scratch wet buffer size is managed per ProcessBlock; nothing required here.
 }
 
 int ClusteredDiffusionDelay::qualityToTapPairs(float Quality) const
@@ -227,19 +222,25 @@ inline float ClusteredDiffusionDelay::readFromDelayBuffer(const ChannelState& St
 {
     // Ensure non-negative delay
     if (DelayInSamples < 0.0f)
+    {
         DelayInSamples = 0.0f;
+    }
 
     const int BufferSize = static_cast<int>(State.DelayBuffer.size());
 
     if (BufferSize <= 1)
+    {
         return 0.0f;
+    }
 
     // Compute fractional read position relative to write pointer
     float ReadPosition = static_cast<float>(State.WriteIndex) - DelayInSamples;
 
     // Wrap read position into valid range [0 .. BufferSize)
     while (ReadPosition < 0.0f)
+    {
         ReadPosition += static_cast<float>(BufferSize);
+    }
 
     // Integer indices and fractional part for linear interpolation
     int IndexA = static_cast<int>(ReadPosition) % BufferSize;
@@ -261,7 +262,9 @@ inline void ClusteredDiffusionDelay::writeToDelayBuffer(ChannelState& State, flo
     const int BufferSize = static_cast<int>(State.DelayBuffer.size());
 
     if (BufferSize <= 0)
+    {
         return;
+    }
 
     // Write current sample at write index
     State.DelayBuffer[State.WriteIndex] = SampleValue;
@@ -270,7 +273,9 @@ inline void ClusteredDiffusionDelay::writeToDelayBuffer(ChannelState& State, flo
     State.WriteIndex++;
 
     if (State.WriteIndex >= BufferSize)
+    {
         State.WriteIndex = 0;
+    }
 }
 
 inline float ClusteredDiffusionDelay::smoothOnePole(float CurrentValue, float TargetValue, float Coefficient)
@@ -310,7 +315,9 @@ float ClusteredDiffusionDelay::t60ToFeedbackGain(float LoopSeconds, float T60Sec
 {
     // Zero or invalid values => no feedback
     if (T60Seconds <= 0.0f || LoopSeconds <= 0.0f)
+    {
         return 0.0f;
+    }
 
     // Standard 60 dB decay mapping
     float Gain = std::pow(10.0f, -3.0f * (LoopSeconds / T60Seconds));
@@ -348,8 +355,10 @@ void ClusteredDiffusionDelay::updatePreFilterCutoffs()
     mapDecayAmountsToCutoffs(LPAmount, HPAmount, LPCutoffHz, HPCutoffHz);
 
     // Apply cutoffs to every channel's pre filters
-    for (ChannelState& Channel : Channels)
+    for (std::unique_ptr<ChannelState>& ChannelPtr : Channels)
     {
+        ChannelState& Channel = *ChannelPtr;
+
         if (Channel.FiltersPrepared)
         {
             Channel.PreHighpassFilter.setCutoffFrequency(HPCutoffHz);
@@ -364,10 +373,14 @@ void ClusteredDiffusionDelay::updateFeedbackDampingCutoff()
     float DampingCutoffHz = computeDampingCutoffHz();
 
     // Update each channel's feedback damping lowpass
-    for (ChannelState& Channel : Channels)
+    for (std::unique_ptr<ChannelState>& ChannelPtr : Channels)
     {
+        ChannelState& Channel = *ChannelPtr;
+
         if (Channel.FiltersPrepared)
+        {
             Channel.FeedbackDampingLowpass.setCutoffFrequency(DampingCutoffHz);
+        }
     }
 }
 
@@ -390,7 +403,9 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
 {
     // Abort if not prepared
     if (!IsPrepared)
+    {
         return;
+    }
 
     const int NumChannels = AudioBuffer.getNumChannels();
     const int NumSamples  = AudioBuffer.getNumSamples();
@@ -473,7 +488,7 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
         for (int ChannelIndex = 0; ChannelIndex < NumChannels; ++ChannelIndex)
         {
             // Access channel state and input sample
-            ChannelState& Channel = Channels[ChannelIndex];
+            ChannelState& Channel = *Channels[ChannelIndex]; // Dereference unique_ptr
             float* ChannelWritePtr = AudioBuffer.getWritePointer(ChannelIndex);
             const float InputSample = ChannelWritePtr[SampleIndex];
 
@@ -509,18 +524,7 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
             WetScratchBuffer.getWritePointer(ChannelIndex)[SampleIndex] = WetEchoSample;
         }
 
-        // --- Stage B: Stereo width processing on wet scratch buffer (modular StereoWidener) ---
-        // Apply width only once per sample by processing one-sample slice if width != 0
-        if (NumChannels >= 1)
-        {
-            // For efficiency: we simulate block processing by temporarily adjusting buffer size for this sample.
-            // Extract single-sample pointers into a tiny temporary AudioBuffer view.
-            // (Simpler approach: process entire block after loop, but we need per-sample feedback usage of wet.)
-            // Therefore we defer stereo width processing until AFTER entire wet block built (see after loop).
-        }
-
-        // We cannot apply stereo width yet because feedback path depends on stereo-processed wet sample.
-        // Defer feedback write and final mix; will be handled after width operation outside per-channel loop later.
+        // Note: Stereo width is applied after we build the whole wet block to keep feedback consistent.
     }
 
     // --- Apply stereo width once for full wet buffer block (mirrors previous sample-by-sample semantics) ---
@@ -535,7 +539,7 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
     {
         for (int ChannelIndex = 0; ChannelIndex < NumChannels; ++ChannelIndex)
         {
-            ChannelState& Channel = Channels[ChannelIndex];
+            ChannelState& Channel = *Channels[ChannelIndex]; // Dereference unique_ptr
 
             float* ChannelWritePtr = AudioBuffer.getWritePointer(ChannelIndex);
             const float InputSample = ChannelWritePtr[SampleIndex];

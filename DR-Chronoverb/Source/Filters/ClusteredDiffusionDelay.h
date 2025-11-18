@@ -4,6 +4,7 @@
 #include <atomic>
 #include <vector>
 #include <cmath>
+#include <memory> // Use std::unique_ptr for non-copyable ChannelState
 
 // External modular processing blocks
 #include "AllpassFilter.h"
@@ -161,7 +162,9 @@ private:
     const int PrimeLikeSequence[8] = { 2, 3, 5, 7, 11, 13, 17, 19 };
 
     // Per-channel state list
-    std::vector<ChannelState> Channels;
+    // Use unique_ptr because ChannelState contains non-copyable/non-movable members (JUCE macro),
+    // so storing raw ChannelState in a vector would require copy/move on resize/realloc.
+    std::vector<std::unique_ptr<ChannelState>> Channels;
 
     // Stereo widener instance (modular replacement for embedded Haas/mid-side)
     StereoWidener StereoWidthProcessor;
