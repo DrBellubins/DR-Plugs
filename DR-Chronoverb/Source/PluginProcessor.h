@@ -16,8 +16,7 @@ public:
     juce::AudioProcessorValueTreeState parameters;
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
-    //DiffusedDelayReverb DelayReverb;
-    ClusteredDiffusionDelay simpleDelayReverb;
+    ClusteredDiffusionDelay DelayReverb;
 
     ComputerKeyboardSquareSynth keyboardSynth;
 

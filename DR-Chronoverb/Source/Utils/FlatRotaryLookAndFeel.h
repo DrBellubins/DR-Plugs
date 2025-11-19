@@ -29,7 +29,7 @@ public:
         juce::Point<float> Center = Bounds.getCentre();
 
         // Background fill
-        Graphics.setColour(AccentGray.brighter(0.10f));
+        Graphics.setColour(AccentGray.brighter(0.1f));
         Graphics.fillEllipse(Center.x - Radius, Center.y - Radius, Diameter, Diameter);
 
         // Arc value

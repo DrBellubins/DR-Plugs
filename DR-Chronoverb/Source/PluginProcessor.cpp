@@ -37,16 +37,16 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     float lowPassDecay = parameters.getRawParameterValue("lowPassDecay")->load();
     float highPassDecay = parameters.getRawParameterValue("highPassDecay")->load();
 
-    simpleDelayReverb.SetDelayTime(delayTime);
-    simpleDelayReverb.SetFeedbackTime(feedbackTime);
-    simpleDelayReverb.SetDiffusionAmount(diffusionAmount);
-    simpleDelayReverb.SetDiffusionSize(diffusionSize);
-    simpleDelayReverb.SetDiffusionQuality(diffusionQuality);
-    simpleDelayReverb.SetDryWetMix(dryWetMix);
+    DelayReverb.SetDelayTime(delayTime);
+    DelayReverb.SetFeedbackTime(feedbackTime);
+    DelayReverb.SetDiffusionAmount(diffusionAmount);
+    DelayReverb.SetDiffusionSize(diffusionSize);
+    DelayReverb.SetDiffusionQuality(diffusionQuality);
+    DelayReverb.SetDryWetMix(dryWetMix);
 
-    simpleDelayReverb.SetStereoSpread(stereoSpread);
-    simpleDelayReverb.SetLowpassDecay(lowPassDecay);
-    simpleDelayReverb.SetHighpassDecay(highPassDecay);
+    DelayReverb.SetStereoSpread(stereoSpread);
+    DelayReverb.SetLowpassDecay(lowPassDecay);
+    DelayReverb.SetHighpassDecay(highPassDecay);
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
@@ -57,52 +57,50 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> parameterList;
 
-    // Add parameters here
-
     // Delay time
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
         "delayTime", "Delay Time",
-        juce::NormalisableRange<float>(0.0f, 1.0f), 0.3f)); // 300 ms default
+        juce::NormalisableRange(0.0f, 1.0f), 0.3f)); // 300 ms default
 
     // Feedback time
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
         "feedbackTime", "Feedback Time",
-        juce::NormalisableRange<float>(0.0f, 10.0f), 3.0f));
+        juce::NormalisableRange(0.0f, 10.0f), 3.0f));
 
     // Diffusion amount
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
         "diffusionAmount", "Diffusion Amount",
-        juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f));
+        juce::NormalisableRange(0.0f, 1.0f), 0.0f));
 
     // Diffusion size
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
         "diffusionSize", "Diffusion Size",
-        juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f));
+        juce::NormalisableRange(0.0f, 1.0f), 0.0f));
 
     // Diffusion quality
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
         "diffusionQuality", "Diffusion Quality",
-        juce::NormalisableRange<float>(0.0f, 1.0f), 1.0f));
+        juce::NormalisableRange(0.0f, 1.0f), 1.0f));
 
     // Dry/Wet mix
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
         "dryWetMix", "Dry/Wet mix",
-        juce::NormalisableRange<float>(0.0f, 1.0f), 1.0f));
+        juce::NormalisableRange(0.0f, 1.0f), 1.0f));
 
     // Spread (stereo reducing/widening)
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
         "stereoSpread", "Stereo Spread",
-        juce::NormalisableRange<float>(-1.0f, 1.0f), 0.0f));
+        juce::NormalisableRange(-1.0f, 1.0f), 0.0f));
 
     // Low pass decay
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
         "lowPassDecay", "Low Pass Decay",
-        juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f));
+        juce::NormalisableRange(0.0f, 1.0f), 0.0f));
 
     // High pass decay
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
         "highPassDecay", "High Pass Decay",
-        juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f));
+        juce::NormalisableRange(0.0f, 1.0f), 0.0f));
 
     return { parameterList.begin(), parameterList.end() };
 }
@@ -181,8 +179,7 @@ void AudioPluginAudioProcessor::prepareToPlay(double sampleRate, int samplesPerB
 
     keyboardSynth.PrepareToPlay(sampleRate);
 
-    //DelayReverb.PrepareToPlay(sampleRate, 10.0f);
-    simpleDelayReverb.PrepareToPlay(sampleRate, 1.0f);
+    DelayReverb.PrepareToPlay(sampleRate, 1.0f);
 }
 
 void AudioPluginAudioProcessor::releaseResources()
@@ -217,16 +214,16 @@ bool AudioPluginAudioProcessor::isBusesLayoutSupported(const BusesLayout& layout
 
 void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID, float newValue)
 {
-    if (parameterID == "delayTime") simpleDelayReverb.SetDelayTime(newValue);
-    if (parameterID == "feedbackTime") simpleDelayReverb.SetFeedbackTime(newValue);
-    if (parameterID == "diffusionAmount") simpleDelayReverb.SetDiffusionAmount(newValue);
-    if (parameterID == "diffusionSize") simpleDelayReverb.SetDiffusionSize(newValue);
-    if (parameterID == "diffusionQuality") simpleDelayReverb.SetDiffusionQuality(newValue);
-    if (parameterID == "dryWetMix") simpleDelayReverb.SetDryWetMix(newValue);
+    if (parameterID == "delayTime") DelayReverb.SetDelayTime(newValue);
+    if (parameterID == "feedbackTime") DelayReverb.SetFeedbackTime(newValue);
+    if (parameterID == "diffusionAmount") DelayReverb.SetDiffusionAmount(newValue);
+    if (parameterID == "diffusionSize") DelayReverb.SetDiffusionSize(newValue);
+    if (parameterID == "diffusionQuality") DelayReverb.SetDiffusionQuality(newValue);
+    if (parameterID == "dryWetMix") DelayReverb.SetDryWetMix(newValue);
 
-    if (parameterID == "stereoSpread") simpleDelayReverb.SetStereoSpread(newValue);
-    if (parameterID == "lowPassDecay") simpleDelayReverb.SetLowpassDecay(newValue);
-    if (parameterID == "highPassDecay") simpleDelayReverb.SetHighpassDecay(newValue);
+    if (parameterID == "stereoSpread") DelayReverb.SetStereoSpread(newValue);
+    if (parameterID == "lowPassDecay") DelayReverb.SetLowpassDecay(newValue);
+    if (parameterID == "highPassDecay") DelayReverb.SetHighpassDecay(newValue);
 
     DBG("Changed: " << parameterID << " to " << newValue);
 }
@@ -249,7 +246,7 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     keyboardSynth.Process(buffer);
 
     // Process reverb
-    simpleDelayReverb.ProcessBlock(buffer);
+    DelayReverb.ProcessBlock(buffer);
 
     // ---- Volume Clipper Section ----
     const float ClipperThreshold = 0.9f; // or 0.9f etc.
