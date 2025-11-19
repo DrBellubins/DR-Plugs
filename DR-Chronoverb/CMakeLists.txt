@@ -1,210 +1,223 @@
+### JUCE CMake Audio Plugin Template ###
+
 cmake_minimum_required(VERSION 3.22)
 
-# Project
+# CHANGE
 project(Chronoverb VERSION 0.0.1 LANGUAGES C CXX)
 
-# --- Modern CMake defaults ----------------------------------------------------
-# Require a modern C++ standard and produce compile_commands.json for tools.
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-# Options
-option(ENABLE_CCACHE "Enable ccache compiler launcher if present" ON)
-option(ENABLE_UNITY_BUILDS "Enable JUCE unity builds for faster builds" ON)
-
-# --- Compiler capability checks ----------------------------------------------
+# --- With this compiler-capability check and conditional append:
 include(CheckCXXCompilerFlag)
 
+# Check support for -gline-tables-only and -gsplit-dwarf before adding them.
 check_cxx_compiler_flag("-gline-tables-only" COMPILER_SUPPORTS_GLINE)
 check_cxx_compiler_flag("-gsplit-dwarf" COMPILER_SUPPORTS_GSPLIT)
 
-# --- Optional compiler launchers (ccache) ------------------------------------
-if (ENABLE_CCACHE)
-    find_program(CCACHE_PROGRAM ccache)
-    if (CCACHE_PROGRAM)
-        message(STATUS "Using ccache at ${CCACHE_PROGRAM}")
-        set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
-        set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
-    endif()
-endif()
-
-# --- Recommended per-config debug flags (applied per-target later) -----------
 if (COMPILER_SUPPORTS_GLINE)
-    message(STATUS "Compiler supports -gline-tables-only")
+    message(STATUS "Compiler supports -gline-tables-only; enabling it for Debug builds")
+    string(APPEND CMAKE_CXX_FLAGS_DEBUG " -gline-tables-only")
+    string(APPEND CMAKE_C_FLAGS_DEBUG " -gline-tables-only")
 else()
-    message(STATUS "Compiler does NOT support -gline-tables-only")
+    message(STATUS "Compiler does NOT support -gline-tables-only; skipping that flag")
 endif()
 
 if (COMPILER_SUPPORTS_GSPLIT)
-    message(STATUS "Compiler supports -gsplit-dwarf")
+    message(STATUS "Compiler supports -gsplit-dwarf; enabling it for Debug builds")
+    string(APPEND CMAKE_CXX_FLAGS_DEBUG " -gsplit-dwarf")
+    string(APPEND CMAKE_C_FLAGS_DEBUG " -gsplit-dwarf")
 else()
-    message(STATUS "Compiler does NOT support -gsplit-dwarf")
+    message(STATUS "Compiler does NOT support -gsplit-dwarf; skipping that flag")
 endif()
 
-# --- JUCE dependency (FetchContent) ------------------------------------------
+### Dependency versions ###
+
 set(LIB_JUCE_TAG "7.0.8")
+
+
+### IDE Generator pre-config ###
+
+# Xcode: Disable automatic build scheme generation globally.
+#        Instead, we explicitely specify which targets require schemes.
+set(CMAKE_XCODE_GENERATE_SCHEME OFF)
+
+# IDEs:  Enable grouping of source files into folders in IDEs.
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+
+# IDEs:  Create a folder in the IDE with the JUCE Module code.
+option(JUCE_ENABLE_MODULE_SOURCE_GROUPS "Show all module sources in IDE projects" ON)
+
+
+### Dependency management ###
 
 include(FetchContent)
 
-# Keep dependencies outside build dir so clean build doesn't re-fetch
+# Keep dependencies outside of the "Build" directory.
+# This allows to do a clean build of the project without re-downloading or
+# rebuilding the dependencies.
 set(FETCHCONTENT_BASE_DIR "${PROJECT_SOURCE_DIR}/Libs" CACHE PATH "External dependencies path." FORCE)
 
 FetchContent_Declare(juce
     GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
     GIT_TAG        ${LIB_JUCE_TAG}
     GIT_SHALLOW    TRUE
-    GIT_CONFIG     advice.detachedHead=false
+    GIT_CONFIG     advice.detachedHead=false    # Disable detached HEAD warning for fetching a specific tag
     SOURCE_DIR     "${FETCHCONTENT_BASE_DIR}/JUCE"
     SUBBUILD_DIR   "${FETCHCONTENT_BASE_DIR}/JUCE-Subbuild"
-    BINARY_DIR     "${FETCHCONTENT_BASE_DIR}/JUCE-Build"
-)
+    BINARY_DIR     "${FETCHCONTENT_BASE_DIR}/JUCE-Build")
 
 FetchContent_MakeAvailable(juce)
 
-# --- JUCE plugin target ------------------------------------------------------
-juce_add_plugin("${PROJECT_NAME}"
-    FORMATS Standalone AU VST3
-    PRODUCT_NAME "Dr Chronoverb"
-    PLUGIN_NAME "Chronoverb"
-    COMPANY_NAME DrBell
-    PLUGIN_MANUFACTURER_CODE 42Dr
-    PLUGIN_CODE drCV
-    IS_SYNTH FALSE
-    NEEDS_MIDI_INPUT FALSE
-    NEEDS_MIDI_OUTPUT FALSE
-    IS_MIDI_EFFECT FALSE
-    EDITOR_WANTS_KEYBOARD_FOCUS TRUE
-    VST3_CATEGORIES Fx,Reverb
-    COPY_PLUGIN_AFTER_BUILD FALSE
-)
 
-# Make sure the shared code target uses c++17
+### Plugin Project Setup ###
+
+# If you are building a VST2 or AAX plugin, CMake needs to be told where to find these SDKs.
+# This setup should be done before calling `juce_add_plugin`.
+
+# juce_set_vst2_sdk_path(...)
+# juce_set_aax_sdk_path(...)
+
+# `juce_add_plugin` adds a static library target with the name passed as the first argument.
+# This target is a normal CMake target, but has a lot of extra properties set
+# up by default. As well as this shared code static library, this function adds targets for each of
+# the formats specified by the FORMATS arguments. This function accepts many optional arguments.
+# Check the readme at `docs/CMake API.md` in the JUCE repo for the full list.
+
+juce_add_plugin("${PROJECT_NAME}"
+    FORMATS Standalone AU VST3                  # The formats to build. Valid formats: Standalone Unity VST3 AU AUv3 AAX VST LV2.
+
+    # CHANGE                                    # AU and AUv3 plugins will only be enabled when building on macOS.
+    PRODUCT_NAME "Dr Chronoverb"                # The name of the final executable, which can differ from the target name.
+    PLUGIN_NAME "Chronoverb"                    # Name of the plugin that will be displayed in the DAW. Can differ from PRODUCT_NAME.
+
+    # ICON_BIG                                  # ICON_* arguments specify a path to an image file to use as an icon for the Standalone.
+    # ICON_SMALL
+    COMPANY_NAME DrBell                         # The name of this target's author. The value is inherited from JUCE_COMPANY_NAME.
+    # COMPANY_WEBSITE                           # The address of a website related to this target in some way.
+                                                # The value is inherited from JUCE_COMPANY_WEBSITE.
+    # COMPANY_EMAIL                             # An email address for this target's author. The value is inherited from JUCE_COMPANY_EMAIL.
+    PLUGIN_MANUFACTURER_CODE 42Dr               # A four-character manufacturer id with at least one upper-case character.
+
+    # CHANGE                                    # GarageBand 10.3 requires the first letter to be upper-case, and the remaining letters to be lower-case.
+    PLUGIN_CODE drCV                            # A unique four-character plugin id with exactly one upper-case character.
+                                                # GarageBand 10.3 requires the first letter to be upper-case, and the remaining letters to be lower-case.
+
+    IS_SYNTH FALSE                              # Is this a synth or an effect?
+    NEEDS_MIDI_INPUT FALSE                      # Does the plugin need midi input?
+    NEEDS_MIDI_OUTPUT FALSE                     # Does the plugin need midi output?
+    IS_MIDI_EFFECT FALSE                        # Is this plugin a MIDI effect?
+    EDITOR_WANTS_KEYBOARD_FOCUS TRUE           # Does the editor need keyboard focus?
+
+    VST3_CATEGORIES Fx,Reverb                   # Should be one or more, separated by spaces, of the following:
+                                                # Fx, Instrument, Analyzer, Delay, Distortion, Drum, Dynamics, EQ, External,
+                                                # Filter, Generator, Mastering, Modulation, Mono, Network, NoOfflineProcess,
+                                                # OnlyOfflineProcess, OnlyRT, Pitch Shift, Restoration, Reverb, Sampler, Spatial,
+                                                # Stereo, Surround, Synth, Tools, Up-Downmix
+    # AU_MAIN_TYPE                              # Should be one or more, separated by spaces, of the following:
+                                                # kAudioUnitType_Effect, kAudioUnitType_FormatConverter, kAudioUnitType_Generator,
+                                                # kAudioUnitType_MIDIProcessor, kAudioUnitType_Mixer, kAudioUnitType_MusicDevice,
+                                                # kAudioUnitType_MusicEffect, kAudioUnitType_OfflineEffect, kAudioUnitType_Output,
+                                                # kAudioUnitType_Panner
+
+    COPY_PLUGIN_AFTER_BUILD FALSE)              # Should the plugin be installed to a default location after building?
+                                                # NOTE: Writing to the default install locations might require administrator privileges on Windows.
+
+# Set the C++ language standard requirenment for the "shared code" library target.
+# Setting this to PUBLIC ensures that all dependent targets will inherit the specified C++ standard.
 target_compile_features("${PROJECT_NAME}" PUBLIC cxx_std_17)
 
-# Set recommended target properties for all project targets (disable extensions)
+# Disable compiler extensions for the project targets (e.g. use -std=c++17 instead of -std=gnu++17).
 get_property(project_targets DIRECTORY "${PROJECT_SOURCE_DIR}" PROPERTY BUILDSYSTEM_TARGETS)
+
 set_target_properties(${project_targets} PROPERTIES CXX_EXTENSIONS OFF)
 
-# --- Generate JuceHeader and ensure ordering for PCH/generation ----------------
+
+# Generate JuceHeader.h
 juce_generate_juce_header("${PROJECT_NAME}")
 
-# Retrieve the generated sources directory and the JuceHeader path so we can
-# create an explicit dependency to avoid races (PCH vs generated header).
-get_target_property(JUCE_GENERATED_DIR "${PROJECT_NAME}" JUCE_GENERATED_SOURCES_DIRECTORY)
-set(JUCE_HEADER_PATH "${JUCE_GENERATED_DIR}/JuceHeader.h")
-
-# Create a prepare target that depends on the rule file produced by juce_generate_juce_header
-# This target is used to guarantee ordering for PCH / compilation of module .cpp files.
-add_custom_target(prepare_juce_header ALL DEPENDS "${JUCE_HEADER_PATH}.rule")
-add_dependencies("${PROJECT_NAME}" prepare_juce_header)
-
-# Ensure the generated directory is added to the plugin target includes explicitly
-target_include_directories("${PROJECT_NAME}" PRIVATE "${JUCE_GENERATED_DIR}")
-
-# --- Source layout / subdirectory --------------------------------------------
-# Add sources from Source/ (this subdir contains Source/CMakeLists.txt)
+# Add the subdirectory with source files.
 add_subdirectory(Source)
 
-# --- Apply per-target compile options and defs (robust & modern) -------------
-# POSIX / GNU feature macros only on Linux-like systems (not on Apple).
-if (UNIX AND NOT APPLE)
-    target_compile_definitions("${PROJECT_NAME}"
-        PRIVATE
-            _DEFAULT_SOURCE=1
-            _XOPEN_SOURCE=700
-            _POSIX_C_SOURCE=200809L
-    )
-endif()
+# `target_compile_definitions` adds some preprocessor definitions to our target.
+# JUCE modules also make use of compile definitions to switch certain features on/off,
+# so if there's a particular feature you need that's not on by default, check the module header
+# for the correct flag to set here.
+# These definitions will be visible both to your code, and also the JUCE module code.
 
-# Apply debug-only flags using generator expressions (per-target)
-if (TARGET "${PROJECT_NAME}")
-    if (COMPILER_SUPPORTS_GLINE)
-        target_compile_options("${PROJECT_NAME}" PRIVATE $<$<CONFIG:Debug>:-gline-tables-only>)
-    endif()
+target_compile_definitions("${PROJECT_NAME}"
+    PUBLIC
+        # JUCE_WEB_BROWSER and JUCE_USE_CURL would be on by default, but you might not need them.
+        JUCE_WEB_BROWSER=0  # If you remove this, add `NEEDS_WEB_BROWSER TRUE` to the `juce_add_plugin` call
+        JUCE_USE_CURL=0     # If you remove this, add `NEEDS_CURL TRUE` to the `juce_add_plugin` call
+        JUCE_VST3_CAN_REPLACE_VST2=0
+        JUCE_DISPLAY_SPLASH_SCREEN=0
 
-    if (COMPILER_SUPPORTS_GSPLIT)
-        target_compile_options("${PROJECT_NAME}" PRIVATE $<$<CONFIG:Debug>:-gsplit-dwarf>)
-    endif()
-
-    # Recommended warning groups (target-local)
-    target_compile_options("${PROJECT_NAME}" PRIVATE
-        $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall -Wextra -Wpedantic>
-        $<$<CXX_COMPILER_ID:MSVC>:/W4>
-    )
-
-    # Platform LTO / recommended flags are provided by JUCE via these imported targets
-    target_link_libraries("${PROJECT_NAME}"
-        PUBLIC
-            juce::juce_recommended_config_flags
-            juce::juce_recommended_lto_flags
-            juce::juce_recommended_warning_flags
-    )
-endif()
-
-# --- Unity builds (optional) --------------------------------------------------
-if (ENABLE_UNITY_BUILDS AND TARGET "${PROJECT_NAME}")
-    set_target_properties("${PROJECT_NAME}" PROPERTIES
-        UNITY_BUILD ON
-        UNITY_BUILD_BATCH_SIZE 16
-    )
-endif()
-
-# --- Precompiled headers (guarded) ------------------------------------------
-# Only enable PCH after the generated JuceHeader rule is available (we used prepare_juce_header for ordering).
-# Source/CMakeLists.txt calls target_precompile_headers on the same target; ensure dependency ordering is set.
-if (TARGET "${PROJECT_NAME}")
-    # It's safe to enable PCH here because prepare_juce_header will ensure JuceHeader is generated first.
-    target_precompile_headers("${PROJECT_NAME}"
-        PRIVATE
-            "<JuceHeader.h>"
-    )
-endif()
-
-# --- Binary data target (assets) ---------------------------------------------
-juce_add_binary_data(Assets
-    SOURCES Assets/logo.png
+        # Ensure POSIX / GNU feature macros are visible to system headers when building JUCE on Linux.
+        # This exposes functions/types used by JUCE's posix helpers (chmod, mkdir, mmap, PROT_*, MAP_*, utimbuf, etc.)
+        _DEFAULT_SOURCE=1
+        _XOPEN_SOURCE=700
+        _POSIX_C_SOURCE=200809L
 )
+
+# If your target needs extra binary assets, you can add them here.
+# NOTE: Conversion to binary-data happens when the target is built.
+
+# juce_add_binary_data(Assets       # Name of a static library target that will include all the binary resources
+    # HEADER_NAME ...               # Name of the generated header. "BinaryData.h" is used by default
+    # NAMESPACE ...                 # Namespace of the generated binary data class. "BinaryData" is used by default
+#   SOURCES ...)                    # List of asset files of any kind that should be built into the static library
+
+juce_add_binary_data(Assets
+        #SOURCES Assets/bg.png
+        SOURCES Assets/logo.png
+)
+
+# `target_link_libraries` links libraries and JUCE modules to other libraries or executables. Here,
+# we're linking our executable target to the `juce::juce_audio_utils` module. Inter-module
+# dependencies are resolved automatically.
 
 set_target_properties(Assets PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# Link small helper JUCE modules and binary data
 target_link_libraries("${PROJECT_NAME}"
     PRIVATE
-        Assets
+        Assets                # If we'd created a binary data target, we'd link to it here
         juce::juce_audio_utils
         juce::juce_dsp
-)
+    PUBLIC
+        juce::juce_recommended_config_flags
+        juce::juce_recommended_lto_flags
+        juce::juce_recommended_warning_flags)
 
-# --- IDE source grouping (nice-to-have) -------------------------------------
-# Move target(s) into a "Targets" folder and organise source groups
-set_target_properties(${project_targets} PROPERTIES FOLDER "Targets" XCODE_GENERATE_SCHEME ON)
+
+### IDE Generator post-config ###
+
+# IDEs:  Place source groups for project targets into a "Targets" folder (to reduce visual clutter).
+# Xcode: Generate build schemes for project targets.
+set_target_properties(${project_targets} PROPERTIES
+    FOLDER "Targets"
+    XCODE_GENERATE_SCHEME ON)
+
+# IDEs:  Move the "shared code" source group (main target) out of the "Targets" folder
+#        to the top level.
 set_target_properties("${PROJECT_NAME}" PROPERTIES FOLDER "")
 
+# IDEs:  Organise source file grouping.
 get_target_property(project_sources "${PROJECT_NAME}" SOURCES)
+
+#   If JuceHeader.h is generated, remove it from the source file list and handle it individually.
 get_target_property(juce_library_code "${PROJECT_NAME}" JUCE_GENERATED_SOURCES_DIRECTORY)
 set(juce_header "${juce_library_code}/JuceHeader.h")
 
-# Remove JuceHeader from source list to avoid duplicate handling
 list(REMOVE_ITEM project_sources "${juce_header}")
 
+#   Place JuceHeader.h and the associated CMake Rule file into a "JUCE Library Code" folder.
 source_group("JUCE Library Code" FILES "${juce_header}")
 source_group("JUCE Library Code/CMake Rules" FILES "${juce_header}.rule")
+
+#   Generate source groups that follow the organisation of source file directories.
 source_group(TREE "${PROJECT_SOURCE_DIR}/Source" FILES ${project_sources})
 
-# If Assets target exists, put its sources at the root for convenience
-if (TARGET Assets)
+#   Place Binary Data related source files into the root of their target folder.
+if(TARGET Assets)
     get_target_property(project_assets Assets SOURCES)
     source_group("" FILES ${project_assets})
 endif()
 
-# --- MSVC runtime modern setting (CMake 3.15+) --------------------------------
-if (MSVC AND TARGET "${PROJECT_NAME}")
-    # Use MultiThreaded for release and MultiThreadedDebug for debug
-    set_property(TARGET "${PROJECT_NAME}" PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-endif()
-
-# --- Final messages -----------------------------------------------------------
-message(STATUS "Project: ${PROJECT_NAME} (${PROJECT_VERSION})")
-message(STATUS "JUCE: ${LIB_JUCE_TAG}")
