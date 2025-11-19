@@ -52,7 +52,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     delayTimeModeButtons = std::make_unique<SegmentedButton>(juce::StringArray{ "ms", "nrm", "trip", "dot" });
 
     addAndMakeVisible(*delayTimeModeButtons);
-    delayTimeModeButtons->setBounds((getWidth() / 2) - 100, (getHeight() / 2) + 80, 200, 30);
+    delayTimeModeButtons->setBounds((getWidth() / 2) - 100, (getHeight() / 2) + 50, 200, 30);
 
     delayTimeModeAttachment = std::make_unique<SegmentedButton::ChoiceAttachment>(processorRef.parameters, "delayMode", *delayTimeModeButtons);
 }
