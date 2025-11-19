@@ -9,6 +9,7 @@
 #include "Utils/FlatLabel.h"
 #include "Utils/ThemedKnob.h"
 #include "Utils/ThemedSlider.h"
+#include "Utils/SegmentedButton.h"
 
 //==============================================================================
 class AudioPluginAudioProcessorEditor  : public juce::AudioProcessorEditor, public juce::KeyListener
@@ -75,6 +76,9 @@ private:
 
     std::unique_ptr<ThemedKnob> highPassKnob;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> highPassAttachment;
+
+    // Delay buttons
+    std::unique_ptr<SegmentedButton::ExclusiveBooleansAttachment> delayTimeFractAttachment;
 
     // Delay labels
     std::unique_ptr<juce::Label> delayTimeLabel;

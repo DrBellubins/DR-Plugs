@@ -51,6 +51,12 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     createKnobLabel(stereoSpreadLabel, *stereoSpreadKnob, "Stereo Spread", 15.0f, 70);
     createKnobLabel(lowPassLabel, *lowPassKnob, "Low Pass Decay", 15.0f, 70);
     createKnobLabel(highPassLabel, *highPassKnob, "High Pass Decay", 15.0f, 70);
+
+    // Delay time fractions
+    auto* delayTimeFractSegment = new SegmentedButton({"A", "B", "C"});
+
+    delayTimeFractAttachment = std::make_unique<SegmentedButton::ExclusiveBooleansAttachment>(apvts,
+        std::vector<juce::String>{ "modeA", "modeB", "modeC" }, *delayTimeFractSegment);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
