@@ -4,13 +4,13 @@
 #include "BinaryData.h"
 #include "PluginProcessor.h"
 
+#include "Utils/FlatLabel.h"
 #include "Utils/FlatRotaryLookAndFeel.h"
+#include "Utils/RoundedToggle.h"
+#include "Utils/SegmentedButton.h"
 #include "Utils/Theme.h"
 #include "Utils/ThemedKnob.h"
-#include "Utils/FlatLabel.h"
-#include "Utils/ThemedKnob.h"
 #include "Utils/ThemedSlider.h"
-#include "Utils/SegmentedButton.h"
 
 //==============================================================================
 class AudioPluginAudioProcessorEditor  : public juce::AudioProcessorEditor, public juce::KeyListener
@@ -18,6 +18,9 @@ class AudioPluginAudioProcessorEditor  : public juce::AudioProcessorEditor, publ
 public:
     explicit AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor&);
     ~AudioPluginAudioProcessorEditor() override;
+
+    void createPrePostToggle(juce::AudioProcessorValueTreeState& state, const std::unique_ptr<RoundedToggle> &toggle,
+        std::unique_ptr<RoundedToggle::Attachment>& attachment, RoundedToggle::Orientation orientation, const juce::String& parameterID, int width, int height, int x, int y);
 
     void createSlider(std::unique_ptr<ThemedSlider>& slider, std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>& attachment, juce::String paramID,
         int width, int height, int offsetFromCenterX, int offsetFromCenterY);
@@ -98,6 +101,10 @@ private:
     std::unique_ptr<juce::Label> highPassLabel;
 
     std::unordered_set<int> lastHeldKeyCodes;
+
+    // Pre-Post toggles
+    std::unique_ptr<RoundedToggle> hplpFilterToggle;
+    std::unique_ptr<RoundedToggle::Attachment> hplpFilterToggleAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };

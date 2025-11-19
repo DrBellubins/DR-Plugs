@@ -1,6 +1,8 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+#include "Utils/RoundedToggle.h"
+
 static FlatRotaryLookAndFeel flatKnobLAF;
 
 //==============================================================================
@@ -55,10 +57,27 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     delayTimeModeButtons->setBounds((getWidth() / 2) - 100, (getHeight() / 2) + 50, 200, 30);
 
     delayTimeModeAttachment = std::make_unique<SegmentedButton::ChoiceAttachment>(processorRef.parameters, "delayMode", *delayTimeModeButtons);
+
+    // Pre-Post toggles
+    createPrePostToggle(processorRef.parameters, hplpFilterToggle, hplpFilterToggleAttachment,
+        RoundedToggle::Orientation::Vertical, "hplpPrePost", 20, 50, 150, 150);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
 {
+}
+
+void AudioPluginAudioProcessorEditor::createPrePostToggle(juce::AudioProcessorValueTreeState& state,
+                                                          const std::unique_ptr<RoundedToggle> &toggle,
+        std::unique_ptr<RoundedToggle::Attachment>& attachment, RoundedToggle::Orientation orientation,
+        const juce::String& parameterID, const int width, const int height, const int x, const int y)
+{
+    //attachment = std::make_unique<RoundedToggle::Attachment>(state, parameterID, *toggle);
+
+    addAndMakeVisible(*toggle);
+
+    toggle->setBounds(x, y, width, height);
+    toggle->setOrientation(orientation);
 }
 
 void AudioPluginAudioProcessorEditor::createSlider(std::unique_ptr<ThemedSlider>& slider,
