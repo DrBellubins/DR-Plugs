@@ -30,6 +30,8 @@ public:
     void createKnobLabel(std::unique_ptr<juce::Label>& label, ThemedKnob& knob,
         juce::String text, float fontSize, int offsetY);
 
+    std::vector<int, int> centerLabel(std::unique_ptr<juce::Label>& label, ThemedKnob& knob);
+
     int getLabelWidth(std::unique_ptr<juce::Label>& label);
 
     //==============================================================================
@@ -78,6 +80,7 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> highPassAttachment;
 
     // Delay buttons
+    std::unique_ptr<SegmentedButton> delayTimeModeButtons;
     std::unique_ptr<SegmentedButton::ChoiceAttachment> delayTimeModeAttachment;
 
     // Delay labels

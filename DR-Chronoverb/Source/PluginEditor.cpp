@@ -3,8 +3,6 @@
 
 static FlatRotaryLookAndFeel flatKnobLAF;
 
-// TODO: Create fractional time buttons (ms, normal, triplet, dot)
-
 //==============================================================================
 AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor& processor)
     : AudioProcessorEditor (&processor), processorRef (processor)
@@ -25,8 +23,6 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     logo = juce::ImageFileFormat::loadFrom(BinaryData::logo_png, BinaryData::logo_pngSize);
 
     // ------ KNOBS ------
-
-    // TODO: delayTimeKnob needs to have its suffix value * 1000 for accurate ms display
     createKnob(delayTimeKnob, delayTimeAttachment, "delayTime", " ms", 100, 0, 0);
     createKnob(feedbackTimeKnob, feedbackTimeAttachment, "feedbackTime", "", 80, 200, 50);
     createKnob(diffusionAmountKnob, diffusionAmountAttachment, "diffusionAmount", "", 80, -350, -125);
@@ -42,7 +38,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     createSliderLabel(diffusionQualityLabel, *diffusionQualitySlider, "Diffusion Quality", 15.0f, 170);
 
     // ------ Knob Labels ------
-    createKnobLabel(delayTimeLabel, *delayTimeKnob, "Delay", 20.0f, 90);
+    createKnobLabel(delayTimeLabel, *delayTimeKnob, "Delay Time", 20.0f, 90);
     createKnobLabel(feedbackLabel, *feedbackTimeKnob, "Feedback", 15.0f, 70);
     createKnobLabel(diffusionAmountLabel, *diffusionAmountKnob, "Diffusion Amount", 15.0f, 70);
     createKnobLabel(diffusionSizeLabel, *diffusionSizeKnob, "Diffusion Size", 15.0f, 70);
@@ -53,7 +49,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     createKnobLabel(highPassLabel, *highPassKnob, "High Pass", 15.0f, 70);
 
     // Delay mode
-    auto* delayTimeModeButtons = new SegmentedButton({"ms", "nrm", "trip", "dot"});
+    delayTimeModeButtons = std::make_unique<SegmentedButton>(juce::StringArray{ "ms", "nrm", "trip", "dot" });
 
     addAndMakeVisible(*delayTimeModeButtons);
     delayTimeModeButtons->setBounds((getWidth() / 2) - 100, (getHeight() / 2) + 80, 200, 30);
@@ -150,6 +146,19 @@ void AudioPluginAudioProcessorEditor::createKnobLabel(std::unique_ptr<juce::Labe
     int labelY = knobBounds.getCentreY() - offsetY;
 
     label->setBounds(labelX, labelY, labelWidth, 20);
+}
+
+// Returns the knob - centered label x and y pos
+std::vector<int, int> AudioPluginAudioProcessorEditor::centerLabel(std::unique_ptr<juce::Label>& label, ThemedKnob& knob)
+{
+    int labelWidth = getLabelWidth(label);
+    int labelHeight = label->getHeight();
+
+    juce::Rectangle<int> knobBounds = knob.getBounds();
+    int labelX = knobBounds.getCentreX() - (labelWidth / 2);
+    int labelY = knobBounds.getCentreY() - (labelHeight / 2);
+
+    return new std::vector<int, int>({labelX, labelY});
 }
 
 int AudioPluginAudioProcessorEditor::getLabelWidth(std::unique_ptr<juce::Label>& label)
