@@ -59,8 +59,12 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     delayTimeModeAttachment = std::make_unique<SegmentedButton::ChoiceAttachment>(processorRef.parameters, "delayMode", *delayTimeModeButtons);
 
     // Pre-Post toggles
-    createPrePostToggle(processorRef.parameters, hplpFilterToggle, hplpFilterToggleAttachment,
-        RoundedToggle::Orientation::Vertical, "hplpPrePost", 20, 50, 150, 150);
+    createPrePostToggle(processorRef.parameters,
+        hplpFilterToggle,
+        hplpFilterToggleAttachment,
+        RoundedToggle::Orientation::Vertical,
+        "hplpPrePost",
+        20, 50, 150, 150);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
@@ -68,11 +72,13 @@ AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
 }
 
 void AudioPluginAudioProcessorEditor::createPrePostToggle(juce::AudioProcessorValueTreeState& state,
-                                                          const std::unique_ptr<RoundedToggle> &toggle,
-        std::unique_ptr<RoundedToggle::Attachment>& attachment, RoundedToggle::Orientation orientation,
-        const juce::String& parameterID, const int width, const int height, const int x, const int y)
+        std::unique_ptr<RoundedToggle>& toggle,
+        std::unique_ptr<RoundedToggle::Attachment>& attachment,
+        RoundedToggle::Orientation orientation,
+        const juce::String& parameterID,
+        int width, int height, int x, int y)
 {
-    //attachment = std::make_unique<RoundedToggle::Attachment>(state, parameterID, *toggle);
+    attachment = std::make_unique<RoundedToggle::Attachment>(state, parameterID, *toggle);
 
     addAndMakeVisible(*toggle);
 

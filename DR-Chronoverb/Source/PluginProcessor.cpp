@@ -99,15 +99,18 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
         "stereoSpread", "Stereo Spread",
         juce::NormalisableRange(-1.0f, 1.0f), 0.0f));
 
-    // Low pass decay
+    // Low pass cutoff
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
         "lowPassCutoff", "Low Pass Cutoff",
         juce::NormalisableRange(0.0f, 1.0f), 0.0f));
 
-    // High pass decay
+    // High pass cutoff
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
         "highPassCutoff", "High Pass Cutoff",
         juce::NormalisableRange(0.0f, 1.0f), 0.0f));
+
+    parameterList.push_back(std::make_unique<juce::AudioParameterBool>(
+        "hplpPrePost", "HP/LP Pre/Post", true));
 
     return { parameterList.begin(), parameterList.end() };
 }

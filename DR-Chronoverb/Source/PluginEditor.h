@@ -19,8 +19,12 @@ public:
     explicit AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor&);
     ~AudioPluginAudioProcessorEditor() override;
 
-    void createPrePostToggle(juce::AudioProcessorValueTreeState& state, const std::unique_ptr<RoundedToggle> &toggle,
-        std::unique_ptr<RoundedToggle::Attachment>& attachment, RoundedToggle::Orientation orientation, const juce::String& parameterID, int width, int height, int x, int y);
+    void createPrePostToggle(juce::AudioProcessorValueTreeState& state,
+        std::unique_ptr<RoundedToggle>& toggle,
+        std::unique_ptr<RoundedToggle::Attachment>& attachment,
+        RoundedToggle::Orientation orientation,
+        const juce::String& parameterID,
+        int width, int height, int x, int y);
 
     void createSlider(std::unique_ptr<ThemedSlider>& slider, std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>& attachment, juce::String paramID,
         int width, int height, int offsetFromCenterX, int offsetFromCenterY);
