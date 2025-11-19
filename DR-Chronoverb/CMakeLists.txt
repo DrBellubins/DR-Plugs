@@ -5,6 +5,34 @@ cmake_minimum_required(VERSION 3.22)
 # CHANGE
 project(Chronoverb VERSION 0.0.1)
 
+# Speed: compiler cache
+find_program(CCACHE_PROGRAM ccache)
+
+if (CCACHE_PROGRAM)
+    message(STATUS "Enabling ccache: ${CCACHE_PROGRAM}")
+    set(CMAKE_C_COMPILER_LAUNCHER   "${CCACHE_PROGRAM}")
+    set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+endif()
+
+# Speed: use lld when using Clang or GCC
+include(CheckCXXCompilerFlag)
+check_cxx_compiler_flag("-fuse-ld=lld" HAS_LLD_FLAG)
+
+if (HAS_LLD_FLAG)
+    add_link_options(-fuse-ld=lld)
+    # Optional: speed up link-time dead code folding with lld
+    add_link_options($<$<CONFIG:Release,RelWithDebInfo>:-Wl,--icf=all>)
+endif()
+
+# Speed: split DWARF debug info to reduce link time for Debug/RelWithDebInfo
+add_compile_options(
+        $<$<CONFIG:Debug>:-gsplit-dwarf>
+        $<$<CONFIG:RelWithDebInfo>:-gsplit-dwarf>
+)
+
+# Optional: generate gdb index at link (helps debug startup, negligible link cost with lld)
+add_link_options($<$<CONFIG:Debug,RelWithDebInfo>:-Wl,--gdb-index>)
+
 ### Dependency versions ###
 
 set(LIB_JUCE_TAG "7.0.8")
