@@ -3,32 +3,30 @@
 cmake_minimum_required(VERSION 3.22)
 
 # CHANGE
-project(Chronoverb VERSION 0.0.1)
+project(Chronoverb VERSION 0.0.1 LANGUAGES C CXX)
 
-# Detect and enable ccache if present (speeds repeated builds)
-find_program(CCACHE_PROGRAM ccache)
-if (CCACHE_PROGRAM)
-    message(STATUS "Using ccache: ${CCACHE_PROGRAM}")
-    set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
-    set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
-endif()
+# --- With this compiler-capability check and conditional append:
+include(CheckCXXCompilerFlag)
 
-# Prefer a faster linker if available (ld.lld or gold)
-find_program(LLD_PROGRAM ld.lld)
-if (LLD_PROGRAM)
-    message(STATUS "Found lld: ${LLD_PROGRAM} — using as linker")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=lld")
+# Check support for -gline-tables-only and -gsplit-dwarf before adding them.
+check_cxx_compiler_flag("-gline-tables-only" COMPILER_SUPPORTS_GLINE)
+check_cxx_compiler_flag("-gsplit-dwarf" COMPILER_SUPPORTS_GSPLIT)
+
+if (COMPILER_SUPPORTS_GLINE)
+    message(STATUS "Compiler supports -gline-tables-only; enabling it for Debug builds")
+    string(APPEND CMAKE_CXX_FLAGS_DEBUG " -gline-tables-only")
+    string(APPEND CMAKE_C_FLAGS_DEBUG " -gline-tables-only")
 else()
-    find_program(GOLD_LINKER gold)
-    if (GOLD_LINKER)
-        message(STATUS "Found gold linker: ${GOLD_LINKER} — using as linker")
-        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=gold")
-    endif()
+    message(STATUS "Compiler does NOT support -gline-tables-only; skipping that flag")
 endif()
 
-# Reduce debug info & split DWARF to speed link times for Debug builds
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -gline-tables-only -gsplit-dwarf")
-set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -gline-tables-only -gsplit-dwarf")
+if (COMPILER_SUPPORTS_GSPLIT)
+    message(STATUS "Compiler supports -gsplit-dwarf; enabling it for Debug builds")
+    string(APPEND CMAKE_CXX_FLAGS_DEBUG " -gsplit-dwarf")
+    string(APPEND CMAKE_C_FLAGS_DEBUG " -gsplit-dwarf")
+else()
+    message(STATUS "Compiler does NOT support -gsplit-dwarf; skipping that flag")
+endif()
 
 ### Dependency versions ###
 
