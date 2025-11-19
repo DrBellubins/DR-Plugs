@@ -17,11 +17,13 @@ target_sources("${PROJECT_NAME}"
         ${FILTERS_SOURCES}
 )
 
-# Use precompiled header for JUCE to cut per translation-unit compile time
-target_precompile_headers("${PROJECT_NAME}"
+# If exsts, use precompiled header for JUCE to cut per translation-unit compile time
+if (TARGET "${PROJECT_NAME}")
+    target_precompile_headers("${PROJECT_NAME}"
         PRIVATE
-        "<JuceHeader.h>"
-)
+            "<JuceHeader.h>"
+    )
+endif()
 
 # Add subdirectories with source files, if present
 # add_subdirectory(<name>)
