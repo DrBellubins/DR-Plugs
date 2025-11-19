@@ -78,7 +78,7 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> highPassAttachment;
 
     // Delay buttons
-    std::unique_ptr<SegmentedButton::ExclusiveBooleansAttachment> delayTimeFractAttachment;
+    std::unique_ptr<SegmentedButton::ChoiceAttachment> delayTimeModeAttachment;
 
     // Delay labels
     std::unique_ptr<juce::Label> delayTimeLabel;

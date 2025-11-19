@@ -52,11 +52,13 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     createKnobLabel(lowPassLabel, *lowPassKnob, "Low Pass Decay", 15.0f, 70);
     createKnobLabel(highPassLabel, *highPassKnob, "High Pass Decay", 15.0f, 70);
 
-    // Delay time fractions
-    auto* delayTimeFractSegment = new SegmentedButton({"A", "B", "C"});
+    // Delay mode
+    auto* delayTimeModeButtons = new SegmentedButton({"ms", "nrm", "trip", "dot"});
 
-    delayTimeFractAttachment = std::make_unique<SegmentedButton::ExclusiveBooleansAttachment>(apvts,
-        std::vector<juce::String>{ "modeA", "modeB", "modeC" }, *delayTimeFractSegment);
+    addAndMakeVisible(*delayTimeModeButtons);
+    delayTimeModeButtons->setBounds((getWidth() / 2) - 150, (getHeight() / 2) - 40, 300, 30);
+
+    delayTimeModeAttachment = std::make_unique<SegmentedButton::ChoiceAttachment>(processorRef.parameters, "delayMode", *delayTimeModeButtons);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
