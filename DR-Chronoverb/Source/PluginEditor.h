@@ -1,5 +1,6 @@
 #pragma once
 
+#include <utility>
 #include "BinaryData.h"
 #include "PluginProcessor.h"
 
@@ -30,7 +31,7 @@ public:
     void createKnobLabel(std::unique_ptr<juce::Label>& label, ThemedKnob& knob,
         juce::String text, float fontSize, int offsetY);
 
-    std::vector<int, int> centerLabel(std::unique_ptr<juce::Label>& label, ThemedKnob& knob);
+    void centerKnobLabel(std::unique_ptr<juce::Label>& label, ThemedKnob& knob, int offsetY);
 
     int getLabelWidth(std::unique_ptr<juce::Label>& label);
 

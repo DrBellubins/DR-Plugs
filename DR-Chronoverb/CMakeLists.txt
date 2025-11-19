@@ -5,6 +5,30 @@ cmake_minimum_required(VERSION 3.22)
 # CHANGE
 project(Chronoverb VERSION 0.0.1)
 
+# Detect and enable ccache if present (speeds repeated builds)
+find_program(CCACHE_PROGRAM ccache)
+if (CCACHE_PROGRAM)
+    message(STATUS "Using ccache: ${CCACHE_PROGRAM}")
+    set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
+    set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
+endif()
+
+# Prefer a faster linker if available (ld.lld or gold)
+find_program(LLD_PROGRAM ld.lld)
+if (LLD_PROGRAM)
+    message(STATUS "Found lld: ${LLD_PROGRAM} — using as linker")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=lld")
+else()
+    find_program(GOLD_LINKER gold)
+    if (GOLD_LINKER)
+        message(STATUS "Found gold linker: ${GOLD_LINKER} — using as linker")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=gold")
+    endif()
+endif()
+
+# Reduce debug info & split DWARF to speed link times for Debug builds
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -gline-tables-only -gsplit-dwarf")
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -gline-tables-only -gsplit-dwarf")
 
 ### Dependency versions ###
 

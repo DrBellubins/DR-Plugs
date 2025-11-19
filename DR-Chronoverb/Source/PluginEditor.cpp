@@ -23,7 +23,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     logo = juce::ImageFileFormat::loadFrom(BinaryData::logo_png, BinaryData::logo_pngSize);
 
     // ------ KNOBS ------
-    createKnob(delayTimeKnob, delayTimeAttachment, "delayTime", " ms", 100, 0, 0);
+    createKnob(delayTimeKnob, delayTimeAttachment, "delayTime", " ms", 100, 0, -25);
     createKnob(feedbackTimeKnob, feedbackTimeAttachment, "feedbackTime", "", 80, 200, 50);
     createKnob(diffusionAmountKnob, diffusionAmountAttachment, "diffusionAmount", "", 80, -350, -125);
     createKnob(diffusionSizeKnob, diffusionSizeAttachment, "diffusionSize", "", 80, -200, -125);
@@ -139,26 +139,19 @@ void AudioPluginAudioProcessorEditor::createKnobLabel(std::unique_ptr<juce::Labe
 
     addAndMakeVisible(*label);
 
-    int labelWidth = getLabelWidth(label);
-
-    juce::Rectangle<int> knobBounds = knob.getBounds();
-    int labelX = knobBounds.getCentreX() - (labelWidth / 2);
-    int labelY = knobBounds.getCentreY() - offsetY;
-
-    label->setBounds(labelX, labelY, labelWidth, 20);
+    centerKnobLabel(label, knob, offsetY);
 }
 
-// Returns the knob - centered label x and y pos
-std::vector<int, int> AudioPluginAudioProcessorEditor::centerLabel(std::unique_ptr<juce::Label>& label, ThemedKnob& knob)
+void AudioPluginAudioProcessorEditor::centerKnobLabel(std::unique_ptr<juce::Label>& label, ThemedKnob& knob, int offsetY)
 {
     int labelWidth = getLabelWidth(label);
-    int labelHeight = label->getHeight();
+    int labelHeight = label->getFont().getHeight();
 
     juce::Rectangle<int> knobBounds = knob.getBounds();
     int labelX = knobBounds.getCentreX() - (labelWidth / 2);
-    int labelY = knobBounds.getCentreY() - (labelHeight / 2);
+    int labelY = (knobBounds.getCentreY() - (labelHeight / 2)) - offsetY;
 
-    return new std::vector<int, int>({labelX, labelY});
+    label->setBounds(labelX, labelY, labelWidth, labelHeight);
 }
 
 int AudioPluginAudioProcessorEditor::getLabelWidth(std::unique_ptr<juce::Label>& label)
