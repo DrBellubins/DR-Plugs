@@ -41,19 +41,21 @@ public:
     // - DiffusionAmount:    [0.0, 1.0]
     // - DiffusionSize:      [0.0, 1.0]
     // - DiffusionQuality:   [0.0, 1.0]
-    void SetDelayTime(float DelayTimeSeconds);
-    void SetFeedbackTime(float FeedbackTimeSeconds);
-    void SetDiffusionAmount(float DiffusionAmount);
+    void SetDelayTime(float delayTimeSeconds);
+    void SetDelayMode(int modeIndex);
+
+    void SetFeedbackTime(float feedbackTimeSeconds);
+    void SetDiffusionAmount(float diffusionAmount);
     void SetDiffusionSize(float DiffusionSize);
-    void SetDiffusionQuality(float DiffusionQuality);
-    void SetDryWetMix(float DryWet);
+    void SetDiffusionQuality(float diffusionQuality);
+    void SetDryWetMix(float dryWet);
 
     // - Negative values [-1..0): stereo reducer (mid/side scale). -1 => fully mono.
     // - Zero: no change.
     // - Positive values (0..+1]: Haas widening (delays one channel by up to HaasMaxMs).
-    void SetStereoSpread(float StereoWidth);
-    void SetHighpassDecay(float DecayAmount);
-    void SetLowpassDecay(float DecayAmount);
+    void SetStereoSpread(float stereoWidth);
+    void SetHighpassCutoff(float hpFreq);
+    void SetLowpassCutoff(float lpFreq);
 
     // Main audio processing (master function). Delegates to component static functions.
     void ProcessBlock(juce::AudioBuffer<float>& AudioBuffer);
@@ -102,6 +104,8 @@ private:
 
     // Atomic parameters (targets)
     std::atomic<float> TargetDelayTimeSeconds { 0.300f };
+    std::atomic<int> TargetDelayMode{ 0 };
+
     std::atomic<float> TargetDiffusionAmount  { 0.00f  };
     std::atomic<float> TargetDiffusionSize    { 0.00f  };
     std::atomic<float> TargetDiffusionQuality { 1.00f  };

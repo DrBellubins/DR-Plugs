@@ -59,63 +59,68 @@ void ClusteredDiffusionDelay::Reset()
 }
 
 // ============================== Parameter Setters ==============================
-void ClusteredDiffusionDelay::SetDelayTime(float DelayTimeSeconds)
+void ClusteredDiffusionDelay::SetDelayTime(float delayTimeSeconds)
 {
     // Clamp to configured maximum delay
-    float Clamped = juce::jlimit(0.0f, MaximumDelaySeconds, DelayTimeSeconds);
-    TargetDelayTimeSeconds.store(Clamped, std::memory_order_relaxed);
+    float clamped = juce::jlimit(0.0f, MaximumDelaySeconds, delayTimeSeconds);
+    TargetDelayTimeSeconds.store(clamped, std::memory_order_relaxed);
 }
 
-void ClusteredDiffusionDelay::SetFeedbackTime(float FeedbackTimeSeconds)
+void ClusteredDiffusionDelay::SetDelayMode(int modeIndex)
+{
+    int clamped = juce::jlimit(0, 4, modeIndex);
+}
+
+void ClusteredDiffusionDelay::SetFeedbackTime(float feedbackTimeSeconds)
 {
     // Clamp to [0..10] seconds T60 (0 disables feedback)
-    float Clamped = juce::jlimit(0.0f, 10.0f, FeedbackTimeSeconds);
-    TargetFeedbackTimeSeconds.store(Clamped, std::memory_order_relaxed);
+    float clamped = juce::jlimit(0.0f, 10.0f, feedbackTimeSeconds);
+    TargetFeedbackTimeSeconds.store(clamped, std::memory_order_relaxed);
 }
 
-void ClusteredDiffusionDelay::SetDiffusionAmount(float DiffusionAmount)
+void ClusteredDiffusionDelay::SetDiffusionAmount(float diffusionAmount)
 {
-    float Clamped = juce::jlimit(0.0f, 1.0f, DiffusionAmount);
-    TargetDiffusionAmount.store(Clamped, std::memory_order_relaxed);
+    float clamped = juce::jlimit(0.0f, 1.0f, diffusionAmount);
+    TargetDiffusionAmount.store(clamped, std::memory_order_relaxed);
 }
 
-void ClusteredDiffusionDelay::SetDiffusionSize(float DiffusionSize)
+void ClusteredDiffusionDelay::SetDiffusionSize(float diffusionSize)
 {
-    float Clamped = juce::jlimit(0.0f, 1.0f, DiffusionSize);
-    TargetDiffusionSize.store(Clamped, std::memory_order_relaxed);
+    float clamped = juce::jlimit(0.0f, 1.0f, diffusionSize);
+    TargetDiffusionSize.store(clamped, std::memory_order_relaxed);
 }
 
-void ClusteredDiffusionDelay::SetDiffusionQuality(float DiffusionQuality)
+void ClusteredDiffusionDelay::SetDiffusionQuality(float diffusionQuality)
 {
-    float Clamped = juce::jlimit(0.0f, 1.0f, DiffusionQuality);
-    TargetDiffusionQuality.store(Clamped, std::memory_order_relaxed);
+    float clamped = juce::jlimit(0.0f, 1.0f, diffusionQuality);
+    TargetDiffusionQuality.store(clamped, std::memory_order_relaxed);
 
     // Update tap layout immediately when quality changes (affects density)
-    Diffusion::RecomputeTapLayout(TapLayout, Clamped);
+    Diffusion::RecomputeTapLayout(TapLayout, clamped);
 }
 
-void ClusteredDiffusionDelay::SetDryWetMix(float DryWet)
+void ClusteredDiffusionDelay::SetDryWetMix(float dryWet)
 {
-    float Clamped = juce::jlimit(0.0f, 1.0f, DryWet);
-    TargetDryWetMix.store(Clamped, std::memory_order_relaxed);
+    float clamped = juce::jlimit(0.0f, 1.0f, dryWet);
+    TargetDryWetMix.store(clamped, std::memory_order_relaxed);
 }
 
-void ClusteredDiffusionDelay::SetStereoSpread(float StereoWidth)
+void ClusteredDiffusionDelay::SetStereoSpread(float stereoWidth)
 {
-    float Clamped = juce::jlimit(-1.0f, 1.0f, StereoWidth);
-    TargetStereoWidth.store(Clamped, std::memory_order_relaxed);
+    float clamped = juce::jlimit(-1.0f, 1.0f, stereoWidth);
+    TargetStereoWidth.store(clamped, std::memory_order_relaxed);
 }
 
-void ClusteredDiffusionDelay::SetHighpassDecay(float DecayAmount)
+void ClusteredDiffusionDelay::SetHighpassCutoff(float hpFreq)
 {
-    float Clamped = juce::jlimit(0.0f, 1.0f, DecayAmount);
-    TargetPreHighpassDecayAmount.store(Clamped, std::memory_order_relaxed);
+    float clamped = juce::jlimit(0.0f, 1.0f, hpFreq);
+    TargetPreHighpassDecayAmount.store(clamped, std::memory_order_relaxed);
 }
 
-void ClusteredDiffusionDelay::SetLowpassDecay(float DecayAmount)
+void ClusteredDiffusionDelay::SetLowpassCutoff(float lpFreq)
 {
-    float Clamped = juce::jlimit(0.0f, 1.0f, DecayAmount);
-    TargetPreLowpassDecayAmount.store(Clamped, std::memory_order_relaxed);
+    float clamped = juce::jlimit(0.0f, 1.0f, lpFreq);
+    TargetPreLowpassDecayAmount.store(clamped, std::memory_order_relaxed);
 }
 
 // ============================== Processing ==============================

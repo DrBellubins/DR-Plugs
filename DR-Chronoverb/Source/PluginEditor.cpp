@@ -34,8 +34,8 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     createKnob(dryWetMixKnob, dryWetMixAttachment, "dryWetMix", "", 80, 350, 50);
 
     createKnob(stereoSpreadKnob, stereoSpreadAttachment, "stereoSpread", "", 80, 200, -125);
-    createKnob(lowPassKnob, lowPassAttachment, "lowPassDecay", "", 80, -350, 50);
-    createKnob(highPassKnob, highPassAttachment, "highPassDecay", "", 80, -200, 50);
+    createKnob(lowPassKnob, lowPassAttachment, "lowPassCutoff", "", 80, -350, 50);
+    createKnob(highPassKnob, highPassAttachment, "highPassCutoff", "", 80, -200, 50);
 
     // Quality slider
     createSlider(diffusionQualitySlider, diffusionQualityAttachment, "diffusionQuality", 200, 20, 200, -260);
@@ -49,14 +49,14 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     createKnobLabel(dryWetMixLabel, *dryWetMixKnob, "Dry/Wet Mix", 15.0f, 70);
 
     createKnobLabel(stereoSpreadLabel, *stereoSpreadKnob, "Stereo Spread", 15.0f, 70);
-    createKnobLabel(lowPassLabel, *lowPassKnob, "Low Pass Decay", 15.0f, 70);
-    createKnobLabel(highPassLabel, *highPassKnob, "High Pass Decay", 15.0f, 70);
+    createKnobLabel(lowPassLabel, *lowPassKnob, "Low Pass", 15.0f, 70);
+    createKnobLabel(highPassLabel, *highPassKnob, "High Pass", 15.0f, 70);
 
     // Delay mode
     auto* delayTimeModeButtons = new SegmentedButton({"ms", "nrm", "trip", "dot"});
 
     addAndMakeVisible(*delayTimeModeButtons);
-    delayTimeModeButtons->setBounds((getWidth() / 2) - 150, (getHeight() / 2) - 40, 300, 30);
+    delayTimeModeButtons->setBounds((getWidth() / 2) - 100, (getHeight() / 2) + 80, 200, 30);
 
     delayTimeModeAttachment = std::make_unique<SegmentedButton::ChoiceAttachment>(processorRef.parameters, "delayMode", *delayTimeModeButtons);
 }
