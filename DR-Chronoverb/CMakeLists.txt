@@ -149,12 +149,6 @@ target_compile_definitions("${PROJECT_NAME}"
         JUCE_USE_CURL=0     # If you remove this, add `NEEDS_CURL TRUE` to the `juce_add_plugin` call
         JUCE_VST3_CAN_REPLACE_VST2=0
         JUCE_DISPLAY_SPLASH_SCREEN=0
-
-        # Ensure POSIX / GNU feature macros are visible to system headers when building JUCE on Linux.
-        # This exposes functions/types used by JUCE's posix helpers (chmod, mkdir, mmap, PROT_*, MAP_*, utimbuf, etc.)
-        _DEFAULT_SOURCE=1
-        _XOPEN_SOURCE=700
-        _POSIX_C_SOURCE=200809L
 )
 
 # If your target needs extra binary assets, you can add them here.
