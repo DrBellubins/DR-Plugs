@@ -38,7 +38,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     createSliderLabel(diffusionQualityLabel, *diffusionQualitySlider, "Diffusion Quality", 15.0f, 170);
 
     // ------ Knob Labels ------
-    createKnobLabel(delayTimeLabel, *delayTimeKnob, "Delay Time", 20.0f, 90);
+    createKnobLabel(delayTimeLabel, *delayTimeKnob, "Delay Time", 20.0f, 80);
     createKnobLabel(feedbackLabel, *feedbackTimeKnob, "Feedback", 15.0f, 70);
     createKnobLabel(diffusionAmountLabel, *diffusionAmountKnob, "Diffusion Amount", 15.0f, 70);
     createKnobLabel(diffusionSizeLabel, *diffusionSizeKnob, "Diffusion Size", 15.0f, 70);
