@@ -78,12 +78,15 @@ void AudioPluginAudioProcessorEditor::createPrePostToggle(juce::AudioProcessorVa
         const juce::String& parameterID,
         int width, int height, int x, int y)
 {
-    attachment = std::make_unique<RoundedToggle::Attachment>(state, parameterID, *toggle);
+    if (toggle == nullptr)
+        toggle = std::make_unique<RoundedToggle>();
+
+    if (attachment == nullptr)
+        attachment = std::make_unique<RoundedToggle::Attachment>(state, parameterID, *toggle);
 
     addAndMakeVisible(*toggle);
-
-    toggle->setBounds(x, y, width, height);
     toggle->setOrientation(orientation);
+    toggle->setBounds(x, y, width, height);
 }
 
 void AudioPluginAudioProcessorEditor::createSlider(std::unique_ptr<ThemedSlider>& slider,

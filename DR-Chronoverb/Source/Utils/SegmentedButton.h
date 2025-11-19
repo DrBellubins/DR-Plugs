@@ -4,6 +4,9 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "Theme.h"
 
+// TODO: Tail is a circle, needs to be rounded rectangle
+// TODO: Animation is too slow
+
 // SegmentedButton
 // - A header-only, rounded segmented control with an arbitrary number of options.
 // - End segments have rounded corners; inner segments have square edges.
