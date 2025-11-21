@@ -175,49 +175,77 @@ public:
         const float AutoTrackCornerRadius = TrackBounds.getHeight() * 0.5f;
         const float EffectiveTrackCornerRadius = (TrackCornerRadius >= 0.0f ? TrackCornerRadius : AutoTrackCornerRadius);
 
-        const juce::Colour TrackColour = ToggleState
-            ? ThemePink.darker(0.2f)
-            : AccentGray;
-
-        juce::Path TrackPath;
-        TrackPath.addRoundedRectangle(TrackBounds, EffectiveTrackCornerRadius);
-
-        GraphicsContext.setColour(TrackColour);
-        GraphicsContext.fillPath(TrackPath);
-
-        GraphicsContext.setColour(UnfocusedGray.brighter(0.1f));
-        GraphicsContext.strokePath(TrackPath, juce::PathStrokeType(1.0f));
+        // Animation position and thumb geometry for tail positioning
+        const float AnimatedValue = AnimationPosition;
 
         const float ThumbWidth = TrackThickness * 1.5f;
-        const float ThumbHeight = ThumbWidth; // Keep square; could allow independent later.
-
-        float AnimatedValue = AnimationPosition;
+        const float ThumbHeight = ThumbWidth;
 
         juce::Point<float> ThumbCenter;
 
         if (IsHorizontal)
         {
-            float LeftX = TrackBounds.getX() + ThumbWidth * 0.5f;
-            float RightX = TrackBounds.getRight() - ThumbWidth * 0.5f;
-            float X = juce::jmap(AnimatedValue, 0.0f, 1.0f, LeftX, RightX);
-            float Y = TrackBounds.getCentreY();
+            const float LeftX = TrackBounds.getX() + ThumbWidth * 0.5f;
+            const float RightX = TrackBounds.getRight() - ThumbWidth * 0.5f;
+            const float X = juce::jmap(AnimatedValue, 0.0f, 1.0f, LeftX, RightX);
+            const float Y = TrackBounds.getCentreY();
             ThumbCenter = { X, Y };
         }
         else
         {
-            float BottomY = TrackBounds.getBottom() - ThumbHeight * 0.5f;
-            float TopY = TrackBounds.getY() + ThumbHeight * 0.5f;
-            float Y = juce::jmap(AnimatedValue, 0.0f, 1.0f, BottomY, TopY);
-            float X = TrackBounds.getCentreX();
+            const float BottomY = TrackBounds.getBottom() - ThumbHeight * 0.5f;
+            const float TopY = TrackBounds.getY() + ThumbHeight * 0.5f;
+            const float Y = juce::jmap(AnimatedValue, 0.0f, 1.0f, BottomY, TopY);
+            const float X = TrackBounds.getCentreX();
             ThumbCenter = { X, Y };
         }
 
+        // Build the rounded track path once
+        juce::Path TrackPath;
+        TrackPath.addRoundedRectangle(TrackBounds, EffectiveTrackCornerRadius);
+
+        // Base track (unfilled portion)
+        GraphicsContext.setColour(AccentGray);
+        GraphicsContext.fillPath(TrackPath);
+
+        // Animated pink tail: clip to follow the thumb position, then fill same rounded track path
+        {
+            juce::Graphics::ScopedSaveState ScopedState(GraphicsContext);
+
+            if (IsHorizontal)
+            {
+                const float TailRight = juce::jlimit(TrackBounds.getX(), TrackBounds.getRight(), ThumbCenter.x);
+                const juce::Rectangle<float> TailClipBounds(TrackBounds.getX(),
+                                                            TrackBounds.getY(),
+                                                            TailRight - TrackBounds.getX(),
+                                                            TrackBounds.getHeight());
+                GraphicsContext.reduceClipRegion(TailClipBounds.toNearestInt());
+            }
+            else
+            {
+                const float TailTop = juce::jlimit(TrackBounds.getY(), TrackBounds.getBottom(), ThumbCenter.y);
+                const juce::Rectangle<float> TailClipBounds(TrackBounds.getX(),
+                                                            TailTop,
+                                                            TrackBounds.getWidth(),
+                                                            TrackBounds.getBottom() - TailTop);
+                GraphicsContext.reduceClipRegion(TailClipBounds.toNearestInt());
+            }
+
+            GraphicsContext.setColour(ThemePink.darker(0.2f));
+            GraphicsContext.fillPath(TrackPath);
+        }
+
+        // Outline
+        GraphicsContext.setColour(UnfocusedGray.brighter(0.1f));
+        GraphicsContext.strokePath(TrackPath, juce::PathStrokeType(1.0f));
+
+        // Thumb
         juce::Rectangle<float> ThumbBounds(ThumbCenter.x - ThumbWidth * 0.5f,
                                            ThumbCenter.y - ThumbHeight * 0.5f,
                                            ThumbWidth,
                                            ThumbHeight);
 
-        const float AutoThumbCornerRadius = ThumbWidth * 0.5f; // Original circular look
+        const float AutoThumbCornerRadius = ThumbWidth * 0.5f;
         const float EffectiveThumbCornerRadius = (ThumbCornerRadius >= 0.0f ? ThumbCornerRadius : AutoThumbCornerRadius);
 
         if (ThumbShadowEnabled)
@@ -230,6 +258,7 @@ public:
 
         juce::Path ThumbPath;
         ThumbPath.addRoundedRectangle(ThumbBounds, EffectiveThumbCornerRadius);
+
         GraphicsContext.setColour(ThemePink);
         GraphicsContext.fillPath(ThumbPath);
     }

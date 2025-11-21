@@ -27,6 +27,9 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     parameters.addParameterListener("lowPassCutoff", this);
     parameters.addParameterListener("highPassCutoff", this);
 
+    // Pre-Posts
+    parameters.addParameterListener("hplpPrePost", this);
+
     // Set delay initial values
     float delayTime = parameters.getRawParameterValue("delayTime")->load();
 
