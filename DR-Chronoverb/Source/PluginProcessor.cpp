@@ -248,7 +248,9 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
     if (parameterID == "highPassCutoff") DelayReverb.SetHighpassCutoff(newValue);
     if (parameterID == "hplpPrePost") DelayReverb.SetHPLPPrePost(newValue);
 
+    #if DEBUG
     DBG("Changed: " << parameterID << " to " << newValue);
+    #endif
 }
 
 void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
