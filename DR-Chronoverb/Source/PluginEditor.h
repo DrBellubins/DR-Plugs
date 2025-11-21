@@ -24,7 +24,7 @@ public:
         std::unique_ptr<RoundedToggle::Attachment>& attachment,
         RoundedToggle::Orientation orientation,
         const juce::String& parameterID,
-        int width, int height, int x, int y);
+        int width, int height, int offsetFromCenterX, int offsetFromCenterY);
 
     void createSlider(std::unique_ptr<ThemedSlider>& slider, std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>& attachment, juce::String paramID,
         int width, int height, int offsetFromCenterX, int offsetFromCenterY);

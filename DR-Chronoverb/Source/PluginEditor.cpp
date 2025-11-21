@@ -70,7 +70,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
         hplpFilterToggleAttachment,
         RoundedToggle::Orientation::Vertical,
         "hplpPrePost",
-        20, 50, 150, 150);
+        20, 50, -275, 50);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
@@ -82,7 +82,7 @@ void AudioPluginAudioProcessorEditor::createPrePostToggle(juce::AudioProcessorVa
         std::unique_ptr<RoundedToggle::Attachment>& attachment,
         RoundedToggle::Orientation orientation,
         const juce::String& parameterID,
-        int width, int height, int x, int y)
+        int width, int height, int offsetFromCenterX, int offsetFromCenterY)
 {
     if (toggle == nullptr)
         toggle = std::make_unique<RoundedToggle>();
@@ -92,7 +92,11 @@ void AudioPluginAudioProcessorEditor::createPrePostToggle(juce::AudioProcessorVa
 
     addAndMakeVisible(*toggle);
     toggle->setOrientation(orientation);
-    toggle->setBounds(x, y, width, height);
+
+    int toggleX = (getWidth() / 2) - (width / 2) + offsetFromCenterX;
+    int toggleY = (getHeight() / 2) - (height / 2) + offsetFromCenterY;
+
+    toggle->setBounds(toggleX, toggleY, width, height);
 }
 
 void AudioPluginAudioProcessorEditor::createSlider(std::unique_ptr<ThemedSlider>& slider,
