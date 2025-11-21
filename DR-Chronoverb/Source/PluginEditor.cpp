@@ -6,6 +6,10 @@
 static FlatRotaryLookAndFeel flatKnobLAF;
 
 // TODO: Derive class from RoundedToggle to make Pre/Post toggles with labels
+// TODO: Add ducking (duck amount, attack, release).
+// TODO: Begin creation of Matrix Menu.
+// TODO: Implement pitch features (oh fuck).
+// TODO: Implement playback direction features.
 
 //==============================================================================
 AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor& processor)

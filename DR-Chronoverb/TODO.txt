@@ -1,8 +1,0 @@
-~ UI ~
-Implement rounded toggles (can be created verticle or horizontal).
-
-Add time fraction buttons (ms, nrm, trip, dot).
-Add ducking (duck amount, attack, release).
-Begin creation of Matrix Menu.
-Implement pitch features (oh fuck).
-Implement playback direction features.
