@@ -74,8 +74,12 @@ private:
         DelayLine::State Delay;              // Circular delay line
         HaasStereoWidener::State Haas;       // Haas widener buffer
         FeedbackDamping::State Feedback;     // Feedback damping LPF state
+
         Highpass::State PreHP;            // Pre-feedback high-pass state
         Lowpass::State PreLP;             // Pre-feedback low-pass state
+
+        Highpass::State PostHP;           // Post-Diffusion high-pass state
+        Lowpass::State PostLP;            // Post-Diffusion low-pass state
     };
 
     // Sample rate and buffer sizing

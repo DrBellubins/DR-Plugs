@@ -5,6 +5,7 @@
 
 static FlatRotaryLookAndFeel flatKnobLAF;
 
+// TODO: Implement filter pre/post in actual audio processing
 // TODO: Derive class from RoundedToggle to make Pre/Post toggles with labels
 // TODO: Add ducking (duck amount, attack, release).
 // TODO: Begin creation of Matrix Menu.

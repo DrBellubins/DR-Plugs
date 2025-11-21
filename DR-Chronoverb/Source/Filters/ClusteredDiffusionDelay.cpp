@@ -53,8 +53,12 @@ void ClusteredDiffusionDelay::Reset()
         DelayLine::Reset(State.Delay);
         HaasStereoWidener::Reset(State.Haas);
         FeedbackDamping::Reset(State.Feedback);
+
         Lowpass::Reset(State.PreLP);
         Highpass::Reset(State.PreHP);
+
+        Highpass::Reset(State.PostHP);
+        Lowpass::Reset(State.PostLP);
     }
 }
 
@@ -125,7 +129,24 @@ void ClusteredDiffusionDelay::SetLowpassCutoff(float lpFreq)
 
 void ClusteredDiffusionDelay::SetHPLPPrePost(float toggle)
 {
-    TargetHPLPPrePost = toggle > 0.5f ? true : false;
+    bool NewIsPre = (toggle > 0.5f);
+
+    bool OldIsPre = TargetHPLPPrePost.load(std::memory_order_relaxed);
+
+    if (OldIsPre != NewIsPre)
+    {
+        TargetHPLPPrePost.store(NewIsPre, std::memory_order_relaxed);
+
+        // Hygiene: reset both sets of filter states to avoid residual ramps when mode changes.
+        for (ChannelState& State : Channels)
+        {
+            Highpass::Reset(State.PreHP);
+            Lowpass::Reset(State.PreLP);
+
+            Highpass::Reset(State.PostHP);
+            Lowpass::Reset(State.PostLP);
+        }
+    }
 }
 
 // ============================== Processing ==============================
@@ -173,6 +194,8 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
 
     const float HPDecayAmount = TargetPreHighpassCuttoff.load(std::memory_order_relaxed);
     const float LPDecayAmount = TargetPreLowpassCutoff.load(std::memory_order_relaxed);
+
+    const bool UsePreFiltering = TargetHPLPPrePost.load(std::memory_order_relaxed);
 
     // Compute pre-filter coefficients for this block (decouples CPU from per-sample mapping)
     const float AlphaHP = Highpass::AmountToAlpha(static_cast<float>(SampleRate), HPDecayAmount);
@@ -260,31 +283,58 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
             ProcessedWetLeft = WetEchoLeft;
         }
 
-        // Per-channel feedback, pre-filtering, delay write, and output mixing
+        // Per-channel feedback, pre/post-filtering, delay write, and output mixing
         for (int ChannelIndex = 0; ChannelIndex < NumChannels; ++ChannelIndex)
         {
             float* ChannelData = AudioBuffer.getWritePointer(ChannelIndex);
-            ClusteredDiffusionDelay::ChannelState& State = Channels[ChannelIndex];
+            ChannelState& State = Channels[ChannelIndex];
 
             const float InputSample = ChannelData[SampleIndex];
-            const float WetSample = (ChannelIndex == 0 ? ProcessedWetLeft : ProcessedWetRight);
+            const float WetSampleUnfiltered = (ChannelIndex == 0 ? ProcessedWetLeft : ProcessedWetRight);
 
-            // Feedback damping (LPF) and gain
+            // Feedback damping (always applied; gives base decay envelope)
             const float FeedbackSamplePreFilters = FeedbackDamping::ProcessSample(State.Feedback,
-                                                                                  WetSample,
+                                                                                  WetSampleUnfiltered,
                                                                                   DampingAlpha,
                                                                                   FeedbackGain);
 
-            // Pre high-pass, then pre low-pass shaping for natural decay
-            float ShapedFeedback = Highpass::ProcessSample(State.PreHP, FeedbackSamplePreFilters, AlphaHP);
-            ShapedFeedback = Lowpass::ProcessSample(State.PreLP, ShapedFeedback, AlphaLP);
+            float DelayLineInput = 0.0f;
+            float OutputWetSample = WetSampleUnfiltered;
 
-            // Write input + shaped feedback into delay line
-            const float DelayLineInput = InputSample + ShapedFeedback;
+            if (UsePreFiltering)
+            {
+                // PRE mode: HP/LP shape feedback -> spectral decay
+                float ShapedFeedback = Highpass::ProcessSample(State.PreHP,
+                                                               FeedbackSamplePreFilters,
+                                                               AlphaHP);
+                ShapedFeedback = Lowpass::ProcessSample(State.PreLP,
+                                                        ShapedFeedback,
+                                                        AlphaLP);
+
+                DelayLineInput = InputSample + ShapedFeedback;
+                // WetSample for output mix remains unfiltered (diffused cluster before decay shaping).
+            }
+            else
+            {
+                // POST mode: Write unfiltered feedback (no spectral decay);
+                // apply HP/LP only to final wet output for static coloration.
+                DelayLineInput = InputSample + FeedbackSamplePreFilters;
+
+                float FilteredWet = Highpass::ProcessSample(State.PostHP,
+                                                            WetSampleUnfiltered,
+                                                            AlphaHP);
+                FilteredWet = Lowpass::ProcessSample(State.PostLP,
+                                                     FilteredWet,
+                                                     AlphaLP);
+
+                OutputWetSample = FilteredWet;
+            }
+
+            // Write to delay line
             DelayLine::Write(State.Delay, DelayLineInput);
 
-            // Final dry/wet mix to output
-            const float Mixed = (DryGain * InputSample) + (WetGain * WetSample);
+            // Final dry/wet mix (use OutputWetSample which may be post-filtered)
+            const float Mixed = (DryGain * InputSample) + (WetGain * OutputWetSample);
             ChannelData[SampleIndex] = Mixed;
         }
     }
