@@ -5,6 +5,8 @@
 
 static FlatRotaryLookAndFeel flatKnobLAF;
 
+// TODO: Derive class from RoundedToggle to make Pre/Post toggles with labels
+
 //==============================================================================
 AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor& processor)
     : AudioProcessorEditor (&processor), processorRef (processor)
