@@ -23,12 +23,16 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     parameters.addParameterListener("diffusionQuality", this);
     parameters.addParameterListener("dryWetMix", this);
 
+    // Filters
     parameters.addParameterListener("stereoSpread", this);
     parameters.addParameterListener("lowPassCutoff", this);
     parameters.addParameterListener("highPassCutoff", this);
-
-    // Pre-Posts
     parameters.addParameterListener("hplpPrePost", this);
+
+    // Ducking
+    parameters.addParameterListener("duckAmount", this);
+    parameters.addParameterListener("duckAttack", this);
+    parameters.addParameterListener("duckRelease", this);
 
     // Set delay initial values
     float delayTime = parameters.getRawParameterValue("delayTime")->load();
@@ -39,9 +43,16 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     float diffusionQuality = parameters.getRawParameterValue("diffusionQuality")->load();
     float dryWetMix = parameters.getRawParameterValue("dryWetMix")->load();
 
+    // Filters
     float stereoSpread = parameters.getRawParameterValue("stereoSpread")->load();
     float lowPassCutoff = parameters.getRawParameterValue("lowPassCutoff")->load();
     float highPassCutoff = parameters.getRawParameterValue("highPassCutoff")->load();
+    float hpLPPrePost = parameters.getRawParameterValue("hplpPrePost")->load();
+
+    // Ducking
+    float duckAmount = parameters.getRawParameterValue("duckAmount")->load();
+    float duckAttack = parameters.getRawParameterValue("duckAttack")->load();
+    float duckRelease = parameters.getRawParameterValue("duckRelease")->load();
 
     DelayReverb.SetDelayTime(delayTime);
     DelayReverb.SetFeedbackTime(feedbackTime);
@@ -53,6 +64,11 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     DelayReverb.SetStereoSpread(stereoSpread);
     DelayReverb.SetLowpassCutoff(lowPassCutoff);
     DelayReverb.SetHighpassCutoff(highPassCutoff);
+    DelayReverb.SetHPLPPrePost(hpLPPrePost);
+
+    DelayReverb.SetDuckAmount(duckAmount);
+    DelayReverb.SetDuckAttack(duckAttack);
+    DelayReverb.SetDuckRelease(duckRelease);
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
@@ -95,7 +111,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
     // Dry/Wet mix
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
         "dryWetMix", "Dry/Wet mix",
-        juce::NormalisableRange(0.0f, 1.0f), 1.0f));
+        juce::NormalisableRange(0.0f, 1.0f), 0.5f));
+
+    // ---- Filters ----
 
     // Spread (stereo reducing/widening)
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
@@ -114,6 +132,23 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
 
     parameterList.push_back(std::make_unique<juce::AudioParameterBool>(
         "hplpPrePost", "HP/LP Pre/Post", true));
+
+    // ---- Ducking ----
+
+    // Duck amount
+    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
+        "duckAmount", "Duck Amount",
+        juce::NormalisableRange(0.0f, 1.0f), 0.0f));
+
+    // Duck attack
+    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
+        "duckAttack", "Duck Attack",
+        juce::NormalisableRange(0.0f, 1.0f), 0.3f)); // Default 300 ms
+
+    // Duck release
+    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
+        "duckRelease", "Duck Release",
+        juce::NormalisableRange(0.0f, 1.0f), 0.3f)); // Default 300 ms
 
     return { parameterList.begin(), parameterList.end() };
 }
@@ -243,10 +278,16 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
     if (parameterID == "diffusionQuality") DelayReverb.SetDiffusionQuality(newValue);
     if (parameterID == "dryWetMix") DelayReverb.SetDryWetMix(newValue);
 
+    // Filters
     if (parameterID == "stereoSpread") DelayReverb.SetStereoSpread(newValue);
     if (parameterID == "lowPassCutoff") DelayReverb.SetLowpassCutoff(newValue);
     if (parameterID == "highPassCutoff") DelayReverb.SetHighpassCutoff(newValue);
     if (parameterID == "hplpPrePost") DelayReverb.SetHPLPPrePost(newValue);
+
+    // Ducking
+    if (parameterID == "duckAmount") DelayReverb.SetDuckAmount(newValue);
+    if (parameterID == "duckAttack") DelayReverb.SetDuckAttack(newValue);
+    if (parameterID == "duckRelease") DelayReverb.SetDuckRelease(newValue);
 
     #if DEBUG
     DBG("Changed: " << parameterID << " to " << newValue);

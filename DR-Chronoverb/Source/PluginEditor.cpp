@@ -5,8 +5,10 @@
 
 static FlatRotaryLookAndFeel flatKnobLAF;
 
+// TODO: Implement ducking (duck amount, attack, release).
+// TODO: Implement fractional delay time modes
+
 // TODO: Derive class from RoundedToggle to make Pre/Post toggles with labels
-// TODO: Add ducking (duck amount, attack, release).
 // TODO: Begin creation of Matrix Menu.
 // TODO: Implement pitch features (oh fuck).
 // TODO: Implement playback direction features.
@@ -30,16 +32,24 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     // Logo
     logo = juce::ImageFileFormat::loadFrom(BinaryData::logo_png, BinaryData::logo_pngSize);
 
-    // ------ KNOBS ------
-    createKnob(delayTimeKnob, delayTimeAttachment, "delayTime", " ms", 100, 0, -25);
-    createKnob(feedbackTimeKnob, feedbackTimeAttachment, "feedbackTime", "", 80, 200, 50);
-    createKnob(diffusionAmountKnob, diffusionAmountAttachment, "diffusionAmount", "", 80, -350, -125);
-    createKnob(diffusionSizeKnob, diffusionSizeAttachment, "diffusionSize", "", 80, -200, -125);
-    createKnob(dryWetMixKnob, dryWetMixAttachment, "dryWetMix", "", 80, 350, 50);
+    const int nonPitchYOffset = 50;
 
-    createKnob(stereoSpreadKnob, stereoSpreadAttachment, "stereoSpread", "", 80, 200, -125);
-    createKnob(lowPassKnob, lowPassAttachment, "lowPassCutoff", "", 80, -350, 50);
-    createKnob(highPassKnob, highPassAttachment, "highPassCutoff", "", 80, -200, 50);
+    // ------ KNOBS ------
+    createKnob(delayTimeKnob, delayTimeAttachment, "delayTime", " ms", 100, 0, -25 + nonPitchYOffset);
+    createKnob(feedbackTimeKnob, feedbackTimeAttachment, "feedbackTime", "", 80, 200, 50 + nonPitchYOffset);
+    createKnob(diffusionAmountKnob, diffusionAmountAttachment, "diffusionAmount", "", 80, -350, -125 + nonPitchYOffset);
+    createKnob(diffusionSizeKnob, diffusionSizeAttachment, "diffusionSize", "", 80, -200, -125 + nonPitchYOffset);
+    createKnob(dryWetMixKnob, dryWetMixAttachment, "dryWetMix", "", 80, 350, 50 + nonPitchYOffset);
+
+    // Filters
+    createKnob(stereoSpreadKnob, stereoSpreadAttachment, "stereoSpread", "", 80, 200, -125 + nonPitchYOffset);
+    createKnob(lowPassKnob, lowPassAttachment, "lowPassCutoff", "", 80, -350, 50 + nonPitchYOffset);
+    createKnob(highPassKnob, highPassAttachment, "highPassCutoff", "", 80, -200, 50 + nonPitchYOffset);
+
+    // Ducking
+    createKnob(duckAmountKnob, duckAmountAttachment, "duckAmount", "", 60, 0, -170 + nonPitchYOffset);
+    createKnob(duckAttackKnob, duckAttackAttachment, "duckAttack", "", 60, -80, -170 + nonPitchYOffset);
+    createKnob(duckReleaseKnob, duckReleaseAttachment, "duckRelease", "", 60, 80, -170 + nonPitchYOffset);
 
     // Quality slider
     createSlider(diffusionQualitySlider, diffusionQualityAttachment, "diffusionQuality", 200, 20, 200, -260);
@@ -52,15 +62,21 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     createKnobLabel(diffusionSizeLabel, *diffusionSizeKnob, "Diffusion Size", 15.0f, 70);
     createKnobLabel(dryWetMixLabel, *dryWetMixKnob, "Dry/Wet Mix", 15.0f, 70);
 
+    // Filters
     createKnobLabel(stereoSpreadLabel, *stereoSpreadKnob, "Stereo Spread", 15.0f, 70);
     createKnobLabel(lowPassLabel, *lowPassKnob, "Low Pass", 15.0f, 70);
     createKnobLabel(highPassLabel, *highPassKnob, "High Pass", 15.0f, 70);
+
+    // Ducking
+    createKnobLabel(duckAmountLabel, *duckAmountKnob, "Duck", 15.0f, 50);
+    createKnobLabel(duckAttackLabel, *duckAttackKnob, "Attack", 15.0f, 50);
+    createKnobLabel(duckReleaseLabel, *duckReleaseKnob, "Release", 15.0f, 50);
 
     // Delay mode
     delayTimeModeButtons = std::make_unique<SegmentedButton>(juce::StringArray{ "ms", "nrm", "trip", "dot" });
 
     addAndMakeVisible(*delayTimeModeButtons);
-    delayTimeModeButtons->setBounds((getWidth() / 2) - 100, (getHeight() / 2) + 50, 200, 30);
+    delayTimeModeButtons->setBounds((getWidth() / 2) - 100, (getHeight() / 2) + 50 + nonPitchYOffset, 200, 30);
 
     delayTimeModeAttachment = std::make_unique<SegmentedButton::ChoiceAttachment>(processorRef.parameters, "delayMode", *delayTimeModeButtons);
 
@@ -70,7 +86,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
         hplpFilterToggleAttachment,
         RoundedToggle::Orientation::Vertical,
         "hplpPrePost",
-        20, 50, -275, 50);
+        20, 50, -275, 50 + nonPitchYOffset);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()

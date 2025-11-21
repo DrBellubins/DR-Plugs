@@ -87,6 +87,16 @@ private:
     std::unique_ptr<ThemedKnob> highPassKnob;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> highPassAttachment;
 
+    // Ducking knobs
+    std::unique_ptr<ThemedKnob> duckAmountKnob;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> duckAmountAttachment;
+
+    std::unique_ptr<ThemedKnob> duckAttackKnob;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> duckAttackAttachment;
+
+    std::unique_ptr<ThemedKnob> duckReleaseKnob;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> duckReleaseAttachment;
+
     // Delay buttons
     std::unique_ptr<SegmentedButton> delayTimeModeButtons;
     std::unique_ptr<SegmentedButton::ChoiceAttachment> delayTimeModeAttachment;
@@ -103,6 +113,11 @@ private:
     std::unique_ptr<juce::Label> stereoSpreadLabel;
     std::unique_ptr<juce::Label> lowPassLabel;
     std::unique_ptr<juce::Label> highPassLabel;
+
+    // Ducking labels
+    std::unique_ptr<juce::Label> duckAmountLabel;
+    std::unique_ptr<juce::Label> duckAttackLabel;
+    std::unique_ptr<juce::Label> duckReleaseLabel;
 
     std::unordered_set<int> lastHeldKeyCodes;
 

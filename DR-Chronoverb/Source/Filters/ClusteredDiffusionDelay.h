@@ -58,6 +58,11 @@ public:
     void SetLowpassCutoff(float lpFreq);
     void SetHPLPPrePost(float toggle);
 
+    // Ducking
+    void SetDuckAmount(float duckAmount);
+    void SetDuckAttack(float duckAttack);
+    void SetDuckRelease(float duckRelease);
+
     // Main audio processing (master function). Delegates to component static functions.
     void ProcessBlock(juce::AudioBuffer<float>& AudioBuffer);
 
@@ -117,10 +122,16 @@ private:
     std::atomic<float> TargetFeedbackTimeSeconds { 3.00f };
     std::atomic<float> TargetDryWetMix { 1.00f };
 
+    // Filters
     std::atomic<float> TargetStereoWidth { 0.0f };
     std::atomic<float> TargetPreHighpassCuttoff { 0.00f }; // 0..1
     std::atomic<float> TargetPreLowpassCutoff  { 0.00f }; // 0..1
     std::atomic<bool> TargetHPLPPrePost  { true }; // true = pre, false = post
+
+    // Ducking
+    std::atomic<float> TargetDuckAmount{ 0.0f };
+    std::atomic<float> TargetDuckAttack { 0.0f };
+    std::atomic<float> TargetDuckRelease { 0.0f };
 
     // Safety flag
     bool IsPrepared = false;

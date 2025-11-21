@@ -149,6 +149,25 @@ void ClusteredDiffusionDelay::SetHPLPPrePost(float toggle)
     }
 }
 
+// Ducking
+void ClusteredDiffusionDelay::SetDuckAmount(float duckAmount)
+{
+    float clamped = juce::jlimit(0.0f, 1.0f, duckAmount);
+    TargetPreLowpassCutoff.store(clamped, std::memory_order_relaxed);
+}
+
+void ClusteredDiffusionDelay::SetDuckAttack(float duckAttack)
+{
+    float clamped = juce::jlimit(0.0f, 1.0f, duckAttack);
+    TargetPreLowpassCutoff.store(clamped, std::memory_order_relaxed);
+}
+
+void ClusteredDiffusionDelay::SetDuckRelease(float duckRelease)
+{
+    float clamped = juce::jlimit(0.0f, 1.0f, duckRelease);
+    TargetPreLowpassCutoff.store(clamped, std::memory_order_relaxed);
+}
+
 // ============================== Processing ==============================
 void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
 {
