@@ -114,13 +114,13 @@ void ClusteredDiffusionDelay::SetStereoSpread(float stereoWidth)
 void ClusteredDiffusionDelay::SetHighpassCutoff(float hpFreq)
 {
     float clamped = juce::jlimit(0.0f, 1.0f, hpFreq);
-    TargetPreHighpassDecayAmount.store(clamped, std::memory_order_relaxed);
+    TargetPreHighpassCuttoff.store(clamped, std::memory_order_relaxed);
 }
 
 void ClusteredDiffusionDelay::SetLowpassCutoff(float lpFreq)
 {
     float clamped = juce::jlimit(0.0f, 1.0f, lpFreq);
-    TargetPreLowpassDecayAmount.store(clamped, std::memory_order_relaxed);
+    TargetPreLowpassCutoff.store(clamped, std::memory_order_relaxed);
 }
 
 void ClusteredDiffusionDelay::SetHPLPPrePost(float toggle)
@@ -171,8 +171,8 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
 
     const float StereoWidth = TargetStereoWidth.load(std::memory_order_relaxed);
 
-    const float HPDecayAmount = TargetPreHighpassDecayAmount.load(std::memory_order_relaxed);
-    const float LPDecayAmount = TargetPreLowpassDecayAmount.load(std::memory_order_relaxed);
+    const float HPDecayAmount = TargetPreHighpassCuttoff.load(std::memory_order_relaxed);
+    const float LPDecayAmount = TargetPreLowpassCutoff.load(std::memory_order_relaxed);
 
     // Compute pre-filter coefficients for this block (decouples CPU from per-sample mapping)
     const float AlphaHP = Highpass::AmountToAlpha(static_cast<float>(SampleRate), HPDecayAmount);

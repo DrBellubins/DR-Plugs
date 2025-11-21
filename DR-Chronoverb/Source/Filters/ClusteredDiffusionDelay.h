@@ -114,8 +114,8 @@ private:
     std::atomic<float> TargetDryWetMix { 1.00f };
 
     std::atomic<float> TargetStereoWidth { 0.0f };
-    std::atomic<float> TargetPreHighpassDecayAmount { 0.00f }; // 0..1
-    std::atomic<float> TargetPreLowpassDecayAmount  { 0.00f }; // 0..1
+    std::atomic<float> TargetPreHighpassCuttoff { 0.00f }; // 0..1
+    std::atomic<float> TargetPreLowpassCutoff  { 0.00f }; // 0..1
     std::atomic<bool> TargetHPLPPrePost  { true }; // true = pre, false = post
 
     // Safety flag
