@@ -124,6 +124,18 @@ public:
         repaint();
     }
 
+    void setTrackCornerRadius(float NewTrackCornerRadius)
+    {
+        TrackCornerRadius = (NewTrackCornerRadius < 0.0f ? -1.0f : NewTrackCornerRadius);
+        repaint();
+    }
+
+    void setThumbCornerRadius(float NewThumbCornerRadius)
+    {
+        ThumbCornerRadius = (NewThumbCornerRadius < 0.0f ? -1.0f : NewThumbCornerRadius);
+        repaint();
+    }
+
     // ----------------------------- Callbacks -----------------------------
     std::function<void(bool)> onStateChanged;
     std::function<void()> onGestureBegin;
@@ -137,12 +149,9 @@ public:
         if (LocalBounds.getWidth() <= 2 || LocalBounds.getHeight() <= 2)
             return;
 
-        // Determine track rectangle based on orientation.
         juce::Rectangle<float> TrackBounds = LocalBounds.toFloat().reduced(TrackPaddingPixels);
 
         const bool IsHorizontal = (ToggleOrientation == Orientation::Horizontal);
-
-        // Track thickness is a fraction of the minor axis.
         const float MinorAxis = IsHorizontal ? TrackBounds.getHeight() : TrackBounds.getWidth();
         const float TrackThickness = MinorAxis * 0.55f;
 
@@ -163,75 +172,66 @@ public:
                                                  TrackBounds.getHeight());
         }
 
-        const float CornerRadius = TrackBounds.getHeight() * 0.5f;
+        const float AutoTrackCornerRadius = TrackBounds.getHeight() * 0.5f;
+        const float EffectiveTrackCornerRadius = (TrackCornerRadius >= 0.0f ? TrackCornerRadius : AutoTrackCornerRadius);
+
         const juce::Colour TrackColour = ToggleState
             ? ThemePink.darker(0.2f)
             : AccentGray;
 
-        // Draw track (trail).
         juce::Path TrackPath;
-        TrackPath.addRoundedRectangle(TrackBounds, CornerRadius);
+        TrackPath.addRoundedRectangle(TrackBounds, EffectiveTrackCornerRadius);
 
         GraphicsContext.setColour(TrackColour);
         GraphicsContext.fillPath(TrackPath);
 
-        // Optional subtle outline.
         GraphicsContext.setColour(UnfocusedGray.brighter(0.1f));
         GraphicsContext.strokePath(TrackPath, juce::PathStrokeType(1.0f));
 
-        // Compute thumb diameter.
-        const float ThumbDiameter = TrackThickness * 0.90f;
-        const float ThumbRadius = ThumbDiameter * 0.5f;
+        const float ThumbWidth = TrackThickness * 1.5f;
+        const float ThumbHeight = ThumbWidth; // Keep square; could allow independent later.
 
-        // Compute thumb center position based on animated state.
-        float AnimatedValue = AnimationPosition; // 0 -> off, 1 -> on
+        float AnimatedValue = AnimationPosition;
 
         juce::Point<float> ThumbCenter;
 
         if (IsHorizontal)
         {
-            float LeftX = TrackBounds.getX() + ThumbRadius;
-            float RightX = TrackBounds.getRight() - ThumbRadius;
+            float LeftX = TrackBounds.getX() + ThumbWidth * 0.5f;
+            float RightX = TrackBounds.getRight() - ThumbWidth * 0.5f;
             float X = juce::jmap(AnimatedValue, 0.0f, 1.0f, LeftX, RightX);
             float Y = TrackBounds.getCentreY();
             ThumbCenter = { X, Y };
         }
         else
         {
-            float BottomY = TrackBounds.getBottom() - ThumbRadius;
-            float TopY = TrackBounds.getY() + ThumbRadius;
-            float Y = juce::jmap(AnimatedValue, 0.0f, 1.0f, BottomY, TopY); // On at top
+            float BottomY = TrackBounds.getBottom() - ThumbHeight * 0.5f;
+            float TopY = TrackBounds.getY() + ThumbHeight * 0.5f;
+            float Y = juce::jmap(AnimatedValue, 0.0f, 1.0f, BottomY, TopY);
             float X = TrackBounds.getCentreX();
             ThumbCenter = { X, Y };
         }
 
-        // Thumb rectangle.
-        juce::Rectangle<float> ThumbBounds(ThumbCenter.x - ThumbRadius,
-                                           ThumbCenter.y - ThumbRadius,
-                                           ThumbDiameter,
-                                           ThumbDiameter);
+        juce::Rectangle<float> ThumbBounds(ThumbCenter.x - ThumbWidth * 0.5f,
+                                           ThumbCenter.y - ThumbHeight * 0.5f,
+                                           ThumbWidth,
+                                           ThumbHeight);
 
-        // Thumb shadow (optional).
+        const float AutoThumbCornerRadius = ThumbWidth * 0.5f; // Original circular look
+        const float EffectiveThumbCornerRadius = (ThumbCornerRadius >= 0.0f ? ThumbCornerRadius : AutoThumbCornerRadius);
+
         if (ThumbShadowEnabled)
         {
             juce::DropShadow Shadow(juce::Colours::black.withAlpha(0.50f),
-                                    static_cast<int>(std::ceil(ThumbDiameter * 0.10f)),
+                                    static_cast<int>(std::ceil(ThumbWidth * 0.10f)),
                                     juce::Point<int>(0, 2));
             Shadow.drawForRectangle(GraphicsContext, ThumbBounds.toNearestInt());
         }
 
-        // Draw thumb.
         juce::Path ThumbPath;
-        ThumbPath.addEllipse(ThumbBounds);
+        ThumbPath.addRoundedRectangle(ThumbBounds, EffectiveThumbCornerRadius);
         GraphicsContext.setColour(ThemePink);
         GraphicsContext.fillPath(ThumbPath);
-
-        // Focus overlay.
-        if (hasKeyboardFocus(true))
-        {
-            GraphicsContext.setColour(FocusedGray.withAlpha(0.35f));
-            GraphicsContext.drawEllipse(ThumbBounds.expanded(2.0f), 2.0f);
-        }
     }
 
     void mouseDown(const juce::MouseEvent& MouseEvent) override
@@ -302,12 +302,15 @@ private:
     bool ToggleState = false;
 
     float AnimationPosition = 0.0f;
-    float AnimationSmoothingCoefficient = 0.12f;
+    float AnimationSmoothingCoefficient = 0.2f;
     bool IsAnimating = false;
     int AnimationTimerFrequencyHz = 60;
 
     float TrackPaddingPixels = 4.0f;
     bool ThumbShadowEnabled = true;
+
+    float TrackCornerRadius = 5.0f; // <0 => auto (half height)
+    float ThumbCornerRadius = 5.0f; // <0 => auto (circle)
 
 public:
     // ----------------------------- Attachment Helper -----------------------------
