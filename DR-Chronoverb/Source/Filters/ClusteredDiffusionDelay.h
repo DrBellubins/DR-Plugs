@@ -56,6 +56,7 @@ public:
     void SetStereoSpread(float stereoWidth);
     void SetHighpassCutoff(float hpFreq);
     void SetLowpassCutoff(float lpFreq);
+    void SetHPLPPrePost(float toggle);
 
     // Main audio processing (master function). Delegates to component static functions.
     void ProcessBlock(juce::AudioBuffer<float>& AudioBuffer);
@@ -115,6 +116,7 @@ private:
     std::atomic<float> TargetStereoWidth { 0.0f };
     std::atomic<float> TargetPreHighpassDecayAmount { 0.00f }; // 0..1
     std::atomic<float> TargetPreLowpassDecayAmount  { 0.00f }; // 0..1
+    std::atomic<bool> TargetHPLPPrePost  { true }; // true = pre, false = post
 
     // Safety flag
     bool IsPrepared = false;

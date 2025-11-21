@@ -246,6 +246,7 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
     if (parameterID == "stereoSpread") DelayReverb.SetStereoSpread(newValue);
     if (parameterID == "lowPassCutoff") DelayReverb.SetLowpassCutoff(newValue);
     if (parameterID == "highPassCutoff") DelayReverb.SetHighpassCutoff(newValue);
+    if (parameterID == "hplpPrePost") DelayReverb.SetHPLPPrePost(newValue);
 
     DBG("Changed: " << parameterID << " to " << newValue);
 }
@@ -271,7 +272,7 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     DelayReverb.ProcessBlock(buffer);
 
     // ---- Volume Clipper Section ----
-    const float ClipperThreshold = 0.9f; // or 0.9f etc.
+    /*const float ClipperThreshold = 0.9f; // or 0.9f etc.
     const int NumChannels = buffer.getNumChannels();
     const int NumSamples = buffer.getNumSamples();
 
@@ -291,7 +292,7 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
             ChannelData[SampleIndex] = InputSample;
         }
-    }
+    }*/
 }
 
 //==============================================================================

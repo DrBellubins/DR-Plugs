@@ -123,6 +123,11 @@ void ClusteredDiffusionDelay::SetLowpassCutoff(float lpFreq)
     TargetPreLowpassDecayAmount.store(clamped, std::memory_order_relaxed);
 }
 
+void ClusteredDiffusionDelay::SetHPLPPrePost(float toggle)
+{
+    TargetHPLPPrePost = toggle > 0.5f ? true : false;
+}
+
 // ============================== Processing ==============================
 void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
 {
