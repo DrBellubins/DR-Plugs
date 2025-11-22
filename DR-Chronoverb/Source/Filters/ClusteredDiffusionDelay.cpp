@@ -153,19 +153,19 @@ void ClusteredDiffusionDelay::SetHPLPPrePost(float toggle)
 void ClusteredDiffusionDelay::SetDuckAmount(float duckAmount)
 {
     float clamped = juce::jlimit(0.0f, 1.0f, duckAmount);
-    TargetPreLowpassCutoff.store(clamped, std::memory_order_relaxed);
+    TargetDuckAmount.store(clamped, std::memory_order_relaxed);
 }
 
 void ClusteredDiffusionDelay::SetDuckAttack(float duckAttack)
 {
     float clamped = juce::jlimit(0.0f, 1.0f, duckAttack);
-    TargetPreLowpassCutoff.store(clamped, std::memory_order_relaxed);
+    TargetDuckAttack.store(clamped, std::memory_order_relaxed);
 }
 
 void ClusteredDiffusionDelay::SetDuckRelease(float duckRelease)
 {
     float clamped = juce::jlimit(0.0f, 1.0f, duckRelease);
-    TargetPreLowpassCutoff.store(clamped, std::memory_order_relaxed);
+    TargetDuckRelease.store(clamped, std::memory_order_relaxed);
 }
 
 // ============================== Processing ==============================
@@ -195,6 +195,8 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
             FeedbackDamping::Reset(Channels[ChannelIndex].Feedback);
             Highpass::Reset(Channels[ChannelIndex].PreHP);
             Lowpass::Reset(Channels[ChannelIndex].PreLP);
+
+            Ducking::Reset(Channels[ChannelIndex].Duck);
         }
     }
 
@@ -232,6 +234,20 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
     // Prepare spread constants for negative-offset lookahead
     const float MaxSpreadSamples = secondsToSamples(MaximumSpreadSeconds);
     const float LookaheadSamples = 0.5f * MaxSpreadSamples;
+
+    // Fetch duck values and compute alphas once per block
+    const float DuckAmount  = TargetDuckAmount.load(std::memory_order_relaxed);
+    const float DuckAttackN = TargetDuckAttack.load(std::memory_order_relaxed);
+    const float DuckReleaseN = TargetDuckRelease.load(std::memory_order_relaxed);
+
+    float DuckAttackAlpha = 0.0f;
+    float DuckReleaseAlpha = 0.0f;
+
+    Ducking::ComputeAttackReleaseAlphas(SampleRate,
+                                        DuckAttackN,
+                                        DuckReleaseN,
+                                        DuckAttackAlpha,
+                                        DuckReleaseAlpha);
 
     // Per-sample processing
     for (int SampleIndex = 0; SampleIndex < NumSamples; ++SampleIndex)
@@ -311,6 +327,14 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
             const float InputSample = ChannelData[SampleIndex];
             const float WetSampleUnfiltered = (ChannelIndex == 0 ? ProcessedWetLeft : ProcessedWetRight);
 
+            // --- Ducking detector and gain computation (per channel) ---
+            float DuckEnvelope = Ducking::ProcessDetectorSample(State.Duck,
+                                                                InputSample,
+                                                                DuckAttackAlpha,
+                                                                DuckReleaseAlpha);
+
+            float DuckGain = Ducking::ComputeDuckGain(DuckEnvelope, DuckAmount);
+
             // Feedback damping (always applied; gives base decay envelope)
             const float FeedbackSamplePreFilters = FeedbackDamping::ProcessSample(State.Feedback,
                                                                                   WetSampleUnfiltered,
@@ -351,6 +375,9 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
 
             // Write to delay line
             DelayLine::Write(State.Delay, DelayLineInput);
+
+            // Set duck gain to wet signal
+            OutputWetSample *= DuckGain;
 
             // Final dry/wet mix (use OutputWetSample which may be post-filtered)
             const float Mixed = (DryGain * InputSample) + (WetGain * OutputWetSample);

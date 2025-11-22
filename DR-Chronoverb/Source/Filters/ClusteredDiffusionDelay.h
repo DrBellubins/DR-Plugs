@@ -14,6 +14,7 @@
 #include "ClusteredDiffusionDelay/Lowpass.h"
 #include "ClusteredDiffusionDelay/Smoothers.h"
 #include "ClusteredDiffusionDelay/DryWetMixer.h"
+#include "ClusteredDiffusionDelay/Ducking.h"
 
 // ClusteredDiffusionDelay (Master)
 // - Orchestrates modular components to realize the diffused delay/reverb algorithm.
@@ -76,15 +77,17 @@ private:
     // Per-channel aggregate state composed of component states.
     struct ChannelState
     {
-        DelayLine::State Delay;              // Circular delay line
-        HaasStereoWidener::State Haas;       // Haas widener buffer
-        FeedbackDamping::State Feedback;     // Feedback damping LPF state
+        DelayLine::State Delay;             // Circular delay line
+        HaasStereoWidener::State Haas;      // Haas widener buffer
+        FeedbackDamping::State Feedback;    // Feedback damping LPF state
 
-        Highpass::State PreHP;            // Pre-feedback high-pass state
-        Lowpass::State PreLP;             // Pre-feedback low-pass state
+        Highpass::State PreHP;              // Pre-feedback high-pass state
+        Lowpass::State PreLP;               // Pre-feedback low-pass state
 
-        Highpass::State PostHP;           // Post-Diffusion high-pass state
-        Lowpass::State PostLP;            // Post-Diffusion low-pass state
+        Highpass::State PostHP;             // Post-Diffusion high-pass state
+        Lowpass::State PostLP;              // Post-Diffusion low-pass state
+
+        Ducking::State Duck;                // Ducking state
     };
 
     // Sample rate and buffer sizing
