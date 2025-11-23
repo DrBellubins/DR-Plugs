@@ -276,10 +276,8 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
 
     if (parameterID == "delayMode")
     {
-        // CHANGE: newValue is NORMALISED (0..1). convertFrom0to1 returns raw index (float). We round then pass.
-        auto* mode = parameters.getParameter("delayMode");
-        int modeIndex = (mode != nullptr) ? static_cast<int>(std::round(mode->convertFrom0to1(newValue))) : 0;
-        DelayReverb.SetDelayMode(modeIndex);
+        if (auto* ChoiceParameter = dynamic_cast<juce::AudioParameterChoice*>(parameters.getParameter("delayMode")))
+            DelayReverb.SetDelayMode(ChoiceParameter->getIndex());
     }
 
     if (parameterID == "feedbackTime") DelayReverb.SetFeedbackTime(newValue);

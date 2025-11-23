@@ -303,8 +303,6 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
         else if (CurrentMode == 3)
             Beats *= 1.5f;
 
-        DBG("Mode: " << CurrentMode << " Beats: " << Beats);
-
         const float SecondsPerQuarter = (CurrentBPM > 0.0f ? 60.0f / CurrentBPM : 0.5f); // Fallback to 120 BPM
         MappedDelaySeconds = juce::jlimit(0.0f, MaximumDelaySeconds, Beats * SecondsPerQuarter);
     }
