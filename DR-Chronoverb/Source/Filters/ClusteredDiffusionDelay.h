@@ -4,6 +4,7 @@
 #include <atomic>
 #include <vector>
 #include <cmath>
+#include <memory>
 
 // Components
 #include "ClusteredDiffusionDelay/DelayLine.h"
@@ -115,7 +116,7 @@ private:
     float SizeSmoothCoefficient = 0.0020f;
 
     // Tap layout for diffusion cluster (recomputed when quality changes).
-    Diffusion::TapLayout TapLayout;
+    std::atomic<std::shared_ptr<Diffusion::TapLayout>> TapLayoutPtr { nullptr };
 
     // Per-channel state container
     std::vector<ChannelState> Channels;

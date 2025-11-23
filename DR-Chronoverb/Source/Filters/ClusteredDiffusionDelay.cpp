@@ -43,7 +43,12 @@ void ClusteredDiffusionDelay::PrepareToPlay(double NewSampleRate, float NewMaxim
     SmoothedDiffusionSize    = TargetDiffusionSize.load();
 
     // Compute initial tap layout from default quality
-    Diffusion::RecomputeTapLayout(TapLayout, stepsToNormalizedQuality(TargetDiffusionQuality.load()));
+    Diffusion::TapLayout NewLayout;
+
+    Diffusion::RecomputeTapLayout(NewLayout, stepsToNormalizedQuality(TargetDiffusionQuality.load()));
+
+    TapLayoutPtr.store(std::make_shared<Diffusion::TapLayout>(std::move(NewLayout)),
+                       std::memory_order_release);
 
     IsPrepared = true;
 }
@@ -115,8 +120,12 @@ void ClusteredDiffusionDelay::SetDiffusionQuality(int diffusionQualitySteps)
     int Clamped = juce::jlimit(0, 10, diffusionQualitySteps);
     TargetDiffusionQuality.store(Clamped, std::memory_order_relaxed);
 
-    // Update tap layout immediately when quality changes (affects density)
-    Diffusion::RecomputeTapLayout(TapLayout, stepsToNormalizedQuality(Clamped));
+    // Recompute into a fresh layout snapshot, then publish atomically.
+    Diffusion::TapLayout NewLayout;
+    Diffusion::RecomputeTapLayout(NewLayout, stepsToNormalizedQuality(Clamped));
+
+    auto NewPtr = std::make_shared<Diffusion::TapLayout>(std::move(NewLayout));
+    TapLayoutPtr.store(NewPtr, std::memory_order_release);
 }
 
 void ClusteredDiffusionDelay::SetDryWetMix(float dryWet)
@@ -188,6 +197,11 @@ void ClusteredDiffusionDelay::SetDuckRelease(float duckRelease)
 void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
 {
     if (!IsPrepared)
+        return;
+
+    auto LocalTapLayoutPtr = TapLayoutPtr.load(std::memory_order_acquire);
+
+    if (!LocalTapLayoutPtr)
         return;
 
     const int NumChannels = AudioBuffer.getNumChannels();
@@ -349,7 +363,7 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
                                                     BaseDelaySamples,
                                                     SpreadSamples,
                                                     LookaheadSamples,
-                                                    TapLayout,
+                                                    *LocalTapLayoutPtr,
                                                     AmountA,
                                                     AmountB);
         }
@@ -361,7 +375,7 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
                                                      BaseDelaySamples,
                                                      SpreadSamples,
                                                      LookaheadSamples,
-                                                     TapLayout,
+                                                     *LocalTapLayoutPtr,
                                                      AmountA,
                                                      AmountB);
         }
