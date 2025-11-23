@@ -116,7 +116,7 @@ private:
     float SizeSmoothCoefficient = 0.0020f;
 
     // Tap layout for diffusion cluster (recomputed when quality changes).
-    std::atomic<std::shared_ptr<Diffusion::TapLayout>> TapLayoutPtr { nullptr };
+    std::shared_ptr<Diffusion::TapLayout> TapLayoutPtr;
 
     // Per-channel state container
     std::vector<ChannelState> Channels;
