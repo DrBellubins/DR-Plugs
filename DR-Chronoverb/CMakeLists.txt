@@ -14,25 +14,6 @@ if (CCACHE_PROGRAM)
     set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
 endif()
 
-# Speed: use lld when using Clang or GCC
-include(CheckCXXCompilerFlag)
-check_cxx_compiler_flag("-fuse-ld=lld" HAS_LLD_FLAG)
-
-if (HAS_LLD_FLAG)
-    add_link_options(-fuse-ld=lld)
-    # Optional: speed up link-time dead code folding with lld
-    # add_link_options($<$<CONFIG:Release,RelWithDebInfo>:-Wl,--icf=all>)
-endif()
-
-# Speed: split DWARF debug info to reduce link time for Debug/RelWithDebInfo
-add_compile_options(
-        $<$<CONFIG:Debug>:-gsplit-dwarf>
-        $<$<CONFIG:RelWithDebInfo>:-gsplit-dwarf>
-)
-
-# Optional: generate gdb index at link (helps debug startup, negligible link cost with lld)
-add_link_options($<$<CONFIG:Debug,RelWithDebInfo>:-Wl,--gdb-index>)
-
 ### Dependency versions ###
 
 set(LIB_JUCE_TAG "7.0.8")
@@ -185,42 +166,6 @@ target_link_libraries("${PROJECT_NAME}"
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags)
-
-
-# Disable/adjust aggressive link-time features for final plugin artefacts to
-# preserve mandatory entry symbols while retaining LTO for shared static code.
-get_target_property(_formats "${PROJECT_NAME}" JUCE_PLUGIN_FORMATS)
-if (_formats)
-    # Standalone executable
-    if (TARGET "${PROJECT_NAME}_Standalone")
-        # Turn off IPO/LTO for the final executable to avoid folding away 'main'
-        set_target_properties("${PROJECT_NAME}_Standalone" PROPERTIES
-                INTERPROCEDURAL_OPTIMIZATION_RELEASE FALSE
-                INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO FALSE
-        )
-
-        # Ensure identical code folding is disabled and explicitly retain main.
-        target_link_options("${PROJECT_NAME}_Standalone" PRIVATE
-                $<$<CONFIG:Release>:-Wl,--icf=none -Wl,--undefined=main>
-                $<$<CONFIG:RelWithDebInfo>:-Wl,--icf=none -Wl,--undefined=main>
-        )
-    endif()
-
-    # VST3 shared library
-    if (TARGET "${PROJECT_NAME}_VST3")
-        # Disable IPO/LTO for the final shared object to keep JUCE's ModuleEntry symbols intact.
-        set_target_properties("${PROJECT_NAME}_VST3" PROPERTIES
-                INTERPROCEDURAL_OPTIMIZATION_RELEASE FALSE
-                INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO FALSE
-        )
-
-        # Disable ICF and force retention of required VST3 entry points.
-        target_link_options("${PROJECT_NAME}_VST3" PRIVATE
-                $<$<CONFIG:Release>:-Wl,--icf=none -Wl,--undefined=ModuleEntry -Wl,--undefined=ModuleExit -Wl,--undefined=GetPluginFactory>
-                $<$<CONFIG:RelWithDebInfo>:-Wl,--icf=none -Wl,--undefined=ModuleEntry -Wl,--undefined=ModuleExit -Wl,--undefined=GetPluginFactory>
-        )
-    endif()
-endif()
 
 ### IDE Generator post-config ###
 

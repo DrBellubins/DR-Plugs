@@ -3,9 +3,6 @@
 
 #include "Utils/RoundedToggle.h"
 
-// TODO: Implement ducking (duck amount, attack, release).
-// TODO: Implement fractional delay time modes
-
 // TODO: Derive class from RoundedToggle to make Pre/Post toggles with labels
 // TODO: Begin creation of Matrix Menu.
 // TODO: Implement pitch features (oh fuck).
