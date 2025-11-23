@@ -289,8 +289,6 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
 
     if (CurrentMode != 0) // Not ms mode: interpret RawDelayParam as a selector.
     {
-        // Inversion: Higher knob value => shorter note => smaller beat fraction.
-        // RawDelayParam in [0..1]; we map (1 - Raw) to index in BeatFractions (which is ordered longest->shortest).
         const float ClampedFraction = juce::jlimit(0.0f, 1.0f, RawDelayParam);
 
         int FractionIndex = static_cast<int>(std::round(ClampedFraction * static_cast<float>(FractionCount - 1)));
@@ -304,6 +302,8 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
             Beats *= (2.0f / 3.0f);
         else if (CurrentMode == 3)
             Beats *= 1.5f;
+
+        DBG("Mode: " << CurrentMode << " Beats: " << Beats);
 
         const float SecondsPerQuarter = (CurrentBPM > 0.0f ? 60.0f / CurrentBPM : 0.5f); // Fallback to 120 BPM
         MappedDelaySeconds = juce::jlimit(0.0f, MaximumDelaySeconds, Beats * SecondsPerQuarter);
