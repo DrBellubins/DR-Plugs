@@ -109,7 +109,11 @@ public:
             const float SignedOffsetSamples = NormalizedOffset * SpreadSamples;
 
             // Shift by Lookahead so negative offsets remain causal
-            const float EffectiveDelaySamples = BaseDelaySamples + LookaheadSamples + SignedOffsetSamples;
+            float EffectiveDelaySamples = BaseDelaySamples + LookaheadSamples + SignedOffsetSamples;
+
+            // Instead of allowing negative (later clamped to 0), raise to small positive epsilon
+            if (EffectiveDelaySamples < 1.0f)
+                EffectiveDelaySamples = 1.0f; // Avoid collapsing multiple taps to index zero
 
             float TapSample = DelayLine::Read(DelayState, EffectiveDelaySamples);
 

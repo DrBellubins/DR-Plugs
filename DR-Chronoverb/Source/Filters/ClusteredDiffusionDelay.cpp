@@ -8,6 +8,7 @@
 
 ClusteredDiffusionDelay::ClusteredDiffusionDelay()
 {
+    DelayTimeSmoothCoefficient = 0.00015f; // ~10x slower, reduces jump artifacts
 }
 
 ClusteredDiffusionDelay::~ClusteredDiffusionDelay()
@@ -308,11 +309,15 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
     }
 
     // Instant resync on mode change
-    if (DelayModeJustChanged.load(std::memory_order_relaxed))
+    /*if (DelayModeJustChanged.load(std::memory_order_relaxed))
     {
         DelayModeJustChanged.store(false, std::memory_order_relaxed);
         SmoothedDelayTimeSeconds = MappedDelaySeconds; // Instant sync
-    }
+    }*/
+
+    // Instead: just clear the flag; smoothing will glide.
+    if (DelayModeJustChanged.load(std::memory_order_relaxed))
+        DelayModeJustChanged.store(false, std::memory_order_relaxed);
 
     // Per-sample processing
     for (int SampleIndex = 0; SampleIndex < NumSamples; ++SampleIndex)
