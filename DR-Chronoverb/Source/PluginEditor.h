@@ -53,6 +53,23 @@ public:
 private:
     FlatRotaryLookAndFeel flatKnobLAF;
 
+    // Normalized discrete positions for beat subdivisions (count = 9).
+    // These correspond to indices used by the DSP fraction table.
+    static constexpr float DelaySyncNormalizedPositions[9] =
+    {
+        0.0f,
+        0.125f,
+        0.25f,
+        0.375f,
+        0.5f,
+        0.625f,
+        0.75f,
+        0.875f,
+        1.0f
+    };
+
+    void snapDelayKnobToNearestStep();
+
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
     AudioPluginAudioProcessor& processorRef;

@@ -75,6 +75,31 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     delayTimeModeAttachment = std::make_unique<SegmentedButton::ChoiceAttachment>(processorRef.parameters, "delayMode", *delayTimeModeButtons);
 
+    // Snap knob immediately when mode changes into a synced mode.
+    delayTimeModeButtons->onSelectionChanged = [this](int NewIndex)
+    {
+        if (NewIndex != 0)
+            snapDelayKnobToNearestStep();
+    };
+
+    // While dragging in a sync mode, keep snapping so the knob visually “steps.”
+    if (delayTimeKnob != nullptr)
+    {
+        delayTimeKnob->onValueChange = [this]()
+        {
+            // Only snap in beat-synced modes
+            auto* ModeParameter = processorRef.parameters.getParameter("delayMode");
+
+            if (ModeParameter != nullptr)
+            {
+                int ModeIndex = static_cast<int>(std::round(ModeParameter->convertFrom0to1(ModeParameter->getValue())));
+
+                if (ModeIndex != 0)
+                    snapDelayKnobToNearestStep();
+            }
+        };
+    }
+
     // Pre-Post toggles
     createPrePostToggle(processorRef.parameters,
         hplpFilterToggle,
@@ -259,6 +284,7 @@ bool AudioPluginAudioProcessorEditor::keyPressed(const juce::KeyPress& key, juce
 
     processorRef.keyboardSynth.HandleKeyChange(KeyCode, true);
     lastHeldKeyCodes.insert(KeyCode);
+
     return true; // Consume
 }
 
@@ -276,13 +302,9 @@ bool AudioPluginAudioProcessorEditor::keyStateChanged(bool isKeyDown, juce::Comp
         int UpperKey = KeyCode;
 
         if (KeyCode >= 'a' && KeyCode <= 'z')
-        {
             UpperKey = static_cast<int>(KeyCode - 'a' + 'A');
-        }
         else if (KeyCode >= 'A' && KeyCode <= 'Z')
-        {
             LowerKey = static_cast<int>(KeyCode - 'A' + 'a');
-        }
 
         if (juce::KeyPress::isKeyCurrentlyDown(KeyCode)
             || juce::KeyPress::isKeyCurrentlyDown(LowerKey)
@@ -296,20 +318,58 @@ bool AudioPluginAudioProcessorEditor::keyStateChanged(bool isKeyDown, juce::Comp
     for (int KeyCode : currentHeld)
     {
         if (lastHeldKeyCodes.find(KeyCode) == lastHeldKeyCodes.end())
-        {
             processorRef.keyboardSynth.HandleKeyChange(KeyCode, true);
-        }
     }
 
     // Released
     for (int KeyCode : lastHeldKeyCodes)
     {
         if (currentHeld.find(KeyCode) == currentHeld.end())
-        {
             processorRef.keyboardSynth.HandleKeyChange(KeyCode, false);
-        }
     }
 
     lastHeldKeyCodes.swap(currentHeld);
     return true; // Consume
+}
+
+void AudioPluginAudioProcessorEditor::snapDelayKnobToNearestStep()
+{
+    if (delayTimeKnob == nullptr)
+        return;
+
+    auto* ModeParameter = processorRef.parameters.getParameter("delayMode");
+
+    if (ModeParameter == nullptr)
+        return;
+
+    int ModeIndex = static_cast<int>(std::round(ModeParameter->convertFrom0to1(ModeParameter->getValue())));
+
+    // Only quantize for beat-synced modes
+    if (ModeIndex == 0)
+        return;
+
+    float CurrentValue = delayTimeKnob->getValue();
+
+    // Find nearest discrete normalized position
+    float Nearest = DelaySyncNormalizedPositions[0];
+    float SmallestDistance = std::abs(CurrentValue - Nearest);
+
+    for (float StepValue : DelaySyncNormalizedPositions)
+    {
+        float Distance = std::abs(CurrentValue - StepValue);
+
+        if (Distance < SmallestDistance)
+        {
+            SmallestDistance = Distance;
+            Nearest = StepValue;
+        }
+    }
+
+    // Avoid churn: only update if meaningfully different
+    if (std::abs(CurrentValue - Nearest) > 0.0005f)
+    {
+        // Use dontSendNotification so we do not recursively trigger the value change handler again.
+        // SliderAttachment will still see the changed value and push it to the parameter.
+        delayTimeKnob->setValue(Nearest, juce::dontSendNotification);
+    }
 }

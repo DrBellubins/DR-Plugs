@@ -74,7 +74,9 @@ void ClusteredDiffusionDelay::SetDelayTime(float delayTimeSeconds)
 
 void ClusteredDiffusionDelay::SetDelayMode(int modeIndex)
 {
-    int clamped = juce::jlimit(0, 4, modeIndex);
+    // Valid modes: 0=ms,1=nrm,2=trip,3=dot
+    int clamped = juce::jlimit(0, 3, modeIndex);
+    TargetDelayMode.store(clamped, std::memory_order_relaxed);
 }
 
 void ClusteredDiffusionDelay::SetHostTempo(float HostTempoBPMValue)
