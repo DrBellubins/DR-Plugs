@@ -71,33 +71,43 @@ public:
         OutReleaseAlpha = TimeMsToCoefficient(ReleaseMs, SampleRate);
     }
 
-    // Process detector path (dry input absolute value) updating envelope.
+    // Tweak detector hygiene to avoid super-tiny lingering values.
+    // Add gate behavior at DuckAmount == 1.0.
     static inline float ProcessDetectorSample(Ducking::State& DuckState,
-                                          float DetectorSample,
-                                          float AttackAlpha,
-                                          float ReleaseAlpha)
+                                              float DetectorSample,
+                                              float AttackAlpha,
+                                              float ReleaseAlpha)
     {
-        // Boost and compress small values for stronger ducking.
-        float InputLevel = std::abs(DetectorSample) * 4.0f; // Pre-scale
+        float InputLevel = std::abs(DetectorSample) * 4.0f;
         InputLevel = juce::jlimit(0.0f, 1.0f, InputLevel);
-        InputLevel = std::sqrt(InputLevel); // Perceptual emphasis
+        InputLevel = std::sqrt(InputLevel);
 
         if (InputLevel > DuckState.Envelope)
+        {
             DuckState.Envelope = DuckState.Envelope + AttackAlpha * (InputLevel - DuckState.Envelope);
+        }
         else
+        {
             DuckState.Envelope = DuckState.Envelope + ReleaseAlpha * (InputLevel - DuckState.Envelope);
+        }
+
+        // Snap extremely small values to zero to finish the release cleanly
+        if (DuckState.Envelope < 1.0e-5f)
+        {
+            DuckState.Envelope = 0.0f;
+        }
 
         return DuckState.Envelope;
     }
 
-    // Translate envelope + amount to a ducking gain.
     static inline float ComputeDuckGain(float EnvelopeValue,
-                                    float DuckAmount)
+                                        float DuckAmount)
     {
         float ClampedAmount = juce::jlimit(0.0f, 1.0f, DuckAmount);
-        float ShapedEnv = std::pow(juce::jlimit(0.0f, 1.0f, EnvelopeValue), 0.65f); // 0.65f exponent balances depth and subtlety
-        float LinearGain = 1.0f - (ClampedAmount * ShapedEnv);
 
+        // Otherwise use proportional reduction.
+        float ShapedEnv = std::pow(juce::jlimit(0.0f, 1.0f, EnvelopeValue), 0.65f);
+        float LinearGain = 1.0f - (ClampedAmount * ShapedEnv);
         return juce::jlimit(0.0f, 1.0f, LinearGain);
     }
 
