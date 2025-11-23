@@ -71,6 +71,13 @@ public:
         OutReleaseAlpha = TimeMsToCoefficient(ReleaseMs, SampleRate);
     }
 
+    static float FastRMS(float NewSampleAbs, float& RMSState)
+    {
+        const float Alpha = 0.0005f; // ~30 ms time constant at 44.1 kHz
+        RMSState = RMSState + Alpha * (NewSampleAbs - RMSState);
+        return RMSState;
+    }
+
     // ProcessDetectorSample:
     // - Absolute value detector with light scaling.
     // - Attack uses AttackAlpha, release uses ReleaseAlpha.
@@ -84,7 +91,7 @@ public:
         constexpr float SilenceThreshold = 0.0008f; // ~ -62 dB
         constexpr float FastReleaseMultiplier = 4.0f;
 
-        float InputLevel = std::abs(DetectorSample);
+        float InputLevel = FastRMS(std::abs(DetectorSample) * 1.8f, DuckState.Envelope);
 
         // Mild pre-scale (avoid constant saturation, yet responsive for typical program ~0.2 - 0.8)
         InputLevel *= 1.5f;
