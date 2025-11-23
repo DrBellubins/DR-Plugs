@@ -357,7 +357,7 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
                                                         ShapedFeedback,
                                                         AlphaLP);
 
-                DelayLineInput = InputSample + ShapedFeedback;
+                DelayLineInput = (InputSample * DuckGain) + ShapedFeedback;
 
                 // Apply ducking to audible wet output (unfiltered in PRE mode)
                 OutputWetSample = WetSampleUnfiltered * DuckGain;
@@ -366,7 +366,7 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
             {
                 // POST mode: Write unfiltered feedback (no spectral decay);
                 // apply HP/LP only to final wet output for static coloration.
-                DelayLineInput = InputSample + FeedbackForDelay;
+                DelayLineInput = (InputSample * DuckGain) + FeedbackForDelay;
 
                 float FilteredWet = Highpass::ProcessSample(State.PostHP,
                                                             WetSampleUnfiltered,

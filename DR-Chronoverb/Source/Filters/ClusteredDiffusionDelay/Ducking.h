@@ -73,35 +73,30 @@ public:
 
     // Process detector path (dry input absolute value) updating envelope.
     static inline float ProcessDetectorSample(Ducking::State& DuckState,
-                                              float DetectorSample,
-                                              float AttackAlpha,
-                                              float ReleaseAlpha)
+                                          float DetectorSample,
+                                          float AttackAlpha,
+                                          float ReleaseAlpha)
     {
-        float InputLevel = std::abs(DetectorSample);
+        // Boost and compress small values for stronger ducking.
+        float InputLevel = std::abs(DetectorSample) * 4.0f; // Pre-scale
+        InputLevel = juce::jlimit(0.0f, 1.0f, InputLevel);
+        InputLevel = std::sqrt(InputLevel); // Perceptual emphasis
 
         if (InputLevel > DuckState.Envelope)
-        {
-            // Rising edge -> attack
             DuckState.Envelope = DuckState.Envelope + AttackAlpha * (InputLevel - DuckState.Envelope);
-        }
         else
-        {
-            // Falling edge -> release
             DuckState.Envelope = DuckState.Envelope + ReleaseAlpha * (InputLevel - DuckState.Envelope);
-        }
 
         return DuckState.Envelope;
     }
 
     // Translate envelope + amount to a ducking gain.
     static inline float ComputeDuckGain(float EnvelopeValue,
-                                        float DuckAmount)
+                                    float DuckAmount)
     {
         float ClampedAmount = juce::jlimit(0.0f, 1.0f, DuckAmount);
-        float ClampedEnv    = juce::jlimit(0.0f, 1.0f, EnvelopeValue);
-
-        // Linear attenuation depth; no square-root shaping for stronger, clearer ducking.
-        float LinearGain = 1.0f - (ClampedAmount * ClampedEnv);
+        float ShapedEnv = std::pow(juce::jlimit(0.0f, 1.0f, EnvelopeValue), 0.65f); // 0.65f exponent balances depth and subtlety
+        float LinearGain = 1.0f - (ClampedAmount * ShapedEnv);
 
         return juce::jlimit(0.0f, 1.0f, LinearGain);
     }
