@@ -341,9 +341,6 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
                                                                                   DampingAlpha,
                                                                                   FeedbackGain);
 
-            // Attenuate the feedback that will be written back into the delay line so recirculation is reduced when ducking.
-            float FeedbackForDelay = FeedbackSamplePreFilters * DuckGain;
-
             float DelayLineInput = 0.0f;
             float OutputWetSample = WetSampleUnfiltered;
 
@@ -351,13 +348,13 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
             {
                 // PRE mode: HP/LP shape feedback -> spectral decay
                 float ShapedFeedback = Highpass::ProcessSample(State.PreHP,
-                                                               FeedbackForDelay,
+                                                               FeedbackSamplePreFilters,
                                                                AlphaHP);
                 ShapedFeedback = Lowpass::ProcessSample(State.PreLP,
                                                         ShapedFeedback,
                                                         AlphaLP);
 
-                DelayLineInput = (InputSample * DuckGain) + ShapedFeedback;
+                DelayLineInput = InputSample + ShapedFeedback;
 
                 // Apply ducking to audible wet output (unfiltered in PRE mode)
                 OutputWetSample = WetSampleUnfiltered * DuckGain;
@@ -366,7 +363,7 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
             {
                 // POST mode: Write unfiltered feedback (no spectral decay);
                 // apply HP/LP only to final wet output for static coloration.
-                DelayLineInput = (InputSample * DuckGain) + FeedbackForDelay;
+                DelayLineInput = InputSample + FeedbackSamplePreFilters;
 
                 float FilteredWet = Highpass::ProcessSample(State.PostHP,
                                                             WetSampleUnfiltered,
