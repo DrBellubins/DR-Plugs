@@ -51,6 +51,8 @@ public:
     bool keyStateChanged(bool isKeyDown, juce::Component* originatingComponent) override;
 
 private:
+    FlatRotaryLookAndFeel flatKnobLAF;
+
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
     AudioPluginAudioProcessor& processorRef;

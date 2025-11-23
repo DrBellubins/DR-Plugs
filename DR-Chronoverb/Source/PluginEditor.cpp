@@ -3,8 +3,6 @@
 
 #include "Utils/RoundedToggle.h"
 
-static FlatRotaryLookAndFeel flatKnobLAF;
-
 // TODO: Implement ducking (duck amount, attack, release).
 // TODO: Implement fractional delay time modes
 

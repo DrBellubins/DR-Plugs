@@ -71,43 +71,60 @@ public:
         OutReleaseAlpha = TimeMsToCoefficient(ReleaseMs, SampleRate);
     }
 
-    // Tweak detector hygiene to avoid super-tiny lingering values.
-    // Add gate behavior at DuckAmount == 1.0.
+    // ProcessDetectorSample:
+    // - Absolute value detector with light scaling.
+    // - Attack uses AttackAlpha, release uses ReleaseAlpha.
+    // - If input level is below SilenceThreshold, we accelerate release (smooth, not a gate).
+    // - Removes previous sqrt and extra pow shaping to prevent small residual envelope from persisting.
     static inline float ProcessDetectorSample(Ducking::State& DuckState,
                                               float DetectorSample,
                                               float AttackAlpha,
                                               float ReleaseAlpha)
     {
-        float InputLevel = std::abs(DetectorSample) * 4.0f;
+        constexpr float SilenceThreshold = 0.0008f; // ~ -62 dB
+        constexpr float FastReleaseMultiplier = 4.0f;
+
+        float InputLevel = std::abs(DetectorSample);
+
+        // Mild pre-scale (avoid constant saturation, yet responsive for typical program ~0.2 - 0.8)
+        InputLevel *= 1.5f;
         InputLevel = juce::jlimit(0.0f, 1.0f, InputLevel);
-        InputLevel = std::sqrt(InputLevel);
 
         if (InputLevel > DuckState.Envelope)
         {
+            // Attack
             DuckState.Envelope = DuckState.Envelope + AttackAlpha * (InputLevel - DuckState.Envelope);
         }
         else
         {
-            DuckState.Envelope = DuckState.Envelope + ReleaseAlpha * (InputLevel - DuckState.Envelope);
+            // Smooth release; accelerate if effectively silent (soft behavior, still exponential)
+            const float AppliedReleaseAlpha = (InputLevel < SilenceThreshold
+                                               ? juce::jlimit(0.0f, 1.0f, ReleaseAlpha * FastReleaseMultiplier)
+                                               : ReleaseAlpha);
+
+            DuckState.Envelope = DuckState.Envelope + AppliedReleaseAlpha * (InputLevel - DuckState.Envelope);
         }
 
-        // Snap extremely small values to zero to finish the release cleanly
-        if (DuckState.Envelope < 1.0e-5f)
-        {
+        // Denormal hygiene + ensure true zero when effectively finished
+        if (DuckState.Envelope < 1.0e-8f)
             DuckState.Envelope = 0.0f;
-        }
 
         return DuckState.Envelope;
     }
 
+    // ComputeDuckGain:
+    // - Depth-scaled linear attenuation: Gain = 1 - DuckAmount * Envelope.
+    // - Ensures that when Envelope == 0, Gain == 1 regardless of DuckAmount.
+    // - No hard mute branch; attenuation smoothly approaches silence as envelope -> 1 and duckAmount -> 1.
     static inline float ComputeDuckGain(float EnvelopeValue,
                                         float DuckAmount)
     {
-        float ClampedAmount = juce::jlimit(0.0f, 1.0f, DuckAmount);
+        const float ClampedAmount = juce::jlimit(0.0f, 1.0f, DuckAmount);
+        const float ClampedEnv    = juce::jlimit(0.0f, 1.0f, EnvelopeValue);
 
-        // Otherwise use proportional reduction.
-        float ShapedEnv = std::pow(juce::jlimit(0.0f, 1.0f, EnvelopeValue), 0.65f);
-        float LinearGain = 1.0f - (ClampedAmount * ShapedEnv);
+        // Sidechain depth only while signal present.
+        const float LinearGain = 1.0f - (ClampedAmount * ClampedEnv);
+
         return juce::jlimit(0.0f, 1.0f, LinearGain);
     }
 
