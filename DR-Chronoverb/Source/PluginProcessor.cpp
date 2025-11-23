@@ -290,7 +290,7 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
     if (parameterID == "duckRelease") DelayReverb.SetDuckRelease(newValue);
 
     #if DEBUG
-    DBG("Changed: " << parameterID << " to " << newValue);
+    //DBG("Changed: " << parameterID << " to " << newValue);
     #endif
 }
 

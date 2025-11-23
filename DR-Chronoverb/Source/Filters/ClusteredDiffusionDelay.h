@@ -121,6 +121,9 @@ private:
     std::atomic<int> TargetDelayMode{ 0 };                      // 0=ms,1=nrm,2=trip,3=dot
     std::atomic<float> HostTempoBPM { 120.0f };                 // Updated from host
 
+    // Flag to force instantaneous resync of smoothed delay when mode changes
+    std::atomic<bool> DelayModeJustChanged { false };
+
     std::atomic<float> TargetDiffusionAmount  { 0.00f  };
     std::atomic<float> TargetDiffusionSize    { 0.00f  };
     std::atomic<float> TargetDiffusionQuality { 1.00f  };
