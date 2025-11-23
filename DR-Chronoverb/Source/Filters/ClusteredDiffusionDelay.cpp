@@ -358,7 +358,9 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
                                                         AlphaLP);
 
                 DelayLineInput = InputSample + ShapedFeedback;
-                // WetSample for output mix remains unfiltered (diffused cluster before decay shaping).
+
+                // Apply ducking to audible wet output (unfiltered in PRE mode)
+                OutputWetSample = WetSampleUnfiltered * DuckGain;
             }
             else
             {
@@ -373,7 +375,8 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
                                                      FilteredWet,
                                                      AlphaLP);
 
-                OutputWetSample = FilteredWet;
+                // Apply ducking after filtering in POST mode
+                OutputWetSample = FilteredWet * DuckGain;
             }
 
             // Write to delay line

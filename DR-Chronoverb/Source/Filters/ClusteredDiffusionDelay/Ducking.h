@@ -100,13 +100,10 @@ public:
         float ClampedAmount = juce::jlimit(0.0f, 1.0f, DuckAmount);
         float ClampedEnv    = juce::jlimit(0.0f, 1.0f, EnvelopeValue);
 
-        // Linear attenuation depth
+        // Linear attenuation depth; no square-root shaping for stronger, clearer ducking.
         float LinearGain = 1.0f - (ClampedAmount * ClampedEnv);
 
-        // Gentle softening (square root) for musical feel (preserves transients without over-chopping).
-        float ShapedGain = std::sqrt(juce::jlimit(0.0f, 1.0f, LinearGain));
-
-        return ShapedGain;
+        return juce::jlimit(0.0f, 1.0f, LinearGain);
     }
 
     // Reset envelope state.
