@@ -124,15 +124,32 @@ public:
     // - Ensures that when Envelope == 0, Gain == 1 regardless of DuckAmount.
     // - No hard mute branch; attenuation smoothly approaches silence as envelope -> 1 and duckAmount -> 1.
     static inline float ComputeDuckGain(float EnvelopeValue,
-                                        float DuckAmount)
+                                    float DuckAmount,
+                                    float MaxAttenuationDecibels)
     {
-        const float ClampedAmount = juce::jlimit(0.0f, 1.0f, DuckAmount);
-        const float ClampedEnv    = juce::jlimit(0.0f, 1.0f, EnvelopeValue);
+        float ClampedAmount = juce::jlimit(0.0f, 1.0f, DuckAmount);
+        float ClampedEnv    = juce::jlimit(0.0f, 1.0f, EnvelopeValue);
 
-        // Sidechain depth only while signal present.
-        const float LinearGain = 1.0f - (ClampedAmount * ClampedEnv);
+        // Optional shaping to make mid-level envelopes more punitive:
+        // sqrt raises values (<1) -> more attenuation earlier.
+        float ShapedEnv = std::sqrt(ClampedEnv);
 
-        return juce::jlimit(0.0f, 1.0f, LinearGain);
+        // Depth in dB grows with both amount and envelope.
+        float DepthDecibels = ClampedAmount * ShapedEnv * MaxAttenuationDecibels;
+
+        // Convert to linear gain (negative because attenuation).
+        float LinearGain = juce::Decibels::decibelsToGain(-DepthDecibels);
+
+        // Safety clamp (avoid denorm zone, treat near-zero as zero).
+        if (LinearGain < 1.0e-6f)
+            LinearGain = 0.0f;
+
+        return LinearGain;
+    }
+
+    static inline float ComputeDuckGain(float EnvelopeValue, float DuckAmount)
+    {
+        return ComputeDuckGain(EnvelopeValue, DuckAmount, 60.0f);
     }
 
     // Reset envelope state.
