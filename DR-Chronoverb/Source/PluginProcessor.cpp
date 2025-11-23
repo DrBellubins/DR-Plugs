@@ -37,6 +37,16 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     // Set delay initial values
     float delayTime = parameters.getRawParameterValue("delayTime")->load();
 
+    auto* DelayModeParam = parameters.getParameter("delayMode");
+
+    if (DelayModeParam != nullptr)
+    {
+        float Normalised = DelayModeParam->getValue(); // 0..1
+        int InitialModeIndex = static_cast<int>(std::round(DelayModeParam->convertFrom0to1(Normalised)));
+
+        DelayReverb.SetDelayMode(InitialModeIndex); // CHANGE: ensure DelayModeJustChanged handled once at startup
+    }
+
     float feedbackTime = parameters.getRawParameterValue("feedbackTime")->load();
     float diffusionAmount = parameters.getRawParameterValue("diffusionAmount")->load();
     float diffusionSize = parameters.getRawParameterValue("diffusionSize")->load();
@@ -266,9 +276,9 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
 
     if (parameterID == "delayMode")
     {
+        // CHANGE: newValue is NORMALISED (0..1). convertFrom0to1 returns raw index (float). We round then pass.
         auto* mode = parameters.getParameter("delayMode");
         int modeIndex = (mode != nullptr) ? static_cast<int>(std::round(mode->convertFrom0to1(newValue))) : 0;
-
         DelayReverb.SetDelayMode(modeIndex);
     }
 
