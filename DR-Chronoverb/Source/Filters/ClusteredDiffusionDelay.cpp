@@ -281,9 +281,7 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
         1.0f / 4.0f,   // Quarter
         1.0f / 6.0f,   // Sixth
         1.0f / 8.0f,   // Eighth
-        1.0f / 16.0f,  // Sixteenth
-        1.0f / 32.0f,  // Thirty-second
-        1.0f / 64.0f   // Sixty-fourth
+        1.0f / 16.0f  // Sixteenth
     };
 
     const int FractionCount = static_cast<int>(sizeof(BeatFractions) / sizeof(float));

@@ -53,18 +53,16 @@ public:
 private:
     FlatRotaryLookAndFeel flatKnobLAF;
 
-    // Normalized discrete positions for beat subdivisions (count = 9).
-    // These correspond to indices used by the DSP fraction table.
-    static constexpr float DelaySyncNormalizedPositions[9] =
+    // These must map linearly to fraction indices: index / (FractionCount - 1).
+    // With 7 fractions: indices 0..6 => normalized positions {0/6, 1/6, ..., 6/6}.
+    static constexpr float DelaySyncNormalizedPositions[7] =
     {
         0.0f,
-        0.125f,
-        0.25f,
-        0.375f,
-        0.5f,
-        0.625f,
-        0.75f,
-        0.875f,
+        1.0f / 6.0f,
+        2.0f / 6.0f,
+        3.0f / 6.0f,
+        4.0f / 6.0f,
+        5.0f / 6.0f,
         1.0f
     };
 
