@@ -44,6 +44,7 @@ public:
     // - DiffusionQuality:   [0.0, 1.0]
     void SetDelayTime(float delayTimeSeconds);
     void SetDelayMode(int modeIndex);
+    void SetHostTempo(float HostTempoBPMValue);
 
     void SetFeedbackTime(float feedbackTimeSeconds);
     void SetDiffusionAmount(float diffusionAmount);
@@ -117,7 +118,8 @@ private:
 
     // Atomic parameters (targets)
     std::atomic<float> TargetDelayTimeSeconds { 0.300f };
-    std::atomic<int> TargetDelayMode{ 0 };
+    std::atomic<int> TargetDelayMode{ 0 };                      // 0=ms,1=nrm,2=trip,3=dot
+    std::atomic<float> HostTempoBPM { 120.0f };                 // Updated from host
 
     std::atomic<float> TargetDiffusionAmount  { 0.00f  };
     std::atomic<float> TargetDiffusionSize    { 0.00f  };

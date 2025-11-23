@@ -77,6 +77,12 @@ void ClusteredDiffusionDelay::SetDelayMode(int modeIndex)
     int clamped = juce::jlimit(0, 4, modeIndex);
 }
 
+void ClusteredDiffusionDelay::SetHostTempo(float HostTempoBPMValue)
+{
+    float Clamped = juce::jlimit(30.0f, 400.0f, HostTempoBPMValue);
+    HostTempoBPM.store(Clamped, std::memory_order_relaxed);
+}
+
 void ClusteredDiffusionDelay::SetFeedbackTime(float feedbackTimeSeconds)
 {
     // Clamp to [0..10] seconds T60 (0 disables feedback)
@@ -251,15 +257,57 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
                                         DuckAttackAlpha,
                                         DuckReleaseAlpha);
 
+    // Delay time
+    const int CurrentMode = TargetDelayMode.load(std::memory_order_relaxed);
+    const float RawDelayParam = TargetDelayTimeSeconds.load(std::memory_order_relaxed); // Interpreted by mode
+    const float CurrentBPM = HostTempoBPM.load(std::memory_order_relaxed);
+
+    // Static fraction table (beats). Expand if needed.
+    static const float NormalBeatFractions[] =
+    {
+        1.0f / 64.0f,
+        1.0f / 32.0f,
+        1.0f / 16.0f,
+        1.0f / 8.0f,
+        1.0f / 6.0f,
+        1.0f / 4.0f,
+        1.0f / 3.0f,
+        1.0f / 2.0f,
+        1.0f
+    };
+
+    const int FractionCount = static_cast<int>(sizeof(NormalBeatFractions) / sizeof(float));
+
     // Per-sample processing
     for (int SampleIndex = 0; SampleIndex < NumSamples; ++SampleIndex)
     {
         // Smooth time-varying parameters (delay time and spread size)
-        const float TargetDelaySecondsLocal = juce::jlimit(0.0f, MaximumDelaySeconds, TargetDelayTimeSeconds.load(std::memory_order_relaxed));
-        const float TargetSizeLocal = juce::jlimit(0.0f, 1.0f, TargetDiffusionSize.load(std::memory_order_relaxed));
+        float TargetDelaySecondsLocal = RawDelayParam;
+
+        if (CurrentMode != 0) // Not ms mode
+        {
+            int FractionIndex = juce::jlimit(0,
+                                             FractionCount - 1,
+                                             static_cast<int>(std::round(RawDelayParam * static_cast<float>(FractionCount - 1))));
+
+            float Beats = NormalBeatFractions[FractionIndex];
+
+            if (CurrentMode == 2) // triplet
+                Beats *= (2.0f / 3.0f);
+            else if (CurrentMode == 3) // dotted
+                Beats *= 1.5f;
+
+            const float SecondsPerQuarter = (CurrentBPM > 0.0f ? 60.0f / CurrentBPM : 0.5f); // Fallback 120 BPM => 0.5 s
+            TargetDelaySecondsLocal = Beats * SecondsPerQuarter;
+
+            // Clamp to configured maximum
+            TargetDelaySecondsLocal = juce::jlimit(0.0f, MaximumDelaySeconds, TargetDelaySecondsLocal);
+        }
 
         SmoothedDelayTimeSeconds = Smoothers::OnePole(SmoothedDelayTimeSeconds, TargetDelaySecondsLocal, DelayTimeSmoothCoefficient);
-        SmoothedDiffusionSize    = Smoothers::OnePole(SmoothedDiffusionSize,    TargetSizeLocal,       SizeSmoothCoefficient);
+
+        const float TargetSizeLocal = juce::jlimit(0.0f, 1.0f, TargetDiffusionSize.load(std::memory_order_relaxed));
+        SmoothedDiffusionSize = Smoothers::OnePole(SmoothedDiffusionSize, TargetSizeLocal, SizeSmoothCoefficient);
 
         // Convert to samples (guard spread by derived maximum)
         const float BaseDelaySamples = secondsToSamples(juce::jlimit(0.0f, MaximumDelaySeconds, SmoothedDelayTimeSeconds));

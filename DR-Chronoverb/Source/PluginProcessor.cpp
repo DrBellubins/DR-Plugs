@@ -308,6 +308,18 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
+    // --- Host tempo update (once per block) ---
+    if (auto* PlayHead = getPlayHead())
+    {
+        juce::AudioPlayHead::CurrentPositionInfo PositionInfo;
+
+        if (PlayHead->getCurrentPosition(PositionInfo))
+        {
+            if (PositionInfo.bpm > 0.0)
+                DelayReverb.SetHostTempo(static_cast<float>(PositionInfo.bpm));
+        }
+    }
+
     // Computer Keyboard Square Synth
     keyboardSynth.Process(buffer);
 
