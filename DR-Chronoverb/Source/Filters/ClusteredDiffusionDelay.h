@@ -49,7 +49,7 @@ public:
     void SetFeedbackTime(float feedbackTimeSeconds);
     void SetDiffusionAmount(float diffusionAmount);
     void SetDiffusionSize(float DiffusionSize);
-    void SetDiffusionQuality(float diffusionQuality);
+    void SetDiffusionQuality(int diffusionQuality);
     void SetDryWetMix(float dryWet);
 
     // - Negative values [-1..0): stereo reducer (mid/side scale). -1 => fully mono.
@@ -73,6 +73,13 @@ private:
     inline float secondsToSamples(float Seconds) const
     {
         return static_cast<float>(Seconds * static_cast<float>(SampleRate));
+    }
+
+    // A small helper to normalize steps -> [0..1].
+    inline float stepsToNormalizedQuality(int diffusionQualitySteps) const
+    {
+        int Clamped = juce::jlimit(0, 10, diffusionQualitySteps);
+        return static_cast<float>(Clamped) / 10.0f;
     }
 
     // Per-channel aggregate state composed of component states.
@@ -126,7 +133,7 @@ private:
 
     std::atomic<float> TargetDiffusionAmount  { 0.00f  };
     std::atomic<float> TargetDiffusionSize    { 0.00f  };
-    std::atomic<float> TargetDiffusionQuality { 1.00f  };
+    std::atomic<int> TargetDiffusionQuality { 10  };
     std::atomic<float> TargetFeedbackTimeSeconds { 3.00f };
     std::atomic<float> TargetDryWetMix { 1.00f };
 

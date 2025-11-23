@@ -50,7 +50,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     createSlider(diffusionQualitySlider, diffusionQualityAttachment, "diffusionQuality", 200, 20, 200, -260);
     createSliderLabel(diffusionQualityLabel, *diffusionQualitySlider, "Diffusion Quality", 15.0f, 170);
 
-    if (diffusionQualitySlider != nullptr)
+    /*if (diffusionQualitySlider != nullptr)
     {
         diffusionQualitySlider->onValueChange = [this]()
         {
@@ -61,7 +61,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
                 int qualityRounded = static_cast<int>(std::round(ModeParameter->convertFrom0to1(ModeParameter->getValue())));
             }
         };
-    }
+    }*/
 
     // ------ Knob Labels ------
     createKnobLabel(delayTimeLabel, *delayTimeKnob, "Delay Time", 20.0f, 80);

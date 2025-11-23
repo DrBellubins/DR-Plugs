@@ -43,7 +43,7 @@ void ClusteredDiffusionDelay::PrepareToPlay(double NewSampleRate, float NewMaxim
     SmoothedDiffusionSize    = TargetDiffusionSize.load();
 
     // Compute initial tap layout from default quality
-    Diffusion::RecomputeTapLayout(TapLayout, TargetDiffusionQuality.load());
+    Diffusion::RecomputeTapLayout(TapLayout, stepsToNormalizedQuality(TargetDiffusionQuality.load()));
 
     IsPrepared = true;
 }
@@ -110,13 +110,13 @@ void ClusteredDiffusionDelay::SetDiffusionSize(float diffusionSize)
     TargetDiffusionSize.store(clamped, std::memory_order_relaxed);
 }
 
-void ClusteredDiffusionDelay::SetDiffusionQuality(float diffusionQuality)
+void ClusteredDiffusionDelay::SetDiffusionQuality(int diffusionQualitySteps)
 {
-    float clamped = juce::jlimit(0.0f, 1.0f, diffusionQuality);
-    TargetDiffusionQuality.store(clamped, std::memory_order_relaxed);
+    int Clamped = juce::jlimit(0, 10, diffusionQualitySteps);
+    TargetDiffusionQuality.store(Clamped, std::memory_order_relaxed);
 
     // Update tap layout immediately when quality changes (affects density)
-    Diffusion::RecomputeTapLayout(TapLayout, clamped);
+    Diffusion::RecomputeTapLayout(TapLayout, stepsToNormalizedQuality(Clamped));
 }
 
 void ClusteredDiffusionDelay::SetDryWetMix(float dryWet)
@@ -218,7 +218,10 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
 
     // Cache parameters for the block
     const float DiffusionAmount = TargetDiffusionAmount.load(std::memory_order_relaxed);
-    const float DiffusionQuality = TargetDiffusionQuality.load(std::memory_order_relaxed);
+
+    const int DiffusionQuality = TargetDiffusionQuality.load(std::memory_order_relaxed);
+    const float DiffusionQualityNormalized = stepsToNormalizedQuality(DiffusionQuality);
+
     const float FeedbackT60Seconds = TargetFeedbackTimeSeconds.load(std::memory_order_relaxed);
 
     const float DryWetMix = TargetDryWetMix.load(std::memory_order_relaxed);
@@ -245,7 +248,7 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
     // Damping alpha for feedback path (depends on amount and quality)
     const float DampingAlpha = FeedbackDamping::ComputeDampingAlpha(static_cast<float>(SampleRate),
                                                                     DiffusionAmount,
-                                                                    DiffusionQuality);
+                                                                    DiffusionQualityNormalized);
 
     // Prepare spread constants for negative-offset lookahead
     const float MaxSpreadSamples = secondsToSamples(MaximumSpreadSeconds);

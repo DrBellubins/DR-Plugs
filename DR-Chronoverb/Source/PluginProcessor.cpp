@@ -50,7 +50,7 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     float feedbackTime = parameters.getRawParameterValue("feedbackTime")->load();
     float diffusionAmount = parameters.getRawParameterValue("diffusionAmount")->load();
     float diffusionSize = parameters.getRawParameterValue("diffusionSize")->load();
-    float diffusionQuality = parameters.getRawParameterValue("diffusionQuality")->load();
+    int diffusionQuality = static_cast<int>(parameters.getRawParameterValue("diffusionQuality")->load());
     float dryWetMix = parameters.getRawParameterValue("dryWetMix")->load();
 
     // Filters
@@ -282,7 +282,7 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
     if (parameterID == "feedbackTime") DelayReverb.SetFeedbackTime(newValue);
     if (parameterID == "diffusionAmount") DelayReverb.SetDiffusionAmount(newValue);
     if (parameterID == "diffusionSize") DelayReverb.SetDiffusionSize(newValue);
-    if (parameterID == "diffusionQuality") DelayReverb.SetDiffusionQuality(newValue);
+    if (parameterID == "diffusionQuality") DelayReverb.SetDiffusionQuality(static_cast<int>(newValue));
     if (parameterID == "dryWetMix") DelayReverb.SetDryWetMix(newValue);
 
     // Filters
