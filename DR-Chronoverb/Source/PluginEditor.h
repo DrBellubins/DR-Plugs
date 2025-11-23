@@ -53,16 +53,14 @@ public:
 private:
     FlatRotaryLookAndFeel flatKnobLAF;
 
-    // These must map linearly to fraction indices: index / (FractionCount - 1).
-    // With 7 fractions: indices 0..6 => normalized positions {0/6, 1/6, ..., 6/6}.
-    static constexpr float DelaySyncNormalizedPositions[7] =
+    // Beat subdivision knob snap points (5 entries: Whole, Half, Quarter, Eighth, Sixteenth)
+    // Linear mapping: index / (Count - 1) -> {0.0, 0.25, 0.5, 0.75, 1.0}
+    static constexpr float DelaySyncNormalizedPositions[5] =
     {
         0.0f,
-        1.0f / 6.0f,
-        2.0f / 6.0f,
-        3.0f / 6.0f,
-        4.0f / 6.0f,
-        5.0f / 6.0f,
+        1.0f / 4.0f,
+        2.0f / 4.0f,
+        3.0f / 4.0f,
         1.0f
     };
 

@@ -272,16 +272,16 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
 
     // TODO: Only allow up to 1/16th.
 
-    // Static fraction table (beats). Expand if needed.
+    // --- Beat-synced delay mapping (quarter-note units) ---
+    // Table entries expressed in QUARTER-NOTE units ("beats"):
+    // Whole = 4.0, Half = 2.0, Quarter = 1.0, Eighth = 0.5, Sixteenth = 0.25
     static const float BeatFractions[] =
     {
-        1.0f,          // Whole
-        1.0f / 2.0f,   // Half
-        1.0f / 3.0f,   // Third
-        1.0f / 4.0f,   // Quarter
-        1.0f / 6.0f,   // Sixth
-        1.0f / 8.0f,   // Eighth
-        1.0f / 16.0f  // Sixteenth
+        4.0f,   // Whole
+        2.0f,   // Half
+        1.0f,   // Quarter
+        0.5f,   // Eighth
+        0.25f   // Sixteenth
     };
 
     const int FractionCount = static_cast<int>(sizeof(BeatFractions) / sizeof(float));
