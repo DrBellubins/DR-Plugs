@@ -270,6 +270,8 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
     const float RawDelayParam = TargetDelayTimeSeconds.load(std::memory_order_relaxed); // Interpreted by mode
     const float CurrentBPM = HostTempoBPM.load(std::memory_order_relaxed);
 
+    // TODO: Only allow up to 1/16th.
+
     // Static fraction table (beats). Expand if needed.
     static const float BeatFractions[] =
     {
