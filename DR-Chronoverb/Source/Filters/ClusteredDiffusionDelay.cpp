@@ -270,78 +270,56 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
     const float CurrentBPM = HostTempoBPM.load(std::memory_order_relaxed);
 
     // Static fraction table (beats). Expand if needed.
-    static const float NormalBeatFractions[] =
+    static const float BeatFractions[] =
     {
-        1.0f / 64.0f,
-        1.0f / 32.0f,
-        1.0f / 16.0f,
-        1.0f / 8.0f,
-        1.0f / 6.0f,
-        1.0f / 4.0f,
-        1.0f / 3.0f,
-        1.0f / 2.0f,
-        1.0f
+        1.0f,          // Whole
+        1.0f / 2.0f,   // Half
+        1.0f / 3.0f,   // Third
+        1.0f / 4.0f,   // Quarter
+        1.0f / 6.0f,   // Sixth
+        1.0f / 8.0f,   // Eighth
+        1.0f / 16.0f,  // Sixteenth
+        1.0f / 32.0f,  // Thirty-second
+        1.0f / 64.0f   // Sixty-fourth
     };
 
-    const int FractionCount = static_cast<int>(sizeof(NormalBeatFractions) / sizeof(float));
+    const int FractionCount = static_cast<int>(sizeof(BeatFractions) / sizeof(float));
+
+    float MappedDelaySeconds = RawDelayParam; // Default: ms mode uses raw as seconds (0..MaximumDelaySeconds).
+
+    if (CurrentMode != 0) // Not ms mode: interpret RawDelayParam as a selector.
+    {
+        // Inversion: Higher knob value => shorter note => smaller beat fraction.
+        // RawDelayParam in [0..1]; we map (1 - Raw) to index in BeatFractions (which is ordered longest->shortest).
+        const float ClampedFraction = juce::jlimit(0.0f, 1.0f, RawDelayParam);
+
+        int FractionIndex = static_cast<int>(std::round(ClampedFraction * static_cast<float>(FractionCount - 1)));
+        FractionIndex = juce::jlimit(0, FractionCount - 1, FractionIndex);
+
+        float Beats = BeatFractions[FractionIndex];
+
+        // APPLY mode multipliers:
+        // 1 = normal (no change), 2 = triplet (* 2/3), 3 = dotted (* 1.5)
+        if (CurrentMode == 2)
+            Beats *= (2.0f / 3.0f);
+        else if (CurrentMode == 3)
+            Beats *= 1.5f;
+
+        const float SecondsPerQuarter = (CurrentBPM > 0.0f ? 60.0f / CurrentBPM : 0.5f); // Fallback to 120 BPM
+        MappedDelaySeconds = juce::jlimit(0.0f, MaximumDelaySeconds, Beats * SecondsPerQuarter);
+    }
 
     // Instant resync on mode change
     if (DelayModeJustChanged.load(std::memory_order_relaxed))
     {
         DelayModeJustChanged.store(false, std::memory_order_relaxed);
-
-        float ImmediateTargetSeconds = RawDelayParam;
-
-        if (CurrentMode != 0)
-        {
-            int FractionIndex = juce::jlimit(0,
-                                             FractionCount - 1,
-                                             static_cast<int>(std::round((1.0f - RawDelayParam) * static_cast<float>(FractionCount - 1))));
-
-            float Beats = NormalBeatFractions[FractionIndex];
-
-            if (CurrentMode == 2)
-                Beats *= (2.0f / 3.0f);
-            else if (CurrentMode == 3)
-                Beats *= 1.5f;
-
-            const float SecondsPerQuarter = (CurrentBPM > 0.0f ? 60.0f / CurrentBPM : 0.5f);
-            ImmediateTargetSeconds = juce::jlimit(0.0f,
-                                                  MaximumDelaySeconds,
-                                                  Beats * SecondsPerQuarter);
-        }
-
-        SmoothedDelayTimeSeconds = ImmediateTargetSeconds;
+        SmoothedDelayTimeSeconds = MappedDelaySeconds; // Instant sync
     }
 
     // Per-sample processing
     for (int SampleIndex = 0; SampleIndex < NumSamples; ++SampleIndex)
     {
-        // Smooth time-varying parameters (delay time and spread size)
-        float TargetDelaySecondsLocal = RawDelayParam;
-
-        if (CurrentMode != 0)
-        {
-            int FractionIndex = juce::jlimit(0,
-                                             FractionCount - 1,
-                                             static_cast<int>(std::round((1.0f - RawDelayParam) * static_cast<float>(FractionCount - 1))));
-
-            float Beats = NormalBeatFractions[FractionIndex];
-
-            if (CurrentMode == 2)
-                Beats *= (2.0f / 3.0f);
-            else if (CurrentMode == 3)
-                Beats *= 1.5f;
-
-            const float SecondsPerQuarter = (CurrentBPM > 0.0f ? 60.0f / CurrentBPM : 0.5f);
-            TargetDelaySecondsLocal = Beats * SecondsPerQuarter;
-
-            TargetDelaySecondsLocal = juce::jlimit(0.0f, MaximumDelaySeconds, TargetDelaySecondsLocal);
-
-            DBG("local seconds: " << TargetDelaySecondsLocal);
-        }
-
-        SmoothedDelayTimeSeconds = Smoothers::OnePole(SmoothedDelayTimeSeconds, TargetDelaySecondsLocal, DelayTimeSmoothCoefficient);
+        SmoothedDelayTimeSeconds = Smoothers::OnePole(SmoothedDelayTimeSeconds, MappedDelaySeconds, DelayTimeSmoothCoefficient);
 
         const float TargetSizeLocal = juce::jlimit(0.0f, 1.0f, TargetDiffusionSize.load(std::memory_order_relaxed));
         SmoothedDiffusionSize = Smoothers::OnePole(SmoothedDiffusionSize, TargetSizeLocal, SizeSmoothCoefficient);
