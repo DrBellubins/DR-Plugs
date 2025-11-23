@@ -114,9 +114,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
         juce::NormalisableRange(0.0f, 1.0f), 0.0f));
 
     // Diffusion quality
-    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
-        "diffusionQuality", "Diffusion Quality",
-        juce::NormalisableRange(0.0f, 1.0f), 1.0f));
+    parameterList.push_back (std::make_unique<juce::AudioParameterInt>(
+        "diffusionQuality", "Diffusion Quality", 0, 10, 10));
 
     // Dry/Wet mix
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
