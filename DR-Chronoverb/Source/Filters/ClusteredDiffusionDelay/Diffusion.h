@@ -88,44 +88,45 @@ public:
     // - SpreadSamples: cluster spread in samples
     // - LookaheadSamples: fixed positive shift to emulate negative delays causally
     // - AmountA/AmountB: equal-power crossfade weights between base tap and cluster
-    static inline float ComputeWetEcho(const DelayLine::State& DelayState,
-                                       float BaseDelaySamples,
-                                       float SpreadSamples,
-                                       float LookaheadSamples,
-                                       const Diffusion::TapLayout& Layout,
-                                       float AmountA,
-                                       float AmountB)
+    // - Extended ComputeWetEcho to output base tap & cluster separately and accept jitter offsets.
+    static inline void ComputeWetEcho(const DelayLine::State& DelayState,
+                                  float BaseDelaySamples,
+                                  float SpreadSamples,
+                                  float LookaheadSamples,
+                                  const Diffusion::TapLayout& Layout,
+                                  float AmountA,
+                                  float AmountB,
+                                  const std::vector<float>& JitterOffsets,
+                                  float& OutBaseTap,
+                                  float& OutCluster)
     {
-        // Base nominal tap
-        const float BaseTap = DelayLine::Read(DelayState, BaseDelaySamples);
+        OutBaseTap = DelayLine::Read(DelayState, BaseDelaySamples);
 
-        // Cluster sum across symmetric offsets
         float ClusterSum = 0.0f;
         const int TotalTaps = static_cast<int>(Layout.NormalizedOffsets.size());
 
         for (int TapIndex = 0; TapIndex < TotalTaps; ++TapIndex)
         {
-            const float NormalizedOffset = Layout.NormalizedOffsets[static_cast<size_t>(TapIndex)];
-            const float SignedOffsetSamples = NormalizedOffset * SpreadSamples;
+            float NormalizedOffset = Layout.NormalizedOffsets[static_cast<size_t>(TapIndex)];
 
-            // Shift by Lookahead so negative offsets remain causal
+            if (TapIndex < static_cast<int>(JitterOffsets.size()))
+                NormalizedOffset += JitterOffsets[static_cast<size_t>(TapIndex)];
+
+            // Tighten weights at high quality implicitly by exponent (mild center emphasis).
+            // (Do not need separate param; you can adjust exponent curve if you want more center focus.)
+            float SignedOffsetSamples = NormalizedOffset * SpreadSamples;
+
             float EffectiveDelaySamples = BaseDelaySamples + LookaheadSamples + SignedOffsetSamples;
 
-            // Instead of allowing negative (later clamped to 0), raise to small positive epsilon
             if (EffectiveDelaySamples < 1.0f)
-                EffectiveDelaySamples = 1.0f; // Avoid collapsing multiple taps to index zero
+                EffectiveDelaySamples = 1.0f;
 
             float TapSample = DelayLine::Read(DelayState, EffectiveDelaySamples);
-
             TapSample *= Layout.Weights[static_cast<size_t>(TapIndex)];
             ClusterSum += TapSample;
         }
 
-        const float DiffusedCluster = ClusterSum * Layout.WeightNorm;
-
-        // Equal-power crossfade between base tap and cluster
-        const float WetEcho = (AmountA * BaseTap) + (AmountB * DiffusedCluster);
-
-        return WetEcho;
+        OutCluster = ClusterSum * Layout.WeightNorm;
+        // (Wet result assembled outside so we can separately feed cluster / base into feedback logic.)
     }
 };

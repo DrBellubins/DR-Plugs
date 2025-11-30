@@ -48,6 +48,28 @@ void ClusteredDiffusionDelay::PrepareToPlay(double NewSampleRate, float NewMaxim
 
     std::atomic_store(&TapLayoutPtr, std::make_shared<Diffusion::TapLayout>(std::move(NewLayout)));
 
+    // Allpass tap setup
+    TapJitterOffsets.assign(16, 0.0f); // Support up to 16 taps (8 pairs).
+
+    // Prepare internal all-pass delays (small micro delays: 5–13 ms region).
+    const int APDelaySamples1 = static_cast<int>(std::round(0.007f * SampleRate));
+    const int APDelaySamples2 = static_cast<int>(std::round(0.009f * SampleRate));
+    const int APDelaySamples3 = static_cast<int>(std::round(0.011f * SampleRate));
+    const int APDelaySamples4 = static_cast<int>(std::round(0.013f * SampleRate));
+
+    for (ChannelState& State : Channels)
+    {
+        State.InternalAP1.prepare(APDelaySamples1);
+        State.InternalAP2.prepare(APDelaySamples2);
+        State.InternalAP3.prepare(APDelaySamples3);
+        State.InternalAP4.prepare(APDelaySamples4);
+
+        State.InternalAP1.setCoefficient(0.72f);
+        State.InternalAP2.setCoefficient(0.70f);
+        State.InternalAP3.setCoefficient(0.68f);
+        State.InternalAP4.setCoefficient(0.66f);
+    }
+
     IsPrepared = true;
 }
 
@@ -65,6 +87,11 @@ void ClusteredDiffusionDelay::Reset()
 
         Highpass::Reset(State.PostHP);
         Lowpass::Reset(State.PostLP);
+
+        State.InternalAP1.reset();
+        State.InternalAP2.reset();
+        State.InternalAP3.reset();
+        State.InternalAP4.reset();
     }
 }
 
@@ -232,6 +259,7 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
 
     const int DiffusionQuality = TargetDiffusionQuality.load(std::memory_order_relaxed);
     const float DiffusionQualityNormalized = stepsToNormalizedQuality(DiffusionQuality);
+    const int QualityTier = computeQualityTier(DiffusionQualityNormalized);
 
     const float FeedbackT60Seconds = TargetFeedbackTimeSeconds.load(std::memory_order_relaxed);
 
@@ -284,9 +312,7 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
     const float RawDelayParam = TargetDelayTimeSeconds.load(std::memory_order_relaxed); // Interpreted by mode
     const float CurrentBPM = HostTempoBPM.load(std::memory_order_relaxed);
 
-    // TODO: Only allow up to 1/16th.
 
-    // --- Beat-synced delay mapping (quarter-note units) ---
     // Table entries expressed in QUARTER-NOTE units ("beats"):
     // Whole = 4.0, Half = 2.0, Quarter = 1.0, Eighth = 0.5, Sixteenth = 0.25
     static const float BeatFractions[] =
@@ -311,8 +337,7 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
 
         float Beats = BeatFractions[FractionIndex];
 
-        // APPLY mode multipliers:
-        // 1 = normal (no change), 2 = triplet (* 2/3), 3 = dotted (* 1.5)
+        // APPLY mode multipliers: 1 = normal (no change), 2 = triplet (* 2/3), 3 = dotted (* 1.5)
         if (CurrentMode == 2)
             Beats *= (2.0f / 3.0f);
         else if (CurrentMode == 3)
@@ -322,16 +347,31 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
         MappedDelaySeconds = juce::jlimit(0.0f, MaximumDelaySeconds, Beats * SecondsPerQuarter);
     }
 
-    // Instant resync on mode change
-    /*if (DelayModeJustChanged.load(std::memory_order_relaxed))
-    {
-        DelayModeJustChanged.store(false, std::memory_order_relaxed);
-        SmoothedDelayTimeSeconds = MappedDelaySeconds; // Instant sync
-    }*/
-
     // Instead: just clear the flag; smoothing will glide.
     if (DelayModeJustChanged.load(std::memory_order_relaxed))
         DelayModeJustChanged.store(false, std::memory_order_relaxed);
+
+    // Adaptive spread
+    const float AdaptiveSpreadSeconds = computeAdaptiveSpreadSeconds(DiffusionQualityNormalized);
+
+    // Jitter range (normalized offset domain): grows with quality tier (only tier >=1 noticeable).
+    float JitterRange = 0.0f;
+    if (QualityTier == 1)
+        JitterRange = 0.010f; // ±0.01
+    else if (QualityTier == 2)
+        JitterRange = 0.020f; // ±0.02
+
+    // Refresh jitter offsets once per block if > 0.
+    if (JitterRange > 0.0f)
+    {
+        for (size_t J = 0; J < TapJitterOffsets.size(); ++J)
+        {
+            float r = static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX);
+            TapJitterOffsets[J] = (r * 2.0f - 1.0f) * JitterRange;
+        }
+    }
+    else
+        std::fill(TapJitterOffsets.begin(), TapJitterOffsets.end(), 0.0f);
 
     // Per-sample processing
     for (int SampleIndex = 0; SampleIndex < NumSamples; ++SampleIndex)
@@ -343,7 +383,9 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
 
         // Convert to samples (guard spread by derived maximum)
         const float BaseDelaySamples = secondsToSamples(juce::jlimit(0.0f, MaximumDelaySeconds, SmoothedDelayTimeSeconds));
-        const float SpreadSamples    = secondsToSamples(juce::jlimit(0.0f, MaximumSpreadSeconds, SmoothedDiffusionSize * MaximumSpreadSeconds));
+
+        const float RawSpreadSeconds = juce::jlimit(0.0f, AdaptiveSpreadSeconds, SmoothedDiffusionSize * AdaptiveSpreadSeconds);
+        const float SpreadSamples = secondsToSamples(RawSpreadSeconds);
 
         // Map T60 to per-loop feedback gain using the current loop time (nominal delay)
         const float LoopSeconds = std::max(1.0e-4f, SmoothedDelayTimeSeconds);
@@ -352,34 +394,44 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
         // Compute the wet echo for each channel (pre-stereo stage)
         float WetEchoLeft = 0.0f;
         float WetEchoRight = 0.0f;
+        float BaseTapLeft = 0.0f;
+        float ClusterLeft = 0.0f;
+        float BaseTapRight = 0.0f;
+        float ClusterRight = 0.0f;
 
         // Channel 0
         if (NumChannels >= 1)
         {
-            WetEchoLeft = Diffusion::ComputeWetEcho(Channels[0].Delay,
-                                                    BaseDelaySamples,
-                                                    SpreadSamples,
-                                                    LookaheadSamples,
-                                                    *LocalTapLayoutPtr,
-                                                    AmountA,
-                                                    AmountB);
+            Diffusion::ComputeWetEcho(Channels[0].Delay,
+                                      BaseDelaySamples,
+                                      SpreadSamples,
+                                      LookaheadSamples,
+                                      *LocalTapLayoutPtr,
+                                      AmountA,
+                                      AmountB,
+                                      TapJitterOffsets,
+                                      BaseTapLeft,
+                                      ClusterLeft);
         }
 
         // Channel 1
         if (NumChannels >= 2)
         {
-            WetEchoRight = Diffusion::ComputeWetEcho(Channels[1].Delay,
-                                                     BaseDelaySamples,
-                                                     SpreadSamples,
-                                                     LookaheadSamples,
-                                                     *LocalTapLayoutPtr,
-                                                     AmountA,
-                                                     AmountB);
+            Diffusion::ComputeWetEcho(Channels[1].Delay,
+                                      BaseDelaySamples,
+                                      SpreadSamples,
+                                      LookaheadSamples,
+                                      *LocalTapLayoutPtr,
+                                      AmountA,
+                                      AmountB,
+                                      TapJitterOffsets,
+                                      BaseTapRight,
+                                      ClusterRight);
         }
 
         // Stereo widening/reduction stage
-        float ProcessedWetLeft = WetEchoLeft;
-        float ProcessedWetRight = WetEchoRight;
+        float ProcessedWetLeft = (AmountA * BaseTapLeft) + (AmountB * ClusterLeft);
+        float ProcessedWetRight = (AmountA * BaseTapRight) + (AmountB * ClusterRight);
 
         if (NumChannels >= 2)
         {
@@ -407,7 +459,41 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
             ChannelState& State = Channels[ChannelIndex];
 
             const float InputSample = ChannelData[SampleIndex];
-            const float WetSampleUnfiltered = (ChannelIndex == 0 ? ProcessedWetLeft : ProcessedWetRight);
+
+            const float ClusterInjectionBlend = (QualityTier == 2
+                                     ? juce::jlimit(0.0f, 1.0f, (DiffusionQualityNormalized - 0.65f) / 0.35f) // smoothstep-ish
+                                     : 0.0f);
+
+            // Use injected sample instead of WetSampleUnfiltered for damping filter input (recursive diffusion seed).
+            float WetSampleUnfiltered = (ChannelIndex == 0 ? ProcessedWetLeft : ProcessedWetRight);
+
+            // Extract cluster-only and base-only components for more precise injection (optional subtlety):
+            float BaseTapSample = (ChannelIndex == 0 ? BaseTapLeft : BaseTapRight);
+            float ClusterSample = (ChannelIndex == 0 ? ClusterLeft : ClusterRight);
+
+            // Blend for feedback seed (preserve character at low quality):
+            float FeedbackSeed = (1.0f - ClusterInjectionBlend) * BaseTapSample
+                                 + ClusterInjectionBlend * ClusterSample;
+
+            // Internal all-pass recursive diffusion (tier >=1) BEFORE damping:
+            if (QualityTier >= 1)
+            {
+                ChannelState& TierState = State;
+                FeedbackSeed = TierState.InternalAP1.processSample(FeedbackSeed);
+                FeedbackSeed = TierState.InternalAP2.processSample(FeedbackSeed);
+
+                if (QualityTier == 2)
+                {
+                    FeedbackSeed = TierState.InternalAP3.processSample(FeedbackSeed);
+                    FeedbackSeed = TierState.InternalAP4.processSample(FeedbackSeed);
+                }
+            }
+
+            // Now run damping on FeedbackSeed instead of WetSampleUnfiltered:
+            const float FeedbackSamplePreFilters = FeedbackDamping::ProcessSample(State.Feedback,
+                                                                                  FeedbackSeed,
+                                                                                  DampingAlpha,
+                                                                                  FeedbackGain);
 
             // --- Ducking detector and gain computation (per channel) ---
             float DuckEnvelope = Ducking::ProcessDetectorSample(State.Duck,
@@ -416,12 +502,6 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
                                                                 DuckReleaseAlpha);
 
             float DuckGain = Ducking::ComputeDuckGain(DuckEnvelope, DuckAmount);
-
-            // Feedback damping (always applied; gives base decay envelope)
-            const float FeedbackSamplePreFilters = FeedbackDamping::ProcessSample(State.Feedback,
-                                                                                  WetSampleUnfiltered,
-                                                                                  DampingAlpha,
-                                                                                  FeedbackGain);
 
             const float FeedbackWithDucking = FeedbackSamplePreFilters * DuckGain;
             float DelayLineInput = 0.0f;

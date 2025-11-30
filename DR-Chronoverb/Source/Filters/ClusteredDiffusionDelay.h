@@ -16,6 +16,7 @@
 #include "ClusteredDiffusionDelay/Smoothers.h"
 #include "ClusteredDiffusionDelay/DryWetMixer.h"
 #include "ClusteredDiffusionDelay/Ducking.h"
+#include "MiniAllpass.h"
 
 // ClusteredDiffusionDelay (Master)
 // - Orchestrates modular components to realize the diffused delay/reverb algorithm.
@@ -83,6 +84,26 @@ private:
         return static_cast<float>(Clamped) / 10.0f;
     }
 
+    // Helper: compute adaptive spread given normalized quality.
+    inline float computeAdaptiveSpreadSeconds(float QualityNormalized) const
+    {
+        // Large spread for low Q, shrink toward micro window for high Q.
+        const float LargeSpread = MaximumSpreadSeconds;         // existing max (e.g. up to 150 ms cap)
+        const float MicroSpread = 0.020f;                       // 20 ms upper micro window
+        const float ShapedQ = std::pow(QualityNormalized, 1.30f);
+
+        return juce::jmap(ShapedQ, 0.0f, 1.0f, LargeSpread, MicroSpread);
+    }
+
+    // Helper: derive tier (0,1,2) from quality.
+    inline int computeQualityTier(float QualityNormalized) const
+    {
+        if (QualityNormalized < 0.30f) return 0;
+        if (QualityNormalized < 0.65f) return 1;
+
+        return 2;
+    }
+
     // Per-channel aggregate state composed of component states.
     struct ChannelState
     {
@@ -97,6 +118,11 @@ private:
         Lowpass::State PostLP;              // Post-Diffusion low-pass state
 
         Ducking::State Duck;                // Ducking state
+
+        MiniAllpass InternalAP1; // Internal recursive diffusion stages (used only when quality tier >= 1).
+        MiniAllpass InternalAP2;
+        MiniAllpass InternalAP3; // Used only in tier 2
+        MiniAllpass InternalAP4; // Used only in tier 2
     };
 
     // Sample rate and buffer sizing
@@ -110,6 +136,9 @@ private:
     // Smoothing state for time-varying parameters
     float SmoothedDelayTimeSeconds = 0.300f;
     float SmoothedDiffusionSize = 0.00f;
+
+    // Add jitter storage (max taps 16 for safety).
+    std::vector<float> TapJitterOffsets;
 
     // Smoothing coefficients (tuned for responsiveness vs. stability)
     float DelayTimeSmoothCoefficient = 0.0015f;
