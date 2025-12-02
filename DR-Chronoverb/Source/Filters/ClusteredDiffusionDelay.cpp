@@ -361,7 +361,9 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
 
         // Map T60 to feedback gain using the nominal loop time
         const float LoopSeconds = std::max(1.0e-4f, SmoothedDelayTimeSeconds);
-        const float FeedbackGain = FeedbackDamping::T60ToFeedbackGain(LoopSeconds, FeedbackT60Seconds);
+
+        const float FeedbackGainLinear = FeedbackDamping::T60ToFeedbackGain(LoopSeconds, FeedbackT60Seconds);
+        FeedbackDelayNetwork::SetFeedbackGain(FDNState, FeedbackGainLinear);
 
         // Configure per-line delays around the base; simple symmetric offsets
         // e.g., for 4 lines: -Spread/2, -Spread/6, +Spread/6, +Spread/2
@@ -394,16 +396,15 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
 
         // Diffuse bus (equal-power controlled by DiffusionAmount)
         const float DiffusedBusSample = Diffusion::ProcessChainSample(DiffusionChain,
-                                                                      WetSumBefore,
-                                                                      DiffusionAmount,
-                                                                      DiffuserJitterPhase,
-                                                                      DiffuserJitterPhaseIncrement);
+                                                              WetSumBefore,
+                                                              DiffusionAmount,
+                                                              DiffuserJitterPhase,
+                                                              DiffuserJitterPhaseIncrement);
 
         // Dampen bus (block-wise alpha based on diffusion amount/quality)
         const float DampedBusSample = FeedbackDamping::ProcessSample(Channels[0].Feedback,
-                                                                     DiffusedBusSample,
-                                                                     DampingAlpha,
-                                                                     FeedbackGain);
+                                                             DiffusedBusSample,
+                                                             DampingAlpha);
 
         // Ducking detector (use dry mono as detector input)
         float DuckEnvelope = Ducking::ProcessDetectorSample(Channels[0].Duck,

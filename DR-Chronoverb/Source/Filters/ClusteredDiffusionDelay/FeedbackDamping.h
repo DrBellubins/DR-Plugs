@@ -42,17 +42,13 @@ public:
         return juce::jlimit(0.0f, 0.9995f, Gain);
     }
 
-    // Process one sample through the damping filter and apply feedback gain.
+    // Separate damping LPF from gain application: return only the damped sample.
     static inline float ProcessSample(FeedbackDamping::State& DampingState,
                                       float InputWetSample,
-                                      float DampingAlpha,
-                                      float FeedbackGain)
+                                      float DampingAlpha)
     {
-        // One-pole low-pass on wet input to generate feedback tone shaping
         DampingState.OnePoleState = DampingState.OnePoleState + DampingAlpha * (InputWetSample - DampingState.OnePoleState);
-        const float FeedbackSample = DampingState.OnePoleState * FeedbackGain;
-
-        return FeedbackSample;
+        return DampingState.OnePoleState;
     }
 
     // Reset the damping state.

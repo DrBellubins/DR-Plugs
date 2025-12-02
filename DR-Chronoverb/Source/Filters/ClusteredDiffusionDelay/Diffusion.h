@@ -26,21 +26,13 @@ class Diffusion
 public:
     struct AllpassStage
     {
-        // Delay buffer for the stage
         std::vector<float> Buffer;
         int WriteIndex = 0;
 
-        // Nominal integer delay in samples (used for base indexing)
         int NominalDelaySamples = 1;
-
-        // Coefficient (0 < g < 1), typical 0.6..0.7
         float CoefficientG = 0.65f;
 
-        // Slow jitter amount in samples (fractional), applied around NominalDelaySamples
         float JitterDepthSamples = 0.0f;
-
-        // Internal state for fractional read (linear interpolation only)
-        float LastOutput = 0.0f;
     };
 
     struct AllpassChain
@@ -53,8 +45,8 @@ public:
 
     // Prepare a chain with up to MaxStages and buffer capacity for MaxDelaySamples per stage.
     static void Prepare(Diffusion::AllpassChain& ChainState,
-                        int NumberOfStages,
-                        int MaxDelaySamplesPerStage)
+                    int NumberOfStages,
+                    int MaxDelaySamplesPerStage)
     {
         const int ClampedStages = juce::jlimit(1, 16, NumberOfStages);
         const int ClampedMaxDelay = std::max(1, MaxDelaySamplesPerStage);
@@ -67,10 +59,9 @@ public:
             AllpassStage& Stage = ChainState.Stages[static_cast<size_t>(StageIndex)];
             Stage.Buffer.assign(static_cast<size_t>(ClampedMaxDelay + 2), 0.0f);
             Stage.WriteIndex = 0;
-            Stage.NominalDelaySamples = std::max(1, ClampedMaxDelay / 4); // Default: short delay
+            Stage.NominalDelaySamples = std::max(1, ClampedMaxDelay / 4);
             Stage.CoefficientG = 0.65f;
             Stage.JitterDepthSamples = 0.0f;
-            Stage.LastOutput = 0.0f;
         }
     }
 
@@ -80,7 +71,6 @@ public:
         {
             std::fill(Stage.Buffer.begin(), Stage.Buffer.end(), 0.0f);
             Stage.WriteIndex = 0;
-            Stage.LastOutput = 0.0f;
         }
     }
 
@@ -132,17 +122,15 @@ public:
     }
 
     // Process the chain for one sample.
-    // - Amount controls equal-power crossfade between dry input and fully diffused output.
-    // - Optional slow jitter LFO per stage is provided via jitterPhaseIncrement (small), phase is advanced externally if needed.
+    // y = g * w + d, where w = x - g * d, and d = delayed(w) (store w in buffer).
     static float ProcessChainSample(Diffusion::AllpassChain& ChainState,
-                                    float InputSample,
-                                    float DiffusionAmountNormalized,
-                                    float JitterPhase,
-                                    float JitterPhaseIncrement)
+                                float InputSample,
+                                float DiffusionAmountNormalized,
+                                float JitterPhase,
+                                float JitterPhaseIncrement)
     {
         const float AmountClamped = juce::jlimit(0.0f, 1.0f, DiffusionAmountNormalized);
 
-        // Equal-power A/B mix factors
         const float AmountA = std::cos(AmountClamped * juce::MathConstants<float>::halfPi);
         const float AmountB = std::sin(AmountClamped * juce::MathConstants<float>::halfPi);
 
@@ -152,75 +140,48 @@ public:
         {
             const int BufferSize = static_cast<int>(Stage.Buffer.size());
 
-            if (BufferSize <= 1)
+            if (BufferSize <= 2)
                 continue;
 
-            // Jittered fractional delay around nominal
             const float JitterOffsetSamples = Stage.JitterDepthSamples * std::sin(JitterPhase);
             const float EffectiveDelaySamples = juce::jlimit(1.0f,
                                                              static_cast<float>(BufferSize - 2),
                                                              static_cast<float>(Stage.NominalDelaySamples) + JitterOffsetSamples);
 
-            // Read delayed x and y for allpass computation
-            // Read x[n - D]
-            float ReadPositionX = static_cast<float>(Stage.WriteIndex) - EffectiveDelaySamples;
+            // Read delayed value d = w[n - D] with linear interpolation
+            float ReadPosition = static_cast<float>(Stage.WriteIndex) - EffectiveDelaySamples;
 
-            while (ReadPositionX < 0.0f)
-            {
-                ReadPositionX += static_cast<float>(BufferSize);
-            }
+            while (ReadPosition < 0.0f)
+                ReadPosition += static_cast<float>(BufferSize);
 
-            const int IndexXA = static_cast<int>(ReadPositionX) % BufferSize;
-            const int IndexXB = (IndexXA + 1) % BufferSize;
-            const float FractionX = ReadPositionX - static_cast<float>(IndexXA);
+            const int IndexA = static_cast<int>(ReadPosition) % BufferSize;
+            const int IndexB = (IndexA + 1) % BufferSize;
+            const float Fraction = ReadPosition - static_cast<float>(IndexA);
 
-            const float XDelayedA = Stage.Buffer[static_cast<size_t>(IndexXA)];
-            const float XDelayedB = Stage.Buffer[static_cast<size_t>(IndexXB)];
-            const float XDelayed = XDelayedA + (XDelayedB - XDelayedA) * FractionX;
-
-            // For y[n - D], we approximate using a shadow ring held in Buffer too:
-            // We need previous outputs stored; reuse same buffer by writing outputs and reading delayed outputs similarly.
-            // Here, we treat Stage.LastOutput as the current y[n], and the buffer contents as previous x writes.
-            // To preserve the classic first-order allpass behavior in a simple form, we use a canonical implementation:
-            //
-            // y = -g * x + xDelayed + g * yDelayed
-            //
-            // Approximate yDelayed using the same delayed index in the buffer, which we store outputs into after computing y.
-            float ReadPositionY = ReadPositionX; // identical position for simplicity
-            const int IndexYA = IndexXA;
-            const int IndexYB = IndexXB;
-            const float FractionY = FractionX;
-
-            const float YDelayedA = Stage.Buffer[static_cast<size_t>(IndexYA)]; // previous outputs approximated by previous writes
-            const float YDelayedB = Stage.Buffer[static_cast<size_t>(IndexYB)];
-            const float YDelayed = YDelayedA + (YDelayedB - YDelayedA) * FractionY;
+            const float DelayedA = Stage.Buffer[static_cast<size_t>(IndexA)];
+            const float DelayedB = Stage.Buffer[static_cast<size_t>(IndexB)];
+            const float d = DelayedA + (DelayedB - DelayedA) * Fraction;
 
             const float g = Stage.CoefficientG;
 
-            const float StageOutput = (-g * StageInput) + XDelayed + (g * YDelayed);
+            // Canonical first-order allpass using 'w' stored in the buffer
+            const float w = StageInput - g * d;
+            const float y = g * w + d;
 
-            // Write current "input + output" blend into buffer to maintain continuity.
-            // We store StageInput for x path and StageOutput for y path blended to avoid denorm issues.
-            const float BufferWrite = 0.5f * (StageInput + StageOutput);
+            // Write w and advance
+            Stage.Buffer[static_cast<size_t>(Stage.WriteIndex)] = w;
 
-            Stage.Buffer[static_cast<size_t>(Stage.WriteIndex)] = BufferWrite;
             Stage.WriteIndex++;
 
             if (Stage.WriteIndex >= BufferSize)
-            {
                 Stage.WriteIndex = 0;
-            }
 
-            Stage.LastOutput = StageOutput;
-            StageInput = StageOutput;
+            StageInput = y;
 
-            // Advance jitter phase slightly per stage for decorrelation
             JitterPhase += JitterPhaseIncrement;
         }
 
         const float DiffusedOutput = StageInput;
-
-        // Equal-power blend between dry InputSample and diffused output
         const float OutputSample = (AmountA * InputSample) + (AmountB * DiffusedOutput);
 
         return OutputSample;

@@ -39,17 +39,13 @@ public:
     struct State
     {
         std::vector<LineState> Lines;
-
-        // Fixed unitary mixing matrix. Stored as row-major [N x N].
-        // For N not a power-of-two, we fall back to a Householder-like matrix.
         std::vector<float> FeedbackMatrix;
-
-        // Bus damping (LPF state).
         Lowpass::State BusDampingLPF;
 
-        // Cached for runtime
         int NumberOfLines = 0;
         int MaxDelayBufferSamples = 0;
+
+        float FeedbackGain = 0.5f; // default, set per-sample by caller based on T60
     };
 
     // Prepare network with the requested number of lines and buffer size.
@@ -114,6 +110,13 @@ public:
         }
     }
 
+    // Provide a setter for feedback gain
+    static inline void SetFeedbackGain(FeedbackDelayNetwork::State& FDNState,
+                                       float FeedbackGainLinear)
+    {
+        FDNState.FeedbackGain = juce::jlimit(0.0f, 0.9999f, FeedbackGainLinear);
+    }
+
     // Read the summed wet output across all lines.
     // If NormalizeByLineCount is true, divides by N to keep level consistent.
     static float ReadWetSum(const FeedbackDelayNetwork::State& FDNState,
@@ -144,8 +147,9 @@ public:
         return Lowpass::ProcessSample(FDNState.BusDampingLPF, InputBusSample, DampingAlpha);
     }
 
-    // Distribute a single bus sample across lines via unitary matrix and write to delay buffers.
-    // Optionally add the dry input to the line write to realize "input + feedback".
+    // Fix WriteFeedbackDistributed: use previous line outputs vector multiplied by the unitary matrix.
+    // The scalar bus sample acts as a gain applied to the mixed previous outputs.
+    // Dry input is added equally to all lines (or distribute if desired).
     static void WriteFeedbackDistributed(FeedbackDelayNetwork::State& FDNState,
                                          float FeedbackBusSample,
                                          float DryInputSample)
@@ -155,7 +159,6 @@ public:
         if (N <= 0)
             return;
 
-        // Gather current outputs (y = current delayed outputs)
         TempLineBuffer.resize(static_cast<size_t>(N));
 
         for (int LineIndex = 0; LineIndex < N; ++LineIndex)
@@ -164,32 +167,30 @@ public:
             TempLineBuffer[static_cast<size_t>(LineIndex)] = DelayLine::Read(Line.Delay, Line.DelayLengthSamples);
         }
 
-        // Compute distributed feedback for each line: sum_j (M[i,j] * FeedbackBusSample)
-        // Since FeedbackBusSample is scalar, distribution reduces to M_row_sum[i] * FeedbackBusSample.
-        // To preserve energy, we use the matrix rows as unit-length; row sum is used directly.
-        RowSumBuffer.resize(static_cast<size_t>(N));
+        // Multiply previous outputs by the unitary matrix rows
+        std::vector<float> Mixed(static_cast<size_t>(N), 0.0f);
 
         const float* MatrixData = FDNState.FeedbackMatrix.data();
 
         for (int RowIndex = 0; RowIndex < N; ++RowIndex)
         {
-            float RowSum = 0.0f;
-
+            float Accumulator = 0.0f;
             const int RowOffset = RowIndex * N;
 
             for (int ColumnIndex = 0; ColumnIndex < N; ++ColumnIndex)
             {
-                RowSum += MatrixData[static_cast<size_t>(RowOffset + ColumnIndex)];
+                Accumulator += MatrixData[static_cast<size_t>(RowOffset + ColumnIndex)]
+                               * TempLineBuffer[static_cast<size_t>(ColumnIndex)];
             }
 
-            RowSumBuffer[static_cast<size_t>(RowIndex)] = RowSum;
+            Mixed[static_cast<size_t>(RowIndex)] = Accumulator;
         }
 
-        // Write per-line: input + distributed feedback
+        // Apply bus scalar and global feedback gain, then add dry input
         for (int LineIndex = 0; LineIndex < N; ++LineIndex)
         {
-            const float DistributedFeedbackForLine = FeedbackBusSample * RowSumBuffer[static_cast<size_t>(LineIndex)];
-            const float LineWriteSample = DryInputSample + DistributedFeedbackForLine;
+            const float FeedbackWrite = (FeedbackBusSample * FDNState.FeedbackGain) * Mixed[static_cast<size_t>(LineIndex)];
+            const float LineWriteSample = DryInputSample + FeedbackWrite;
 
             DelayLine::Write(FDNState.Lines[static_cast<size_t>(LineIndex)].Delay, LineWriteSample);
         }
