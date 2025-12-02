@@ -16,6 +16,7 @@
 #include "ClusteredDiffusionDelay/Smoothers.h"
 #include "ClusteredDiffusionDelay/DryWetMixer.h"
 #include "ClusteredDiffusionDelay/Ducking.h"
+#include "ClusteredDiffusionDelay/FeedbackDelayNetwork.h"
 
 // ClusteredDiffusionDelay (Master)
 // - Orchestrates modular components to realize the diffused delay/reverb algorithm.
@@ -115,8 +116,22 @@ private:
     float DelayTimeSmoothCoefficient = 0.0015f;
     float SizeSmoothCoefficient = 0.0020f;
 
-    // Tap layout for diffusion cluster (recomputed when quality changes).
-    std::shared_ptr<Diffusion::TapLayout> TapLayoutPtr;
+    // FDN configuration
+    const int FDNNumberOfLines = 4;          // 4-line FDN (power of two → Hadamard)
+    const bool FDNNormalizeWetMix = true;    // keep WetSum level consistent
+
+    // Jitter LFO for diffusion chain
+    float DiffuserJitterPhase = 0.0f;
+    float DiffuserJitterPhaseIncrement = 0.0015f; // slow decorrelation across stages
+
+    // Cache of per-line delays (derived from smoothed delay time + spread)
+    std::vector<float> FDNLineDelaysSamples;
+
+    // Diffusion chain used to shape the feedback bus before FDN mixing
+    Diffusion::AllpassChain DiffusionChain;
+
+    // Feedback Delay Network state
+    FeedbackDelayNetwork::State FDNState;
 
     // Per-channel state container
     std::vector<ChannelState> Channels;

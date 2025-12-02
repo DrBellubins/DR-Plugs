@@ -40,11 +40,22 @@ void ClusteredDiffusionDelay::PrepareToPlay(double NewSampleRate, float NewMaxim
     SmoothedDelayTimeSeconds = TargetDelayTimeSeconds.load();
     SmoothedDiffusionSize    = TargetDiffusionSize.load();
 
-    // Compute initial tap layout from default quality
-    Diffusion::TapLayout NewLayout;
-    Diffusion::RecomputeTapLayout(NewLayout, stepsToNormalizedQuality(TargetDiffusionQuality.load()));
+    // Prepare diffusion chain based on a safe max per-stage delay (e.g., 50 ms)
+    const int MaxStageDelaySamples = std::max(1, static_cast<int>(std::ceil(0.050f * static_cast<float>(SampleRate))));
+    const int InitialStages = Diffusion::QualityToStages(stepsToNormalizedQuality(TargetDiffusionQuality.load()));
+    Diffusion::Prepare(DiffusionChain, InitialStages, MaxStageDelaySamples);
 
-    std::atomic_store(&TapLayoutPtr, std::make_shared<Diffusion::TapLayout>(std::move(NewLayout)));
+    // Configure stages for current size/quality
+    Diffusion::Configure(DiffusionChain,
+                         SampleRate,
+                         TargetDiffusionSize.load(),
+                         stepsToNormalizedQuality(TargetDiffusionQuality.load()));
+
+    // Prepare FDN with chosen number of lines and max buffer size
+    FeedbackDelayNetwork::Prepare(FDNState, FDNNumberOfLines, MaxDelayBufferSamples);
+
+    // Initialize line delays vector
+    FDNLineDelaysSamples.assign(static_cast<size_t>(FDNNumberOfLines), 1.0f);
 
     IsPrepared = true;
 }
@@ -55,6 +66,9 @@ void ClusteredDiffusionDelay::Reset()
     for (ChannelState& State : Channels)
     {
         DelayLine::Reset(State.Delay);
+        Diffusion::Reset(DiffusionChain);
+        FeedbackDelayNetwork::Reset(FDNState);
+
         HaasStereoWidener::Reset(State.Haas);
         FeedbackDamping::Reset(State.Feedback);
 
@@ -109,6 +123,12 @@ void ClusteredDiffusionDelay::SetDiffusionSize(float diffusionSize)
 {
     float clamped = juce::jlimit(0.0f, 1.0f, diffusionSize);
     TargetDiffusionSize.store(clamped, std::memory_order_relaxed);
+
+    // Reconfigure stage delays for new size (quality unchanged)
+    Diffusion::Configure(DiffusionChain,
+                         SampleRate,
+                         TargetDiffusionSize.load(),
+                         stepsToNormalizedQuality(TargetDiffusionQuality.load()));
 }
 
 void ClusteredDiffusionDelay::SetDiffusionQuality(int diffusionQualitySteps)
@@ -116,11 +136,17 @@ void ClusteredDiffusionDelay::SetDiffusionQuality(int diffusionQualitySteps)
     int Clamped = juce::jlimit(0, 10, diffusionQualitySteps);
     TargetDiffusionQuality.store(Clamped, std::memory_order_relaxed);
 
-    Diffusion::TapLayout NewLayout;
-    Diffusion::RecomputeTapLayout(NewLayout, stepsToNormalizedQuality(Clamped));
+    // Reconfigure diffusion chain for new quality
+    const float NewQualityNormalized = stepsToNormalizedQuality(Clamped);
+    const int NewStages = Diffusion::QualityToStages(NewQualityNormalized);
+    const int MaxStageDelaySamples = DiffusionChain.MaxStageDelaySamples > 0 ? DiffusionChain.MaxStageDelaySamples
+                                                                            : std::max(1, static_cast<int>(std::ceil(0.050f * static_cast<float>(SampleRate))));
 
-    auto NewPtr = std::make_shared<Diffusion::TapLayout>(std::move(NewLayout));
-    std::atomic_store(&TapLayoutPtr, NewPtr);
+    Diffusion::Prepare(DiffusionChain, NewStages, MaxStageDelaySamples);
+    Diffusion::Configure(DiffusionChain,
+                         SampleRate,
+                         TargetDiffusionSize.load(),
+                         NewQualityNormalized);
 }
 
 void ClusteredDiffusionDelay::SetDryWetMix(float dryWet)
@@ -192,11 +218,6 @@ void ClusteredDiffusionDelay::SetDuckRelease(float duckRelease)
 void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer)
 {
     if (!IsPrepared)
-        return;
-
-    auto LocalTapLayoutPtr = std::atomic_load(&TapLayoutPtr);
-
-    if (!LocalTapLayoutPtr)
         return;
 
     const int NumChannels = AudioBuffer.getNumChannels();
@@ -282,8 +303,6 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
     const float RawDelayParam = TargetDelayTimeSeconds.load(std::memory_order_relaxed); // Interpreted by mode
     const float CurrentBPM = HostTempoBPM.load(std::memory_order_relaxed);
 
-    // TODO: Only allow up to 1/16th.
-
     // --- Beat-synced delay mapping (quarter-note units) ---
     // Table entries expressed in QUARTER-NOTE units ("beats"):
     // Whole = 4.0, Half = 2.0, Quarter = 1.0, Eighth = 0.5, Sixteenth = 0.25
@@ -320,13 +339,6 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
         MappedDelaySeconds = juce::jlimit(0.0f, MaximumDelaySeconds, Beats * SecondsPerQuarter);
     }
 
-    // Instant resync on mode change
-    /*if (DelayModeJustChanged.load(std::memory_order_relaxed))
-    {
-        DelayModeJustChanged.store(false, std::memory_order_relaxed);
-        SmoothedDelayTimeSeconds = MappedDelaySeconds; // Instant sync
-    }*/
-
     // Instead: just clear the flag; smoothing will glide.
     if (DelayModeJustChanged.load(std::memory_order_relaxed))
         DelayModeJustChanged.store(false, std::memory_order_relaxed);
@@ -334,135 +346,127 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
     // Per-sample processing
     for (int SampleIndex = 0; SampleIndex < NumSamples; ++SampleIndex)
     {
+        // Smooth time and size
         SmoothedDelayTimeSeconds = Smoothers::OnePole(SmoothedDelayTimeSeconds, MappedDelaySeconds, DelayTimeSmoothCoefficient);
 
         const float TargetSizeLocal = juce::jlimit(0.0f, 1.0f, TargetDiffusionSize.load(std::memory_order_relaxed));
         SmoothedDiffusionSize = Smoothers::OnePole(SmoothedDiffusionSize, TargetSizeLocal, SizeSmoothCoefficient);
 
-        // Convert to samples (guard spread by derived maximum)
+        // Convert to samples
         const float BaseDelaySamples = secondsToSamples(juce::jlimit(0.0f, MaximumDelaySeconds, SmoothedDelayTimeSeconds));
-        const float SpreadSamples    = secondsToSamples(juce::jlimit(0.0f, MaximumSpreadSeconds, SmoothedDiffusionSize * MaximumSpreadSeconds));
 
-        // Map T60 to per-loop feedback gain using the current loop time (nominal delay)
+        // Spread window in seconds (caps already applied); use it to derive line offsets
+        const float SpreadSeconds = juce::jlimit(0.0f, MaximumSpreadSeconds, SmoothedDiffusionSize * MaximumSpreadSeconds);
+        const float SpreadSamples = secondsToSamples(SpreadSeconds);
+
+        // Map T60 to feedback gain using the nominal loop time
         const float LoopSeconds = std::max(1.0e-4f, SmoothedDelayTimeSeconds);
         const float FeedbackGain = FeedbackDamping::T60ToFeedbackGain(LoopSeconds, FeedbackT60Seconds);
 
-        // Compute the wet echo for each channel (pre-stereo stage)
-        float WetEchoLeft = 0.0f;
-        float WetEchoRight = 0.0f;
+        // Configure per-line delays around the base; simple symmetric offsets
+        // e.g., for 4 lines: -Spread/2, -Spread/6, +Spread/6, +Spread/2
+        FDNLineDelaysSamples.resize(static_cast<size_t>(FDNNumberOfLines));
 
-        // Channel 0
-        if (NumChannels >= 1)
+        for (int LineIndex = 0; LineIndex < FDNNumberOfLines; ++LineIndex)
         {
-            WetEchoLeft = Diffusion::ComputeWetEcho(Channels[0].Delay,
-                                                    BaseDelaySamples,
-                                                    SpreadSamples,
-                                                    LookaheadSamples,
-                                                    *LocalTapLayoutPtr,
-                                                    AmountA,
-                                                    AmountB);
+            const float Position = (static_cast<float>(LineIndex) / static_cast<float>(std::max(1, FDNNumberOfLines - 1))) * 2.0f - 1.0f;
+            const float OffsetSamples = Position * (SpreadSamples * 0.5f);
+            FDNLineDelaysSamples[static_cast<size_t>(LineIndex)] = std::max(1.0f, BaseDelaySamples + OffsetSamples);
         }
 
-        // Channel 1
-        if (NumChannels >= 2)
-        {
-            WetEchoRight = Diffusion::ComputeWetEcho(Channels[1].Delay,
-                                                     BaseDelaySamples,
-                                                     SpreadSamples,
-                                                     LookaheadSamples,
-                                                     *LocalTapLayoutPtr,
-                                                     AmountA,
-                                                     AmountB);
-        }
+        FeedbackDelayNetwork::SetLineDelays(FDNState, FDNLineDelaysSamples);
 
-        // Stereo widening/reduction stage
-        float ProcessedWetLeft = WetEchoLeft;
-        float ProcessedWetRight = WetEchoRight;
+        // Compute Diffusion chain output for the bus using current dry input mix across channels
+        // We will build a mono bus from the average of dry input samples (per your previous design).
+        float DryInputMono = 0.0f;
 
-        if (NumChannels >= 2)
-        {
-            HaasStereoWidener::ProcessStereoSample(WetEchoLeft,
-                                                   WetEchoRight,
-                                                   StereoWidth,
-                                                   Channels[0].Haas,
-                                                   Channels[1].Haas,
-                                                   ProcessedWetLeft,
-                                                   ProcessedWetRight);
-        }
-        else if (NumChannels == 1)
-        {
-            // Mono path: write/advance Haas to keep consistent, pass-through value
-            HaasStereoWidener::WriteWet(Channels[0].Haas, WetEchoLeft);
-            HaasStereoWidener::Advance(Channels[0].Haas);
-
-            ProcessedWetLeft = WetEchoLeft;
-        }
-
-        // Per-channel feedback, pre/post-filtering, delay write, and output mixing
         for (int ChannelIndex = 0; ChannelIndex < NumChannels; ++ChannelIndex)
         {
-            float* ChannelData = AudioBuffer.getWritePointer(ChannelIndex);
-            ChannelState& State = Channels[ChannelIndex];
-
-            const float InputSample = ChannelData[SampleIndex];
-            const float WetSampleUnfiltered = (ChannelIndex == 0 ? ProcessedWetLeft : ProcessedWetRight);
-
-            // --- Ducking detector and gain computation (per channel) ---
-            float DuckEnvelope = Ducking::ProcessDetectorSample(State.Duck,
-                                                                InputSample,
-                                                                DuckAttackAlpha,
-                                                                DuckReleaseAlpha);
-
-            float DuckGain = Ducking::ComputeDuckGain(DuckEnvelope, DuckAmount);
-
-            // Feedback damping (always applied; gives base decay envelope)
-            const float FeedbackSamplePreFilters = FeedbackDamping::ProcessSample(State.Feedback,
-                                                                                  WetSampleUnfiltered,
-                                                                                  DampingAlpha,
-                                                                                  FeedbackGain);
-
-            const float FeedbackWithDucking = FeedbackSamplePreFilters * DuckGain;
-            float DelayLineInput = 0.0f;
-            float OutputWetSample = WetSampleUnfiltered;
-
-            if (UsePreFiltering)
-            {
-                // PRE mode: HP/LP shape feedback -> spectral decay
-                float ShapedFeedback = Highpass::ProcessSample(State.PreHP,
-                                                               FeedbackWithDucking,
-                                                               AlphaHP);
-                ShapedFeedback = Lowpass::ProcessSample(State.PreLP,
-                                                        ShapedFeedback,
-                                                        AlphaLP);
-
-                DelayLineInput = InputSample + ShapedFeedback;
-
-                // Apply ducking to audible wet output (unfiltered in PRE mode)
-                OutputWetSample = WetSampleUnfiltered * DuckGain;
-            }
-            else
-            {
-                // POST mode: Write unfiltered feedback (no spectral decay);
-                // apply HP/LP only to final wet output for static coloration.
-                DelayLineInput = InputSample + FeedbackWithDucking;
-
-                float FilteredWet = Highpass::ProcessSample(State.PostHP,
-                                                            WetSampleUnfiltered,
-                                                            AlphaHP);
-                FilteredWet = Lowpass::ProcessSample(State.PostLP,
-                                                     FilteredWet,
-                                                     AlphaLP);
-
-                // Apply ducking after filtering in POST mode
-                OutputWetSample = FilteredWet * DuckGain;
-            }
-
-            // Write to delay line
-            DelayLine::Write(State.Delay, DelayLineInput);
-
-            // Final dry/wet mix (use OutputWetSample which may be post-filtered)
-            const float Mixed = (DryGain * InputSample) + (WetGain * OutputWetSample);
-            ChannelData[SampleIndex] = Mixed;
+            const float* ReadPtr = AudioBuffer.getReadPointer(ChannelIndex);
+            DryInputMono += ReadPtr[SampleIndex];
         }
+
+        if (NumChannels > 0)
+            DryInputMono /= static_cast<float>(NumChannels);
+
+        // Read current wet sum BEFORE writing new feedback (FDN convention)
+        float WetSumBefore = FeedbackDelayNetwork::ReadWetSum(FDNState, FDNNormalizeWetMix);
+
+        // Diffuse bus (equal-power controlled by DiffusionAmount)
+        const float DiffusedBusSample = Diffusion::ProcessChainSample(DiffusionChain,
+                                                                      WetSumBefore,
+                                                                      DiffusionAmount,
+                                                                      DiffuserJitterPhase,
+                                                                      DiffuserJitterPhaseIncrement);
+
+        // Dampen bus (block-wise alpha based on diffusion amount/quality)
+        const float DampedBusSample = FeedbackDamping::ProcessSample(Channels[0].Feedback,
+                                                                     DiffusedBusSample,
+                                                                     DampingAlpha,
+                                                                     FeedbackGain);
+
+        // Ducking detector (use dry mono as detector input)
+        float DuckEnvelope = Ducking::ProcessDetectorSample(Channels[0].Duck,
+                                                            DryInputMono,
+                                                            DuckAttackAlpha,
+                                                            DuckReleaseAlpha);
+
+        const float DuckGain = Ducking::ComputeDuckGain(DuckEnvelope, DuckAmount);
+
+        // Apply Pre/Post HP/LP depending on mode:
+        float FilteredWetOutput = WetSumBefore;
+
+        if (UsePreFiltering)
+        {
+            // PRE: shape damping sample before distribution (spectral decay), duck feedback and audible wet
+            float ShapedBus = Highpass::ProcessSample(Channels[0].PreHP, DampedBusSample, AlphaHP);
+            ShapedBus = Lowpass::ProcessSample(Channels[0].PreLP, ShapedBus, AlphaLP);
+
+            // Duck feedback bus and audible wet
+            const float ShapedBusDucked = ShapedBus * DuckGain;
+            const float AudiblyDuckedWet = WetSumBefore * DuckGain;
+
+            // Write distributed feedback: input + feedback
+            FeedbackDelayNetwork::WriteFeedbackDistributed(FDNState, ShapedBusDucked, DryInputMono);
+
+            // Mix output for each channel (dry + wet); per-channel HP/LP not applied in PRE
+            for (int ChannelIndex = 0; ChannelIndex < NumChannels; ++ChannelIndex)
+            {
+                float* WritePtr = AudioBuffer.getWritePointer(ChannelIndex);
+                const float DrySample = WritePtr[SampleIndex];
+                const float MixedSample = (DryGain * DrySample) + (WetGain * AudiblyDuckedWet);
+                WritePtr[SampleIndex] = MixedSample;
+            }
+        }
+        else
+        {
+            // POST: write unfiltered feedback, apply HP/LP and ducking to audible wet mix afterwards
+            const float FeedbackBusDucked = DampedBusSample * DuckGain;
+
+            FeedbackDelayNetwork::WriteFeedbackDistributed(FDNState, FeedbackBusDucked, DryInputMono);
+
+            // Re-read wet sum (optionally could use the earlier wet; using the earlier keeps causality simple)
+            float WetForOutput = WetSumBefore;
+
+            // Apply post HP/LP to wet and then ducking to output
+            float FilteredWet = Highpass::ProcessSample(Channels[0].PostHP, WetForOutput, AlphaHP);
+            FilteredWet = Lowpass::ProcessSample(Channels[0].PostLP, FilteredWet, AlphaLP);
+
+            const float AudiblyDuckedWet = FilteredWet * DuckGain;
+
+            for (int ChannelIndex = 0; ChannelIndex < NumChannels; ++ChannelIndex)
+            {
+                float* WritePtr = AudioBuffer.getWritePointer(ChannelIndex);
+                const float DrySample = WritePtr[SampleIndex];
+                const float MixedSample = (DryGain * DrySample) + (WetGain * AudiblyDuckedWet);
+                WritePtr[SampleIndex] = MixedSample;
+            }
+        }
+
+        // Advance jitter phase slowly
+        DiffuserJitterPhase += DiffuserJitterPhaseIncrement;
+
+        if (DiffuserJitterPhase > juce::MathConstants<float>::twoPi)
+            DiffuserJitterPhase -= juce::MathConstants<float>::twoPi;
     }
 }
