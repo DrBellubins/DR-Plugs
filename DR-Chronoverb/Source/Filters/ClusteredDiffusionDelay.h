@@ -122,7 +122,7 @@ private:
     float SizeSmoothCoefficient = 0.0020f;
 
     // FDN configuration
-    const int FDNNumberOfLines = 4;          // 4-line FDN (power of two → Hadamard)
+    const int FDNNumberOfLines = 8;          // 8-line FDN (power of two → Hadamard)
     const bool FDNNormalizeWetMix = true;    // keep WetSum level consistent
 
     // Average short FDN loop time for feedback mapping (e.g. 40–60 ms)
