@@ -435,25 +435,21 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
 
         if (NumChannels >= 2)
         {
-            // Feed the computed wet into Haas, receive widened/reduced outputs
-            HaasStereoWidener::ProcessStereoSample(ProcessedWetLeft,
-                                                   ProcessedWetRight,
+            HaasStereoWidener::ProcessStereoSample(WetEchoLeft,
+                                                   WetEchoRight,
                                                    StereoWidth,
                                                    Channels[0].Haas,
                                                    Channels[1].Haas,
-                                                   WetEchoLeft,
-                                                   WetEchoRight);
-
-            // Continue processing with the Haas outputs
-            ProcessedWetLeft = WetEchoLeft;
-            ProcessedWetRight = WetEchoRight;
+                                                   ProcessedWetLeft,
+                                                   ProcessedWetRight);
         }
         else if (NumChannels == 1)
         {
-            // Mono path: write the processed wet into Haas to keep buffer consistent, pass-through value
-            HaasStereoWidener::WriteWet(Channels[0].Haas, ProcessedWetLeft);
+            // Mono path: write/advance Haas to keep consistent, pass-through value
+            HaasStereoWidener::WriteWet(Channels[0].Haas, WetEchoLeft);
             HaasStereoWidener::Advance(Channels[0].Haas);
-            // Keep ProcessedWetLeft as-is (no stereo transform in mono)
+
+            ProcessedWetLeft = WetEchoLeft;
         }
 
         // Per-channel feedback, pre/post-filtering, delay write, and output mixing
