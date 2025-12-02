@@ -118,8 +118,8 @@ public:
 
             float EffectiveDelaySamples = BaseDelaySamples + LookaheadSamples + SignedOffsetSamples;
 
-            if (EffectiveDelaySamples < 2.0f)
-                EffectiveDelaySamples = 2.0f;
+            if (EffectiveDelaySamples < 1.0f)
+                EffectiveDelaySamples = 1.0f;
 
             float TapSample = DelayLine::Read(DelayState, EffectiveDelaySamples);
             TapSample *= Layout.Weights[static_cast<size_t>(TapIndex)];

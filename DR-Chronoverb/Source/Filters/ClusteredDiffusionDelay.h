@@ -87,9 +87,11 @@ private:
     // Helper: compute adaptive spread given normalized quality.
     inline float computeAdaptiveSpreadSeconds(float QualityNormalized) const
     {
-        const float LargeSpread = MaximumSpreadSeconds;
-        const float MicroSpread = 0.015f; // was 0.020f
+        // Large spread for low Q, shrink toward micro window for high Q.
+        const float LargeSpread = MaximumSpreadSeconds;         // existing max (e.g. up to 150 ms cap)
+        const float MicroSpread = 0.020f;                       // 20 ms upper micro window
         const float ShapedQ = std::pow(QualityNormalized, 1.30f);
+
         return juce::jmap(ShapedQ, 0.0f, 1.0f, LargeSpread, MicroSpread);
     }
 
