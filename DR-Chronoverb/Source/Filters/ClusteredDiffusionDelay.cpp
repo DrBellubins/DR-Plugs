@@ -398,14 +398,16 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
 
             const float ShapedBusDucked = ShapedBus * DuckGain;
 
-            // Write FDN feedback: pre-delay feeds the loop via dry input (clean echoes), bus is diffused
-            FeedbackDelayNetwork::WriteFeedbackDistributed(FDNState, ShapedBusDucked, PreDelayedSample);
+            // Write feedback: do not use ShapedBusDucked as a scalar on the mixed vector.
+            // Let FeedbackGain control the amount; DryInputSample is PreDelayedSample.
+            FeedbackDelayNetwork::WriteFeedbackDistributed(FDNState, 1.0f, PreDelayedSample);
         }
         else
         {
             const float FeedbackBusDucked = DampedBusSample * DuckGain;
 
-            FeedbackDelayNetwork::WriteFeedbackDistributed(FDNState, FeedbackBusDucked, PreDelayedSample);
+            // Same: pass neutral scalar; FeedbackGain governs decay.
+            FeedbackDelayNetwork::WriteFeedbackDistributed(FDNState, 1.0f, PreDelayedSample);
         }
 
         // --- Output mixing: crossfade clean pre-delay vs. FDN wet ---

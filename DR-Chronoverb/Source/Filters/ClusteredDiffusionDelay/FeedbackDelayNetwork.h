@@ -148,10 +148,10 @@ public:
     }
 
     // Fix WriteFeedbackDistributed: use previous line outputs vector multiplied by the unitary matrix.
-    // The scalar bus sample acts as a gain applied to the mixed previous outputs.
+    // Feedback amount is controlled only by FeedbackGain, not by the instantaneous bus sample magnitude.
     // Dry input is added equally to all lines (or distribute if desired).
     static void WriteFeedbackDistributed(FeedbackDelayNetwork::State& FDNState,
-                                         float FeedbackBusSample,
+                                         float /*FeedbackBusSample*/,   // Unused after change; keep for ABI if needed
                                          float DryInputSample)
     {
         const int N = FDNState.NumberOfLines;
@@ -186,10 +186,10 @@ public:
             Mixed[static_cast<size_t>(RowIndex)] = Accumulator;
         }
 
-        // Apply bus scalar and global feedback gain, then add dry input
+        // Apply only global feedback gain to the mixed vector, then add dry input
         for (int LineIndex = 0; LineIndex < N; ++LineIndex)
         {
-            const float FeedbackWrite = (FeedbackBusSample * FDNState.FeedbackGain) * Mixed[static_cast<size_t>(LineIndex)];
+            const float FeedbackWrite = FDNState.FeedbackGain * Mixed[static_cast<size_t>(LineIndex)];
             const float LineWriteSample = DryInputSample + FeedbackWrite;
 
             DelayLine::Write(FDNState.Lines[static_cast<size_t>(LineIndex)].Delay, LineWriteSample);
