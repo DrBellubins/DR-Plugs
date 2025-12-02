@@ -44,7 +44,7 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
         float Normalised = DelayModeParam->getValue(); // 0..1
         int InitialModeIndex = static_cast<int>(std::round(DelayModeParam->convertFrom0to1(Normalised)));
 
-        DelayReverb.SetDelayMode(InitialModeIndex); // CHANGE: ensure DelayModeJustChanged handled once at startup
+        //DelayReverb.SetDelayMode(InitialModeIndex); // CHANGE: ensure DelayModeJustChanged handled once at startup
     }
 
     float feedbackTime = parameters.getRawParameterValue("feedbackTime")->load();
@@ -76,9 +76,9 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     DelayReverb.SetHighpassCutoff(highPassCutoff);
     DelayReverb.SetHPLPPrePost(hpLPPrePost);
 
-    DelayReverb.SetDuckAmount(duckAmount);
-    DelayReverb.SetDuckAttack(duckAttack);
-    DelayReverb.SetDuckRelease(duckRelease);
+    //DelayReverb.SetDuckAmount(duckAmount);
+    //DelayReverb.SetDuckAttack(duckAttack);
+    //DelayReverb.SetDuckRelease(duckRelease);
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
@@ -275,8 +275,8 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
 
     if (parameterID == "delayMode")
     {
-        if (auto* ChoiceParameter = dynamic_cast<juce::AudioParameterChoice*>(parameters.getParameter("delayMode")))
-            DelayReverb.SetDelayMode(ChoiceParameter->getIndex());
+        //if (auto* ChoiceParameter = dynamic_cast<juce::AudioParameterChoice*>(parameters.getParameter("delayMode")))
+        //    DelayReverb.SetDelayMode(ChoiceParameter->getIndex());
     }
 
     if (parameterID == "feedbackTime") DelayReverb.SetFeedbackTime(newValue);
@@ -292,9 +292,9 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
     if (parameterID == "hplpPrePost") DelayReverb.SetHPLPPrePost(newValue);
 
     // Ducking
-    if (parameterID == "duckAmount") DelayReverb.SetDuckAmount(newValue);
-    if (parameterID == "duckAttack") DelayReverb.SetDuckAttack(newValue);
-    if (parameterID == "duckRelease") DelayReverb.SetDuckRelease(newValue);
+    //if (parameterID == "duckAmount") DelayReverb.SetDuckAmount(newValue);
+    //if (parameterID == "duckAttack") DelayReverb.SetDuckAttack(newValue);
+    //if (parameterID == "duckRelease") DelayReverb.SetDuckRelease(newValue);
 
     #if DEBUG
     //DBG("Changed: " << parameterID << " to " << newValue);

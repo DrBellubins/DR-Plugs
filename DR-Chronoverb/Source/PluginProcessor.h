@@ -2,7 +2,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
-#include "Filters/ClusteredDiffusionDelay.h"
+#include "Filters/NewDelayReverb.h"
 #include "Filters/ComputerKeyboardSquareSynth.h"
 
 //==============================================================================
@@ -16,7 +16,7 @@ public:
     juce::AudioProcessorValueTreeState parameters;
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
-    ClusteredDiffusionDelay DelayReverb;
+    NewDelayReverb DelayReverb;
 
     ComputerKeyboardSquareSynth keyboardSynth;
 
