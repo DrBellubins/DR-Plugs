@@ -2,8 +2,6 @@
 #include <numeric>
 #include "ClusteredDiffusionDelay.h"
 
-// TODO: Implement fractional delay time modes
-
 // ============================== Construction / Setup ==============================
 
 ClusteredDiffusionDelay::ClusteredDiffusionDelay()
