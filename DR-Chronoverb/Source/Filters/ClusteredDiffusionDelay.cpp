@@ -327,7 +327,6 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
     const float RawDelayParam = TargetDelayTimeSeconds.load(std::memory_order_relaxed); // Interpreted by mode
     const float CurrentBPM = HostTempoBPM.load(std::memory_order_relaxed);
 
-
     // Table entries expressed in QUARTER-NOTE units ("beats"):
     // Whole = 4.0, Half = 2.0, Quarter = 1.0, Eighth = 0.5, Sixteenth = 0.25
     static const float BeatFractions[] =
@@ -376,6 +375,19 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
     else if (QualityTier == 2)
         JitterRange = 0.020f; // ±0.02
 
+    // Effective internal loop time: nominal delay + half raw spread + average all-pass delay path
+    // (All-pass delays: 7,9,11,13 ms -> average ~10 ms when tier 2, ~8 ms when tier 1)
+    float AverageAllpassMs = 0.0f;
+
+    if (QualityTier == 1)
+        AverageAllpassMs = 0.008f;
+    else if (QualityTier == 2)
+        AverageAllpassMs = 0.010f;
+
+    const float AverageSpreadSeconds = RawDelayParam > 0.0f ? AdaptiveSpreadSeconds * 0.5f : 0.0f;
+    float EffectiveLoopSecondsBase = SmoothedDelayTimeSeconds + AverageSpreadSeconds + AverageAllpassMs;
+    EffectiveLoopSecondsBase = std::max(1.0e-4f, EffectiveLoopSecondsBase);
+
     // Refresh jitter offsets once per block if > 0.
     if (JitterRange > 0.0f && DiffusionAmount > 0.06f)
     {
@@ -406,9 +418,32 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
         const float RawSpreadSeconds = juce::jlimit(0.0f, AdaptiveSpreadSeconds, SmoothedDiffusionSize * AdaptiveSpreadSeconds);
         const float SpreadSamples = secondsToSamples(RawSpreadSeconds);
 
-        // Map T60 to per-loop feedback gain using the current loop time (nominal delay)
-        const float LoopSeconds = std::max(1.0e-4f, SmoothedDelayTimeSeconds);
-        const float FeedbackGain = FeedbackDamping::T60ToFeedbackGain(LoopSeconds, FeedbackT60Seconds);
+        // Recompute effective loop seconds each sample using current smoothed delay
+        float EffectiveLoopSeconds = SmoothedDelayTimeSeconds
+                                     + (SpreadSamples / (2.0f * static_cast<float>(SampleRate)))
+                                     + AverageAllpassMs;
+        // Guard
+        EffectiveLoopSeconds = std::max(1.0e-4f, EffectiveLoopSeconds);
+
+        // Base gain for requested T60
+        float FeedbackGainBase = FeedbackDamping::T60ToFeedbackGain(EffectiveLoopSeconds, FeedbackT60Seconds);
+
+        // Tier-dependent cap (prevent near-unity runaway with dense diffusion)
+        float TierCap = (QualityTier == 0 ? 0.995f
+                       : QualityTier == 1 ? 0.975f
+                       : 0.960f);
+
+        FeedbackGainBase = std::min(FeedbackGainBase, TierCap);
+
+        // Spread compensation: if effective loop shorter than nominal delay, attenuate
+        if (EffectiveLoopSeconds < SmoothedDelayTimeSeconds)
+        {
+            float Compensation = std::sqrt(EffectiveLoopSeconds / SmoothedDelayTimeSeconds);
+            FeedbackGainBase *= Compensation;
+        }
+
+        // Apply dynamic safety scalar (updated later)
+        float FeedbackGain = FeedbackGainBase * FeedbackSafetyScalar;
 
         // Compute the wet echo for each channel (pre-stereo stage)
         float WetEchoLeft = 0.0f;
@@ -499,6 +534,24 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
             float BaseTapSample = (ChannelIndex == 0 ? BaseTapLeft : BaseTapRight);
             float ClusterSample = (ChannelIndex == 0 ? ClusterLeft : ClusterRight);
 
+            // Estimate energy normalization for cluster so injection does not exceed base tap RMS
+            // Precomputed layout weights -> approximate RMS ratio.
+            float ClusterEnergyNorm = 1.0f;
+            {
+                const auto& Weights = LocalTapLayoutPtr->Weights;
+                double SumSq = 0.0;
+                for (float W : Weights) SumSq += (W * W);
+                double RMS = std::sqrt(SumSq) * LocalTapLayoutPtr->WeightNorm;
+
+                // For a single tap (weight 1) RMS would be 1; if RMS > 1, scale down.
+                if (RMS > 1.0)
+                    ClusterEnergyNorm = 1.0f / static_cast<float>(RMS);
+            }
+
+            // Apply only when diffusion active
+            if (DiffusionAmount > 0.0f)
+                ClusterSample *= ClusterEnergyNorm;
+
             // FeedbackSeed mix: always keep some BaseTap to retain source character
             float FeedbackSeed = (1.0f - ClusterInjectionBlend) * BaseTapSample
                                  + ClusterInjectionBlend * ClusterSample;
@@ -526,6 +579,11 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
                                                                                   DampingAlpha,
                                                                                   FeedbackGain);
 
+            // Gentle soft clip in feedback path to prevent hard runaway (does not affect dry directly)
+            float SoftClippedFeedback = FeedbackSamplePreFilters;
+            const float ClipDrive = 0.85f;
+            SoftClippedFeedback = std::tanh(SoftClippedFeedback * ClipDrive) / ClipDrive;
+
             // --- Ducking detector and gain computation (per channel) ---
             float DuckEnvelope = Ducking::ProcessDetectorSample(State.Duck,
                                                                 InputSample,
@@ -534,7 +592,7 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
 
             float DuckGain = Ducking::ComputeDuckGain(DuckEnvelope, DuckAmount);
 
-            const float FeedbackWithDucking = FeedbackSamplePreFilters * DuckGain;
+            const float FeedbackWithDucking = SoftClippedFeedback * DuckGain;
             float DelayLineInput = 0.0f;
             float OutputWetSample = WetSampleUnfiltered;
 
@@ -569,6 +627,33 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
                 // Apply ducking after filtering in POST mode
                 OutputWetSample = FilteredWet * DuckGain;
             }
+
+            // ---------------- Safety Monitoring ----------------
+            float AbsDelayInput = std::abs(DelayLineInput);
+            LastPeakHold = std::max(LastPeakHold * 0.999f, AbsDelayInput); // slow decay peak hold
+
+            const float ExplosionThreshold = 2.5f;   // raw linear amplitude threshold
+            const float RecoveryThreshold  = 1.2f;   // below this we consider safe
+
+            if (AbsDelayInput > ExplosionThreshold)
+                OverThresholdCounter++;
+            else if (AbsDelayInput < RecoveryThreshold && OverThresholdCounter > 0)
+                OverThresholdCounter = std::max(0, OverThresholdCounter - 2); // decay faster after safe
+
+            // If too many consecutive threshold breaches, pull down safety scalar
+            if (OverThresholdCounter > 64 && FeedbackSafetyScalar > 0.30f)
+            {
+                // Exponential pull-down
+                FeedbackSafetyScalar = FeedbackSafetyScalar + 0.05f * (0.30f - FeedbackSafetyScalar);
+            }
+            else if (OverThresholdCounter == 0 && FeedbackSafetyScalar < 0.98f)
+            {
+                // Slow recovery upward
+                FeedbackSafetyScalar = FeedbackSafetyScalar + 0.002f * (1.0f - FeedbackSafetyScalar);
+            }
+
+            // Hard floor & ceiling
+            FeedbackSafetyScalar = juce::jlimit(0.25f, 1.0f, FeedbackSafetyScalar);
 
             // Write to delay line
             DelayLine::Write(State.Delay, DelayLineInput);
