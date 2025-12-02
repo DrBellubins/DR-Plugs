@@ -128,11 +128,6 @@ private:
     int MaxDelayBufferSamples = 1;            // Allocated per channel
     float MaximumDelaySeconds = 1.0f;         // Provided in PrepareToPlay
 
-    // Dynamic safety control for runaway feedback
-    float FeedbackSafetyScalar = 1.0f;
-    int   OverThresholdCounter = 0;
-    float LastPeakHold = 0.0f;
-
     // Maximum cluster spread window derived from MaximumDelaySeconds (capped).
     float MaximumSpreadSeconds = 0.100f;      // 100 ms by default
 
