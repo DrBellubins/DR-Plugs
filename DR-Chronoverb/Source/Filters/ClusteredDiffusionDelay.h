@@ -88,6 +88,8 @@ private:
     struct ChannelState
     {
         DelayLine::State Delay;             // Circular delay line
+        DelayLine::State PreDelay;          // Pre-delay buffer (user delayTime)
+
         HaasStereoWidener::State Haas;      // Haas widener buffer
         FeedbackDamping::State Feedback;    // Feedback damping LPF state
 
@@ -102,11 +104,14 @@ private:
 
     // Sample rate and buffer sizing
     double SampleRate = 44100.0;
-    int MaxDelayBufferSamples = 1;            // Allocated per channel
-    float MaximumDelaySeconds = 1.0f;         // Provided in PrepareToPlay
+
+    int MaxDelayBufferSamples = 1;           // Allocated per channel
+    int PreDelayBufferSamples = 1;           // 1000 ms circular buffer capacity
+
+    float MaximumDelaySeconds = 1.0f;        // Provided in PrepareToPlay
 
     // Maximum cluster spread window derived from MaximumDelaySeconds (capped).
-    float MaximumSpreadSeconds = 0.100f;      // 100 ms by default
+    float MaximumSpreadSeconds = 0.100f;     // 100 ms by default
 
     // Smoothing state for time-varying parameters
     float SmoothedDelayTimeSeconds = 0.300f;
@@ -119,6 +124,9 @@ private:
     // FDN configuration
     const int FDNNumberOfLines = 4;          // 4-line FDN (power of two → Hadamard)
     const bool FDNNormalizeWetMix = true;    // keep WetSum level consistent
+
+    // Average short FDN loop time for feedback mapping (e.g. 40–60 ms)
+    float NominalFDNLoopSeconds = 0.050f;   // used in T60->feedback
 
     // Jitter LFO for diffusion chain
     float DiffuserJitterPhase = 0.0f;
