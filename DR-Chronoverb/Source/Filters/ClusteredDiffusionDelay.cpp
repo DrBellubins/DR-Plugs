@@ -407,7 +407,7 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
                                                        DryInputMono);  // immediate input into FDN
 
         // --- Output mixing: crossfade clean pre-delay vs. FDN wet ---
-        float WetForOutput = WetSumBefore;
+        float WetForOutput = FeedbackBusDucked;
 
         if (!UsePreFiltering)
         {
