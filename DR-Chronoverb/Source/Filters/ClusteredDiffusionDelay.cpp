@@ -359,19 +359,15 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
         // --- PRE-DELAY WRITE/READ (clean delay path) ---
         float PreDelayedSample = DryInputMono;
 
-        // Write input to pre-delay buffers
         for (int ChannelIndex = 0; ChannelIndex < NumChannels; ++ChannelIndex)
-        {
             DelayLine::Write(Channels[ChannelIndex].PreDelay, AudioBuffer.getReadPointer(ChannelIndex)[SampleIndex]);
-        }
 
-        // Read from pre-delay (mono tap for simplicity, stereo could mirror)
         PreDelayedSample = DelayLine::Read(Channels[0].PreDelay, PreDelaySamples);
 
         // --- FDN wet sum BEFORE writing new feedback ---
         float WetSumBefore = FeedbackDelayNetwork::ReadWetSum(FDNState, FDNNormalizeWetMix);
 
-        // Diffuse bus
+        // Diffuse bus based on current wet sum (keeps tail smooth)
         const float DiffusedBusSample = Diffusion::ProcessChainSample(DiffusionChain,
                                                                       WetSumBefore,
                                                                       DiffusionAmount,
@@ -391,24 +387,24 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
 
         const float DuckGain = Ducking::ComputeDuckGain(DuckEnvelope, DuckAmount);
 
+        // --- PRE/POST FILTERING FOR FEEDBACK BUS (tone only) ---
+        float ShapedBusForTone = DampedBusSample;
+
         if (UsePreFiltering)
         {
-            float ShapedBus = Highpass::ProcessSample(Channels[0].PreHP, DampedBusSample, AlphaHP);
-            ShapedBus = Lowpass::ProcessSample(Channels[0].PreLP, ShapedBus, AlphaLP);
-
-            const float ShapedBusDucked = ShapedBus * DuckGain;
-
-            // Write feedback: do not use ShapedBusDucked as a scalar on the mixed vector.
-            // Let FeedbackGain control the amount; DryInputSample is PreDelayedSample.
-            FeedbackDelayNetwork::WriteFeedbackDistributed(FDNState, 1.0f, PreDelayedSample);
+            ShapedBusForTone = Highpass::ProcessSample(Channels[0].PreHP, ShapedBusForTone, AlphaHP);
+            ShapedBusForTone = Lowpass::ProcessSample(Channels[0].PreLP, ShapedBusForTone, AlphaLP);
         }
-        else
-        {
-            const float FeedbackBusDucked = DampedBusSample * DuckGain;
 
-            // Same: pass neutral scalar; FeedbackGain governs decay.
-            FeedbackDelayNetwork::WriteFeedbackDistributed(FDNState, 1.0f, PreDelayedSample);
-        }
+        const float FeedbackBusDucked = ShapedBusForTone * DuckGain;
+
+        // --- IMMEDIATE REVERB INJECTION ---
+        // Feed the instantaneous input to the FDN so the tail starts immediately,
+        // independent of the pre-delay used for clean echoes.
+        // Do not scale feedback amount by FeedbackBusDucked magnitude; FeedbackGain controls decay.
+        FeedbackDelayNetwork::WriteFeedbackDistributed(FDNState,
+                                                       1.0f,           // neutral scalar; not used in current implementation
+                                                       DryInputMono);  // immediate input into FDN
 
         // --- Output mixing: crossfade clean pre-delay vs. FDN wet ---
         float WetForOutput = WetSumBefore;
@@ -436,7 +432,7 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
                                                WetL,
                                                WetR);
 
-        // Mix into buffer
+        // Mix
         for (int ChannelIndex = 0; ChannelIndex < NumChannels; ++ChannelIndex)
         {
             float* WritePtr = AudioBuffer.getWritePointer(ChannelIndex);

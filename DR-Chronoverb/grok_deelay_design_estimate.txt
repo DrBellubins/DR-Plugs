@@ -1,0 +1,60 @@
+### Estimated Delay/Reverb Processing Steps in Deelay
+
+The impulse response (IR) at a diffusion amount of 0.75, combined with previous analyses at amounts 0, 0.25, 0.5, and 1 (all with size set to 1 and quality at 10 or equivalent), supports an estimation of Deelay's underlying architecture as a feedback delay network (FDN) with a configurable diffusion module. This design facilitates a hybrid effect, where the primary delay line (fixed at 1000 ms) handles rhythmic echoes, and diffusion scatters reflections to create reverb-like density. The process likely occurs in a per-sample manner within a digital signal processing (DSP) loop, assuming a sample rate of 48 kHz for consistency with the IR data. Below, I describe the estimated steps in detail, drawing from observed characteristics such as progressive tap density (e.g., increasing from 5 taps at amount 0 to 54 at 0.75), stable RT60 (~9.96 seconds across amounts), non-linear energy redistribution (RMS peaking at mid-amounts), and spectral darkening (high-frequency attenuation accelerating with amount).
+
+The steps are sequential and occur for each input sample \( x(n) \), with feedback ensuring persistence. The architecture preserves energy through unitary operations (e.g., allpass filters) while allowing parametric control.
+
+1. **Input Reception and Initial Summation**:
+   - Receive the current input sample \( x(n) \).
+   - Add the feedback signal from the previous iteration: \( input'(n) = x(n) + feedback(n-1) \).
+   - This summation integrates the recirculating signal, enabling sustained decays. In the IRs, this manifests as periodic structures around multiples of 1 second, with feedback gain estimated at approximately 0.5 (derived from amplitude ratios between consecutive peak clusters, e.g., first cluster at ~1.0 normalized, subsequent at ~0.5).
+
+2. **Diffusion Module Application**:
+   - Route \( input'(n) \) through a diffusion chain, which is the core blending component. This chain consists of 6-8 allpass filters in series, each defined by:
+     \[
+     y(m) = g \cdot input'(m) + input'(m - D) - g \cdot y(m - D)
+     \]
+     where \( D \) is the delay length (10-100 ms per filter, scaled by the size parameter to broaden clusters from ~50 ms at low size to 200-300 ms at high size), and \( g \) (0.6-0.7) controls phase scattering without amplitude loss.
+   - The chain's effective density increases with amount, as evidenced by tap counts rising non-linearly (33 at 0.25, 46 at 0.5, 54 at 0.75). Quality refines this by potentially adding modulation (e.g., ±1-5% jitter on \( D \)) or increasing filter precision to reduce tail noise (e.g., from 0.00104 at 0.25 to 0.00547 at 0.75, indicating finer granularity at higher quality).
+   - Output: A diffused signal with scattered reflections, where early peaks (e.g., at 0.30-1.50 s in the 0.75 IR) represent short-delay contributions, and later clusters maintain the 1-second periodicity.
+
+3. **Main Delay Line Insertion**:
+   - Feed the diffused signal into a circular buffer delay line of fixed length \( D_{main} = 48000 \) samples (1000 ms at 48 kHz).
+   - Write the signal to the buffer and read the delayed value: \( delayed(n) = buffer[(write_index - D_{main}) \mod buffer_size] \), using linear interpolation for sub-sample precision if modulation is present (though minimal in IRs).
+   - This step preserves the rhythmic delay foundation, visible in peak locations aligning near 1-second multiples across all amounts.
+
+4. **Output Tapping and Dry/Wet Mixing**:
+   - Tap \( delayed(n) \) as the wet signal component.
+   - Compute the final output: \( output(n) = (1 - wet_mix) \cdot x(n) + wet_mix \cdot delayed(n) \), where wet_mix is near 1.0 in the IRs (initial impulse attenuated, emphasizing wet reflections).
+   - In the 0.75 IR, this results in a balanced response with dense early reflections transitioning to smoother tails.
+
+5. **Damping and Spectral Shaping**:
+   - Apply a one-pole lowpass filter to \( delayed(n) \) for frequency-dependent decay:
+     \[
+     damped(n) = \alpha \cdot delayed(n) + (1 - \alpha) \cdot damped(n-1)
+     \]
+     where \( \alpha \) corresponds to a cutoff frequency (estimated 2-5 kHz, lowering with higher amount for observed darkening: ~ -98 dB in 2-10 kHz bands at 0.75 versus ~ -92 dB at 0.25).
+   - This step, likely in the feedback path, contributes to the consistent RT60 by attenuating highs progressively, mimicking acoustic absorption.
+
+6. **Feedback Generation and Recirculation**:
+   - Scale the damped signal by the feedback gain (~0.5): \( feedback(n) = gain \cdot damped(n) \).
+   - Recirculate \( feedback(n) \) to the input summation in step 1 for the next sample, sustaining the tail without altering RT60 across amounts.
+
+7. **Post-Processing (Optional)**:
+   - Minimal additional effects (e.g., saturation or limiting) appear in the IRs, ensuring clean, linear decays.
+
+This sequence balances computational efficiency with expressiveness, typical for VST plugins.
+
+### Estimation of Diffusion Amount Functionality
+
+The diffusion amount parameter functions as a non-linear modulator of the diffusion chain's intensity and complexity, progressively blending discrete delays into reverb by scaling and activating scattering elements. Based on the IR progression:
+
+- **Low Amounts (0 to 0.25)**: Minimal diffusion; the chain is partially bypassed or operates with low gain (\( g \approx 0.2-0.3 \)) and fewer active stages (e.g., 2-3 filters). This yields sparse taps (5 at 0, 33 at 0.25) with peaks delayed until ~0.62 s, preserving echo clarity while introducing subtle fill (10-15% inter-tap energy increase). RMS is low (~0.0142 at 0.25), and blending feels initial-stage dominant.
+
+- **Mid Amounts (0.25 to 0.5)**: Accelerated activation; amount likely follows a sigmoid curve, ramping up stages (to 4-5) and gain (\( g \approx 0.4-0.5 \)), with early reflections emerging (~0.25 s at 0.5). Tap density surges (to 46), RMS peaks (~0.0381), and envelope smoothness improves (~25% variance reduction), indicating constructive phase interactions before full dispersion.
+
+- **Higher Amounts (0.5 to 0.75)**: Near-maximal engagement; additional stages (5-7) and higher gain (\( g \approx 0.5-0.6 \)) tighten clusters (inter-peak ~0.10-0.12 s) and boost tail noise (~0.00547 at 0.75), with RMS continuing to rise (~0.0657). Spectral darkening intensifies, suggesting amount couples to damping alpha for enhanced naturalness.
+
+- **Full Amount (0.75 to 1)**: Saturation; all stages (6-8) fully active, dispersing energy (RMS drops to ~0.0047 at 1, taps ~20 but denser per cluster). Blending stabilizes, with ~44% overall smoothness gain from 0 to 1.
+
+This non-linear progression (e.g., density growth quadratic in mid-range) ensures perceptual smoothness, avoiding abrupt shifts. Amount may interpolate via a curved function (e.g., \( \text{amount}^2 \) for early ramp-up), potentially with threshold-based stage enabling, as mid-amounts show the most dynamic changes.
