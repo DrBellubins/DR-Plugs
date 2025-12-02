@@ -1,3 +1,88 @@
+The impulse responses (IRs) from Deelay indicate a hybrid delay-reverb architecture that transitions smoothly from discrete echoes to a dense, reverb-like tail as the diffusion amount increases. This is achieved through a feedback delay line augmented with controllable diffusion, likely implemented via a chain of allpass filters or a similar scattering mechanism in the signal path. The fixed delay time of 1000 ms is evident in the periodic peaks, with feedback ratios approximately 0.5 (calculated from amplitude decay between consecutive prominent taps, e.g., first tap at ~1.0 normalized amplitude, second at ~0.5, third at ~0.25). Diffusion parameters modulate the density and spectral characteristics: amount controls the blending intensity (from clean delay at 0 to full scattering at 1), size scales the temporal spread of reflections (increasing cluster width from ~50 ms to 200-300 ms), and quality refines the granularity (higher values yield smoother tails with reduced noise, as tail standard deviation decreases by ~20-40% from quality 1 to 8/10).
+
+Based on the IR analysis—discrete taps at low diffusion evolving into clustered, attenuated reflections with high-frequency roll-off (~ -95 to -105 dB in 2-10 kHz bands)—Deelay's underlying structure resembles a single-tap feedback delay network (FDN) with embedded diffusion. This is a common DSP approach for versatile delay-reverb effects, allowing efficient computation while mimicking acoustic spaces. The diffusion likely employs 4-8 allpass filters in series (estimated from tap density increasing to 15-20 at high settings), with delays in the 10-100 ms range and gain coefficients around 0.6-0.7 to maintain energy while scattering phases. Spectral darkening suggests a lowpass filter in the feedback loop, with cutoff modulated by diffusion for natural decay.
+
+### Estimated Overall Delay Line Structure
+The core is a circular buffer delay line with feedback, where diffusion is inserted in the feedback path for controlled blending. At diffusion amount 0, the diffuser is bypassed or minimally engaged, yielding clean repeats. As amount increases, more diffusion stages activate, smearing echoes into reverb. Size scales allpass delay times, and quality adjusts the number of stages or modulation (e.g., slight jitter for reduced metallic artifacts at higher quality).
+
+Here is a textual representation of the signal flow using ASCII art for clarity:
+
+```
+Input Signal
+    |
+    v
+[Pre-Processing: Optional Distortion/Modulation/Filter]  (From plugin features, but minimal in provided IRs)
+    |
+    v
++---+ (Add Feedback)
+|   |
+v   |
+[Diffuser Chain]  <-- Controlled by Amount (bypass at 0, full at 1); Size scales delays; Quality adds stages/smoothness
+    |              (e.g., 4-8 Allpass Filters: Delay 10-100 ms, g=0.6-0.7)
+    v
+[Delay Line: 1000 ms Circular Buffer]
+    |
+    v
+[Output Tap] --> Wet Signal (Mixed with Dry)
+    |
+    v
+[Damping Lowpass Filter]  <-- For spectral decay (darker highs with higher diffusion)
+    |
+    v
+[Feedback Gain Multiplier]  <-- ~0.5, constant across settings in IRs
+    |
+    ^ (Loop back to Adder)
+```
+
+This structure ensures energy preservation in diffusion (allpasses are unitary) while allowing parametric control.
+
+
+
+
+### Detailed Audio DSP Steps
+The processing likely follows these sequential DSP operations per sample (assuming mono for simplicity; stereo would duplicate with possible crossfeed):
+
+1. **Input Reception and Pre-Processing**:
+   - Receive input sample \( x(n) \).
+   - Apply optional pre-effects (e.g., distortion or modulation, as per plugin documentation, but not prominent in IRs). This step is bypassed or neutral in the provided captures.
+
+2. **Feedback Addition**:
+   - Add the feedback signal from the previous iteration: \( input' = x(n) + feedback(n-1) \).
+   - Feedback(n-1) is the damped output from the prior sample.
+
+3. **Diffusion Application (Controlled by Amount)**:
+   - Pass through a series of allpass filters for scattering. An allpass filter is defined as:
+     \[
+     y(n) = g \cdot x(n) + x(n - D) - g \cdot y(n - D)
+     \]
+     where \( D \) is delay in samples (10-100 ms, scaled by size), and \( g \) (~0.6-0.7) controls diffusion strength.
+   - Chain 4-8 such filters serially. Amount interpolates between bypassed (clean delay) and full chain (reverb blend), possibly via linear or equal-power crossfade.
+   - Quality increases chain length or adds modulation (e.g., ±1-5% jitter on \( D \) for reduced comb filtering at higher values).
+   - Output: Diffused signal with increased density, reducing peak amplitudes by 20-80% as observed in IRs.
+
+4. **Main Delay Line**:
+   - Write the diffused signal to a circular buffer of length \( D_{main} = 1000 \) ms (48,000 samples at 48 kHz).
+   - Read from the buffer: \( delayed(n) = buffer[n - D_{main}] \) (with linear interpolation for fractional delays if modulated).
+
+5. **Output Tapping and Mixing**:
+   - Tap the delayed signal as wet component.
+   - Mix with dry input: \( output(n) = dry \cdot x(n) + wet \cdot delayed(n) \).
+   - In IRs, dry appears minimal (initial impulse attenuated), suggesting wet-dominant mix.
+
+6. **Damping and Feedback**:
+   - Apply lowpass filter to delayed(n) for decay: One-pole IIR, e.g.,
+     \[
+     y(n) = \alpha \cdot delayed(n) + (1 - \alpha) \cdot y(n-1)
+     \]
+     where \( \alpha \) derives from cutoff (~2-5 kHz, lowering with diffusion for darker tails).
+   - Multiply by feedback gain (~0.5): \( feedback(n) = gain \cdot damped(n) \).
+   - Loop feedback(n) back to step 2 for the next sample.
+
+7. **Post-Processing**:
+   - Optional final filters or saturation, but IRs show clean tails with minimal artifacts.
+
+This estimation aligns with the IR observations: discrete decays at low diffusion, dense clusters with ~10-15% energy redistribution and faster high-frequency attenuation at high diffusion. The architecture balances computational efficiency with flexibility, typical for modern VST plugins.
+
 ### Estimated Delay/Reverb Processing Steps in Deelay
 
 The impulse response (IR) at a diffusion amount of 0.75, combined with previous analyses at amounts 0, 0.25, 0.5, and 1 (all with size set to 1 and quality at 10 or equivalent), supports an estimation of Deelay's underlying architecture as a feedback delay network (FDN) with a configurable diffusion module. This design facilitates a hybrid effect, where the primary delay line (fixed at 1000 ms) handles rhythmic echoes, and diffusion scatters reflections to create reverb-like density. The process likely occurs in a per-sample manner within a digital signal processing (DSP) loop, assuming a sample rate of 48 kHz for consistency with the IR data. Below, I describe the estimated steps in detail, drawing from observed characteristics such as progressive tap density (e.g., increasing from 5 taps at amount 0 to 54 at 0.75), stable RT60 (~9.96 seconds across amounts), non-linear energy redistribution (RMS peaking at mid-amounts), and spectral darkening (high-frequency attenuation accelerating with amount).

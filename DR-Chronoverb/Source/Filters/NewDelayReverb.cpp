@@ -284,10 +284,10 @@ void NewDelayReverb::updateFilters()
     auto lpCoeffs = juce::dsp::IIR::Coefficients<float>::makeLowPass(sampleRate, lpHz);
     auto hpCoeffs = juce::dsp::IIR::Coefficients<float>::makeHighPass(sampleRate, hpHz);
 
-    *lowpassL.state = *lpCoeffs;
-    *lowpassR.state = *lpCoeffs;
-    *highpassL.state = *hpCoeffs;
-    *highpassR.state = *hpCoeffs;
+    *lowpassL.coefficients = *lpCoeffs;
+    *lowpassR.coefficients = *lpCoeffs;
+    *highpassL.coefficients = *hpCoeffs;
+    *highpassR.coefficients = *hpCoeffs;
 }
 
 void NewDelayReverb::updateStereoSpread()
