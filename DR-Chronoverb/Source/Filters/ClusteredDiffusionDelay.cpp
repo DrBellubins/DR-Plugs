@@ -245,21 +245,6 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
             // Prepare Haas buffer
             HaasStereoWidener::Prepare(Channels[ChannelIndex].Haas, HaasMaxDelaySamples);
 
-            const int APDelaySamples1 = static_cast<int>(std::round(0.007f * SampleRate));
-            const int APDelaySamples2 = static_cast<int>(std::round(0.009f * SampleRate));
-            const int APDelaySamples3 = static_cast<int>(std::round(0.011f * SampleRate));
-            const int APDelaySamples4 = static_cast<int>(std::round(0.013f * SampleRate));
-
-            Channels[ChannelIndex].InternalAP1.prepare(APDelaySamples1);
-            Channels[ChannelIndex].InternalAP2.prepare(APDelaySamples2);
-            Channels[ChannelIndex].InternalAP3.prepare(APDelaySamples3);
-            Channels[ChannelIndex].InternalAP4.prepare(APDelaySamples4);
-
-            Channels[ChannelIndex].InternalAP1.setCoefficient(0.72f);
-            Channels[ChannelIndex].InternalAP2.setCoefficient(0.70f);
-            Channels[ChannelIndex].InternalAP3.setCoefficient(0.68f);
-            Channels[ChannelIndex].InternalAP4.setCoefficient(0.66f);
-
             // Reset the rest to neutral
             FeedbackDamping::Reset(Channels[ChannelIndex].Feedback);
             Highpass::Reset(Channels[ChannelIndex].PreHP);
@@ -377,16 +362,12 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
         JitterRange = 0.020f; // ±0.02
 
     // Refresh jitter offsets once per block if > 0.
-    if (JitterRange > 0.0f && DiffusionAmount > 0.06f)
+    if (JitterRange > 0.0f)
     {
         for (size_t J = 0; J < TapJitterOffsets.size(); ++J)
         {
             float r = static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX);
-            float NewJitter = (r * 2.0f - 1.0f) * JitterRange;
-
-            // Low-pass smooth previous jitter to avoid abrupt block transitions
-            constexpr float JitterSmoothing = 0.35f;
-            TapJitterOffsets[J] = TapJitterOffsets[J] + JitterSmoothing * (NewJitter - TapJitterOffsets[J]);
+            TapJitterOffsets[J] = (r * 2.0f - 1.0f) * JitterRange;
         }
     }
     else
@@ -483,14 +464,9 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
 
             const float InputSample = ChannelData[SampleIndex];
 
-            float ClusterInjectionBlendRaw = (QualityTier == 2 ?
-                juce::jlimit(0.0f, 1.0f, (DiffusionQualityNormalized - 0.65f) / 0.35f) : 0.0f);
-
-            // Gate by diffusionAmount (so Amount=0 disables injection)
-            float ClusterInjectionBlend = ClusterInjectionBlendRaw * DiffusionAmount;
-
-            // Soft fade-in for injection with amount (smoothstep)
-            ClusterInjectionBlend = ClusterInjectionBlend * (DiffusionAmount * DiffusionAmount * (3.0f - 2.0f * DiffusionAmount));
+            const float ClusterInjectionBlend = (QualityTier == 2
+                                     ? juce::jlimit(0.0f, 1.0f, (DiffusionQualityNormalized - 0.65f) / 0.35f) // smoothstep-ish
+                                     : 0.0f);
 
             // Use injected sample instead of WetSampleUnfiltered for damping filter input (recursive diffusion seed).
             float WetSampleUnfiltered = (ChannelIndex == 0 ? ProcessedWetLeft : ProcessedWetRight);
@@ -499,12 +475,9 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
             float BaseTapSample = (ChannelIndex == 0 ? BaseTapLeft : BaseTapRight);
             float ClusterSample = (ChannelIndex == 0 ? ClusterLeft : ClusterRight);
 
-            // FeedbackSeed mix: always keep some BaseTap to retain source character
+            // Blend for feedback seed (preserve character at low quality):
             float FeedbackSeed = (1.0f - ClusterInjectionBlend) * BaseTapSample
                                  + ClusterInjectionBlend * ClusterSample;
-
-            const float MinBaseFraction = 0.25f;
-            FeedbackSeed = (MinBaseFraction * BaseTapSample) + (1.0f - MinBaseFraction) * FeedbackSeed;
 
             // Internal all-pass recursive diffusion (tier >=1) BEFORE damping:
             if (QualityTier >= 1)
