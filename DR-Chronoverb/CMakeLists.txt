@@ -5,23 +5,6 @@ cmake_minimum_required(VERSION 3.22)
 # CHANGE
 project(Chronoverb VERSION 0.0.1)
 
-# ─────────────────────────────────────────────────────────────
-# Windows cross-compilation adjustments (only active when cross-compiling)
-# ─────────────────────────────────────────────────────────────
-if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    # These will be applied later, after juce_add_plugin() creates the targets
-    set(IS_WINDOWS_CROSS ON)
-else()
-    set(IS_WINDOWS_CROSS OFF)
-endif()
-
-# Native Linux build – keep both formats
-if(NOT IS_WINDOWS_CROSS)
-    set(FORMATS Standalone VST3)
-else()
-    set(FORMATS VST3 Standalone)
-endif()
-
 # Speed: compiler cache
 find_program(CCACHE_PROGRAM ccache)
 
@@ -49,9 +32,9 @@ option(JUCE_ENABLE_MODULE_SOURCE_GROUPS "Show all module sources in IDE projects
 
 # Ensure no JUCE helper tools or VST3 manifest embedding are created/used.
 # These must be set BEFORE JUCE is fetched/added.
-set(JUCE_BUILD_HELPERS OFF CACHE BOOL "" FORCE)
-set(JUCE_VST3_MANIFEST_HELPER_ENABLED OFF CACHE BOOL "" FORCE)
-set(JUCE_VST3_INCLUDE_MANIFEST OFF CACHE BOOL "" FORCE)
+#set(JUCE_BUILD_HELPERS OFF CACHE BOOL "" FORCE)
+#set(JUCE_VST3_MANIFEST_HELPER_ENABLED OFF CACHE BOOL "" FORCE)
+#set(JUCE_VST3_INCLUDE_MANIFEST OFF CACHE BOOL "" FORCE)
 
 ### Dependency management ###
 include(FetchContent)
@@ -87,7 +70,7 @@ FetchContent_MakeAvailable(juce)
 # Check the readme at `docs/CMake API.md` in the JUCE repo for the full list.
 
 juce_add_plugin("${PROJECT_NAME}"
-    FORMATS ${FORMATS}                          # The formats to build. Valid formats: Standalone Unity VST3 AU AUv3 AAX VST LV2.
+    FORMATS Standalone VST3                     # The formats to build. Valid formats: Standalone Unity VST3 AU AUv3 AAX VST LV2.
 
     # CHANGE                                    # AU and AUv3 plugins will only be enabled when building on macOS.
     PRODUCT_NAME "Dr Chronoverb"                # The name of the final executable, which can differ from the target name.
@@ -124,41 +107,6 @@ juce_add_plugin("${PROJECT_NAME}"
 
     COPY_PLUGIN_AFTER_BUILD FALSE)              # Should the plugin be installed to a default location after building?
                                                 # NOTE: Writing to the default install locations might require administrator privileges on Windows.
-
-# ─────────────────────────────────────────────────────────────
-# Apply Windows-specific target fixes AFTER the targets exist
-# ─────────────────────────────────────────────────────────────
-if(IS_WINDOWS_CROSS)
-    if(TARGET ${PROJECT_NAME}_VST3)
-        set_target_properties(${PROJECT_NAME}_VST3 PROPERTIES
-                PREFIX ""
-                SUFFIX ".vst3"
-                LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${PROJECT_NAME}_artefacts/Debug/VST3"
-                RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${PROJECT_NAME}_artefacts/Debug/VST3"
-        )
-    endif()
-
-    if(TARGET ${PROJECT_NAME}_Standalone)
-        set_target_properties(${PROJECT_NAME}_Standalone PROPERTIES
-                PREFIX ""
-                SUFFIX ".exe"
-                RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${PROJECT_NAME}_artefacts/Debug/Standalone"
-        )
-    endif()
-
-    target_compile_definitions("${PROJECT_NAME}" PUBLIC
-            JUCE_SILENCE_XCODE_15_LINKER_WARNING=1
-    )
-
-    # Tiny dummy executable so CLion shows the Windows profile in the dropdown
-    add_executable(dummy_win_exe EXCLUDE_FROM_ALL
-            "${CMAKE_CURRENT_SOURCE_DIR}/Source/PluginEditor.cpp"
-    )
-    target_link_libraries(dummy_win_exe PRIVATE "${PROJECT_NAME}")
-    set_target_properties(dummy_win_exe PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/dummy"
-    )
-endif()
 
 # Set the C++ language standard requirenment for the "shared code" library target.
 # Setting this to PUBLIC ensures that all dependent targets will inherit the specified C++ standard.
