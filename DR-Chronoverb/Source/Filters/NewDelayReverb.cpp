@@ -67,9 +67,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
     const int numSamples = audioBuffer.getNumSamples();
 
     if (numChannels < 1 || numSamples <= 0)
-    {
         return;
-    }
 
     // Ensure filters are up to date (in case parameters changed between blocks)
     updateFilters();
@@ -115,8 +113,11 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         mainDelayLeft->PushSample(diffusedL);
         mainDelayRight->PushSample(diffusedR);
 
-        const float delayedL = mainDelayLeft->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
-        const float delayedR = mainDelayRight->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
+        // Compensate for diffusion group delay (align cluster to nominal tap)
+        const float effectiveDelayMs = std::max(0.0f, delayMilliseconds - diffusionGroupDelayMilliseconds);
+
+        const float delayedL = mainDelayLeft->ReadDelayMilliseconds(effectiveDelayMs, sampleRate);
+        const float delayedR = mainDelayRight->ReadDelayMilliseconds(effectiveDelayMs, sampleRate);
 
         // 4) Damping in feedback path
         const float dampedL = dampingLeft->ProcessSample(delayedL, lowpass01);
@@ -171,10 +172,9 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         }
 
         leftData[sampleIndex] = outL;
+
         if (rightData != nullptr)
-        {
             rightData[sampleIndex] = outR;
-        }
     }
 }
 
@@ -203,7 +203,7 @@ void NewDelayReverb::SetDiffusionSize(float newSize01)
 
 void NewDelayReverb::SetDiffusionQuality(int newQualityStages)
 {
-    diffusionQualityStages = clampInt(newQualityStages, 4, 8);
+    diffusionQualityStages = clampInt(newQualityStages, 1, 8);
     rebuildDiffusionIfNeeded();
 }
 
@@ -238,9 +238,7 @@ void NewDelayReverb::SetHPLPPrePost(float prePost01)
 void NewDelayReverb::SetHostTempo(float bpm)
 {
     if (bpm > 0.0f)
-    {
         hostTempoBpm = bpm;
-    }
 }
 
 // ---------------- Internal helpers ----------------
@@ -255,11 +253,15 @@ void NewDelayReverb::rebuildDiffusionIfNeeded()
     if (diffusionLeft)
     {
         diffusionLeft->Configure(diffusionQualityStages, diffusionSize01);
+        diffusionGroupDelayMilliseconds = diffusionLeft->GetEstimatedGroupDelayMilliseconds();
     }
 
     if (diffusionRight)
     {
         diffusionRight->Configure(diffusionQualityStages, diffusionSize01);
+
+        // Left and right chains are currently identical; reuse left’s estimate
+        diffusionGroupDelayMilliseconds = diffusionLeft->GetEstimatedGroupDelayMilliseconds();
     }
 }
 

@@ -100,10 +100,30 @@ public:
         return inputSample * (1.0f - amountClamped) + x * amountClamped;
     }
 
+    float GetEstimatedGroupDelayMilliseconds() const
+    {
+        return estimatedGroupDelayMs;
+    }
+
 private:
     double sampleRate = 48000.0;
     std::vector<std::unique_ptr<DiffusionAllpass>> stages;
 
     int cachedStageCount = 6;
     float cachedSize01 = 0.0f;
+
+    std::vector<float> perStageDelayMs;
+    float estimatedGroupDelayMs = 0.0f;
+
+    void updateEstimatedGroupDelayMs()
+    {
+        // Simple estimate: sum of per-stage delays.
+        // This approximates low-frequency group delay of cascaded delay-based allpasses.
+        float sumMs = 0.0f;
+
+        for (float delayMs : perStageDelayMs)
+            sumMs += delayMs;
+
+        estimatedGroupDelayMs = sumMs;
+    }
 };

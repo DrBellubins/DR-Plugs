@@ -67,6 +67,9 @@ private:
     void updateFilters();
     void updateStereoSpread();
 
+    // Compensation for diffusion group delay (milliseconds)
+    float diffusionGroupDelayMilliseconds = 0.0f;
+
     // Parameters
     double sampleRate = 48000.0;
     float hostTempoBpm = 120.0f;

@@ -85,14 +85,12 @@ private:
     void ensureBufferSize()
     {
         const int minSize = std::max(4, delaySamples + 4);
+
         if (static_cast<int>(inputBuffer.size()) < minSize)
-        {
             inputBuffer.resize(minSize, 0.0f);
-        }
+
         if (static_cast<int>(outputBuffer.size()) < minSize)
-        {
             outputBuffer.resize(minSize, 0.0f);
-        }
     }
 
     void pushInput(float x)
