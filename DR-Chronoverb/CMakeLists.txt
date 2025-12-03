@@ -5,6 +5,21 @@ cmake_minimum_required(VERSION 3.22)
 # CHANGE
 project(Chronoverb VERSION 0.0.1)
 
+# Add near the top or just before the post-build section:
+if(DEFINED JUCE_VST3_MANIFEST_HELPER_ENABLED AND NOT JUCE_VST3_MANIFEST_HELPER_ENABLED)
+    set(_JUCE_DISABLE_VST3_MANIFEST_HELPER TRUE)
+endif()
+
+if(DEFINED JUCE_VST3_INCLUDE_MANIFEST AND NOT JUCE_VST3_INCLUDE_MANIFEST)
+    set(_JUCE_DISABLE_VST3_MANIFEST_HELPER TRUE)
+endif()
+
+# Around the add_custom_command(...) that invokes juce_vst3_helper, wrap with:
+if(NOT _JUCE_DISABLE_VST3_MANIFEST_HELPER)
+    # existing post-build add_custom_command that calls juce_vst3_helper
+    # (leave as-is inside this guard)
+endif()
+
 # Speed: compiler cache
 find_program(CCACHE_PROGRAM ccache)
 
