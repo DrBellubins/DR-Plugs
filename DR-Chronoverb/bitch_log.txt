@@ -1,0 +1,374 @@
+====================[ Build | Chronoverb_VST3 | Windows Debug ]=================
+/home/esther/.local/share/JetBrains/Toolbox/apps/clion/bin/cmake/linux/x64/bin/cmake --build /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/cmake-build-windows-debug --target Chronoverb_VST3 -j 14
+[0/2] Re-checking globbed directories...
+[7/42] Building CXX object CMakeFiles/juce_vst3_helper.dir/Libs/JUCE/modules/juce_audio_plugin_client/VST3/juce_VST3ManifestHelper.cpp.obj
+FAILED: CMakeFiles/juce_vst3_helper.dir/Libs/JUCE/modules/juce_audio_plugin_client/VST3/juce_VST3ManifestHelper.cpp.obj
+/usr/bin/ccache /usr/bin/x86_64-w64-mingw32-g++ -DDEBUG=1 -DJUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1 -D_DEBUG=1 -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/VST3_SDK -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules -g -std=c++17 -fdiagnostics-color=always -static-libgcc -static-libstdc++ -g -O0 -MD -MT CMakeFiles/juce_vst3_helper.dir/Libs/JUCE/modules/juce_audio_plugin_client/VST3/juce_VST3ManifestHelper.cpp.obj -MF CMakeFiles/juce_vst3_helper.dir/Libs/JUCE/modules/juce_audio_plugin_client/VST3/juce_VST3ManifestHelper.cpp.obj.d -o CMakeFiles/juce_vst3_helper.dir/Libs/JUCE/modules/juce_audio_plugin_client/VST3/juce_VST3ManifestHelper.cpp.obj -c /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_plugin_client/VST3/juce_VST3ManifestHelper.cpp
+In file included from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_plugin_client/VST3/juce_VST3ManifestHelper.cpp:63:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/VST3_SDK/public.sdk/samples/vst-utilities/moduleinfotool/source/main.cpp:392:10: fatal error: Windows.h: No such file or directory
+  392 | #include <Windows.h>
+      |          ^~~~~~~~~~~
+compilation terminated.
+[8/42] Building CXX object CMakeFiles/Chronoverb.dir/Source/Filters/ComputerKeyboardSquareSynth.cpp.obj
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/ComputerKeyboardSquareSynth.cpp: In member function ‘void ComputerKeyboardSquareSynth::NoteOn(int)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/ComputerKeyboardSquareSynth.cpp:163:30: warning: conversion to ‘std::vector<ComputerKeyboardSquareSynth::Voice>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+  163 |     Voice& VoiceRef = Voices[VoiceIndex];
+      |                              ^~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/ComputerKeyboardSquareSynth.cpp: In member function ‘void ComputerKeyboardSquareSynth::NoteOff(int)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/ComputerKeyboardSquareSynth.cpp:180:34: warning: conversion to ‘std::vector<ComputerKeyboardSquareSynth::Voice>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+  180 |         Voice& VoiceRef = Voices[VoiceIndex];
+      |                                  ^~~~~~~~~~
+[9/42] Building CXX object CMakeFiles/Chronoverb.dir/Source/Filters/ClusteredDiffusionDelay.cpp.obj
+In file included from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/ClusteredDiffusionDelay.h:10,
+                 from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/ClusteredDiffusionDelay.cpp:3:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/ClusteredDiffusionDelay/DelayLine.h: In static member function ‘static void DelayLine::Write(State&, float)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/ClusteredDiffusionDelay/DelayLine.h:74:38: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   74 |         DelayState.Buffer[DelayState.WriteIndex] = Sample;
+      |                           ~~~~~~~~~~~^~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/ClusteredDiffusionDelay.cpp: In member function ‘void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>&)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/ClusteredDiffusionDelay.cpp:223:25: warning: conversion to ‘std::vector<ClusteredDiffusionDelay::ChannelState>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+  223 |         Channels.resize(NumChannels);
+      |                         ^~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/ClusteredDiffusionDelay.cpp:227:41: warning: conversion to ‘std::vector<ClusteredDiffusionDelay::ChannelState>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+  227 |             DelayLine::Prepare(Channels[ChannelIndex].PreDelay, PreDelayBufferSamples); // NEW
+      |                                         ^~~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/ClusteredDiffusionDelay.cpp:228:41: warning: conversion to ‘std::vector<ClusteredDiffusionDelay::ChannelState>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+  228 |             DelayLine::Prepare(Channels[ChannelIndex].Delay, MaxDelayBufferSamples);
+      |                                         ^~~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/ClusteredDiffusionDelay.cpp:230:49: warning: conversion to ‘std::vector<ClusteredDiffusionDelay::ChannelState>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+  230 |             HaasStereoWidener::Prepare(Channels[ChannelIndex].Haas, HaasMaxDelaySamples);
+      |                                                 ^~~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/ClusteredDiffusionDelay.cpp:232:45: warning: conversion to ‘std::vector<ClusteredDiffusionDelay::ChannelState>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+  232 |             FeedbackDamping::Reset(Channels[ChannelIndex].Feedback);
+      |                                             ^~~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/ClusteredDiffusionDelay.cpp:233:38: warning: conversion to ‘std::vector<ClusteredDiffusionDelay::ChannelState>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+  233 |             Highpass::Reset(Channels[ChannelIndex].PreHP);
+      |                                      ^~~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/ClusteredDiffusionDelay.cpp:234:37: warning: conversion to ‘std::vector<ClusteredDiffusionDelay::ChannelState>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+  234 |             Lowpass::Reset(Channels[ChannelIndex].PreLP);
+      |                                     ^~~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/ClusteredDiffusionDelay.cpp:235:38: warning: conversion to ‘std::vector<ClusteredDiffusionDelay::ChannelState>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+  235 |             Highpass::Reset(Channels[ChannelIndex].PostHP);
+      |                                      ^~~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/ClusteredDiffusionDelay.cpp:236:37: warning: conversion to ‘std::vector<ClusteredDiffusionDelay::ChannelState>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+  236 |             Lowpass::Reset(Channels[ChannelIndex].PostLP);
+      |                                     ^~~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/ClusteredDiffusionDelay.cpp:238:37: warning: conversion to ‘std::vector<ClusteredDiffusionDelay::ChannelState>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+  238 |             Ducking::Reset(Channels[ChannelIndex].Duck);
+      |                                     ^~~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/ClusteredDiffusionDelay.cpp:363:39: warning: conversion to ‘std::vector<ClusteredDiffusionDelay::ChannelState>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+  363 |             DelayLine::Write(Channels[ChannelIndex].PreDelay, AudioBuffer.getReadPointer(ChannelIndex)[SampleIndex]);
+      |                                       ^~~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/ClusteredDiffusionDelay.cpp:399:21: warning: unused variable ‘FeedbackBusDucked’ [-Wunused-variable]
+  399 |         const float FeedbackBusDucked = ShapedBusForTone * DuckGain;
+      |                     ^~~~~~~~~~~~~~~~~
+[10/42] Building CXX object CMakeFiles/Chronoverb.dir/Source/Filters/NewDelayReverb.cpp.obj
+FAILED: CMakeFiles/Chronoverb.dir/Source/Filters/NewDelayReverb.cpp.obj
+/usr/bin/ccache /usr/bin/x86_64-w64-mingw32-g++ -DDEBUG=1 -DJUCE_DISPLAY_SPLASH_SCREEN=0 -DJUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1 -DJUCE_MODULE_AVAILABLE_juce_audio_basics=1 -DJUCE_MODULE_AVAILABLE_juce_audio_devices=1 -DJUCE_MODULE_AVAILABLE_juce_audio_formats=1 -DJUCE_MODULE_AVAILABLE_juce_audio_plugin_client=1 -DJUCE_MODULE_AVAILABLE_juce_audio_processors=1 -DJUCE_MODULE_AVAILABLE_juce_audio_utils=1 -DJUCE_MODULE_AVAILABLE_juce_core=1 -DJUCE_MODULE_AVAILABLE_juce_data_structures=1 -DJUCE_MODULE_AVAILABLE_juce_dsp=1 -DJUCE_MODULE_AVAILABLE_juce_events=1 -DJUCE_MODULE_AVAILABLE_juce_graphics=1 -DJUCE_MODULE_AVAILABLE_juce_gui_basics=1 -DJUCE_MODULE_AVAILABLE_juce_gui_extra=1 -DJUCE_SHARED_CODE=1 -DJUCE_SILENCE_XCODE_15_LINKER_WARNING=1 -DJUCE_STANDALONE_APPLICATION=JucePlugin_Build_Standalone -DJUCE_TARGET_HAS_BINARY_DATA=1 -DJUCE_USE_CURL=0 -DJUCE_VST3_CAN_REPLACE_VST2=0 -DJUCE_WEB_BROWSER=0 -DJucePlugin_AAXCategory=0 -DJucePlugin_AAXDisableBypass=0 -DJucePlugin_AAXDisableMultiMono=0 -DJucePlugin_AAXIdentifier=com.DrBell.Chronoverb -DJucePlugin_AAXManufacturerCode=JucePlugin_ManufacturerCode -DJucePlugin_AAXProductId=JucePlugin_PluginCode -DJucePlugin_ARACompatibleArchiveIDs=\"\" -DJucePlugin_ARAContentTypes=0 -DJucePlugin_ARADocumentArchiveID=\"com.DrBell.Chronoverb.aradocumentarchive.1\" -DJucePlugin_ARAFactoryID=\"com.DrBell.Chronoverb.arafactory.0.0.1\" -DJucePlugin_ARATransformationFlags=0 -DJucePlugin_AUExportPrefix=Dr_ChronoverbAU -DJucePlugin_AUExportPrefixQuoted=\"Dr_ChronoverbAU\" -DJucePlugin_AUMainType="'aufx'" -DJucePlugin_AUManufacturerCode=JucePlugin_ManufacturerCode -DJucePlugin_AUSubType=JucePlugin_PluginCode -DJucePlugin_Build_AAX=0 -DJucePlugin_Build_AU=0 -DJucePlugin_Build_AUv3=0 -DJucePlugin_Build_LV2=0 -DJucePlugin_Build_Standalone=1 -DJucePlugin_Build_Unity=0 -DJucePlugin_Build_VST3=1 -DJucePlugin_Build_VST=0 -DJucePlugin_CFBundleIdentifier=com.DrBell.Chronoverb -DJucePlugin_Desc="\"Dr Chronoverb\"" -DJucePlugin_EditorRequiresKeyboardFocus=1 -DJucePlugin_Enable_ARA=0 -DJucePlugin_IsMidiEffect=0 -DJucePlugin_IsSynth=0 -DJucePlugin_Manufacturer=\"DrBell\" -DJucePlugin_ManufacturerCode=0x34324472 -DJucePlugin_ManufacturerEmail=\"\" -DJucePlugin_ManufacturerWebsite=\"\" -DJucePlugin_Name=\"Chronoverb\" -DJucePlugin_PluginCode=0x64724356 -DJucePlugin_ProducesMidiOutput=0 -DJucePlugin_VSTCategory=kPlugCategEffect -DJucePlugin_VSTNumMidiInputs=16 -DJucePlugin_VSTNumMidiOutputs=16 -DJucePlugin_VSTUniqueID=JucePlugin_PluginCode -DJucePlugin_Version=0.0.1 -DJucePlugin_VersionCode=0x1 -DJucePlugin_VersionString=\"0.0.1\" -DJucePlugin_Vst3Category="\"Fx|Fx,Reverb\"" -DJucePlugin_WantsMidiInput=0 -D_DEBUG=1 -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/cmake-build-windows-debug/Chronoverb_artefacts/JuceLibraryCode -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/VST3_SDK -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK/lv2 -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK/serd -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK/sord -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK/sord/src -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK/sratom -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK/lilv -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK/lilv/src -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/cmake-build-windows-debug/juce_binarydata_Assets/JuceLibraryCode -g -std=c++17 -fvisibility=hidden -fno-keep-inline-dllexport -fdiagnostics-color=always -static-libgcc -static-libstdc++ -Wa,-mbig-obj -g -O0 -Wall -Wextra -Wpedantic -Wstrict-aliasing -Wuninitialized -Wunused-parameter -Wsign-compare -Wsign-conversion -Wunreachable-code -Wcast-align -Wno-implicit-fallthrough -Wno-maybe-uninitialized -Wno-ignored-qualifiers -Wswitch-enum -Wredundant-decls -Wno-strict-overflow -Wshadow -Wfloat-equal -Wmissing-field-initializers -Woverloaded-virtual -Wreorder -Wzero-as-null-pointer-constant -MD -MT CMakeFiles/Chronoverb.dir/Source/Filters/NewDelayReverb.cpp.obj -MF CMakeFiles/Chronoverb.dir/Source/Filters/NewDelayReverb.cpp.obj.d -o CMakeFiles/Chronoverb.dir/Source/Filters/NewDelayReverb.cpp.obj -c /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb.cpp
+In file included from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb.h:7,
+                 from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb.cpp:1:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DelayLine.h: In constructor ‘DelayLine::DelayLine(int)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DelayLine.h:17:31: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   17 |         buffer.resize(std::max(1, maxSamples), 0.0f);
+      |                       ~~~~~~~~^~~~~~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DelayLine.h: In member function ‘void DelayLine::PushSample(float)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DelayLine.h:29:16: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   29 |         buffer[writeIndex] = inputSample;
+      |                ^~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DelayLine.h:30:34: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   30 |         writeIndex = (writeIndex + 1) % buffer.size();
+      |                      ~~~~~~~~~~~~^~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DelayLine.h: In member function ‘float DelayLine::ReadDelayMilliseconds(float, double) const’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DelayLine.h:56:38: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   56 |         const float sampleA = buffer[indexA];
+      |                                      ^~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DelayLine.h:57:38: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   57 |         const float sampleB = buffer[indexB];
+      |                                      ^~~~~~
+In file included from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb.h:8:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DampingFilter.h: In member function ‘float DampingFilter::ProcessSample(float, float)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DampingFilter.h:31:61: error: ‘M_PI’ was not declared in this scope
+   31 |         const float x = std::exp(-2.0f * static_cast<float>(M_PI) * cutoffHz / static_cast<float>(sampleRate));
+      |                                                             ^~~~
+In file included from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionChain.h:8,
+                 from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb.h:9:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h: In member function ‘void DiffusionAllpass::ensureBufferSize()’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h:90:32: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   90 |             inputBuffer.resize(minSize, 0.0f);
+      |                                ^~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h:93:33: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   93 |             outputBuffer.resize(minSize, 0.0f);
+      |                                 ^~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h: In member function ‘void DiffusionAllpass::pushInput(float)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h:98:21: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   98 |         inputBuffer[inputWrite] = x;
+      |                     ^~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h: In member function ‘void DiffusionAllpass::pushOutput(float)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h:104:22: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+  104 |         outputBuffer[outputWrite] = y;
+      |                      ^~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h: In member function ‘float DiffusionAllpass::readDelaySamples(int) const’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h:114:28: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+  114 |         return inputBuffer[index];
+      |                            ^~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h: In member function ‘float DiffusionAllpass::readOutputDelaySamples(int) const’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h:123:29: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+  123 |         return outputBuffer[index];
+      |                             ^~~~~
+In file included from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb.h:10:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/FeedbackDelayNetwork.h: In member function ‘void SimpleFDN::Line::ensure(int)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/FeedbackDelayNetwork.h:63:28: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   63 |                 buf.resize(size, 0.0f);
+      |                            ^~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/FeedbackDelayNetwork.h: In member function ‘void SimpleFDN::Line::push(float)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/FeedbackDelayNetwork.h:74:17: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   74 |             buf[w] = x;
+      |                 ^
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/FeedbackDelayNetwork.h: In member function ‘float SimpleFDN::Line::read() const’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/FeedbackDelayNetwork.h:88:24: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   88 |             return buf[r];
+      |                        ^
+[12/42] Building CXX object CMakeFiles/Chronoverb.dir/Source/Utils/VerticalRangeSlider.cpp.obj
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Utils/VerticalRangeSlider.cpp: In member function ‘void VerticalRangeSlider::setLowerValue(float)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Utils/VerticalRangeSlider.cpp:13:20: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
+   13 |     if (lowerValue != clamped)
+      |         ~~~~~~~~~~~^~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Utils/VerticalRangeSlider.cpp: In member function ‘void VerticalRangeSlider::setUpperValue(float)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Utils/VerticalRangeSlider.cpp:28:20: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
+   28 |     if (upperValue != clamped)
+      |         ~~~~~~~~~~~^~~~~~~~~~
+[13/42] Building CXX object CMakeFiles/Chronoverb.dir/Source/Utils/HorizontalRangeSlider.cpp.obj
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Utils/HorizontalRangeSlider.cpp: In member function ‘virtual void HorizontalRangeSlider::setLowerValue(float)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Utils/HorizontalRangeSlider.cpp:13:20: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
+   13 |     if (lowerValue != clampedValue)
+      |         ~~~~~~~~~~~^~~~~~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Utils/HorizontalRangeSlider.cpp: In member function ‘virtual void HorizontalRangeSlider::setUpperValue(float)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Utils/HorizontalRangeSlider.cpp:28:20: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
+   28 |     if (upperValue != clampedValue)
+      |         ~~~~~~~~~~~^~~~~~~~~~~~~~~
+[14/42] Building CXX object CMakeFiles/Chronoverb.dir/Source/Utils/VerticalRangeSliderAttachment.cpp.obj
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Utils/VerticalRangeSliderAttachment.cpp: In member function ‘virtual void VerticalRangeSliderAttachment::parameterChanged(const juce::String&, float)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Utils/VerticalRangeSliderAttachment.cpp:66:74: warning: unused parameter ‘ParameterID’ [-Wunused-parameter]
+   66 | void VerticalRangeSliderAttachment::parameterChanged(const juce::String& ParameterID, float NewValue)
+      |                                                      ~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Utils/VerticalRangeSliderAttachment.cpp:66:93: warning: unused parameter ‘NewValue’ [-Wunused-parameter]
+   66 | void VerticalRangeSliderAttachment::parameterChanged(const juce::String& ParameterID, float NewValue)
+      |                                                                                       ~~~~~~^~~~~~~~
+[15/42] Building CXX object CMakeFiles/Chronoverb.dir/Source/Utils/HorizontalRangeSliderAttachment.cpp.obj
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Utils/HorizontalRangeSliderAttachment.cpp: In member function ‘virtual void HorizontalRangeSliderAttachment::parameterChanged(const juce::String&, float)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Utils/HorizontalRangeSliderAttachment.cpp:57:76: warning: unused parameter ‘ParameterID’ [-Wunused-parameter]
+   57 | void HorizontalRangeSliderAttachment::parameterChanged(const juce::String& ParameterID, float NewValue)
+      |                                                        ~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Utils/HorizontalRangeSliderAttachment.cpp:57:95: warning: unused parameter ‘NewValue’ [-Wunused-parameter]
+   57 | void HorizontalRangeSliderAttachment::parameterChanged(const juce::String& ParameterID, float NewValue)
+      |                                                                                         ~~~~~~^~~~~~~~
+[16/42] Building CXX object CMakeFiles/Chronoverb.dir/Source/PluginEditor.cpp.obj
+FAILED: CMakeFiles/Chronoverb.dir/Source/PluginEditor.cpp.obj
+/usr/bin/ccache /usr/bin/x86_64-w64-mingw32-g++ -DDEBUG=1 -DJUCE_DISPLAY_SPLASH_SCREEN=0 -DJUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1 -DJUCE_MODULE_AVAILABLE_juce_audio_basics=1 -DJUCE_MODULE_AVAILABLE_juce_audio_devices=1 -DJUCE_MODULE_AVAILABLE_juce_audio_formats=1 -DJUCE_MODULE_AVAILABLE_juce_audio_plugin_client=1 -DJUCE_MODULE_AVAILABLE_juce_audio_processors=1 -DJUCE_MODULE_AVAILABLE_juce_audio_utils=1 -DJUCE_MODULE_AVAILABLE_juce_core=1 -DJUCE_MODULE_AVAILABLE_juce_data_structures=1 -DJUCE_MODULE_AVAILABLE_juce_dsp=1 -DJUCE_MODULE_AVAILABLE_juce_events=1 -DJUCE_MODULE_AVAILABLE_juce_graphics=1 -DJUCE_MODULE_AVAILABLE_juce_gui_basics=1 -DJUCE_MODULE_AVAILABLE_juce_gui_extra=1 -DJUCE_SHARED_CODE=1 -DJUCE_SILENCE_XCODE_15_LINKER_WARNING=1 -DJUCE_STANDALONE_APPLICATION=JucePlugin_Build_Standalone -DJUCE_TARGET_HAS_BINARY_DATA=1 -DJUCE_USE_CURL=0 -DJUCE_VST3_CAN_REPLACE_VST2=0 -DJUCE_WEB_BROWSER=0 -DJucePlugin_AAXCategory=0 -DJucePlugin_AAXDisableBypass=0 -DJucePlugin_AAXDisableMultiMono=0 -DJucePlugin_AAXIdentifier=com.DrBell.Chronoverb -DJucePlugin_AAXManufacturerCode=JucePlugin_ManufacturerCode -DJucePlugin_AAXProductId=JucePlugin_PluginCode -DJucePlugin_ARACompatibleArchiveIDs=\"\" -DJucePlugin_ARAContentTypes=0 -DJucePlugin_ARADocumentArchiveID=\"com.DrBell.Chronoverb.aradocumentarchive.1\" -DJucePlugin_ARAFactoryID=\"com.DrBell.Chronoverb.arafactory.0.0.1\" -DJucePlugin_ARATransformationFlags=0 -DJucePlugin_AUExportPrefix=Dr_ChronoverbAU -DJucePlugin_AUExportPrefixQuoted=\"Dr_ChronoverbAU\" -DJucePlugin_AUMainType="'aufx'" -DJucePlugin_AUManufacturerCode=JucePlugin_ManufacturerCode -DJucePlugin_AUSubType=JucePlugin_PluginCode -DJucePlugin_Build_AAX=0 -DJucePlugin_Build_AU=0 -DJucePlugin_Build_AUv3=0 -DJucePlugin_Build_LV2=0 -DJucePlugin_Build_Standalone=1 -DJucePlugin_Build_Unity=0 -DJucePlugin_Build_VST3=1 -DJucePlugin_Build_VST=0 -DJucePlugin_CFBundleIdentifier=com.DrBell.Chronoverb -DJucePlugin_Desc="\"Dr Chronoverb\"" -DJucePlugin_EditorRequiresKeyboardFocus=1 -DJucePlugin_Enable_ARA=0 -DJucePlugin_IsMidiEffect=0 -DJucePlugin_IsSynth=0 -DJucePlugin_Manufacturer=\"DrBell\" -DJucePlugin_ManufacturerCode=0x34324472 -DJucePlugin_ManufacturerEmail=\"\" -DJucePlugin_ManufacturerWebsite=\"\" -DJucePlugin_Name=\"Chronoverb\" -DJucePlugin_PluginCode=0x64724356 -DJucePlugin_ProducesMidiOutput=0 -DJucePlugin_VSTCategory=kPlugCategEffect -DJucePlugin_VSTNumMidiInputs=16 -DJucePlugin_VSTNumMidiOutputs=16 -DJucePlugin_VSTUniqueID=JucePlugin_PluginCode -DJucePlugin_Version=0.0.1 -DJucePlugin_VersionCode=0x1 -DJucePlugin_VersionString=\"0.0.1\" -DJucePlugin_Vst3Category="\"Fx|Fx,Reverb\"" -DJucePlugin_WantsMidiInput=0 -D_DEBUG=1 -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/cmake-build-windows-debug/Chronoverb_artefacts/JuceLibraryCode -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/VST3_SDK -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK/lv2 -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK/serd -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK/sord -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK/sord/src -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK/sratom -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK/lilv -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK/lilv/src -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/cmake-build-windows-debug/juce_binarydata_Assets/JuceLibraryCode -g -std=c++17 -fvisibility=hidden -fno-keep-inline-dllexport -fdiagnostics-color=always -static-libgcc -static-libstdc++ -Wa,-mbig-obj -g -O0 -Wall -Wextra -Wpedantic -Wstrict-aliasing -Wuninitialized -Wunused-parameter -Wsign-compare -Wsign-conversion -Wunreachable-code -Wcast-align -Wno-implicit-fallthrough -Wno-maybe-uninitialized -Wno-ignored-qualifiers -Wswitch-enum -Wredundant-decls -Wno-strict-overflow -Wshadow -Wfloat-equal -Wmissing-field-initializers -Woverloaded-virtual -Wreorder -Wzero-as-null-pointer-constant -MD -MT CMakeFiles/Chronoverb.dir/Source/PluginEditor.cpp.obj -MF CMakeFiles/Chronoverb.dir/Source/PluginEditor.cpp.obj.d -o CMakeFiles/Chronoverb.dir/Source/PluginEditor.cpp.obj -c /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginEditor.cpp
+In file included from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb.h:7,
+                 from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginProcessor.h:5,
+                 from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginEditor.cpp:1:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DelayLine.h: In constructor ‘DelayLine::DelayLine(int)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DelayLine.h:17:31: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   17 |         buffer.resize(std::max(1, maxSamples), 0.0f);
+      |                       ~~~~~~~~^~~~~~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DelayLine.h: In member function ‘void DelayLine::PushSample(float)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DelayLine.h:29:16: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   29 |         buffer[writeIndex] = inputSample;
+      |                ^~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DelayLine.h:30:34: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   30 |         writeIndex = (writeIndex + 1) % buffer.size();
+      |                      ~~~~~~~~~~~~^~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DelayLine.h: In member function ‘float DelayLine::ReadDelayMilliseconds(float, double) const’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DelayLine.h:56:38: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   56 |         const float sampleA = buffer[indexA];
+      |                                      ^~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DelayLine.h:57:38: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   57 |         const float sampleB = buffer[indexB];
+      |                                      ^~~~~~
+In file included from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb.h:8:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DampingFilter.h: In member function ‘float DampingFilter::ProcessSample(float, float)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DampingFilter.h:31:61: error: ‘M_PI’ was not declared in this scope
+   31 |         const float x = std::exp(-2.0f * static_cast<float>(M_PI) * cutoffHz / static_cast<float>(sampleRate));
+      |                                                             ^~~~
+In file included from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionChain.h:8,
+                 from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb.h:9:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h: In member function ‘void DiffusionAllpass::ensureBufferSize()’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h:90:32: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   90 |             inputBuffer.resize(minSize, 0.0f);
+      |                                ^~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h:93:33: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   93 |             outputBuffer.resize(minSize, 0.0f);
+      |                                 ^~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h: In member function ‘void DiffusionAllpass::pushInput(float)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h:98:21: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   98 |         inputBuffer[inputWrite] = x;
+      |                     ^~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h: In member function ‘void DiffusionAllpass::pushOutput(float)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h:104:22: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+  104 |         outputBuffer[outputWrite] = y;
+      |                      ^~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h: In member function ‘float DiffusionAllpass::readDelaySamples(int) const’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h:114:28: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+  114 |         return inputBuffer[index];
+      |                            ^~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h: In member function ‘float DiffusionAllpass::readOutputDelaySamples(int) const’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h:123:29: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+  123 |         return outputBuffer[index];
+      |                             ^~~~~
+In file included from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb.h:10:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/FeedbackDelayNetwork.h: In member function ‘void SimpleFDN::Line::ensure(int)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/FeedbackDelayNetwork.h:63:28: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   63 |                 buf.resize(size, 0.0f);
+      |                            ^~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/FeedbackDelayNetwork.h: In member function ‘void SimpleFDN::Line::push(float)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/FeedbackDelayNetwork.h:74:17: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   74 |             buf[w] = x;
+      |                 ^
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/FeedbackDelayNetwork.h: In member function ‘float SimpleFDN::Line::read() const’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/FeedbackDelayNetwork.h:88:24: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   88 |             return buf[r];
+      |                        ^
+In file included from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginEditor.h:8,
+                 from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginEditor.cpp:2:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Utils/FlatRotaryLookAndFeel.h: In member function ‘virtual void FlatRotaryLookAndFeel::drawRotarySlider(juce::Graphics&, int, int, int, int, float, float, float, juce::Slider&)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Utils/FlatRotaryLookAndFeel.h:19:23: warning: unused parameter ‘Slider’ [-Wunused-parameter]
+   19 |         juce::Slider& Slider) override
+      |         ~~~~~~~~~~~~~~^~~~~~
+In file included from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_gui_basics/juce_gui_basics.h:197,
+                 from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/juce_audio_processors.h:57,
+                 from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginProcessor.h:3:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_gui_basics/components/juce_Component.h: At global scope:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_gui_basics/components/juce_Component.h:1865:18: warning: ‘virtual bool juce::Component::keyStateChanged(bool)’ was hidden [-Woverloaded-virtual=]
+ 1865 |     virtual bool keyStateChanged (bool isKeyDown);
+      |                  ^~~~~~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginEditor.h:51:10: note:   by ‘virtual bool AudioPluginAudioProcessorEditor::keyStateChanged(bool, juce::Component*)’
+   51 |     bool keyStateChanged(bool isKeyDown, juce::Component* originatingComponent) override;
+      |          ^~~~~~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_gui_basics/components/juce_Component.h:1841:18: warning: ‘virtual bool juce::Component::keyPressed(const juce::KeyPress&)’ was hidden [-Woverloaded-virtual=]
+ 1841 |     virtual bool keyPressed (const KeyPress& key);
+      |                  ^~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginEditor.h:50:10: note:   by ‘virtual bool AudioPluginAudioProcessorEditor::keyPressed(const juce::KeyPress&, juce::Component*)’
+   50 |     bool keyPressed(const juce::KeyPress& key, juce::Component* originatingComponent) override;
+      |          ^~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginEditor.cpp: In constructor ‘AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor(AudioPluginAudioProcessor&)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginEditor.cpp:12:94: warning: declaration of ‘processor’ shadows a member of ‘AudioPluginAudioProcessorEditor’ [-Wshadow]
+   12 | AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor& processor)
+      |                                                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+In file included from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/juce_audio_processors.h:142:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/processors/juce_AudioProcessorEditor.h:58:21: note: shadowed declaration is here
+   58 |     AudioProcessor& processor;
+      |                     ^~~~~~~~~
+[17/42] Building CXX object CMakeFiles/Chronoverb.dir/Source/PluginProcessor.cpp.obj
+FAILED: CMakeFiles/Chronoverb.dir/Source/PluginProcessor.cpp.obj
+/usr/bin/ccache /usr/bin/x86_64-w64-mingw32-g++ -DDEBUG=1 -DJUCE_DISPLAY_SPLASH_SCREEN=0 -DJUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1 -DJUCE_MODULE_AVAILABLE_juce_audio_basics=1 -DJUCE_MODULE_AVAILABLE_juce_audio_devices=1 -DJUCE_MODULE_AVAILABLE_juce_audio_formats=1 -DJUCE_MODULE_AVAILABLE_juce_audio_plugin_client=1 -DJUCE_MODULE_AVAILABLE_juce_audio_processors=1 -DJUCE_MODULE_AVAILABLE_juce_audio_utils=1 -DJUCE_MODULE_AVAILABLE_juce_core=1 -DJUCE_MODULE_AVAILABLE_juce_data_structures=1 -DJUCE_MODULE_AVAILABLE_juce_dsp=1 -DJUCE_MODULE_AVAILABLE_juce_events=1 -DJUCE_MODULE_AVAILABLE_juce_graphics=1 -DJUCE_MODULE_AVAILABLE_juce_gui_basics=1 -DJUCE_MODULE_AVAILABLE_juce_gui_extra=1 -DJUCE_SHARED_CODE=1 -DJUCE_SILENCE_XCODE_15_LINKER_WARNING=1 -DJUCE_STANDALONE_APPLICATION=JucePlugin_Build_Standalone -DJUCE_TARGET_HAS_BINARY_DATA=1 -DJUCE_USE_CURL=0 -DJUCE_VST3_CAN_REPLACE_VST2=0 -DJUCE_WEB_BROWSER=0 -DJucePlugin_AAXCategory=0 -DJucePlugin_AAXDisableBypass=0 -DJucePlugin_AAXDisableMultiMono=0 -DJucePlugin_AAXIdentifier=com.DrBell.Chronoverb -DJucePlugin_AAXManufacturerCode=JucePlugin_ManufacturerCode -DJucePlugin_AAXProductId=JucePlugin_PluginCode -DJucePlugin_ARACompatibleArchiveIDs=\"\" -DJucePlugin_ARAContentTypes=0 -DJucePlugin_ARADocumentArchiveID=\"com.DrBell.Chronoverb.aradocumentarchive.1\" -DJucePlugin_ARAFactoryID=\"com.DrBell.Chronoverb.arafactory.0.0.1\" -DJucePlugin_ARATransformationFlags=0 -DJucePlugin_AUExportPrefix=Dr_ChronoverbAU -DJucePlugin_AUExportPrefixQuoted=\"Dr_ChronoverbAU\" -DJucePlugin_AUMainType="'aufx'" -DJucePlugin_AUManufacturerCode=JucePlugin_ManufacturerCode -DJucePlugin_AUSubType=JucePlugin_PluginCode -DJucePlugin_Build_AAX=0 -DJucePlugin_Build_AU=0 -DJucePlugin_Build_AUv3=0 -DJucePlugin_Build_LV2=0 -DJucePlugin_Build_Standalone=1 -DJucePlugin_Build_Unity=0 -DJucePlugin_Build_VST3=1 -DJucePlugin_Build_VST=0 -DJucePlugin_CFBundleIdentifier=com.DrBell.Chronoverb -DJucePlugin_Desc="\"Dr Chronoverb\"" -DJucePlugin_EditorRequiresKeyboardFocus=1 -DJucePlugin_Enable_ARA=0 -DJucePlugin_IsMidiEffect=0 -DJucePlugin_IsSynth=0 -DJucePlugin_Manufacturer=\"DrBell\" -DJucePlugin_ManufacturerCode=0x34324472 -DJucePlugin_ManufacturerEmail=\"\" -DJucePlugin_ManufacturerWebsite=\"\" -DJucePlugin_Name=\"Chronoverb\" -DJucePlugin_PluginCode=0x64724356 -DJucePlugin_ProducesMidiOutput=0 -DJucePlugin_VSTCategory=kPlugCategEffect -DJucePlugin_VSTNumMidiInputs=16 -DJucePlugin_VSTNumMidiOutputs=16 -DJucePlugin_VSTUniqueID=JucePlugin_PluginCode -DJucePlugin_Version=0.0.1 -DJucePlugin_VersionCode=0x1 -DJucePlugin_VersionString=\"0.0.1\" -DJucePlugin_Vst3Category="\"Fx|Fx,Reverb\"" -DJucePlugin_WantsMidiInput=0 -D_DEBUG=1 -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/cmake-build-windows-debug/Chronoverb_artefacts/JuceLibraryCode -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/VST3_SDK -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK/lv2 -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK/serd -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK/sord -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK/sord/src -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK/sratom -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK/lilv -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK/lilv/src -I/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/cmake-build-windows-debug/juce_binarydata_Assets/JuceLibraryCode -g -std=c++17 -fvisibility=hidden -fno-keep-inline-dllexport -fdiagnostics-color=always -static-libgcc -static-libstdc++ -Wa,-mbig-obj -g -O0 -Wall -Wextra -Wpedantic -Wstrict-aliasing -Wuninitialized -Wunused-parameter -Wsign-compare -Wsign-conversion -Wunreachable-code -Wcast-align -Wno-implicit-fallthrough -Wno-maybe-uninitialized -Wno-ignored-qualifiers -Wswitch-enum -Wredundant-decls -Wno-strict-overflow -Wshadow -Wfloat-equal -Wmissing-field-initializers -Woverloaded-virtual -Wreorder -Wzero-as-null-pointer-constant -MD -MT CMakeFiles/Chronoverb.dir/Source/PluginProcessor.cpp.obj -MF CMakeFiles/Chronoverb.dir/Source/PluginProcessor.cpp.obj.d -o CMakeFiles/Chronoverb.dir/Source/PluginProcessor.cpp.obj -c /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginProcessor.cpp
+In file included from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb.h:7,
+                 from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginProcessor.h:5,
+                 from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginProcessor.cpp:1:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DelayLine.h: In constructor ‘DelayLine::DelayLine(int)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DelayLine.h:17:31: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   17 |         buffer.resize(std::max(1, maxSamples), 0.0f);
+      |                       ~~~~~~~~^~~~~~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DelayLine.h: In member function ‘void DelayLine::PushSample(float)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DelayLine.h:29:16: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   29 |         buffer[writeIndex] = inputSample;
+      |                ^~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DelayLine.h:30:34: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   30 |         writeIndex = (writeIndex + 1) % buffer.size();
+      |                      ~~~~~~~~~~~~^~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DelayLine.h: In member function ‘float DelayLine::ReadDelayMilliseconds(float, double) const’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DelayLine.h:56:38: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   56 |         const float sampleA = buffer[indexA];
+      |                                      ^~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DelayLine.h:57:38: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   57 |         const float sampleB = buffer[indexB];
+      |                                      ^~~~~~
+In file included from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb.h:8:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DampingFilter.h: In member function ‘float DampingFilter::ProcessSample(float, float)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DampingFilter.h:31:61: error: ‘M_PI’ was not declared in this scope
+   31 |         const float x = std::exp(-2.0f * static_cast<float>(M_PI) * cutoffHz / static_cast<float>(sampleRate));
+      |                                                             ^~~~
+In file included from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionChain.h:8,
+                 from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb.h:9:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h: In member function ‘void DiffusionAllpass::ensureBufferSize()’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h:90:32: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   90 |             inputBuffer.resize(minSize, 0.0f);
+      |                                ^~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h:93:33: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   93 |             outputBuffer.resize(minSize, 0.0f);
+      |                                 ^~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h: In member function ‘void DiffusionAllpass::pushInput(float)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h:98:21: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   98 |         inputBuffer[inputWrite] = x;
+      |                     ^~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h: In member function ‘void DiffusionAllpass::pushOutput(float)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h:104:22: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+  104 |         outputBuffer[outputWrite] = y;
+      |                      ^~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h: In member function ‘float DiffusionAllpass::readDelaySamples(int) const’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h:114:28: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+  114 |         return inputBuffer[index];
+      |                            ^~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h: In member function ‘float DiffusionAllpass::readOutputDelaySamples(int) const’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/DiffusionAllpass.h:123:29: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+  123 |         return outputBuffer[index];
+      |                             ^~~~~
+In file included from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb.h:10:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/FeedbackDelayNetwork.h: In member function ‘void SimpleFDN::Line::ensure(int)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/FeedbackDelayNetwork.h:63:28: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   63 |                 buf.resize(size, 0.0f);
+      |                            ^~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/FeedbackDelayNetwork.h: In member function ‘void SimpleFDN::Line::push(float)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/FeedbackDelayNetwork.h:74:17: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   74 |             buf[w] = x;
+      |                 ^
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/FeedbackDelayNetwork.h: In member function ‘float SimpleFDN::Line::read() const’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Filters/NewDelayReverb/FeedbackDelayNetwork.h:88:24: warning: conversion to ‘std::vector<float>::size_type’ {aka ‘long long unsigned int’} from ‘int’ may change the sign of the result [-Wsign-conversion]
+   88 |             return buf[r];
+      |                        ^
+In file included from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginEditor.h:8,
+                 from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginProcessor.cpp:2:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Utils/FlatRotaryLookAndFeel.h: In member function ‘virtual void FlatRotaryLookAndFeel::drawRotarySlider(juce::Graphics&, int, int, int, int, float, float, float, juce::Slider&)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/Utils/FlatRotaryLookAndFeel.h:19:23: warning: unused parameter ‘Slider’ [-Wunused-parameter]
+   19 |         juce::Slider& Slider) override
+      |         ~~~~~~~~~~~~~~^~~~~~
+In file included from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_gui_basics/juce_gui_basics.h:197,
+                 from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/juce_audio_processors.h:57,
+                 from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginProcessor.h:3:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_gui_basics/components/juce_Component.h: At global scope:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_gui_basics/components/juce_Component.h:1865:18: warning: ‘virtual bool juce::Component::keyStateChanged(bool)’ was hidden [-Woverloaded-virtual=]
+ 1865 |     virtual bool keyStateChanged (bool isKeyDown);
+      |                  ^~~~~~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginEditor.h:51:10: note:   by ‘virtual bool AudioPluginAudioProcessorEditor::keyStateChanged(bool, juce::Component*)’
+   51 |     bool keyStateChanged(bool isKeyDown, juce::Component* originatingComponent) override;
+      |          ^~~~~~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_gui_basics/components/juce_Component.h:1841:18: warning: ‘virtual bool juce::Component::keyPressed(const juce::KeyPress&)’ was hidden [-Woverloaded-virtual=]
+ 1841 |     virtual bool keyPressed (const KeyPress& key);
+      |                  ^~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginEditor.h:50:10: note:   by ‘virtual bool AudioPluginAudioProcessorEditor::keyPressed(const juce::KeyPress&, juce::Component*)’
+   50 |     bool keyPressed(const juce::KeyPress& key, juce::Component* originatingComponent) override;
+      |          ^~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginProcessor.cpp: In constructor ‘AudioPluginAudioProcessor::AudioPluginAudioProcessor()’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginProcessor.cpp:45:13: warning: unused variable ‘InitialModeIndex’ [-Wunused-variable]
+   45 |         int InitialModeIndex = static_cast<int>(std::round(DelayModeParam->convertFrom0to1(Normalised)));
+      |             ^~~~~~~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginProcessor.cpp:63:11: warning: unused variable ‘duckAmount’ [-Wunused-variable]
+   63 |     float duckAmount = parameters.getRawParameterValue("duckAmount")->load();
+      |           ^~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginProcessor.cpp:64:11: warning: unused variable ‘duckAttack’ [-Wunused-variable]
+   64 |     float duckAttack = parameters.getRawParameterValue("duckAttack")->load();
+      |           ^~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginProcessor.cpp:65:11: warning: unused variable ‘duckRelease’ [-Wunused-variable]
+   65 |     float duckRelease = parameters.getRawParameterValue("duckRelease")->load();
+      |           ^~~~~~~~~~~
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginProcessor.cpp: In member function ‘virtual void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&)’:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Source/PluginProcessor.cpp:323:41: warning: ‘bool juce::AudioPlayHead::getCurrentPosition(CurrentPositionInfo&)’ is deprecated: Use getPosition instead. Not all hosts are able to provide all time position information; getPosition differentiates clearly between set and unset fields. [-Wdeprecated-declarations]
+  323 |         if (PlayHead->getCurrentPosition(PositionInfo))
+      |             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~
+In file included from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_basics/juce_audio_basics.h:125,
+                 from /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_processors/juce_audio_processors.h:58:
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/Libs/JUCE/modules/juce_audio_basics/audio_play_head/juce_AudioPlayHead.h:516:10: note: declared here
+  516 |     bool getCurrentPosition (CurrentPositionInfo& result)
+      |          ^~~~~~~~~~~~~~~~~~
+[20/42] Building CXX object CMakeFiles/Chronoverb.dir/Libs/JUCE/modules/juce_gui_basics/juce_gui_basics.cpp.obj
+ninja: build stopped: subcommand failed.
