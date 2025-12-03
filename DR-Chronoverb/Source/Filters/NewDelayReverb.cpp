@@ -70,20 +70,10 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
     if (numChannels < 1 || numSamples <= 0)
         return;
 
-    // Apply any pending diffusion reconfiguration at block boundary (safe point)
     if (diffusionRebuildPending.exchange(false, std::memory_order_acq_rel))
         rebuildDiffusionIfNeeded();
 
-    // Ensure filters are up to date
     updateFilters();
-
-    // Per-sample processing based on Deelay estimate:
-    // 1) input + previous feedback
-    // 2) diffusion chain (amount crossfade)
-    // 3) write to main delay; read delayed sample at delayMilliseconds
-    // 4) damping in feedback path, scale by feedbackGain, store for next iteration
-    // 5) dry/wet mix
-    // 6) optional pre/post HP/LP
 
     float* leftData = audioBuffer.getWritePointer(0);
     float* rightData = (numChannels > 1 ? audioBuffer.getWritePointer(1) : nullptr);
@@ -105,51 +95,59 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             preRight = lowpassR.processSample(preRight);
         }
 
-        // 1) Input + feedback
-        const float summedLeft = preLeft + lastFeedbackL;
-        const float summedRight = preRight + lastFeedbackR;
+        // 1) Input + feedback (undiffused sum)
+        const float sumLeft = preLeft + lastFeedbackL;
+        const float sumRight = preRight + lastFeedbackR;
 
-        // 2) Diffusion always at full internally; Amount will be used at read-time
-        const float diffusedLeft = diffusionLeft->ProcessSample(summedLeft, 1.0f);
-        const float diffusedRight = diffusionRight->ProcessSample(summedRight, 1.0f);
+        // 2) Compute fully diffused versions (internal diffuser always at 1.0)
+        const float diffusedLeft = diffusionLeft->ProcessSample(sumLeft, 1.0f);
+        const float diffusedRight = diffusionRight->ProcessSample(sumRight, 1.0f);
 
-        // 3) Write to main delay
-        mainDelayLeft->PushSample(diffusedLeft);
-        mainDelayRight->PushSample(diffusedRight);
+        // 3) Write-path diffusion controlled by diffusionAmount01:
+        //    - amount = 0 -> write undiffused sum (hard taps)
+        //    - amount = 1 -> write fully diffused sum (lush)
+        const float writeMix = diffusionAmount01;
+        const float writeLeft = sumLeft * (1.0f - writeMix) + diffusedLeft * writeMix;
+        const float writeRight = sumRight * (1.0f - writeMix) + diffusedRight * writeMix;
 
-        // 4) Read two taps from the same delay line:
-        //    - Base tap: nominal user delay time
-        //    - Reverb-offset tap: earlier by half the estimated cluster width
+        mainDelayLeft->PushSample(writeLeft);
+        mainDelayRight->PushSample(writeRight);
+
+        // 4) Base tap (for both wet and feedback reference)
         const float baseMs = delayMilliseconds;
-
-        const float halfClusterMs = 0.5f * std::max(0.0f, diffusionClusterWidthMilliseconds);
-        const float offsetMs = std::max(0.0f, baseMs - halfClusterMs);
-
         const float baseTapLeft = mainDelayLeft->ReadDelayMilliseconds(baseMs, sampleRate);
         const float baseTapRight = mainDelayRight->ReadDelayMilliseconds(baseMs, sampleRate);
 
-        const float reverbTapLeft = mainDelayLeft->ReadDelayMilliseconds(offsetMs, sampleRate);
-        const float reverbTapRight = mainDelayRight->ReadDelayMilliseconds(offsetMs, sampleRate);
+        // 5) Reverb-offset tap (earlier by half the cluster width, clamped)
+        const float groupClusterMS = std::max(0.0f, diffusionGroupDelayMilliseconds + diffusionClusterWidthMilliseconds) * 0.5f;
+        //const float halfClusterMs = 0.5f * std::max(0.0f, diffusionClusterWidthMilliseconds);
+        const float offsetMs = std::max(0.0f, baseMs + groupClusterMS);
 
-        // 5) Lerp between hard vs diffused taps with diffusionAmount01
+        const float swellTapLeft = mainDelayLeft->ReadDelayMilliseconds(offsetMs, sampleRate);
+        const float swellTapRight = mainDelayRight->ReadDelayMilliseconds(offsetMs, sampleRate);
+
+        // 6) Wet output “swell” crossfade:
+        //    Use equal-power crossfade to avoid the 0.5 level dip/artifact.
         const float t = diffusionAmount01;
-        const float delayedLeft = baseTapLeft * (1.0f - t) + reverbTapLeft * t;
-        const float delayedRight = baseTapRight * (1.0f - t) + reverbTapRight * t;
+        const float a = std::sqrt(1.0f - t);
+        const float b = std::sqrt(t);
 
-        // 6) Damping in feedback path
-        const float dampedLeft = dampingLeft->ProcessSample(delayedLeft, lowpass01);
-        const float dampedRight = dampingRight->ProcessSample(delayedRight, lowpass01);
+        const float wetLeft = baseTapLeft * a + swellTapLeft * b;
+        const float wetRight = baseTapRight * a + swellTapRight * b;
 
-        // 7) Feedback gain
+        // 7) Feedback: drive from base tap only (stable energy, no comb cancellation in-loop)
+        const float dampedLeft = dampingLeft->ProcessSample(baseTapLeft, lowpass01);
+        const float dampedRight = dampingRight->ProcessSample(baseTapRight, lowpass01);
+
         lastFeedbackL = dampedLeft * feedbackGain;
         lastFeedbackR = dampedRight * feedbackGain;
 
-        // 8) Wet path and stereo spread (unchanged)
-        float wetLeft = delayedLeft;
-        float wetRight = delayedRight;
+        // 8) Stereo spread on wet
+        float spreadWetLeft = wetLeft;
+        float spreadWetRight = wetRight;
 
         const float spread = juce::jlimit(-1.0f, 1.0f, stereoSpreadMinus1To1);
-        
+
         if (std::abs(spread) > 0.0001f)
         {
             const float widen = std::max(0.0f, spread);
@@ -158,24 +156,25 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             if (widen > 0.0f)
             {
                 const float cross = widen * 0.25f;
-                const float newL = wetLeft - cross * wetRight;
-                const float newR = wetRight - cross * wetLeft;
-                wetLeft = newL;
-                wetRight = newR;
+                const float newL = spreadWetLeft - cross * spreadWetRight;
+                const float newR = spreadWetRight - cross * spreadWetLeft;
+                spreadWetLeft = newL;
+                spreadWetRight = newR;
             }
             else if (narrow > 0.0f)
             {
-                const float mono = 0.5f * (wetLeft + wetRight);
-                wetLeft = wetLeft * (1.0f - narrow) + mono * narrow;
-                wetRight = wetRight * (1.0f - narrow) + mono * narrow;
+                const float mono = 0.5f * (spreadWetLeft + spreadWetRight);
+                spreadWetLeft = spreadWetLeft * (1.0f - narrow) + mono * narrow;
+                spreadWetRight = spreadWetRight * (1.0f - narrow) + mono * narrow;
             }
         }
 
+        // 9) Dry/Wet mix
         const float dryGain = 1.0f - dryWet01;
         const float wetGain = dryWet01;
 
-        float outLeft = dryGain * inputLeft + wetGain * wetLeft;
-        float outRight = dryGain * inputRight + wetGain * wetRight;
+        float outLeft = dryGain * inputLeft + wetGain * spreadWetLeft;
+        float outRight = dryGain * inputRight + wetGain * spreadWetRight;
 
         if (hplpPrePost01 >= 0.5f)
         {
