@@ -157,6 +157,6 @@ private:
         const double spreadFactor = std::sqrt(static_cast<double>(perStageDelayMs.size()));
 
         // Tweak factor ~0.8 to keep half-width compensation perceptually centered toward the tap.
-        estimatedClusterWidthMs = static_cast<float>(rms * spreadFactor * 0.8);
+        estimatedClusterWidthMs = static_cast<float>(rms * spreadFactor * 0.5);
     }
 };
