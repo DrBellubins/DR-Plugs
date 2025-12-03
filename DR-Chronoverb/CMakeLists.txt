@@ -47,9 +47,16 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 # IDEs:  Create a folder in the IDE with the JUCE Module code.
 option(JUCE_ENABLE_MODULE_SOURCE_GROUPS "Show all module sources in IDE projects" ON)
 
+# ─────────────────────────────────────────────────────────────
+# Disable JUCE helpers (incl. VST3 manifest helper) EARLY, before JUCE is added
+# ─────────────────────────────────────────────────────────────
+if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    set(JUCE_VST3_MANIFEST_HELPER_ENABLED OFF CACHE BOOL "" FORCE)
+    set(JUCE_BUILD_HELPERS OFF CACHE BOOL "" FORCE)
+endif()
+
 
 ### Dependency management ###
-
 include(FetchContent)
 
 # Keep dependencies outside of the "Build" directory.
@@ -67,16 +74,6 @@ FetchContent_Declare(juce
     BINARY_DIR     "${FETCHCONTENT_BASE_DIR}/JUCE-Build")
 
 FetchContent_MakeAvailable(juce)
-
-# ─────────────────────────────────────────────────────────────
-# Disable JUCE's broken VST3 manifest helper when cross-compiling to Windows
-# (juce_vst3_helper does not exist yet at this point in JUCE 7.0.x, so we use the official CMake option instead)
-# ─────────────────────────────────────────────────────────────
-if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    set(JUCE_VST3_MANIFEST_HELPER_ENABLED OFF CACHE BOOL "" FORCE)
-    set(JUCE_BUILD_HELPERS OFF CACHE BOOL "" FORCE)                  # extra safety hammer
-    add_compile_definitions(JUCE_VST3_MANIFEST_HELPER_ENABLED=0)   # final nuclear fallback
-endif()
 
 ### Plugin Project Setup ###
 

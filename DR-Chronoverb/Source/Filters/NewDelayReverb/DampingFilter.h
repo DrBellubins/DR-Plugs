@@ -13,6 +13,8 @@
 class DampingFilter
 {
 public:
+    static constexpr float kPiF = 3.14159265358979323846f;
+
     DampingFilter()
     {
     }
@@ -28,7 +30,7 @@ public:
         // Map lowpass01 to cutoff; if you prefer alternative mapping, adjust in NewDelayReverb::updateFilters.
         // Here, we keep it simple and derive alpha from an approximate RC filter coefficient.
         const float cutoffHz = 500.0f + lowpass01 * (9000.0f - 500.0f);
-        const float x = std::exp(-2.0f * static_cast<float>(M_PI) * cutoffHz / static_cast<float>(sampleRate));
+        const float x = std::exp(-2.0f * kPiF * cutoffHz / static_cast<float>(sampleRate));
         const float alpha = 1.0f - x;
 
         const float y = alpha * inputSample + (1.0f - alpha) * z1;
