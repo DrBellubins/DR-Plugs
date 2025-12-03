@@ -13,7 +13,6 @@
     A header-only implementation of a serial diffusion chain using simple delay-based allpass filters.
 
     Structure:
-    - DiffusionAllpass: A basic allpass filter implemented with input/output delay buffers.
     - DiffusionChain: Owns N DiffusionAllpass stages in series, configurable by stage count and size.
 
     Controls:
