@@ -90,102 +90,106 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
     for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
     {
-        const float inputL = leftData[sampleIndex];
-        const float inputR = (rightData != nullptr ? rightData[sampleIndex] : inputL);
+        const float inputLeft = leftData[sampleIndex];
+        const float inputRight = (rightData != nullptr ? rightData[sampleIndex] : inputLeft);
 
-        // Optional pre HP/LP if hplpPrePost01 == 0 (Pre)
-        float preL = inputL;
-        float preR = inputR;
+        float preLeft = inputLeft;
+        float preRight = inputRight;
 
         if (hplpPrePost01 < 0.5f)
         {
-            preL = highpassL.processSample(preL);
-            preL = lowpassL.processSample(preL);
+            preLeft = highpassL.processSample(preLeft);
+            preLeft = lowpassL.processSample(preLeft);
 
-            preR = highpassR.processSample(preR);
-            preR = lowpassR.processSample(preR);
+            preRight = highpassR.processSample(preRight);
+            preRight = lowpassR.processSample(preRight);
         }
 
-        // 1) Sum input + feedback
-        float summedL = preL + lastFeedbackL;
-        float summedR = preR + lastFeedbackR;
+        // 1) Input + feedback
+        const float summedLeft = preLeft + lastFeedbackL;
+        const float summedRight = preRight + lastFeedbackR;
 
-        // 2) Diffusion
-        const float diffusedL = diffusionLeft->ProcessSample(summedL, diffusionAmount01);
-        const float diffusedR = diffusionRight->ProcessSample(summedR, diffusionAmount01);
+        // 2) Diffusion always at full internally; Amount will be used at read-time
+        const float diffusedLeft = diffusionLeft->ProcessSample(summedLeft, 1.0f);
+        const float diffusedRight = diffusionRight->ProcessSample(summedRight, 1.0f);
 
-        // 3) Main delay write/read
-        mainDelayLeft->PushSample(diffusedL);
-        mainDelayRight->PushSample(diffusedR);
+        // 3) Write to main delay
+        mainDelayLeft->PushSample(diffusedLeft);
+        mainDelayRight->PushSample(diffusedRight);
 
-        // Swell-centering compensation:
-        // Subtract half of the estimated cluster width (optionally weighted by diffusion amount)
-        const float halfClusterMs = 0.5f * diffusionClusterWidthMilliseconds;
-        const float amountWeight = diffusionAmount01; // 0..1, prevents overcompensation at low diffusion
-        const float compensationMs = halfClusterMs * amountWeight;
+        // 4) Read two taps from the same delay line:
+        //    - Base tap: nominal user delay time
+        //    - Reverb-offset tap: earlier by half the estimated cluster width
+        const float baseMs = delayMilliseconds;
 
-        const float effectiveDelayMs = std::max(0.0f, delayMilliseconds - compensationMs);
+        const float halfClusterMs = 0.5f * std::max(0.0f, diffusionClusterWidthMilliseconds);
+        const float offsetMs = std::max(0.0f, baseMs - halfClusterMs);
 
-        const float delayedL = mainDelayLeft->ReadDelayMilliseconds(effectiveDelayMs, sampleRate);
-        const float delayedR = mainDelayRight->ReadDelayMilliseconds(effectiveDelayMs, sampleRate);
+        const float baseTapLeft = mainDelayLeft->ReadDelayMilliseconds(baseMs, sampleRate);
+        const float baseTapRight = mainDelayRight->ReadDelayMilliseconds(baseMs, sampleRate);
 
-        // 4) Damping in feedback path
-        const float dampedL = dampingLeft->ProcessSample(delayedL, lowpass01);
-        const float dampedR = dampingRight->ProcessSample(delayedR, lowpass01);
+        const float reverbTapLeft = mainDelayLeft->ReadDelayMilliseconds(offsetMs, sampleRate);
+        const float reverbTapRight = mainDelayRight->ReadDelayMilliseconds(offsetMs, sampleRate);
 
-        // Feedback gain
-        lastFeedbackL = dampedL * feedbackGain;
-        lastFeedbackR = dampedR * feedbackGain;
+        // 5) Lerp between hard vs diffused taps with diffusionAmount01
+        const float t = diffusionAmount01;
+        const float delayedLeft = baseTapLeft * (1.0f - t) + reverbTapLeft * t;
+        const float delayedRight = baseTapRight * (1.0f - t) + reverbTapRight * t;
 
-        // 5) Dry/Wet mix
-        float wetL = delayedL;
-        float wetR = delayedR;
+        // 6) Damping in feedback path
+        const float dampedLeft = dampingLeft->ProcessSample(delayedLeft, lowpass01);
+        const float dampedRight = dampingRight->ProcessSample(delayedRight, lowpass01);
 
-        // Simple stereo spread: crossmix based on stereoSpreadMinus1To1.
-        // Positive -> widen (add anti-phase-ish crossfeed), Negative -> narrow (crossmix toward mono).
+        // 7) Feedback gain
+        lastFeedbackL = dampedLeft * feedbackGain;
+        lastFeedbackR = dampedRight * feedbackGain;
+
+        // 8) Wet path and stereo spread (unchanged)
+        float wetLeft = delayedLeft;
+        float wetRight = delayedRight;
+
         const float spread = juce::jlimit(-1.0f, 1.0f, stereoSpreadMinus1To1);
-
+        
         if (std::abs(spread) > 0.0001f)
         {
-            const float widenAmount = std::max(0.0f, spread);
-            const float narrowAmount = std::max(0.0f, -spread);
+            const float widen = std::max(0.0f, spread);
+            const float narrow = std::max(0.0f, -spread);
 
-            if (widenAmount > 0.0f)
+            if (widen > 0.0f)
             {
-                const float cross = widenAmount * 0.25f;
-                const float newL = wetL - cross * wetR;
-                const float newR = wetR - cross * wetL;
-                wetL = newL;
-                wetR = newR;
+                const float cross = widen * 0.25f;
+                const float newL = wetLeft - cross * wetRight;
+                const float newR = wetRight - cross * wetLeft;
+                wetLeft = newL;
+                wetRight = newR;
             }
-            else if (narrowAmount > 0.0f)
+            else if (narrow > 0.0f)
             {
-                const float mono = 0.5f * (wetL + wetR);
-                wetL = wetL * (1.0f - narrowAmount) + mono * narrowAmount;
-                wetR = wetR * (1.0f - narrowAmount) + mono * narrowAmount;
+                const float mono = 0.5f * (wetLeft + wetRight);
+                wetLeft = wetLeft * (1.0f - narrow) + mono * narrow;
+                wetRight = wetRight * (1.0f - narrow) + mono * narrow;
             }
         }
 
         const float dryGain = 1.0f - dryWet01;
         const float wetGain = dryWet01;
 
-        float outL = dryGain * inputL + wetGain * wetL;
-        float outR = dryGain * inputR + wetGain * wetR;
+        float outLeft = dryGain * inputLeft + wetGain * wetLeft;
+        float outRight = dryGain * inputRight + wetGain * wetRight;
 
-        // 6) Optional post HP/LP if hplpPrePost01 == 1 (Post)
         if (hplpPrePost01 >= 0.5f)
         {
-            outL = highpassL.processSample(outL);
-            outL = lowpassL.processSample(outL);
+            outLeft = highpassL.processSample(outLeft);
+            outLeft = lowpassL.processSample(outLeft);
 
-            outR = highpassR.processSample(outR);
-            outR = lowpassR.processSample(outR);
+            outRight = highpassR.processSample(outRight);
+            outRight = lowpassR.processSample(outRight);
         }
 
-        leftData[sampleIndex] = outL;
+        leftData[sampleIndex] = outLeft;
 
         if (rightData != nullptr)
-            rightData[sampleIndex] = outR;
+            rightData[sampleIndex] = outRight;
     }
 }
 

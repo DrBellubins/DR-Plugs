@@ -88,6 +88,7 @@ public:
     // amount01 == 1.0 -> fully diffused
     float ProcessSample(float inputSample, float amount01)
     {
+        // Change: treat amount01 == 0.0 as bypass, otherwise run full diffusion.
         const float amountClamped = std::max(0.0f, std::min(1.0f, amount01));
 
         if (stages.empty() || amountClamped <= 0.0001f)
@@ -95,12 +96,11 @@ public:
 
         float x = inputSample;
 
-        // Serial allpass chain
         for (auto& stage : stages)
             x = stage->ProcessSample(x);
 
-        // Linear crossfade dry/wet
-        return inputSample * (1.0f - amountClamped) + x * amountClamped;
+        // Change: no crossfade here; return fully diffused.
+        return x;
     }
 
     float GetEstimatedGroupDelayMilliseconds() const
