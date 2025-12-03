@@ -5,21 +5,6 @@ cmake_minimum_required(VERSION 3.22)
 # CHANGE
 project(Chronoverb VERSION 0.0.1)
 
-# Add near the top or just before the post-build section:
-if(DEFINED JUCE_VST3_MANIFEST_HELPER_ENABLED AND NOT JUCE_VST3_MANIFEST_HELPER_ENABLED)
-    set(_JUCE_DISABLE_VST3_MANIFEST_HELPER TRUE)
-endif()
-
-if(DEFINED JUCE_VST3_INCLUDE_MANIFEST AND NOT JUCE_VST3_INCLUDE_MANIFEST)
-    set(_JUCE_DISABLE_VST3_MANIFEST_HELPER TRUE)
-endif()
-
-# Around the add_custom_command(...) that invokes juce_vst3_helper, wrap with:
-if(NOT _JUCE_DISABLE_VST3_MANIFEST_HELPER)
-    # existing post-build add_custom_command that calls juce_vst3_helper
-    # (leave as-is inside this guard)
-endif()
-
 # Speed: compiler cache
 find_program(CCACHE_PROGRAM ccache)
 
@@ -45,12 +30,6 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 # IDEs:  Create a folder in the IDE with the JUCE Module code.
 option(JUCE_ENABLE_MODULE_SOURCE_GROUPS "Show all module sources in IDE projects" ON)
 
-# Ensure no JUCE helper tools or VST3 manifest embedding are created/used.
-# These must be set BEFORE JUCE is fetched/added.
-set(JUCE_BUILD_HELPERS OFF CACHE BOOL "" FORCE)
-set(JUCE_VST3_MANIFEST_HELPER_ENABLED OFF CACHE BOOL "" FORCE)
-set(JUCE_VST3_INCLUDE_MANIFEST OFF CACHE BOOL "" FORCE)
-
 ### Dependency management ###
 include(FetchContent)
 
@@ -69,11 +48,6 @@ FetchContent_Declare(juce
     BINARY_DIR     "${FETCHCONTENT_BASE_DIR}/JUCE-Build")
 
 FetchContent_MakeAvailable(juce)
-
-if (TARGET juce_vst3_helper)
-    set_property(TARGET juce_vst3_helper PROPERTY EXCLUDE_FROM_ALL TRUE)
-    set_property(TARGET juce_vst3_helper PROPERTY EXCLUDE_FROM_DEFAULT_BUILD TRUE)
-endif()
 
 ### Plugin Project Setup ###
 
