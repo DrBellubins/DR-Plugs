@@ -47,14 +47,6 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 # IDEs:  Create a folder in the IDE with the JUCE Module code.
 option(JUCE_ENABLE_MODULE_SOURCE_GROUPS "Show all module sources in IDE projects" ON)
 
-# ─────────────────────────────────────────────────────────────
-# Disable JUCE helpers (incl. VST3 manifest helper) EARLY, before JUCE is added
-# ─────────────────────────────────────────────────────────────
-if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    set(JUCE_VST3_MANIFEST_HELPER_ENABLED OFF CACHE BOOL "" FORCE)
-    set(JUCE_BUILD_HELPERS OFF CACHE BOOL "" FORCE)
-endif()
-
 
 ### Dependency management ###
 include(FetchContent)
@@ -74,6 +66,23 @@ FetchContent_Declare(juce
     BINARY_DIR     "${FETCHCONTENT_BASE_DIR}/JUCE-Build")
 
 FetchContent_MakeAvailable(juce)
+
+# ─────────────────────────────────────────────────────────────
+# Hard-disable the VST3 manifest helper if JUCE created it.
+# This is necessary in some cross-compile setups where the target
+# is generated regardless of JUCE_VST3_MANIFEST_HELPER_ENABLED.
+# ─────────────────────────────────────────────────────────────
+if (TARGET juce_vst3_helper)
+    set_property(TARGET juce_vst3_helper PROPERTY EXCLUDE_FROM_ALL TRUE)
+    set_property(TARGET juce_vst3_helper PROPERTY EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+
+    # Also disable any helper sources, just in case:
+    set_target_properties(juce_vst3_helper PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/_disabled"
+            ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/_disabled"
+            LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/_disabled"
+    )
+endif()
 
 ### Plugin Project Setup ###
 
