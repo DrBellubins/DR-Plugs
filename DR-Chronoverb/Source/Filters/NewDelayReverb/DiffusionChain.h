@@ -80,6 +80,7 @@ public:
         }
 
         updateEstimatedGroupDelayMs();
+        updateEstimatedClusterWidthMs();
     }
 
     // Process a single sample through the diffusion chain with crossfade amount.
@@ -107,6 +108,11 @@ public:
         return estimatedGroupDelayMs;
     }
 
+    float GetEstimatedClusterWidthMilliseconds() const
+    {
+        return estimatedClusterWidthMs;
+    }
+
 private:
     double sampleRate = 48000.0;
     std::vector<std::unique_ptr<DiffusionAllpass>> stages;
@@ -116,6 +122,7 @@ private:
 
     std::vector<float> perStageDelayMs;
     float estimatedGroupDelayMs = 0.0f;
+    float estimatedClusterWidthMs = 0.0f;
 
     void updateEstimatedGroupDelayMs()
     {
@@ -127,5 +134,29 @@ private:
             sumMs += delayMs;
 
         estimatedGroupDelayMs = sumMs;
+    }
+
+    void updateEstimatedClusterWidthMs()
+    {
+        // Simple width heuristic:
+        // - Width grows with number of stages and their delays.
+        // - Use RMS of per-stage delays times sqrt(stageCount) to approximate spread,
+        //   then scale slightly to keep the leading edge early but not too far.
+        if (perStageDelayMs.empty())
+        {
+            estimatedClusterWidthMs = 0.0f;
+            return;
+        }
+
+        double sumSquares = 0.0;
+
+        for (float d : perStageDelayMs)
+            sumSquares += static_cast<double>(d) * static_cast<double>(d);
+
+        const double rms = std::sqrt(sumSquares / static_cast<double>(perStageDelayMs.size()));
+        const double spreadFactor = std::sqrt(static_cast<double>(perStageDelayMs.size()));
+
+        // Tweak factor ~0.8 to keep half-width compensation perceptually centered toward the tap.
+        estimatedClusterWidthMs = static_cast<float>(rms * spreadFactor * 0.8);
     }
 };

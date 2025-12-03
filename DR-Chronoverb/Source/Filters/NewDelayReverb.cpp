@@ -118,8 +118,13 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         mainDelayLeft->PushSample(diffusedL);
         mainDelayRight->PushSample(diffusedR);
 
-        // Compensate for diffusion group delay (align cluster to nominal tap)
-        const float effectiveDelayMs = std::max(0.0f, delayMilliseconds - diffusionGroupDelayMilliseconds);
+        // Swell-centering compensation:
+        // Subtract half of the estimated cluster width (optionally weighted by diffusion amount)
+        const float halfClusterMs = 0.5f * diffusionClusterWidthMilliseconds;
+        const float amountWeight = diffusionAmount01; // 0..1, prevents overcompensation at low diffusion
+        const float compensationMs = halfClusterMs * amountWeight;
+
+        const float effectiveDelayMs = std::max(0.0f, delayMilliseconds - compensationMs);
 
         const float delayedL = mainDelayLeft->ReadDelayMilliseconds(effectiveDelayMs, sampleRate);
         const float delayedR = mainDelayRight->ReadDelayMilliseconds(effectiveDelayMs, sampleRate);
@@ -139,6 +144,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         // Simple stereo spread: crossmix based on stereoSpreadMinus1To1.
         // Positive -> widen (add anti-phase-ish crossfeed), Negative -> narrow (crossmix toward mono).
         const float spread = juce::jlimit(-1.0f, 1.0f, stereoSpreadMinus1To1);
+
         if (std::abs(spread) > 0.0001f)
         {
             const float widenAmount = std::max(0.0f, spread);
@@ -259,12 +265,15 @@ void NewDelayReverb::rebuildDiffusionIfNeeded()
     {
         diffusionLeft->Configure(diffusionQualityStages, diffusionSize01);
         diffusionGroupDelayMilliseconds = diffusionLeft->GetEstimatedGroupDelayMilliseconds();
+        diffusionClusterWidthMilliseconds = diffusionLeft->GetEstimatedClusterWidthMilliseconds();
     }
 
     if (diffusionRight)
     {
         diffusionRight->Configure(diffusionQualityStages, diffusionSize01);
+        // Left and right chains are identical; reuse left’s estimates
         diffusionGroupDelayMilliseconds = diffusionLeft->GetEstimatedGroupDelayMilliseconds();
+        diffusionClusterWidthMilliseconds = diffusionLeft->GetEstimatedClusterWidthMilliseconds();
     }
 }
 

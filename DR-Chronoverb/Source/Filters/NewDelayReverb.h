@@ -69,6 +69,7 @@ private:
 
     // Compensation for diffusion group delay (milliseconds)
     float diffusionGroupDelayMilliseconds = 0.0f;
+    float diffusionClusterWidthMilliseconds = 0.0f;
 
     // Parameters
     double sampleRate = 48000.0;
