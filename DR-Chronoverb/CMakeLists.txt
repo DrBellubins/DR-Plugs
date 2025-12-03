@@ -47,14 +47,14 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 # IDEs:  Create a folder in the IDE with the JUCE Module code.
 option(JUCE_ENABLE_MODULE_SOURCE_GROUPS "Show all module sources in IDE projects" ON)
 
-
-### Dependency management ###
-include(FetchContent)
-
-# Disable JUCE helper targets globally, so juce_vst3_helper isn't created at all.
+# Ensure no JUCE helper tools or VST3 manifest embedding are created/used.
 # These must be set BEFORE JUCE is fetched/added.
 set(JUCE_BUILD_HELPERS OFF CACHE BOOL "" FORCE)
 set(JUCE_VST3_MANIFEST_HELPER_ENABLED OFF CACHE BOOL "" FORCE)
+set(JUCE_VST3_INCLUDE_MANIFEST OFF CACHE BOOL "" FORCE)
+
+### Dependency management ###
+include(FetchContent)
 
 # Keep dependencies outside of the "Build" directory.
 # This allows to do a clean build of the project without re-downloading or
