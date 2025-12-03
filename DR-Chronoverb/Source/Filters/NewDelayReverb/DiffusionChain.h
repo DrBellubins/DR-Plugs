@@ -56,28 +56,30 @@ public:
         stages.clear();
         stages.reserve(static_cast<size_t>(cachedStageCount));
 
-        // Build delays spanning approximately 10..100 ms, scaled by size01.
-        // We use a linear spread across stages for simplicity and clarity.
+        perStageDelayMs.clear();
+
         for (int stageIndex = 0; stageIndex < cachedStageCount; ++stageIndex)
         {
-            const float t = (cachedStageCount > 1)
+            const float positionAlongChain01 = (cachedStageCount > 1)
                 ? (static_cast<float>(stageIndex) / static_cast<float>(cachedStageCount - 1))
                 : 0.0f;
 
-            const float baseMilliseconds = 10.0f + (90.0f * t);
+            const float baseMilliseconds = 10.0f + (90.0f * positionAlongChain01);
 
-            // Scale within a constrained range to avoid extremely short or long delays
             const float scaledMilliseconds =
                 baseMilliseconds * (0.25f + 0.75f * (0.25f + cachedSize01));
 
-            // Gain near 0.65 for stable phase scattering without amplitude blow-up
-            const float g = 0.65f;
+            const float allpassGain = 0.65f;
 
-            auto stage = std::make_unique<DiffusionAllpass>();
-            stage->Prepare(sampleRate);
-            stage->Configure(scaledMilliseconds, g);
-            stages.push_back(std::move(stage));
+            auto diffusionStage = std::make_unique<DiffusionAllpass>();
+            diffusionStage->Prepare(sampleRate);
+            diffusionStage->Configure(scaledMilliseconds, allpassGain);
+            stages.push_back(std::move(diffusionStage));
+
+            perStageDelayMs.push_back(scaledMilliseconds);
         }
+
+        updateEstimatedGroupDelayMs();
     }
 
     // Process a single sample through the diffusion chain with crossfade amount.

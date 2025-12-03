@@ -91,6 +91,9 @@ private:
     float stereoSpreadMinus1To1 = 0.0f;
     float hplpPrePost01 = 1.0f; // default Post
 
+    // Set by setters; consumed at block start on audio thread
+    std::atomic<bool> diffusionRebuildPending { false };
+
     // Components
     std::unique_ptr<DelayLine> mainDelayLeft;
     std::unique_ptr<DelayLine> mainDelayRight;

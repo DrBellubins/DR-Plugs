@@ -29,8 +29,9 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     diffusionLeft->Prepare(sampleRate);
     diffusionRight->Prepare(sampleRate);
 
-    // Initial diffusion config
+    // Initial diffusion config (safe here; not concurrently processing)
     rebuildDiffusionIfNeeded();
+    diffusionRebuildPending.store(false, std::memory_order_release);
 
     // Damping filters (feedback path)
     dampingLeft.reset(new DampingFilter());
@@ -69,7 +70,11 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
     if (numChannels < 1 || numSamples <= 0)
         return;
 
-    // Ensure filters are up to date (in case parameters changed between blocks)
+    // Apply any pending diffusion reconfiguration at block boundary (safe point)
+    if (diffusionRebuildPending.exchange(false, std::memory_order_acq_rel))
+        rebuildDiffusionIfNeeded();
+
+    // Ensure filters are up to date
     updateFilters();
 
     // Per-sample processing based on Deelay estimate:
@@ -198,13 +203,13 @@ void NewDelayReverb::SetDiffusionAmount(float newAmount01)
 void NewDelayReverb::SetDiffusionSize(float newSize01)
 {
     diffusionSize01 = clamp01(newSize01);
-    rebuildDiffusionIfNeeded();
+    diffusionRebuildPending.store(true, std::memory_order_release);
 }
 
 void NewDelayReverb::SetDiffusionQuality(int newQualityStages)
 {
     diffusionQualityStages = clampInt(newQualityStages, 1, 8);
-    rebuildDiffusionIfNeeded();
+    diffusionRebuildPending.store(true, std::memory_order_release);
 }
 
 void NewDelayReverb::SetDryWetMix(float newDryWet01)
@@ -259,8 +264,6 @@ void NewDelayReverb::rebuildDiffusionIfNeeded()
     if (diffusionRight)
     {
         diffusionRight->Configure(diffusionQualityStages, diffusionSize01);
-
-        // Left and right chains are currently identical; reuse left’s estimate
         diffusionGroupDelayMilliseconds = diffusionLeft->GetEstimatedGroupDelayMilliseconds();
     }
 }
