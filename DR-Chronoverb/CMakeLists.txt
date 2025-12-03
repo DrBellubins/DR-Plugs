@@ -32,9 +32,9 @@ option(JUCE_ENABLE_MODULE_SOURCE_GROUPS "Show all module sources in IDE projects
 
 # Ensure no JUCE helper tools or VST3 manifest embedding are created/used.
 # These must be set BEFORE JUCE is fetched/added.
-#set(JUCE_BUILD_HELPERS OFF CACHE BOOL "" FORCE)
-#set(JUCE_VST3_MANIFEST_HELPER_ENABLED OFF CACHE BOOL "" FORCE)
-#set(JUCE_VST3_INCLUDE_MANIFEST OFF CACHE BOOL "" FORCE)
+set(JUCE_BUILD_HELPERS OFF CACHE BOOL "" FORCE)
+set(JUCE_VST3_MANIFEST_HELPER_ENABLED OFF CACHE BOOL "" FORCE)
+set(JUCE_VST3_INCLUDE_MANIFEST OFF CACHE BOOL "" FORCE)
 
 ### Dependency management ###
 include(FetchContent)
@@ -54,6 +54,11 @@ FetchContent_Declare(juce
     BINARY_DIR     "${FETCHCONTENT_BASE_DIR}/JUCE-Build")
 
 FetchContent_MakeAvailable(juce)
+
+if (TARGET juce_vst3_helper)
+    set_property(TARGET juce_vst3_helper PROPERTY EXCLUDE_FROM_ALL TRUE)
+    set_property(TARGET juce_vst3_helper PROPERTY EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+endif()
 
 ### Plugin Project Setup ###
 
