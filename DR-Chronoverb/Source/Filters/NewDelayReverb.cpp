@@ -119,30 +119,35 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float baseTapRight = mainDelayRight->ReadDelayMilliseconds(baseMs, sampleRate);
 
         // 5) Reverb-offset tap (earlier by half the cluster width, clamped)
-        const float groupClusterMS = std::max(0.0f, diffusionGroupDelayMilliseconds + diffusionClusterWidthMilliseconds) * 0.5f;
-        //const float halfClusterMs = 0.5f * std::max(0.0f, diffusionClusterWidthMilliseconds);
-        const float offsetMs = std::max(0.0f, baseMs + groupClusterMS);
+        const float groupClusterMS = std::max(0.0f, diffusionClusterWidthMilliseconds) * 0.5f;
+        const float offsetMs = std::max(0.0f, baseMs - groupClusterMS);
 
         const float swellTapLeft = mainDelayLeft->ReadDelayMilliseconds(offsetMs, sampleRate);
         const float swellTapRight = mainDelayRight->ReadDelayMilliseconds(offsetMs, sampleRate);
 
         // 6) Wet output “swell” crossfade:
         //    Use equal-power crossfade to avoid the 0.5 level dip/artifact.
-        const float t = diffusionAmount01;
-        const float a = std::sqrt(1.0f - t);
-        const float b = std::sqrt(t);
+        const float swellCrosfadeA = std::sqrt(1.0f - diffusionAmount01);
+        const float swellCrosfadeB = std::sqrt(diffusionAmount01);
 
-        const float wetLeft = baseTapLeft * a + swellTapLeft * b;
-        const float wetRight = baseTapRight * a + swellTapRight * b;
+        float wetLeft = baseTapLeft * swellCrosfadeA + swellTapLeft * swellCrosfadeB;
+        float wetRight = baseTapRight * swellCrosfadeA + swellTapRight * swellCrosfadeB;
 
-        // 7) Feedback: drive from base tap only (stable energy, no comb cancellation in-loop)
+        // 7) Blend amount drives FDN input (0: bypass FDN for clean delay, 1: full FDN for reverb)
+        const float fdnInputLeft = wetLeft * diffusionAmount01;
+        const float fdnInputRight = wetRight * diffusionAmount01;
+
+        wetLeft = fdnLeft->ProcessSample(fdnInputLeft) + wetLeft * (1.0f - diffusionAmount01);
+        wetRight = fdnRight->ProcessSample(fdnInputRight) + wetRight * (1.0f - diffusionAmount01);
+
+        // 8) Feedback: drive from base tap only (stable energy, no comb cancellation in-loop)
         const float dampedLeft = dampingLeft->ProcessSample(baseTapLeft, lowpass01);
         const float dampedRight = dampingRight->ProcessSample(baseTapRight, lowpass01);
 
         lastFeedbackL = dampedLeft * feedbackGain;
         lastFeedbackR = dampedRight * feedbackGain;
 
-        // 8) Stereo spread on wet
+        // 9) Stereo spread on wet
         float spreadWetLeft = wetLeft;
         float spreadWetRight = wetRight;
 
@@ -169,7 +174,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             }
         }
 
-        // 9) Dry/Wet mix
+        // 10) Dry/Wet mix
         const float dryGain = 1.0f - dryWet01;
         const float wetGain = dryWet01;
 
