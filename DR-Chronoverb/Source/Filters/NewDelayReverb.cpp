@@ -39,12 +39,6 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     dampingLeft->Prepare(sampleRate);
     dampingRight->Prepare(sampleRate);
 
-    // Simple FDN placeholders
-    fdnLeft.reset(new SimpleFDN());
-    fdnRight.reset(new SimpleFDN());
-    fdnLeft->Prepare(sampleRate);
-    fdnRight->Prepare(sampleRate);
-
     updateDelayMillisecondsFromNormalized();
     updateFeedbackGainFromFeedbackTime();
 
@@ -95,59 +89,38 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             preRight = lowpassR.processSample(preRight);
         }
 
-        // 1) Input + feedback (undiffused sum)
-        const float sumLeft = preLeft + lastFeedbackL;
-        const float sumRight = preRight + lastFeedbackR;
+        // 1. Input + feedback
+        float sumLeft = preLeft + lastFeedbackL;
+        float sumRight = preRight + lastFeedbackR;
 
-        // 2) Compute fully diffused versions (internal diffuser always at 1.0)
-        const float diffusedLeft = diffusionLeft->ProcessSample(sumLeft, 1.0f);
-        const float diffusedRight = diffusionRight->ProcessSample(sumRight, 1.0f);
+        // 2. Process through diffusion chain (used for both write and wet-out)
+        float diffusedLeft = diffusionLeft->ProcessSample(sumLeft);
+        float diffusedRight = diffusionLeft->ProcessSample(sumRight);
 
-        // 3) Write-path diffusion controlled by diffusionAmount01:
-        //    - amount = 0 -> write undiffused sum (hard taps)
-        //    - amount = 1 -> write fully diffused sum (lush)
-        const float writeMix = diffusionAmount01;
-        const float writeLeft = sumLeft * (1.0f - writeMix) + diffusedLeft * writeMix;
-        const float writeRight = sumRight * (1.0f - writeMix) + diffusedRight * writeMix;
+        // 3. Write to main delay (crossfade per "diffusionAmount01")
+        mainDelayLeft->PushSample(sumLeft * (1.0f - diffusionAmount01) + diffusedLeft * diffusionAmount01);
+        mainDelayRight->PushSample(sumLeft * (1.0f - diffusionAmount01) + diffusedRight * diffusionAmount01);
 
-        mainDelayLeft->PushSample(writeLeft);
-        mainDelayRight->PushSample(writeRight);
+        // 4. Read from main delay for delayed output
+        float delayedLeft = mainDelayLeft->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
+        float delayedRight = mainDelayRight->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
 
-        // 4) Base tap (for both wet and feedback reference)
-        const float baseMs = delayMilliseconds;
-        const float baseTapLeft = mainDelayLeft->ReadDelayMilliseconds(baseMs, sampleRate);
-        const float baseTapRight = mainDelayRight->ReadDelayMilliseconds(baseMs, sampleRate);
+        // 5. Diffuse the output tap
+        float diffusedOutLeft = diffusionLeft->ProcessSample(delayedLeft);
+        float diffusedOutRight = diffusionLeft->ProcessSample(delayedLeft);
 
-        // 5) Reverb-offset tap (earlier by half the cluster width, clamped)
-        const float groupClusterMS = std::max(0.0f, diffusionClusterWidthMilliseconds) * 0.5f;
-        const float offsetMs = std::max(0.0f, baseMs - groupClusterMS);
+        // 6. Crossfade between dry delayed and diffused output for WET signal
+        float wetLeft = delayedLeft * (1.0f - diffusionAmount01) + diffusedOutLeft * diffusionAmount01;
+        float wetRight = delayedRight * (1.0f - diffusionAmount01) + diffusedOutRight * diffusionAmount01;
 
-        const float swellTapLeft = mainDelayLeft->ReadDelayMilliseconds(offsetMs, sampleRate);
-        const float swellTapRight = mainDelayRight->ReadDelayMilliseconds(offsetMs, sampleRate);
-
-        // 6) Wet output “swell” crossfade:
-        //    Use equal-power crossfade to avoid the 0.5 level dip/artifact.
-        const float swellCrosfadeA = std::sqrt(1.0f - diffusionAmount01);
-        const float swellCrosfadeB = std::sqrt(diffusionAmount01);
-
-        float wetLeft = baseTapLeft * swellCrosfadeA + swellTapLeft * swellCrosfadeB;
-        float wetRight = baseTapRight * swellCrosfadeA + swellTapRight * swellCrosfadeB;
-
-        // 7) Blend amount drives FDN input (0: bypass FDN for clean delay, 1: full FDN for reverb)
-        const float fdnInputLeft = wetLeft * diffusionAmount01;
-        const float fdnInputRight = wetRight * diffusionAmount01;
-
-        wetLeft = fdnLeft->ProcessSample(fdnInputLeft) + wetLeft * (1.0f - diffusionAmount01);
-        wetRight = fdnRight->ProcessSample(fdnInputRight) + wetRight * (1.0f - diffusionAmount01);
-
-        // 8) Feedback: drive from base tap only (stable energy, no comb cancellation in-loop)
-        const float dampedLeft = dampingLeft->ProcessSample(baseTapLeft, lowpass01);
-        const float dampedRight = dampingRight->ProcessSample(baseTapRight, lowpass01);
+        // 7: Feedback: drive from base tap only (stable energy, no comb cancellation in-loop)
+        const float dampedLeft = dampingLeft->ProcessSample(delayedLeft, lowpass01);
+        const float dampedRight = dampingRight->ProcessSample(delayedRight, lowpass01);
 
         lastFeedbackL = dampedLeft * feedbackGain;
         lastFeedbackR = dampedRight * feedbackGain;
 
-        // 9) Stereo spread on wet
+        // 8: Stereo spread on wet
         float spreadWetLeft = wetLeft;
         float spreadWetRight = wetRight;
 
@@ -174,7 +147,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             }
         }
 
-        // 10) Dry/Wet mix
+        // 9: Dry/Wet mix
         const float dryGain = 1.0f - dryWet01;
         const float wetGain = dryWet01;
 

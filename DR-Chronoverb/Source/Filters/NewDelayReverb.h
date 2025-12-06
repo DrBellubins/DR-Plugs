@@ -7,7 +7,6 @@
 #include "NewDelayReverb/DelayLine.h"
 #include "NewDelayReverb/DampingFilter.h"
 #include "NewDelayReverb/DiffusionChain.h"
-#include "NewDelayReverb/FeedbackDelayNetwork.h"
 
 // Forward declarations of internal components
 class DelayLine;
@@ -104,11 +103,6 @@ private:
 
     std::unique_ptr<DampingFilter> dampingLeft;
     std::unique_ptr<DampingFilter> dampingRight;
-
-    // Simple FDN placeholder for future extension (currently unused in core path,
-    // but provided to match requested modular breakdown)
-    std::unique_ptr<SimpleFDN> fdnLeft;
-    std::unique_ptr<SimpleFDN> fdnRight;
 
     // Basic HP/LP filters (JUCE one-pole IIR) for pre/post spectral shaping
     juce::dsp::IIR::Filter<float> lowpassL;

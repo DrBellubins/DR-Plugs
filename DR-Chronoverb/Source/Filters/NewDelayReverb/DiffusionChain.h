@@ -82,15 +82,10 @@ public:
         updateEstimatedClusterWidthMs();
     }
 
-    // Process a single sample through the diffusion chain with crossfade amount.
-    // amount01 == 0.0 -> dry passthrough
-    // amount01 == 1.0 -> fully diffused
-    float ProcessSample(float inputSample, float amount01)
+    // Process a single sample through the diffusion chain.
+    float ProcessSample(float inputSample)
     {
-        // Change: treat amount01 == 0.0 as bypass, otherwise run full diffusion.
-        const float amountClamped = std::max(0.0f, std::min(1.0f, amount01));
-
-        if (stages.empty() || amountClamped <= 0.0001f)
+        if (stages.empty())
             return inputSample;
 
         float sample = inputSample;
