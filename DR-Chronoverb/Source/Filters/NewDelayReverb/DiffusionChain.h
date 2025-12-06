@@ -78,15 +78,12 @@ public:
             perStageDelayMs.push_back(scaledMilliseconds);
         }
 
-        jitterPhase.resize(numberOfStages);
-        jitterRate.resize(numberOfStages);
-
-        // Init random LFOs per stage
-        for (int i = 0; i < numberOfStages; ++i)
-        {
-            jitterPhase[i] = float(rand()) / float(RAND_MAX); // random start
-            jitterRate[i] = 0.001f + 0.004f * (float(rand()) / float(RAND_MAX)); // 0.001..0.005
-        }
+        // Per-stage jitter state
+        jitterLPState.assign(effectiveStages, 0.0f);
+        jitterDepthPercent.assign(effectiveStages, 0.015f); // ±1.5% default
+        jitterRateHz.assign(effectiveStages, 0.20f + 0.30f * random01()); // 0.2..0.5 Hz equivalent noise refresh
+        tpdfNoiseSeedA.assign(effectiveStages, rand());
+        tpdfNoiseSeedB.assign(effectiveStages, rand());
     }
 
     // Process a single sample through the diffusion chain.
@@ -97,30 +94,77 @@ public:
 
         float sample = inputSample;
 
-        for (size_t i = 0; i < stages.size(); ++i)
+        for (size_t stageIndex = 0; stageIndex < stages.size(); ++stageIndex)
         {
-            float baseDelayMs = perStageDelayMs[i];
+            const float baseDelayMs = perStageDelayMs[stageIndex];
 
-            // Slow sine-modulated jitter
-            float jitterAmount = 0.02f * baseDelayMs; // ±2% jitter (tunable)
-            float phase = jitterPhase[i];
-            jitterPhase[i] += jitterRate[i];
-            if (jitterPhase[i] > 1.0f) jitterPhase[i] -= 1.0f;
-            float jitterMs = jitterAmount * std::sin(2.0f * float(M_PI) * phase);
-            float finalDelayMs = baseDelayMs + jitterMs;
+            // Generate TPDF noise in [-1, +1] (zero mean), then low-pass filter for smooth jitter
+            const float tpdf = generateTPDF(stageIndex);
+            const float alpha = computeNoiseAlpha(jitterRateHz[stageIndex]); // based on desired jitterRateHz
 
-            stages[i]->SetDelayMilliseconds(finalDelayMs);
+            jitterLPState[stageIndex] = jitterLPState[stageIndex] + alpha * (tpdf - jitterLPState[stageIndex]);
 
-            sample = stages[i]->ProcessSample(sample);
+            // Map to ±depth% of base delay
+            const float depthPercent = jitterDepthPercent[stageIndex];
+            const float jitterMs = baseDelayMs * depthPercent * jitterLPState[stageIndex];
+
+            // Convert to samples and update fractional delay smoothly
+            const float jitterSamples = static_cast<float>(((baseDelayMs + jitterMs) * sampleRate) / 1000.0);
+            stages[stageIndex]->SetCurrentDelaySamples(jitterSamples);
+
+            sample = stages[stageIndex]->ProcessSample(sample);
         }
 
-        sampleCounter++;
         return sample;
     }
 
 private:
     double sampleRate = 48000.0;
     std::vector<std::unique_ptr<DiffusionAllpass>> stages;
+
+    // Zero-mean TPDF generator per stage
+    float generateTPDF(size_t stageIndex)
+    {
+        // Two uniform noises summed => TPDF; normalize to [-1, 1]
+        const float a = uniform01(tpdfNoiseSeedA[stageIndex]);
+        const float b = uniform01(tpdfNoiseSeedB[stageIndex]);
+        const float tpdf = (a + b) - 1.0f; // [-1, +1]
+        return tpdf;
+    }
+
+    // Simple per-stage uniform PRNG; xorshift-style
+    float uniform01(unsigned int& seed)
+    {
+        seed ^= seed << 13;
+        seed ^= seed >> 17;
+        seed ^= seed << 5;
+        const unsigned int u = seed;
+        return static_cast<float>(u) / static_cast<float>(std::numeric_limits<unsigned int>::max());
+    }
+
+    float computeNoiseAlpha(float targetRateHz) const
+    {
+        // One-pole LP alpha for smoothing toward targetRateHz
+        const float rate = std::max(0.01f, targetRateHz);
+        const float omega = 2.0f * juce::MathConstants<float>::pi * rate;
+        const float x = std::exp(-omega / static_cast<float>(sampleRate));
+        const float alpha = 1.0f - x;
+        return juce::jlimit(0.0001f, 0.2f, alpha);
+    }
+
+    // Jitter state
+    std::vector<float> jitterLPState;
+    std::vector<float> jitterDepthPercent; // per-stage ±percent of base delay
+    std::vector<float> jitterRateHz;
+
+    std::vector<unsigned int> tpdfNoiseSeedA;
+    std::vector<unsigned int> tpdfNoiseSeedB;
+
+    // Helper to init random in [0,1]
+    float random01() const
+    {
+        return static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+    }
 
     int cachedStageCount = 6;
     float cachedSize01 = 0.0f;

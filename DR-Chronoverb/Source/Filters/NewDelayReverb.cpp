@@ -77,6 +77,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float inputLeft = leftData[sampleIndex];
         const float inputRight = (rightData != nullptr ? rightData[sampleIndex] : inputLeft);
 
+        // 1: Pre Highpass/Lowpass
+
         float preLeft = inputLeft;
         float preRight = inputRight;
 
@@ -89,31 +91,33 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             preRight = lowpassR.processSample(preRight);
         }
 
-        // Read the raw delayed taps before any diffusion crossfades
+        // Delay/Reverb
+
+        // 2: Read the raw delayed taps before any diffusion crossfades
         float delayedLeft = mainDelayLeft->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
         float delayedRight = mainDelayRight->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
 
-        // Generate feedback from the raw delayed taps (damping in the loop)
+        // 3; Generate feedback from the raw delayed taps (damping in the loop)
         const float dampedLeft = dampingLeft->ProcessSample(delayedLeft, lowpass01);
         const float dampedRight = dampingRight->ProcessSample(delayedRight, lowpass01);
 
         lastFeedbackL = dampedLeft * feedbackGain;
         lastFeedbackR = dampedRight * feedbackGain;
 
-        // Write to the main delay line: input + feedback (no diffusion-dependent lerp)
+        // 4: Write to the main delay line: input + feedback (no diffusion-dependent lerp)
         mainDelayLeft->PushSample(preLeft + lastFeedbackL);
         mainDelayRight->PushSample(preRight + lastFeedbackR);
 
-        // Diffusion amount crossfade for diffuser INPUT:
+        // 5: Diffusion amount crossfade for diffuser INPUT:
         // amount = 1.0 -> feed raw input; amount = 0.0 -> feed raw delayed tap
         const float diffusionInputLeft = PMath::Lerp(delayedLeft, preLeft, diffusionAmount01);
         const float diffusionInputRight = PMath::Lerp(delayedRight, preRight, diffusionAmount01);
 
-        // Process through diffusion chains (fix right channel to use diffusionRight)
+        // 6: Process through diffusion chains.
         const float diffusedLeft = diffusionLeft->ProcessSample(diffusionInputLeft);
         const float diffusedRight = diffusionRight->ProcessSample(diffusionInputRight);
 
-        // Diffusion amount crossfade for WET OUTPUT (equal-power):
+        // 7: Diffusion amount crossfade for WET OUTPUT (equal-power):
         // amount = 0.0 -> raw delay; amount = 1.0 -> diffused delay
         float wetLeft = 0.0f;
         float wetRight = 0.0f;
@@ -155,6 +159,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         float outLeft = dryGain * inputLeft + wetGain * spreadWetLeft;
         float outRight = dryGain * inputRight + wetGain * spreadWetRight;
 
+        // 10: Pre Highpass/Lowpass
         if (hplpPrePost01 >= 0.5f)
         {
             outLeft = highpassL.processSample(outLeft);

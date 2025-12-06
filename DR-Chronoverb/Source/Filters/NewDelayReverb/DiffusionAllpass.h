@@ -35,18 +35,42 @@ public:
 
     float ProcessSample(float inputSample)
     {
-        // Read delayed values
-        const float xDelayed = readDelaySamples(delaySamples);
-        const float yDelayed = readOutputDelaySamples(delaySamples);
+        // Read delayed values using current fractional delay
+        const float xDelayed = readDelaySamplesFractional(currentDelaySamples);
+        const float yDelayed = readOutputDelaySamplesFractional(currentDelaySamples);
 
-        // Allpass difference equation (one of the canonical forms)
+        // Allpass equation
         const float y = -g * inputSample + xDelayed + g * yDelayed;
 
-        // Push input and output into buffers
+        // Push input and output
         pushInput(inputSample);
         pushOutput(y);
 
         return y;
+    }
+
+    // Set a base delay in milliseconds once (Configure calls this).
+    void SetBaseDelayMilliseconds(float newDelayMs)
+    {
+        delayMs = std::max(1.0f, newDelayMs);
+        delaySamplesInteger = static_cast<int>(std::floor((delayMs * sr) / 1000.0));
+        ensureBufferSize();
+        currentDelaySamples = static_cast<float>(delaySamplesInteger);
+    }
+
+    // Update the current fractional delay in samples without reallocating/clearing buffers.
+    // Use this per-sample for jitter modulation.
+    void SetCurrentDelaySamples(float newDelaySamples)
+    {
+        // Slew-limit to avoid zipper noise in fractional interpolation
+        const float maxDelta = 0.25f; // samples per call (adjust if needed)
+        const float delta = juce::jlimit(-maxDelta, maxDelta, newDelaySamples - currentDelaySamples);
+        currentDelaySamples += delta;
+
+        // Bound between 1 and buffer size - 3
+        const float minD = 1.0f;
+        const float maxD = static_cast<float>(std::max(4, static_cast<int>(inputBuffer.size()) - 3));
+        currentDelaySamples = juce::jlimit(minD, maxD, currentDelaySamples);
     }
 
     void SetDelayMilliseconds(float newDelayMs)
@@ -75,9 +99,54 @@ private:
     int inputWrite = 0;
     int outputWrite = 0;
 
-    int delaySamples = 2400; // 50 ms @ 48 kHz
+    int delaySamples = 2400; // keep legacy path if needed
+    int delaySamplesInteger = 2400;
+    float currentDelaySamples = 2400.0f;
 
+    float readDelaySamplesFractional(float delaySamplesFloat) const
+    {
+        const int size = static_cast<int>(inputBuffer.size());
+        const float readIndexFloat = static_cast<float>(inputWrite) - delaySamplesFloat;
 
+        // Wrap and split into integer and frac
+        float wrapped = readIndexFloat;
+
+        while (wrapped < 0.0f)
+            wrapped += static_cast<float>(size);
+
+        int indexA = static_cast<int>(std::floor(wrapped)) % size;
+        int indexB = (indexA - 1);
+        while (indexB < 0) indexB += size;
+
+        const float frac = wrapped - static_cast<float>(indexA);
+
+        const float sampleA = inputBuffer[indexA];
+        const float sampleB = inputBuffer[indexB];
+
+        return sampleA * (1.0f - frac) + sampleB * frac;
+    }
+
+    float readOutputDelaySamplesFractional(float delaySamplesFloat) const
+    {
+        const int size = static_cast<int>(outputBuffer.size());
+        const float readIndexFloat = static_cast<float>(outputWrite) - delaySamplesFloat;
+
+        float wrapped = readIndexFloat;
+
+        while (wrapped < 0.0f)
+            wrapped += static_cast<float>(size);
+
+        int indexA = static_cast<int>(std::floor(wrapped)) % size;
+        int indexB = (indexA - 1);
+        while (indexB < 0) indexB += size;
+
+        const float frac = wrapped - static_cast<float>(indexA);
+
+        const float sampleA = outputBuffer[indexA];
+        const float sampleB = outputBuffer[indexB];
+
+        return sampleA * (1.0f - frac) + sampleB * frac;
+    }
 
     void setGain(float newGain)
     {
