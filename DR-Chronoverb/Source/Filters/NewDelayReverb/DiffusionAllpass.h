@@ -68,7 +68,7 @@ public:
     void SetCurrentDelaySamples(float newDelaySamples)
     {
         // Slew-limit to avoid zipper noise in fractional interpolation
-        const float maxDelta = 0.25f; // samples per call (adjust if needed)
+        const float maxDelta = 0.05f; // Slower slewing for smoother changes
         const float delta = juce::jlimit(-maxDelta, maxDelta, newDelaySamples - currentDelaySamples);
         currentDelaySamples += delta;
 

@@ -62,28 +62,31 @@ public:
         //std::vector tunedBaseDelays = { 47.0f, 67.0f, 71.0f, 73.0f, 79.0f, 83.0f, 89.0f, 97.0f };
 
         // TODO: Shorter prime delays seem to be more accurate, but occasionally cause strange "diffused clicking" artifacts
-        std::vector tunedBaseDelays = { 5.0f, 11.0f, 17.0f, 19.0f, 23.0f, 29.0f, 31.0f, 37.0f };
+        //std::vector tunedBaseDelays = { 5.0f, 11.0f, 17.0f, 19.0f, 23.0f, 29.0f, 31.0f, 37.0f };
+
+        // Use mixed delays: shorter for early stages (snappiness), longer for later (stability)
+        std::vector tunedBaseDelays = {5.0f, 11.0f, 17.0f, 23.0f, 47.0f, 67.0f, 71.0f, 73.0f};
 
         // Use full array for max stages; slice first N for lower quality
         int effectiveStages = std::min(cachedStageCount, static_cast<int>(tunedBaseDelays.size()));
-        const float allpassGain = 0.65f;  // Fixed from fits; can link to AudioProcessorValueTreeState::Parameter for automation
 
+        // Vary gain per stage: higher for early (dense), lower for later (less resonance)
         for (int stageIndex = 0; stageIndex < effectiveStages; ++stageIndex)
         {
             float baseMilliseconds = tunedBaseDelays[stageIndex];
-            float scaledMilliseconds = baseMilliseconds * (0.25f + 0.75f * cachedSize01);  // Scale for size control
+            float scaledMilliseconds = baseMilliseconds * (0.25f + 0.75f * cachedSize01);
+            float stageGain = 0.65f - (stageIndex * 0.03f);     // Decrease from 0.65 to ~0.44 for 8 stages
 
             auto diffusionStage = std::make_unique<DiffusionAllpass>();
             diffusionStage->Prepare(sampleRate);
-            diffusionStage->Configure(scaledMilliseconds, allpassGain);
+            diffusionStage->Configure(scaledMilliseconds, stageGain);
             stages.push_back(std::move(diffusionStage));
-
             perStageDelayMs.push_back(scaledMilliseconds);
         }
 
         // Per-stage jitter state
         jitterLPState.assign(effectiveStages, 0.0f);
-        jitterDepthPercent.assign(effectiveStages, 0.015f); // ±1.5% default
+        jitterDepthPercent.assign(effectiveStages, 0.005f); // ±0.5% default
         jitterRateHz.assign(effectiveStages, 0.20f + 0.30f * random01()); // 0.2..0.5 Hz equivalent noise refresh
         tpdfNoiseSeedA.assign(effectiveStages, rand());
         tpdfNoiseSeedB.assign(effectiveStages, rand());

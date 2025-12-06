@@ -78,8 +78,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float inputRight = (rightData != nullptr ? rightData[sampleIndex] : inputLeft);
 
         // 0: Set diffusion gain
-        diffusionLeft->SetGlobalGain(diffusionAmount01 * 0.7f);  // 0.7 for denser reverb; tune to 0.65-0.8
-        diffusionRight->SetGlobalGain(diffusionAmount01 * 0.7f);
+        diffusionLeft->SetGlobalGain(diffusionAmount01 * 0.6f);  // 0.7 for denser reverb; tune to 0.65-0.8
+        diffusionRight->SetGlobalGain(diffusionAmount01 * 0.6f);
 
         // 1: Pre Highpass/Lowpass
 
@@ -237,11 +237,9 @@ void NewDelayReverb::SetHostTempo(float bpm)
 // ---------------- Internal helpers ----------------
 void NewDelayReverb::updateDelayMillisecondsFromNormalized()
 {
-    /*float baseMs = map01ToRange(delayTimeNormalized, 0.0f, 1000.0f);
-    float compensation = diffusionAmount01 * totalDiffusionMs;  // ~167 ms at amount=1
-    delayMilliseconds = std::max(0.0f, baseMs - compensation);*/
-
-    delayMilliseconds = map01ToRange(delayTimeNormalized, 0.0f, 1000.0f);
+    float baseMs = map01ToRange(delayTimeNormalized, 0.0f, 1000.0f);
+    float compensation = diffusionAmount01 * totalDiffusionMs;  // Scales with amount for smooth morph
+    delayMilliseconds = std::max(1.0f, baseMs - compensation);  // Clamp to minimum 1 ms to avoid artifacts
 }
 
 void NewDelayReverb::rebuildDiffusionIfNeeded()
