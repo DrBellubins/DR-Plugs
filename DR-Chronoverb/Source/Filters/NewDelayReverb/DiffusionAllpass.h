@@ -21,14 +21,14 @@ public:
     {
         sr = sampleRate;
         SetDelayMilliseconds(50.0f); // default
-        setGain(0.65f);              // default
+        SetGain(0.65f);              // default
         Clear();
     }
 
     void Configure(float delayMilliseconds, float gain)
     {
         SetDelayMilliseconds(delayMilliseconds);
-        setGain(gain);
+        SetGain(gain);
         ensureBufferSize();
         Clear();
     }
@@ -47,6 +47,11 @@ public:
         pushOutput(y);
 
         return y;
+    }
+
+    void SetGain(float newGain)
+    {
+        g = std::max(-0.99f, std::min(0.99f, newGain));
     }
 
     // Set a base delay in milliseconds once (Configure calls this).
@@ -148,11 +153,6 @@ private:
         return sampleA * (1.0f - frac) + sampleB * frac;
     }
 
-    void setGain(float newGain)
-    {
-        g = std::max(-0.99f, std::min(0.99f, newGain));
-    }
-
     void ensureBufferSize()
     {
         const int minSize = std::max(4, delaySamples + 4);
@@ -191,6 +191,7 @@ private:
         int index = outputWrite - d;
         while (index < 0) index += size;
         index %= size;
+
         return outputBuffer[index];
     }
 };

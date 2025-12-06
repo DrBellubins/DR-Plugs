@@ -101,7 +101,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
     // Feedback time
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
         "feedbackTime", "Feedback Time",
-        juce::NormalisableRange(0.0f, 10.0f), 3.0f));
+        juce::NormalisableRange(0.0f, 10.0f), 5.0f));
 
     // Diffusion amount
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(

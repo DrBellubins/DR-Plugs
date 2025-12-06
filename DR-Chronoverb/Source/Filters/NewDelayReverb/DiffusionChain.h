@@ -59,7 +59,10 @@ public:
         perStageDelayMs.clear();
 
         // Tuned base delays from quality 8 fit (ms, prime-rounded and sorted for progressive build-up)
-        std::vector tunedBaseDelays = { 47.0f, 67.0f, 71.0f, 73.0f, 79.0f, 83.0f, 89.0f, 97.0f };
+        //std::vector tunedBaseDelays = { 47.0f, 67.0f, 71.0f, 73.0f, 79.0f, 83.0f, 89.0f, 97.0f };
+
+        // TODO: Shorter prime delays seem to be more accurate, but occasionally cause strange "diffused clicking" artifacts
+        std::vector tunedBaseDelays = { 5.0f, 11.0f, 17.0f, 19.0f, 23.0f, 29.0f, 31.0f, 37.0f };
 
         // Use full array for max stages; slice first N for lower quality
         int effectiveStages = std::min(cachedStageCount, static_cast<int>(tunedBaseDelays.size()));
@@ -118,6 +121,14 @@ public:
         return sample;
     }
 
+    void SetGlobalGain(float newGain)
+    {
+        for (auto& stage : stages)
+            stage->SetGain(newGain);
+    }
+
+    std::vector<float> perStageDelayMs;
+
 private:
     double sampleRate = 48000.0;
     std::vector<std::unique_ptr<DiffusionAllpass>> stages;
@@ -168,8 +179,6 @@ private:
 
     int cachedStageCount = 6;
     float cachedSize01 = 0.0f;
-
-    std::vector<float> perStageDelayMs;
 
     std::vector<float> jitterPhase; // Per-stage phase
     std::vector<float> jitterRate;  // Per-stage rate (e.g., 0.001..0.01 per sample, randomized)

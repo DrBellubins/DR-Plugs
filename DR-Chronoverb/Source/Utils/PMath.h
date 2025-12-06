@@ -2,7 +2,7 @@
 
 class PMath
 {
-    public:
+public:
 
     static float Lerp(float StartValue, float EndValue, float Amount01)
     {
@@ -13,7 +13,7 @@ class PMath
     // Amount01 = 0 -> outputSample = drySample
     // Amount01 = 1 -> outputSample = wetSample
     // Uses sin/cos mapping to maintain perceived loudness across the crossfade.
-    static void EqualPowerCrossfade(float amount01,
+    /*static void EqualPowerCrossfade(float amount01,
                                     float drySample,
                                     float wetSample,
                                     float& outputSample)
@@ -24,5 +24,10 @@ class PMath
         const float wetWeight = std::sin(clampedAmount * juce::MathConstants<float>::halfPi);
 
         outputSample = dryWeight * drySample + wetWeight * wetSample;
+    }*/
+
+    static float EqualPowerCrossfade(float startValue, float endValue, float fade)
+    {
+        return std::sin(fade) * endValue + std::cos(fade) * startValue;
     }
 };

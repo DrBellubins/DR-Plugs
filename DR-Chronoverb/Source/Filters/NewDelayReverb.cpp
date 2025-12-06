@@ -77,6 +77,10 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float inputLeft = leftData[sampleIndex];
         const float inputRight = (rightData != nullptr ? rightData[sampleIndex] : inputLeft);
 
+        // 0: Set diffusion gain
+        diffusionLeft->SetGlobalGain(diffusionAmount01 * 0.7f);  // 0.7 for denser reverb; tune to 0.65-0.8
+        diffusionRight->SetGlobalGain(diffusionAmount01 * 0.7f);
+
         // 1: Pre Highpass/Lowpass
 
         float preLeft = inputLeft;
@@ -103,31 +107,23 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float dampedLeft = dampingLeft->ProcessSample(delayedLeft, lowpass01);
         const float dampedRight = dampingRight->ProcessSample(delayedRight, lowpass01);
 
-        lastFeedbackL = dampedLeft * feedbackGain;
-        lastFeedbackR = dampedRight * feedbackGain;
+        // 4: Process through diffusion chains.
+        const float diffusedLeft = diffusionLeft->ProcessSample(dampedLeft);
+        const float diffusedRight = diffusionRight->ProcessSample(dampedRight);
 
-        // 4: Write to the main delay line: input + feedback (no diffusion-dependent lerp)
+        lastFeedbackL = diffusedLeft * feedbackGain;
+        lastFeedbackR = diffusedRight * feedbackGain;
+
+        // 5: Write to the main delay line: input + feedback (no diffusion-dependent lerp)
         mainDelayLeft->PushSample(preLeft + lastFeedbackL);
         mainDelayRight->PushSample(preRight + lastFeedbackR);
 
-        // 5: Diffusion amount crossfade for diffuser INPUT:
-        // amount = 1.0 -> feed raw input; amount = 0.0 -> feed raw delayed tap
-        const float diffusionInputLeft = PMath::Lerp(delayedLeft, preLeft, diffusionAmount01);
-        const float diffusionInputRight = PMath::Lerp(delayedRight, preRight, diffusionAmount01);
+        // 6: Output crossfade: morph between raw delay and diffused
+        const float fade = diffusionAmount01 * 0.5f * juce::MathConstants<float>::pi;
+        const float wetLeft = PMath::EqualPowerCrossfade(delayedLeft, diffusedLeft, fade);
+        const float wetRight = PMath::EqualPowerCrossfade(delayedRight, diffusedRight, fade);
 
-        // 6: Process through diffusion chains.
-        const float diffusedLeft = diffusionLeft->ProcessSample(diffusionInputLeft);
-        const float diffusedRight = diffusionRight->ProcessSample(diffusionInputRight);
-
-        // 7: Diffusion amount crossfade for WET OUTPUT (equal-power):
-        // amount = 0.0 -> raw delay; amount = 1.0 -> diffused delay
-        float wetLeft = 0.0f;
-        float wetRight = 0.0f;
-
-        PMath::EqualPowerCrossfade(diffusionAmount01, delayedLeft,  diffusedLeft,  wetLeft);
-        PMath::EqualPowerCrossfade(diffusionAmount01, delayedRight, diffusedRight, wetRight);
-
-        // 8: Stereo spread on wet
+        // 7: Stereo spread on wet
         float spreadWetLeft = wetLeft;
         float spreadWetRight = wetRight;
 
@@ -154,14 +150,11 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             }
         }
 
-        // 9: Dry/Wet mix
-        const float dryGain = 1.0f - dryWet01;
-        const float wetGain = dryWet01;
+        // 8: Dry/Wet mix
+        float outLeft = PMath::EqualPowerCrossfade(inputLeft, spreadWetLeft, dryWet01);
+        float outRight = PMath::EqualPowerCrossfade(inputRight, spreadWetRight, dryWet01);
 
-        float outLeft = dryGain * inputLeft + wetGain * spreadWetLeft;
-        float outRight = dryGain * inputRight + wetGain * spreadWetRight;
-
-        // 10: Pre Highpass/Lowpass
+        // 9: Pre Highpass/Lowpass
         if (hplpPrePost01 >= 0.5f)
         {
             outLeft = highpassL.processSample(outLeft);
@@ -244,6 +237,10 @@ void NewDelayReverb::SetHostTempo(float bpm)
 // ---------------- Internal helpers ----------------
 void NewDelayReverb::updateDelayMillisecondsFromNormalized()
 {
+    /*float baseMs = map01ToRange(delayTimeNormalized, 0.0f, 1000.0f);
+    float compensation = diffusionAmount01 * totalDiffusionMs;  // ~167 ms at amount=1
+    delayMilliseconds = std::max(0.0f, baseMs - compensation);*/
+
     delayMilliseconds = map01ToRange(delayTimeNormalized, 0.0f, 1000.0f);
 }
 
@@ -254,6 +251,12 @@ void NewDelayReverb::rebuildDiffusionIfNeeded()
 
     if (diffusionRight)
         diffusionRight->Configure(diffusionQualityStages, diffusionSize01);
+
+    // Compute total diffusion length ms
+    totalDiffusionMs = 0.0f;
+
+    for (float ms : diffusionLeft->perStageDelayMs)
+        totalDiffusionMs += ms;
 }
 
 void NewDelayReverb::updateFeedbackGainFromFeedbackTime()

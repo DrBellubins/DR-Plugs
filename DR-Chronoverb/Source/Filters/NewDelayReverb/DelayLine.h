@@ -40,17 +40,17 @@ public:
 
         // Read index relative to current write
         int indexA = writeIndex - delaySamples;
+
         while (indexA < 0)
-        {
             indexA += size;
-        }
+
         indexA %= size;
 
         int indexB = indexA - 1;
+
         while (indexB < 0)
-        {
             indexB += size;
-        }
+
         indexB %= size;
 
         const float sampleA = buffer[indexA];
