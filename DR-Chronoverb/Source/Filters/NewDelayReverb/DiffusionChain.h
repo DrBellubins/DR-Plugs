@@ -46,7 +46,7 @@ public:
     }
 
     // Configure the chain with a given number of stages and size scaling factor.
-    // - numberOfStages: recommended 4..8 for typical diffusion density.
+    // - numberOfStages: 1..8, tune delays per all-pass filter.
     // - size01: 0..1 scales the per-stage delay milliseconds.
     void Configure(int numberOfStages, float size01)
     {
@@ -58,18 +58,17 @@ public:
 
         perStageDelayMs.clear();
 
-        for (int stageIndex = 0; stageIndex < cachedStageCount; ++stageIndex)
+        // Tuned base delays from quality 8 fit (ms, prime-rounded and sorted for progressive build-up)
+        std::vector<float> tunedBaseDelays = { 47.0f, 67.0f, 71.0f, 73.0f, 79.0f, 83.0f, 89.0f, 97.0f };
+
+        // Use full array for max stages; slice first N for lower quality
+        int effectiveStages = std::min(cachedStageCount, static_cast<int>(tunedBaseDelays.size()));
+        const float allpassGain = 0.65f;  // Fixed from fits; can link to AudioProcessorValueTreeState::Parameter for automation
+
+        for (int stageIndex = 0; stageIndex < effectiveStages; ++stageIndex)
         {
-            const float positionAlongChain01 = (cachedStageCount > 1)
-                ? (static_cast<float>(stageIndex) / static_cast<float>(cachedStageCount - 1))
-                : 0.0f;
-
-            const float baseMilliseconds = 10.0f + (90.0f * positionAlongChain01);
-
-            const float scaledMilliseconds =
-                baseMilliseconds * (0.25f + 0.75f * (0.25f + cachedSize01));
-
-            const float allpassGain = 0.65f;
+            float baseMilliseconds = tunedBaseDelays[stageIndex];
+            float scaledMilliseconds = baseMilliseconds * (0.25f + 0.75f * cachedSize01);  // Scale for size control
 
             auto diffusionStage = std::make_unique<DiffusionAllpass>();
             diffusionStage->Prepare(sampleRate);
