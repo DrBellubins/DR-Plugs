@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 
+#include "../Utils/PMath.h"
 #include "NewDelayReverb/DelayLine.h"
 #include "NewDelayReverb/DampingFilter.h"
 #include "NewDelayReverb/DiffusionChain.h"
@@ -65,10 +66,6 @@ private:
     void updateFeedbackGainFromFeedbackTime();
     void updateFilters();
     void updateStereoSpread();
-
-    // Compensation for diffusion group delay (milliseconds)
-    float diffusionGroupDelayMilliseconds = 0.0f;
-    float diffusionClusterWidthMilliseconds = 0.0f;
 
     // Parameters
     double sampleRate = 48000.0;

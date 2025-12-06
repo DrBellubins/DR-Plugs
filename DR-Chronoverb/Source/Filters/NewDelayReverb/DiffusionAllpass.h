@@ -20,17 +20,17 @@ public:
     void Prepare(double sampleRate)
     {
         sr = sampleRate;
-        setDelayMilliseconds(50.0f); // default
+        SetDelayMilliseconds(50.0f); // default
         setGain(0.65f);              // default
-        clear();
+        Clear();
     }
 
     void Configure(float delayMilliseconds, float gain)
     {
-        setDelayMilliseconds(delayMilliseconds);
+        SetDelayMilliseconds(delayMilliseconds);
         setGain(gain);
         ensureBufferSize();
-        clear();
+        Clear();
     }
 
     float ProcessSample(float inputSample)
@@ -49,7 +49,14 @@ public:
         return y;
     }
 
-    void clear()
+    void SetDelayMilliseconds(float newDelayMs)
+    {
+        delayMs = std::max(1.0f, newDelayMs);
+        delaySamples = static_cast<int>(std::round((delayMs * sr) / 1000.0));
+        ensureBufferSize();
+    }
+
+    void Clear()
     {
         std::fill(inputBuffer.begin(), inputBuffer.end(), 0.0f);
         std::fill(outputBuffer.begin(), outputBuffer.end(), 0.0f);
@@ -70,12 +77,7 @@ private:
 
     int delaySamples = 2400; // 50 ms @ 48 kHz
 
-    void setDelayMilliseconds(float newDelayMs)
-    {
-        delayMs = std::max(1.0f, newDelayMs);
-        delaySamples = static_cast<int>(std::round((delayMs * sr) / 1000.0));
-        ensureBufferSize();
-    }
+
 
     void setGain(float newGain)
     {

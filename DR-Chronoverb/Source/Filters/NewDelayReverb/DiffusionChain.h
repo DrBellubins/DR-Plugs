@@ -59,7 +59,7 @@ public:
         perStageDelayMs.clear();
 
         // Tuned base delays from quality 8 fit (ms, prime-rounded and sorted for progressive build-up)
-        std::vector<float> tunedBaseDelays = { 47.0f, 67.0f, 71.0f, 73.0f, 79.0f, 83.0f, 89.0f, 97.0f };
+        std::vector tunedBaseDelays = { 47.0f, 67.0f, 71.0f, 73.0f, 79.0f, 83.0f, 89.0f, 97.0f };
 
         // Use full array for max stages; slice first N for lower quality
         int effectiveStages = std::min(cachedStageCount, static_cast<int>(tunedBaseDelays.size()));
@@ -78,8 +78,15 @@ public:
             perStageDelayMs.push_back(scaledMilliseconds);
         }
 
-        updateEstimatedGroupDelayMs();
-        updateEstimatedClusterWidthMs();
+        jitterPhase.resize(numberOfStages);
+        jitterRate.resize(numberOfStages);
+
+        // Init random LFOs per stage
+        for (int i = 0; i < numberOfStages; ++i)
+        {
+            jitterPhase[i] = float(rand()) / float(RAND_MAX); // random start
+            jitterRate[i] = 0.001f + 0.004f * (float(rand()) / float(RAND_MAX)); // 0.001..0.005
+        }
     }
 
     // Process a single sample through the diffusion chain.
@@ -90,24 +97,25 @@ public:
 
         float sample = inputSample;
 
-        // Simple sine jitter (0.1 Hz, 1-2% amplitude)
-        float jitterFactor = 1.0f + 0.015f * std::sin(2.0f * M_PI * 0.1f * static_cast<float>(sampleCounter) / sampleRate);
+        for (size_t i = 0; i < stages.size(); ++i)
+        {
+            float baseDelayMs = perStageDelayMs[i];
 
-        for (auto& stage : stages)
-            sample = stage->ProcessSample(sample);
+            // Slow sine-modulated jitter
+            float jitterAmount = 0.02f * baseDelayMs; // ±2% jitter (tunable)
+            float phase = jitterPhase[i];
+            jitterPhase[i] += jitterRate[i];
+            if (jitterPhase[i] > 1.0f) jitterPhase[i] -= 1.0f;
+            float jitterMs = jitterAmount * std::sin(2.0f * float(M_PI) * phase);
+            float finalDelayMs = baseDelayMs + jitterMs;
+
+            stages[i]->SetDelayMilliseconds(finalDelayMs);
+
+            sample = stages[i]->ProcessSample(sample);
+        }
 
         sampleCounter++;
         return sample;
-    }
-
-    float GetEstimatedGroupDelayMilliseconds() const
-    {
-        return estimatedGroupDelayMs;
-    }
-
-    float GetEstimatedClusterWidthMilliseconds() const
-    {
-        return estimatedClusterWidthMs;
     }
 
 private:
@@ -118,44 +126,9 @@ private:
     float cachedSize01 = 0.0f;
 
     std::vector<float> perStageDelayMs;
-    float estimatedGroupDelayMs = 0.0f;
-    float estimatedClusterWidthMs = 0.0f;
+
+    std::vector<float> jitterPhase; // Per-stage phase
+    std::vector<float> jitterRate;  // Per-stage rate (e.g., 0.001..0.01 per sample, randomized)
 
     int sampleCounter;
-
-    void updateEstimatedGroupDelayMs()
-    {
-        // Simple estimate: sum of per-stage delays.
-        // This approximates low-frequency group delay of cascaded delay-based allpasses.
-        float sumMs = 0.0f;
-
-        for (float delayMs : perStageDelayMs)
-            sumMs += delayMs;
-
-        estimatedGroupDelayMs = sumMs;
-    }
-
-    void updateEstimatedClusterWidthMs()
-    {
-        // Simple width heuristic:
-        // - Width grows with number of stages and their delays.
-        // - Use RMS of per-stage delays times sqrt(stageCount) to approximate spread,
-        //   then scale slightly to keep the leading edge early but not too far.
-        if (perStageDelayMs.empty())
-        {
-            estimatedClusterWidthMs = 0.0f;
-            return;
-        }
-
-        double sumSquares = 0.0;
-
-        for (float d : perStageDelayMs)
-            sumSquares += static_cast<double>(d) * static_cast<double>(d);
-
-        const double rms = std::sqrt(sumSquares / static_cast<double>(perStageDelayMs.size()));
-        const double spreadFactor = std::sqrt(static_cast<double>(perStageDelayMs.size()));
-
-        // Tweak factor ~0.8 to keep half-width compensation perceptually centered toward the tap.
-        estimatedClusterWidthMs = static_cast<float>(rms * spreadFactor);
-    }
 };

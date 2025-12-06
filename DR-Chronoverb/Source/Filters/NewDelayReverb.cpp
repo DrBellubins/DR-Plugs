@@ -97,21 +97,17 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         float diffusedLeft = diffusionLeft->ProcessSample(sumLeft);
         float diffusedRight = diffusionLeft->ProcessSample(sumRight);
 
-        // 3. Write to main delay (crossfade per "diffusionAmount01")
-        mainDelayLeft->PushSample(sumLeft * (1.0f - diffusionAmount01) + diffusedLeft * diffusionAmount01);
-        mainDelayRight->PushSample(sumLeft * (1.0f - diffusionAmount01) + diffusedRight * diffusionAmount01);
-
         // 4. Read from main delay for delayed output
         float delayedLeft = mainDelayLeft->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
         float delayedRight = mainDelayRight->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
 
-        // 5. Diffuse the output tap
-        float diffusedOutLeft = diffusionLeft->ProcessSample(delayedLeft);
-        float diffusedOutRight = diffusionLeft->ProcessSample(delayedLeft);
+        // 5. Diffuse the output tap (crossfade diffusion input from delay tap -> input signal)
+        mainDelayLeft->PushSample(PMath::Lerp(lastFeedbackL, preLeft, diffusionAmount01));
+        mainDelayRight->PushSample(PMath::Lerp(lastFeedbackR, preRight, diffusionAmount01));
 
         // 6. Crossfade between dry delayed and diffused output for WET signal
-        float wetLeft = delayedLeft * (1.0f - diffusionAmount01) + diffusedOutLeft * diffusionAmount01;
-        float wetRight = delayedRight * (1.0f - diffusionAmount01) + diffusedOutRight * diffusionAmount01;
+        float wetLeft = PMath::Lerp(delayedLeft, diffusedLeft, diffusionAmount01);
+        float wetRight = PMath::Lerp(delayedRight, diffusedRight, diffusionAmount01);
 
         // 7: Feedback: drive from base tap only (stable energy, no comb cancellation in-loop)
         const float dampedLeft = dampingLeft->ProcessSample(delayedLeft, lowpass01);
@@ -234,7 +230,6 @@ void NewDelayReverb::SetHostTempo(float bpm)
 }
 
 // ---------------- Internal helpers ----------------
-
 void NewDelayReverb::updateDelayMillisecondsFromNormalized()
 {
     delayMilliseconds = map01ToRange(delayTimeNormalized, 0.0f, 1000.0f);
@@ -243,19 +238,10 @@ void NewDelayReverb::updateDelayMillisecondsFromNormalized()
 void NewDelayReverb::rebuildDiffusionIfNeeded()
 {
     if (diffusionLeft)
-    {
         diffusionLeft->Configure(diffusionQualityStages, diffusionSize01);
-        diffusionGroupDelayMilliseconds = diffusionLeft->GetEstimatedGroupDelayMilliseconds();
-        diffusionClusterWidthMilliseconds = diffusionLeft->GetEstimatedClusterWidthMilliseconds();
-    }
 
     if (diffusionRight)
-    {
         diffusionRight->Configure(diffusionQualityStages, diffusionSize01);
-        // Left and right chains are identical; reuse left’s estimates
-        diffusionGroupDelayMilliseconds = diffusionLeft->GetEstimatedGroupDelayMilliseconds();
-        diffusionClusterWidthMilliseconds = diffusionLeft->GetEstimatedClusterWidthMilliseconds();
-    }
 }
 
 void NewDelayReverb::updateFeedbackGainFromFeedbackTime()
