@@ -91,6 +91,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             preRight = lowpassR.processSample(preRight);
         }
 
+        // TODO: Smoothly transition diffused delay allpass tuning, to pure prime tuning for reverb-like response
+
         // Delay/Reverb
 
         // 2: Read the raw delayed taps before any diffusion crossfades
