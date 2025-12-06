@@ -113,13 +113,13 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float diffusedLeft = diffusionLeft->ProcessSample(diffusionInputLeft);
         const float diffusedRight = diffusionRight->ProcessSample(diffusionInputRight);
 
-        // Diffusion amount crossfade for WET OUTPUT:
+        // Diffusion amount crossfade for WET OUTPUT (equal-power):
         // amount = 0.0 -> raw delay; amount = 1.0 -> diffused delay
-        float wetLeft = PMath::Lerp(delayedLeft, diffusedLeft, diffusionAmount01);
-        float wetRight = PMath::Lerp(delayedRight, diffusedRight, diffusionAmount01);
+        float wetLeft = 0.0f;
+        float wetRight = 0.0f;
 
-        lastFeedbackL = dampedLeft * feedbackGain;
-        lastFeedbackR = dampedRight * feedbackGain;
+        PMath::EqualPowerCrossfade(diffusionAmount01, delayedLeft,  diffusedLeft,  wetLeft);
+        PMath::EqualPowerCrossfade(diffusionAmount01, delayedRight, diffusedRight, wetRight);
 
         // 8: Stereo spread on wet
         float spreadWetLeft = wetLeft;
