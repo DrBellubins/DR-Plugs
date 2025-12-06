@@ -93,13 +93,16 @@ public:
         if (stages.empty() || amountClamped <= 0.0001f)
             return inputSample;
 
-        float x = inputSample;
+        float sample = inputSample;
+
+        // Simple sine jitter (0.1 Hz, 1-2% amplitude)
+        float jitterFactor = 1.0f + 0.015f * std::sin(2.0f * M_PI * 0.1f * static_cast<float>(sampleCounter) / sampleRate);
 
         for (auto& stage : stages)
-            x = stage->ProcessSample(x);
+            sample = stage->ProcessSample(sample);
 
-        // Change: no crossfade here; return fully diffused.
-        return x;
+        sampleCounter++;
+        return sample;
     }
 
     float GetEstimatedGroupDelayMilliseconds() const
@@ -122,6 +125,8 @@ private:
     std::vector<float> perStageDelayMs;
     float estimatedGroupDelayMs = 0.0f;
     float estimatedClusterWidthMs = 0.0f;
+
+    int sampleCounter;
 
     void updateEstimatedGroupDelayMs()
     {
