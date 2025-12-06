@@ -89,29 +89,34 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             preRight = lowpassR.processSample(preRight);
         }
 
-        // 1. Input + feedback
-        float sumLeft = preLeft + lastFeedbackL;
-        float sumRight = preRight + lastFeedbackR;
-
-        // 2. Process through diffusion chain (used for both write and wet-out)
-        float diffusedLeft = diffusionLeft->ProcessSample(sumLeft);
-        float diffusedRight = diffusionLeft->ProcessSample(sumRight);
-
-        // 4. Read from main delay for delayed output
+        // Read the raw delayed taps before any diffusion crossfades
         float delayedLeft = mainDelayLeft->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
         float delayedRight = mainDelayRight->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
 
-        // 5. Diffuse the output tap (crossfade diffusion input from delay tap -> input signal)
-        mainDelayLeft->PushSample(PMath::Lerp(lastFeedbackL, preLeft, diffusionAmount01));
-        mainDelayRight->PushSample(PMath::Lerp(lastFeedbackR, preRight, diffusionAmount01));
-
-        // 6. Crossfade between dry delayed and diffused output for WET signal
-        float wetLeft = PMath::Lerp(delayedLeft, diffusedLeft, diffusionAmount01);
-        float wetRight = PMath::Lerp(delayedRight, diffusedRight, diffusionAmount01);
-
-        // 7: Feedback: drive from base tap only (stable energy, no comb cancellation in-loop)
+        // Generate feedback from the raw delayed taps (damping in the loop)
         const float dampedLeft = dampingLeft->ProcessSample(delayedLeft, lowpass01);
         const float dampedRight = dampingRight->ProcessSample(delayedRight, lowpass01);
+
+        lastFeedbackL = dampedLeft * feedbackGain;
+        lastFeedbackR = dampedRight * feedbackGain;
+
+        // Write to the main delay line: input + feedback (no diffusion-dependent lerp)
+        mainDelayLeft->PushSample(preLeft + lastFeedbackL);
+        mainDelayRight->PushSample(preRight + lastFeedbackR);
+
+        // Diffusion amount crossfade for diffuser INPUT:
+        // amount = 1.0 -> feed raw input; amount = 0.0 -> feed raw delayed tap
+        const float diffusionInputLeft = PMath::Lerp(delayedLeft, preLeft, diffusionAmount01);
+        const float diffusionInputRight = PMath::Lerp(delayedRight, preRight, diffusionAmount01);
+
+        // Process through diffusion chains (fix right channel to use diffusionRight)
+        const float diffusedLeft = diffusionLeft->ProcessSample(diffusionInputLeft);
+        const float diffusedRight = diffusionRight->ProcessSample(diffusionInputRight);
+
+        // Diffusion amount crossfade for WET OUTPUT:
+        // amount = 0.0 -> raw delay; amount = 1.0 -> diffused delay
+        float wetLeft = PMath::Lerp(delayedLeft, diffusedLeft, diffusionAmount01);
+        float wetRight = PMath::Lerp(delayedRight, diffusedRight, diffusionAmount01);
 
         lastFeedbackL = dampedLeft * feedbackGain;
         lastFeedbackR = dampedRight * feedbackGain;
