@@ -48,6 +48,12 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     // Spread setup
     updateStereoSpread();
 
+    wetInputPitchShifterLeft.Prepare(sampleRate, 512);
+    wetInputPitchShifterRight.Prepare(sampleRate, 512);
+
+    wetInputPitchEchoSampleCounter = 0;
+    wetInputPitchEchoLengthSamples = 1;
+
     lastFeedbackL = 0.0f;
     lastFeedbackR = 0.0f;
 
@@ -77,14 +83,29 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float inputLeft = leftData[sampleIndex];
         const float inputRight = (rightData != nullptr ? rightData[sampleIndex] : inputLeft);
 
+        // Pitch shift
+        wetInputPitchEchoLengthSamples = std::max(1, static_cast<int>(std::round((delayMilliseconds * sampleRate) / 1000.0)));
+
+        ++wetInputPitchEchoSampleCounter;
+
+        if (wetInputPitchEchoSampleCounter >= wetInputPitchEchoLengthSamples)
+        {
+            wetInputPitchEchoSampleCounter = 0;
+            wetInputPitchShifterLeft.OnNewEchoBoundary();
+            wetInputPitchShifterRight.OnNewEchoBoundary();
+        }
+
+        const float pitchedInputLeft = wetInputPitchShifterLeft.ProcessSample(inputLeft);
+        const float pitchedInputRight = wetInputPitchShifterRight.ProcessSample(inputRight);
+
         // 0: Set diffusion gain
         diffusionLeft->SetGlobalGain(diffusionAmount01 * 0.6f);  // 0.7 for denser reverb; tune to 0.65-0.8
         diffusionRight->SetGlobalGain(diffusionAmount01 * 0.6f);
 
         // 1: Pre Highpass/Lowpass
 
-        float preLeft = inputLeft;
-        float preRight = inputRight;
+        float preLeft = pitchedInputLeft;
+        float preRight = pitchedInputRight;
 
         if (hplpPrePost01 < 0.5f)
         {

@@ -8,6 +8,7 @@
 #include "NewDelayReverb/DelayLine.h"
 #include "NewDelayReverb/DampingFilter.h"
 #include "NewDelayReverb/DiffusionChain.h"
+#include "NewDelayReverb/PitchShifter.h"
 
 // Forward declarations of internal components
 class DelayLine;
@@ -89,6 +90,9 @@ private:
     float stereoSpreadMinus1To1 = 0.0f;
     float hplpPrePost01 = 1.0f; // default Post
 
+    int wetInputPitchEchoSampleCounter = 0;
+    int wetInputPitchEchoLengthSamples = 1;
+
     // Set by setters; consumed at block start on audio thread
     std::atomic<bool> diffusionRebuildPending { false };
 
@@ -101,6 +105,9 @@ private:
 
     std::unique_ptr<DampingFilter> dampingLeft;
     std::unique_ptr<DampingFilter> dampingRight;
+
+    OctaveEchoPitchShifter wetInputPitchShifterLeft;
+    OctaveEchoPitchShifter wetInputPitchShifterRight;
 
     // Basic HP/LP filters (JUCE one-pole IIR) for pre/post spectral shaping
     juce::dsp::IIR::Filter<float> lowpassL;
