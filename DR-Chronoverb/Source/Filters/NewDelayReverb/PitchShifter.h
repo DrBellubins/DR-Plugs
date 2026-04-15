@@ -105,6 +105,43 @@ public:
     virtual float ProcessSample(float inputSample, float pitchRatio) = 0;
 };
 
+class ConstantRatioSequence : public IPitchSequence
+{
+public:
+    ConstantRatioSequence()
+    {
+    }
+
+    void SetPitchRatio(float newPitchRatio)
+    {
+        pitchRatio = newPitchRatio;
+    }
+
+    void Reset() override
+    {
+    }
+
+    void AdvanceToNextEcho() override
+    {
+    }
+
+    float GetCurrentPitchRatio() const override
+    {
+        return pitchRatio;
+    }
+
+private:
+    float pitchRatio = 2.0f; // default: +1 octave so it's obvious
+};
+
+// ============================ Granular pitch backend ============================
+// Dual read-head delay/grain pitch shifter.
+//
+// Notes:
+// - This introduces a small algorithmic latency roughly equal to grainLengthSamples.
+// - For shimmer-style echo stepping, call OctaveEchoPitchShifter::OnNewEchoBoundary()
+//   to change pitch ratio per echo, but this backend itself is continuous and will adapt.
+
 class GranularPitchBackend : public IPitchShifterBackend
 {
 public:
@@ -340,6 +377,9 @@ class OctaveEchoPitchShifter
 public:
     OctaveEchoPitchShifter()
     {
+        auto constantSequence = std::make_unique<ConstantRatioSequence>();
+        constantSequence->SetPitchRatio(2.0f); // +1 octave (very obvious)
+
         SetSequence(std::make_unique<ProgressiveOctaveSequence>());
         SetBackend(std::make_unique<GranularPitchBackend>());
     }
