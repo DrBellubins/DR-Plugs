@@ -377,11 +377,15 @@ class OctaveEchoPitchShifter
 public:
     OctaveEchoPitchShifter()
     {
-        auto constantSequence = std::make_unique<ConstantRatioSequence>();
-        constantSequence->SetPitchRatio(2.0f); // +1 octave (very obvious)
+        //auto constantSequence = std::make_unique<ConstantRatioSequence>();
+        //constantSequence->SetPitchRatio(2.0f); // +1 octave (very obvious)
+
+        auto progrssiveBackend = std::make_unique<GranularPitchBackend>();
+
+        progrssiveBackend->SetGrainLengthMilliseconds(35.0f);
 
         SetSequence(std::make_unique<ProgressiveOctaveSequence>());
-        SetBackend(std::make_unique<GranularPitchBackend>());
+        SetBackend(progrssiveBackend);
     }
 
     void Prepare(double newSampleRate, int maximumBlockSize)
