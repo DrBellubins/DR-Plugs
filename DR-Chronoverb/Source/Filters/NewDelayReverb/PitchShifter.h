@@ -49,7 +49,7 @@ public:
     void Reset() override
     {
         currentEchoIndex = 0;
-        currentOctaves = 0;
+        currentOctaves = stepOctaves;
     }
 
     void AdvanceToNextEcho() override

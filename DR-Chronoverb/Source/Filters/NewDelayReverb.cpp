@@ -272,8 +272,7 @@ void NewDelayReverb::SetHostTempo(float bpm)
 void NewDelayReverb::updateDelayMillisecondsFromNormalized()
 {
     float baseMs = map01ToRange(delayTimeNormalized, 0.0f, 1000.0f);
-    float compensation = diffusionAmount01 * totalDiffusionMs;  // Scales with amount for smooth morph
-    delayMilliseconds = std::max(1.0f, baseMs - compensation);  // Clamp to minimum 1 ms to avoid artifacts
+    delayMilliseconds = std::max(1.0f, baseMs);
 }
 
 void NewDelayReverb::rebuildDiffusionIfNeeded()
