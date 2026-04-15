@@ -175,13 +175,12 @@ public:
 
         writeIndex = 0;
 
-        readIndexA = 0.0f;
-        readIndexB = static_cast<float>(grainLengthSamples) * 0.5f; // half cycle offset
-
         phase01 = 0.0f;
 
         lastPitchRatio = 1.0f;
         smoothedPitchRatio = 1.0f;
+
+        reanchorReadHeads();
     }
 
     float ProcessSample(float inputSample, float pitchRatio) override
@@ -209,7 +208,7 @@ public:
 
             // When we wrap the grain, jump the heads so they keep staying "behind" write.
             // This reduces the chance of reading not-yet-written samples.
-            reanchorReadHeads();
+            //reanchorReadHeads();
         }
 
         // Window weights (Hann crossfade)
@@ -319,20 +318,17 @@ private:
     void reanchorReadHeads()
     {
         if (buffer.empty())
+        {
             return;
+        }
 
-        // Keep the read heads behind the write head by about one grain length.
-        // This avoids reading "future" samples.
-        const float size = static_cast<float>(buffer.size());
+        const float safeBehindSamples = static_cast<float>(grainLengthSamples) * 2.0f;
 
         const float write = static_cast<float>(writeIndex);
-        const float anchor = write - static_cast<float>(grainLengthSamples);
+        const float anchor = write - safeBehindSamples;
 
         readIndexA = wrapReadIndex(anchor);
-        readIndexB = wrapReadIndex(anchor + static_cast<float>(grainLengthSamples) * 0.5f);
-
-        // Optional: reset phase for consistent crossfade alignment when reanchoring.
-        // phase01 = 0.0f;
+        readIndexB = wrapReadIndex(anchor + static_cast<float>(grainLengthSamples));
     }
 
 private:
@@ -380,12 +376,11 @@ public:
         //auto constantSequence = std::make_unique<ConstantRatioSequence>();
         //constantSequence->SetPitchRatio(2.0f); // +1 octave (very obvious)
 
-        auto progrssiveBackend = std::make_unique<GranularPitchBackend>();
-
-        progrssiveBackend->SetGrainLengthMilliseconds(35.0f);
+        auto Backend = std::make_unique<GranularPitchBackend>();
+        Backend->SetGrainLengthMilliseconds(35.0f);
 
         SetSequence(std::make_unique<ProgressiveOctaveSequence>());
-        SetBackend(progrssiveBackend);
+        SetBackend(std::move(Backend));
     }
 
     void Prepare(double newSampleRate, int maximumBlockSize)
@@ -452,15 +447,15 @@ public:
             sequence->Reset();
     }
 
-    void SetBackend(std::unique_ptr<IPitchShifterBackend> newBackend)
+    void SetBackend(std::unique_ptr<IPitchShifterBackend>&& newBackend)
     {
         backend = std::move(newBackend);
 
         if (backend != nullptr)
+        {
             backend->Prepare(sampleRate, maximumBlockSizeCached);
-
-        if (backend != nullptr)
             backend->Reset();
+        }
     }
 
     // Convenience access for configuring the default progressive sequence without downcasting elsewhere.
