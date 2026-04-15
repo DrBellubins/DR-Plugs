@@ -86,9 +86,6 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float inputLeft = leftData[sampleIndex];
         const float inputRight = (rightData != nullptr ? rightData[sampleIndex] : inputLeft);
 
-        //const float pitchedInputLeft = wetInputPitchShifterLeft.ProcessSample(inputLeft);
-        //const float pitchedInputRight = wetInputPitchShifterRight.ProcessSample(inputRight);
-
         // 0: Set diffusion gain
         diffusionLeft->SetGlobalGain(diffusionAmount01 * 0.6f);  // 0.7 for denser reverb; tune to 0.65-0.8
         diffusionRight->SetGlobalGain(diffusionAmount01 * 0.6f);
@@ -142,7 +139,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float dampedRight = dampingRight->ProcessSample(delayedRight, lowpass01);
 
         // 5: Progressive pitch shift (shimmer)
-        /*const float pitchedFeedbackLeft = wetInputPitchShifterLeft.ProcessSample(dampedLeft);
+        const float pitchedFeedbackLeft = wetInputPitchShifterLeft.ProcessSample(dampedLeft);
         const float pitchedFeedbackRight = wetInputPitchShifterRight.ProcessSample(dampedRight);
 
         // Advance echo boundary counters
@@ -162,10 +159,10 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         {
             echoSampleCounterR = 0;
             wetInputPitchShifterRight.OnNewEchoBoundary();
-        }*/
+        }
 
-        lastFeedbackL = dampedLeft * feedbackGain;
-        lastFeedbackR = dampedRight * feedbackGain;
+        lastFeedbackL = pitchedFeedbackLeft * feedbackGain;
+        lastFeedbackR = pitchedFeedbackRight * feedbackGain;
 
         // 5: Write to the main delay line: input + feedback (no diffusion-dependent lerp)
         mainDelayLeft->PushSample(preLeft + lastFeedbackL);

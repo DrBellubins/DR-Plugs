@@ -337,7 +337,7 @@ public:
     OctaveEchoPitchShifter()
     {
         auto Backend = std::make_unique<GranularPitchBackend>();
-        Backend->SetGrainLengthMilliseconds(50.0f);
+        Backend->SetGrainLengthMilliseconds(15.0f);
 
         //auto ConstantSequence = std::make_unique<ConstantRatioSequence>();
         //ConstantSequence->SetPitchRatio(2.0f); // very obvious
