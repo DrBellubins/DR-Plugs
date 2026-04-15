@@ -403,13 +403,13 @@ class OctaveEchoPitchShifter
 public:
     OctaveEchoPitchShifter()
     {
-        //auto constantSequence = std::make_unique<ConstantRatioSequence>();
-        //constantSequence->SetPitchRatio(2.0f); // +1 octave (very obvious)
-
         auto Backend = std::make_unique<GranularPitchBackend>();
         Backend->SetGrainLengthMilliseconds(35.0f);
 
-        SetSequence(std::make_unique<ProgressiveOctaveSequence>());
+        auto ConstantSequence = std::make_unique<ConstantRatioSequence>();
+        ConstantSequence->SetPitchRatio(2.0f); // very obvious
+
+        SetSequence(std::move(ConstantSequence));
         SetBackend(std::move(Backend));
     }
 
@@ -432,7 +432,7 @@ public:
         if (backend != nullptr)
             backend->Reset();
 
-        enabled.store(false, std::memory_order_release);
+        //enabled.store(false, std::memory_order_release);
     }
 
     void SetEnabled(bool shouldBeEnabled)
