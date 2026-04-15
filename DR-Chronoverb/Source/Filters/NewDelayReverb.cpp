@@ -94,8 +94,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         diffusionRight->SetGlobalGain(diffusionAmount01 * 0.6f);
 
         // 1: Pre Highpass/Lowpass
-        float preLeft = inputLeft + lastFeedbackL;
-        float preRight = inputRight + lastFeedbackR;
+        float preLeft = inputLeft;
+        float preRight = inputRight;
 
         if (hplpPrePost01 < 0.5f)
         {
@@ -141,13 +141,9 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float dampedLeft = dampingLeft->ProcessSample(delayedLeft, lowpass01);
         const float dampedRight = dampingRight->ProcessSample(delayedRight, lowpass01);
 
-        // 4: Process through diffusion chains.
-        /*const float diffusedLeft = diffusionLeft->ProcessSample(dampedLeft);
-        const float diffusedRight = diffusionRight->ProcessSample(dampedRight);*/
-
         // 5: Progressive pitch shift (shimmer)
-        /*const float pitchedFeedbackLeft = wetInputPitchShifterLeft.ProcessSample(diffusedLeft);
-        const float pitchedFeedbackRight = wetInputPitchShifterRight.ProcessSample(diffusedRight);
+        /*const float pitchedFeedbackLeft = wetInputPitchShifterLeft.ProcessSample(dampedLeft);
+        const float pitchedFeedbackRight = wetInputPitchShifterRight.ProcessSample(dampedRight);
 
         // Advance echo boundary counters
         const int delaySamplesInt = static_cast<int>(std::round((delayMilliseconds * sampleRate) / 1000.0));
