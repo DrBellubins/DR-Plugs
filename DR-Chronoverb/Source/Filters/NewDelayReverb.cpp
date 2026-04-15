@@ -91,7 +91,6 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         diffusionRight->SetGlobalGain(diffusionAmount01 * 0.6f);
 
         // 1: Pre Highpass/Lowpass
-
         float preLeft = pitchedInputLeft;
         float preRight = pitchedInputRight;
 
