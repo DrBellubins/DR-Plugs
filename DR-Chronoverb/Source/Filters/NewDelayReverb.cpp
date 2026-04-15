@@ -86,37 +86,16 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float inputLeft = leftData[sampleIndex];
         const float inputRight = (rightData != nullptr ? rightData[sampleIndex] : inputLeft);
 
-        // Advance echo boundary counters
-        const int delaySamplesInt = static_cast<int>(std::round((delayMilliseconds * sampleRate) / 1000.0));
-
-        ++echoSampleCounterL;
-
-        if (echoSampleCounterL >= delaySamplesInt)
-        {
-            echoSampleCounterL = 0;
-            wetInputPitchShifterLeft.OnNewEchoBoundary();
-        }
-
-        ++echoSampleCounterR;
-
-        if (echoSampleCounterR >= delaySamplesInt)
-        {
-            echoSampleCounterR = 0;
-            wetInputPitchShifterRight.OnNewEchoBoundary();
-        }
-
-        DBG("echo count: " << echoSampleCounterL << ", " << echoSampleCounterR);
-
-        const float pitchedInputLeft = wetInputPitchShifterLeft.ProcessSample(inputLeft);
-        const float pitchedInputRight = wetInputPitchShifterRight.ProcessSample(inputRight);
+        //const float pitchedInputLeft = wetInputPitchShifterLeft.ProcessSample(inputLeft);
+        //const float pitchedInputRight = wetInputPitchShifterRight.ProcessSample(inputRight);
 
         // 0: Set diffusion gain
         diffusionLeft->SetGlobalGain(diffusionAmount01 * 0.6f);  // 0.7 for denser reverb; tune to 0.65-0.8
         diffusionRight->SetGlobalGain(diffusionAmount01 * 0.6f);
 
         // 1: Pre Highpass/Lowpass
-        float preLeft = pitchedInputLeft;
-        float preRight = pitchedInputRight;
+        float preLeft = inputLeft;
+        float preRight = inputRight;
 
         if (hplpPrePost01 < 0.5f)
         {
@@ -143,8 +122,31 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float diffusedLeft = diffusionLeft->ProcessSample(dampedLeft);
         const float diffusedRight = diffusionRight->ProcessSample(dampedRight);
 
-        lastFeedbackL = diffusedLeft * feedbackGain;
-        lastFeedbackR = diffusedRight * feedbackGain;
+        // 5: Progressive pitch shift (shimmer)
+        const float pitchedFeedbackLeft = wetInputPitchShifterLeft.ProcessSample(diffusedLeft);
+        const float pitchedFeedbackRight = wetInputPitchShifterRight.ProcessSample(diffusedRight);
+
+        // Advance echo boundary counters
+        const int delaySamplesInt = static_cast<int>(std::round((delayMilliseconds * sampleRate) / 1000.0));
+
+        ++echoSampleCounterL;
+
+        if (echoSampleCounterL >= delaySamplesInt)
+        {
+            echoSampleCounterL = 0;
+            wetInputPitchShifterLeft.OnNewEchoBoundary();
+        }
+
+        ++echoSampleCounterR;
+
+        if (echoSampleCounterR >= delaySamplesInt)
+        {
+            echoSampleCounterR = 0;
+            wetInputPitchShifterRight.OnNewEchoBoundary();
+        }
+
+        lastFeedbackL = pitchedFeedbackLeft * feedbackGain;
+        lastFeedbackR = pitchedFeedbackRight * feedbackGain;
 
         // 5: Write to the main delay line: input + feedback (no diffusion-dependent lerp)
         mainDelayLeft->PushSample(preLeft + lastFeedbackL);

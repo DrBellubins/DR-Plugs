@@ -337,13 +337,13 @@ public:
     OctaveEchoPitchShifter()
     {
         auto Backend = std::make_unique<GranularPitchBackend>();
-        Backend->SetGrainLengthMilliseconds(35.0f);
+        Backend->SetGrainLengthMilliseconds(50.0f);
 
         //auto ConstantSequence = std::make_unique<ConstantRatioSequence>();
         //ConstantSequence->SetPitchRatio(2.0f); // very obvious
 
         auto Progressive = std::make_unique<ProgressiveOctaveSequence>();
-        Progressive->SetStepOctaves(2);      // +1 octave per echo (use -1 for downward)
+        Progressive->SetStepOctaves(1);      // +1 octave per echo (use -1 for downward)
         Progressive->SetMaxAbsOctaves(4);    // clamp at ±4 octaves (48 semitones)
 
         SetSequence(std::move(Progressive));
