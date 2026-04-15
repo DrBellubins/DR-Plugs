@@ -240,6 +240,12 @@ public:
         grainLengthSamples = std::max(16, static_cast<int>(std::round((clamped * sampleRate) / 1000.0)));
     }
 
+    float GetLatencyMilliseconds() const
+    {
+        const float lookbackSamples = static_cast<float>(grainLengthSamples) * 5.0f;
+        return static_cast<float>((lookbackSamples * 1000.0) / sampleRate);
+    }
+
 private:
     void smoothPitchRatio(float targetPitchRatio)
     {
@@ -429,6 +435,16 @@ public:
     ProgressiveOctaveSequence* GetProgressiveOctaveSequence()
     {
         return dynamic_cast<ProgressiveOctaveSequence*>(sequence.get());
+    }
+
+    float GetLatencyMilliseconds() const
+    {
+        auto* granularBackend = dynamic_cast<GranularPitchBackend*>(backend.get());
+
+        if (granularBackend != nullptr && GetEnabled())
+            return granularBackend->GetLatencyMilliseconds();
+
+        return 0.0f;
     }
 
 private:

@@ -81,6 +81,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
     float* leftData = audioBuffer.getWritePointer(0);
     float* rightData = (numChannels > 1 ? audioBuffer.getWritePointer(1) : nullptr);
 
+    pitchShifterLatencyMs = wetInputPitchShifterLeft.GetLatencyMilliseconds();
+
     for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
     {
         const float inputLeft = leftData[sampleIndex];
@@ -130,13 +132,18 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         mainDelayLeft->PushSample(diffusedPreLeft);
         mainDelayRight->PushSample(diffusedPreRight);
 
-        // 4: Read from delay line
-        float delayedLeft = mainDelayLeft->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
-        float delayedRight = mainDelayRight->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
+        // 4a: Read for OUTPUT (uncompensated — listener hears the true delay time)
+        float outputLeft = mainDelayLeft->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
+        float outputRight = mainDelayRight->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
+
+        // 4b: Read for FEEDBACK (compensated — subtract pitch shifter latency so loop total = delayMilliseconds)
+        const float feedbackDelayMs = std::max(1.0f, delayMilliseconds - pitchShifterLatencyMs);
+        float feedbackLeft = mainDelayLeft->ReadDelayMilliseconds(feedbackDelayMs, sampleRate);
+        float feedbackRight = mainDelayRight->ReadDelayMilliseconds(feedbackDelayMs, sampleRate);
 
         // 5: Damping in feedback path
-        const float dampedLeft = dampingLeft->ProcessSample(delayedLeft, lowpass01);
-        const float dampedRight = dampingRight->ProcessSample(delayedRight, lowpass01);
+        const float dampedLeft = dampingLeft->ProcessSample(feedbackLeft, lowpass01);
+        const float dampedRight = dampingRight->ProcessSample(feedbackRight, lowpass01);
 
         // 5: Progressive pitch shift (shimmer)
         const float pitchedFeedbackLeft = wetInputPitchShifterLeft.ProcessSample(dampedLeft);
@@ -170,8 +177,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
         // 6: Output crossfade: morph between raw delay and diffused
         const float fade = diffusionAmount01 * 0.5f * juce::MathConstants<float>::pi;
-        const float wetLeft = PMath::EqualPowerCrossfade(delayedLeft, diffusedPreLeft, fade);
-        const float wetRight = PMath::EqualPowerCrossfade(delayedRight, diffusedPreRight, fade);
+        const float wetLeft = PMath::EqualPowerCrossfade(outputLeft, diffusedPreLeft, fade);
+        const float wetRight = PMath::EqualPowerCrossfade(outputRight, diffusedPreRight, fade);
 
         // 7: Stereo spread on wet
         float spreadWetLeft = wetLeft;

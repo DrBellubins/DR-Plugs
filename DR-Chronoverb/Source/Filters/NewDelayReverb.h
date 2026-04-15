@@ -93,6 +93,8 @@ private:
     int echoSampleCounterL = 0;
     int echoSampleCounterR = 0;
 
+    float pitchShifterLatencyMs = 0.0f;
+
     // Set by setters; consumed at block start on audio thread
     std::atomic<bool> diffusionRebuildPending { false };
 
