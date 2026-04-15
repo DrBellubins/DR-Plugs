@@ -90,6 +90,9 @@ private:
     float stereoSpreadMinus1To1 = 0.0f;
     float hplpPrePost01 = 1.0f; // default Post
 
+    int echoSampleCounterL = 0;
+    int echoSampleCounterR = 0;
+
     // Set by setters; consumed at block start on audio thread
     std::atomic<bool> diffusionRebuildPending { false };
 

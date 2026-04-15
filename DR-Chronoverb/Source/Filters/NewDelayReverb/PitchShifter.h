@@ -141,9 +141,6 @@ private:
 // - This introduces a small algorithmic latency roughly equal to grainLengthSamples.
 // - For shimmer-style echo stepping, call OctaveEchoPitchShifter::OnNewEchoBoundary()
 //   to change pitch ratio per echo, but this backend itself is continuous and will adapt.
-
-// LETS TRY AGAIN
-
 class GranularPitchBackend : public IPitchShifterBackend
 {
     struct ReadHead
@@ -342,10 +339,14 @@ public:
         auto Backend = std::make_unique<GranularPitchBackend>();
         Backend->SetGrainLengthMilliseconds(35.0f);
 
-        auto ConstantSequence = std::make_unique<ConstantRatioSequence>();
-        ConstantSequence->SetPitchRatio(2.0f); // very obvious
+        //auto ConstantSequence = std::make_unique<ConstantRatioSequence>();
+        //ConstantSequence->SetPitchRatio(2.0f); // very obvious
 
-        SetSequence(std::move(ConstantSequence));
+        auto Progressive = std::make_unique<ProgressiveOctaveSequence>();
+        Progressive->SetStepOctaves(2);      // +1 octave per echo (use -1 for downward)
+        Progressive->SetMaxAbsOctaves(4);    // clamp at ±4 octaves (48 semitones)
+
+        SetSequence(std::move(Progressive));
         SetBackend(std::move(Backend));
     }
 

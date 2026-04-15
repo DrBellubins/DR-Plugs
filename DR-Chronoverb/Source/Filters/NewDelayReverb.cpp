@@ -54,6 +54,9 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     wetInputPitchShifterLeft.SetEnabled(true);
     wetInputPitchShifterRight.SetEnabled(true);
 
+    echoSampleCounterL = 0;
+    echoSampleCounterR = 0;
+
     lastFeedbackL = 0.0f;
     lastFeedbackR = 0.0f;
 
@@ -82,6 +85,27 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
     {
         const float inputLeft = leftData[sampleIndex];
         const float inputRight = (rightData != nullptr ? rightData[sampleIndex] : inputLeft);
+
+        // Advance echo boundary counters
+        const int delaySamplesInt = static_cast<int>(std::round((delayMilliseconds * sampleRate) / 1000.0));
+
+        ++echoSampleCounterL;
+
+        if (echoSampleCounterL >= delaySamplesInt)
+        {
+            echoSampleCounterL = 0;
+            wetInputPitchShifterLeft.OnNewEchoBoundary();
+        }
+
+        ++echoSampleCounterR;
+
+        if (echoSampleCounterR >= delaySamplesInt)
+        {
+            echoSampleCounterR = 0;
+            wetInputPitchShifterRight.OnNewEchoBoundary();
+        }
+
+        DBG("echo count: " << echoSampleCounterL << ", " << echoSampleCounterR);
 
         const float pitchedInputLeft = wetInputPitchShifterLeft.ProcessSample(inputLeft);
         const float pitchedInputRight = wetInputPitchShifterRight.ProcessSample(inputRight);
