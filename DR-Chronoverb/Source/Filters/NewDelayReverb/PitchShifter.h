@@ -187,10 +187,9 @@ public:
         headA.Phase01 = 0.0f;
         headB.Phase01 = 0.5f;
 
-        reseedHead(headA);
-        reseedHead(headB);
+        reseedHead(headA, 0.0f);
+        reseedHead(headB, static_cast<float>(grainLengthSamples));
     }
-
 
     float ProcessSample(float inputSample, float pitchRatio) override
     {
@@ -210,8 +209,8 @@ public:
         advanceHeadPhaseAndReseedIfNeeded(headB);
 
         // Complementary windows: use sin^2/cos^2 (equal-power crossfade)
-        const float windowA = windowFadeInOut(headA.Phase01);
-        const float windowB = windowFadeInOut(headB.Phase01);
+        const float windowA = windowFadeInEqualPower(headA.Phase01);
+        const float windowB = windowFadeOutEqualPower(headA.Phase01);
 
         const float sampleA = readLinear(headA.ReadIndex);
         const float sampleB = readLinear(headB.ReadIndex);
@@ -318,24 +317,15 @@ private:
         if (readHead.Phase01 >= 1.0f)
         {
             readHead.Phase01 -= 1.0f;
-            reseedHead(readHead);
+            reseedHead(readHead, 0.0f);
         }
     }
 
-    void reseedHead(ReadHead& readHead)
+    void reseedHead(ReadHead& readHead, float offsetSamples)
     {
-        if (buffer.empty())
-        {
-            readHead.ReadIndex = 0.0f;
-            return;
-        }
-
-        // Seed safely behind write so we never read "future" samples.
-        // Use 2 grains behind; more stable for pitch-up.
         const float safeBehindSamples = static_cast<float>(grainLengthSamples) * 2.0f;
-
         const float writeIndexFloat = static_cast<float>(writeIndex);
-        readHead.ReadIndex = wrapReadIndex(writeIndexFloat - safeBehindSamples);
+        readHead.ReadIndex = wrapReadIndex(writeIndexFloat - safeBehindSamples + offsetSamples);
     }
 
     static float windowFadeInOut(float phase01)
@@ -358,6 +348,20 @@ private:
             const float c = std::cos(0.5f * juce::MathConstants<float>::pi * t);
             return c * c;
         }
+    }
+
+    static float windowFadeInEqualPower(float phase01)
+    {
+        const float clamped = juce::jlimit(0.0f, 1.0f, phase01);
+        const float s = std::sin(0.5f * juce::MathConstants<float>::pi * clamped);
+        return s * s;
+    }
+
+    static float windowFadeOutEqualPower(float phase01)
+    {
+        const float clamped = juce::jlimit(0.0f, 1.0f, phase01);
+        const float c = std::cos(0.5f * juce::MathConstants<float>::pi * clamped);
+        return c * c;
     }
 
     double sampleRate = 48000.0;
