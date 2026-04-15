@@ -148,6 +148,7 @@ class GranularPitchBackend : public IPitchShifterBackend
     {
         float ReadIndex = 0.0f;
         float Phase01 = 0.0f;
+        float OffsetSamples = 0.0f;
     };
 
 public:
@@ -185,10 +186,13 @@ public:
         smoothedPitchRatio = 1.0f;
 
         headA.Phase01 = 0.0f;
-        headB.Phase01 = 0.5f;
+        headB.Phase01 = 0.0f;
 
-        reseedHead(headA, 0.0f);
-        reseedHead(headB, static_cast<float>(grainLengthSamples));
+        headA.OffsetSamples = 0.0f;
+        headB.OffsetSamples = static_cast<float>(grainLengthSamples);
+
+        reseedHead(headA, headA.OffsetSamples);
+        reseedHead(headB, headB.OffsetSamples);
     }
 
     float ProcessSample(float inputSample, float pitchRatio) override
@@ -204,24 +208,27 @@ public:
         buffer[static_cast<size_t>(writeIndex)] = inputSample;
         incrementWrite();
 
-        // Advance both head phases; wrap + reseed when a head finishes a grain.
-        advanceHeadPhaseAndReseedIfNeeded(headA);
-        advanceHeadPhaseAndReseedIfNeeded(headB);
+        // Master crossfade phase.
+        crossfadePhase01 += (1.0f / static_cast<float>(grainLengthSamples));
+        if (crossfadePhase01 >= 1.0f)
+        {
+            crossfadePhase01 -= 1.0f;
 
-        // Complementary windows: use sin^2/cos^2 (equal-power crossfade)
-        const float windowA = windowFadeInEqualPower(headA.Phase01);
-        const float windowB = windowFadeOutEqualPower(headA.Phase01);
+            // At phase wrap: windowA will be ~0, windowB will be ~1.
+            // So we can safely reseed headA (the silent head).
+            reseedHead(headA, headA.OffsetSamples);
+        }
+
+        const float windowA = windowFadeInEqualPower(crossfadePhase01);
+        const float windowB = windowFadeOutEqualPower(crossfadePhase01);
 
         const float sampleA = readLinear(headA.ReadIndex);
         const float sampleB = readLinear(headB.ReadIndex);
 
-        // Advance both heads by pitch ratio (fractional)
         headA.ReadIndex = wrapReadIndex(headA.ReadIndex + smoothedPitchRatio);
         headB.ReadIndex = wrapReadIndex(headB.ReadIndex + smoothedPitchRatio);
 
-        // Normalized blend (windows are roughly complementary if phases are offset)
-        const float outputSample = (sampleA * windowA) + (sampleB * windowB);
-        return outputSample;
+        return (sampleA * windowA) + (sampleB * windowB);
     }
 
     void SetGrainLengthMilliseconds(float newGrainLengthMilliseconds)
@@ -309,21 +316,9 @@ private:
         return sample0 + (sample1 - sample0) * fraction;
     }
 
-    void advanceHeadPhaseAndReseedIfNeeded(ReadHead& readHead)
-    {
-        const float phaseIncrement = (1.0f / static_cast<float>(grainLengthSamples));
-        readHead.Phase01 += phaseIncrement;
-
-        if (readHead.Phase01 >= 1.0f)
-        {
-            readHead.Phase01 -= 1.0f;
-            reseedHead(readHead, 0.0f);
-        }
-    }
-
     void reseedHead(ReadHead& readHead, float offsetSamples)
     {
-        const float safeBehindSamples = static_cast<float>(grainLengthSamples) * 2.0f;
+        const float safeBehindSamples = static_cast<float>(grainLengthSamples) * 4.0f;
         const float writeIndexFloat = static_cast<float>(writeIndex);
         readHead.ReadIndex = wrapReadIndex(writeIndexFloat - safeBehindSamples + offsetSamples);
     }
@@ -376,6 +371,8 @@ private:
 
     float lastPitchRatio = 1.0f;
     float smoothedPitchRatio = 1.0f;
+
+    float crossfadePhase01 = 0.0f;
 };
 
 // Placeholder backend: currently does NO pitch shifting (passes through).
