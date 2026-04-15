@@ -94,6 +94,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
         "delayTime", "Delay Time",
         juce::NormalisableRange(0.0f, 1.0f), 0.3f)); // 300 ms default
 
+    // Delay mode
     parameterList.push_back(std::make_unique<juce::AudioParameterChoice>(
         "delayMode", "Delay Mode",
         juce::StringArray{ "ms", "nrm", "trip", "dot" }, 0));
@@ -132,7 +133,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
     // Low pass cutoff
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
         "lowPassCutoff", "Low Pass Cutoff",
-        juce::NormalisableRange(0.0f, 1.0f), 0.0f));
+        juce::NormalisableRange(0.0f, 1.0f), 1.0f));
 
     // High pass cutoff
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
