@@ -94,8 +94,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         diffusionRight->SetGlobalGain(diffusionAmount01 * 0.6f);
 
         // 1: Pre Highpass/Lowpass
-        float preLeft = inputLeft;
-        float preRight = inputRight;
+        float preLeft = inputLeft + lastFeedbackL;
+        float preRight = inputRight + lastFeedbackR;
 
         if (hplpPrePost01 < 0.5f)
         {
@@ -110,17 +110,40 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
         // Delay/Reverb
 
-        // 2: Read the raw delayed taps before any diffusion crossfades
+        // 2: Apply diffusion to the input+feedback sum BEFORE writing to delay
+        float diffusedPreLeft, diffusedPreRight;
+
+        if (diffusionAmount01 < 0.001f)
+        {
+            diffusedPreLeft = preLeft;
+            diffusedPreRight = preRight;
+        }
+        else
+        {
+            diffusedPreLeft = diffusionLeft->ProcessSample(preLeft);
+            diffusedPreRight = diffusionRight->ProcessSample(preRight);
+
+            // Crossfade between dry and diffused
+            const float fade = diffusionAmount01;
+            diffusedPreLeft = preLeft * (1.0f - fade) + diffusedPreLeft * fade;
+            diffusedPreRight = preRight * (1.0f - fade) + diffusedPreRight * fade;
+        }
+
+        // 3: Write to delay line
+        mainDelayLeft->PushSample(diffusedPreLeft);
+        mainDelayRight->PushSample(diffusedPreRight);
+
+        // 4: Read from delay line
         float delayedLeft = mainDelayLeft->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
         float delayedRight = mainDelayRight->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
 
-        // 3; Generate feedback from the raw delayed taps (damping in the loop)
+        // 5: Damping in feedback path
         const float dampedLeft = dampingLeft->ProcessSample(delayedLeft, lowpass01);
         const float dampedRight = dampingRight->ProcessSample(delayedRight, lowpass01);
 
         // 4: Process through diffusion chains.
-        const float diffusedLeft = diffusionLeft->ProcessSample(dampedLeft);
-        const float diffusedRight = diffusionRight->ProcessSample(dampedRight);
+        /*const float diffusedLeft = diffusionLeft->ProcessSample(dampedLeft);
+        const float diffusedRight = diffusionRight->ProcessSample(dampedRight);*/
 
         // 5: Progressive pitch shift (shimmer)
         /*const float pitchedFeedbackLeft = wetInputPitchShifterLeft.ProcessSample(diffusedLeft);
@@ -145,8 +168,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             wetInputPitchShifterRight.OnNewEchoBoundary();
         }*/
 
-        lastFeedbackL = diffusedLeft * feedbackGain;
-        lastFeedbackR = diffusedRight * feedbackGain;
+        lastFeedbackL = dampedLeft * feedbackGain;
+        lastFeedbackR = dampedRight * feedbackGain;
 
         // 5: Write to the main delay line: input + feedback (no diffusion-dependent lerp)
         mainDelayLeft->PushSample(preLeft + lastFeedbackL);
@@ -154,8 +177,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
         // 6: Output crossfade: morph between raw delay and diffused
         const float fade = diffusionAmount01 * 0.5f * juce::MathConstants<float>::pi;
-        const float wetLeft = PMath::EqualPowerCrossfade(delayedLeft, diffusedLeft, fade);
-        const float wetRight = PMath::EqualPowerCrossfade(delayedRight, diffusedRight, fade);
+        const float wetLeft = PMath::EqualPowerCrossfade(delayedLeft, diffusedPreLeft, fade);
+        const float wetRight = PMath::EqualPowerCrossfade(delayedRight, diffusedPreRight, fade);
 
         // 7: Stereo spread on wet
         float spreadWetLeft = wetLeft;

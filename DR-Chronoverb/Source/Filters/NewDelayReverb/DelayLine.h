@@ -38,11 +38,7 @@ public:
 
         const int size = static_cast<int>(buffer.size());
 
-        // writeIndex points to the NEXT slot to write, so the last written
-        // sample is at (writeIndex - 1). A delay of D samples means we want
-        // the sample written D samples ago: (writeIndex - 1) - D.
-        int indexA = writeIndex - 1 - delaySamples;
-        //int indexA = writeIndex - delaySamples;
+        int indexA = writeIndex - delaySamples;
 
         while (indexA < 0)
             indexA += size;
