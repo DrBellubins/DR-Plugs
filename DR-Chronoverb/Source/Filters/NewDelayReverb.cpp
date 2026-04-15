@@ -171,10 +171,6 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         lastFeedbackL = pitchedFeedbackLeft * feedbackGain;
         lastFeedbackR = pitchedFeedbackRight * feedbackGain;
 
-        // 5: Write to the main delay line: input + feedback (no diffusion-dependent lerp)
-        mainDelayLeft->PushSample(preLeft + lastFeedbackL);
-        mainDelayRight->PushSample(preRight + lastFeedbackR);
-
         // 6: Output crossfade: morph between raw delay and diffused
         const float fade = diffusionAmount01 * 0.5f * juce::MathConstants<float>::pi;
         const float wetLeft = PMath::EqualPowerCrossfade(outputLeft, diffusedPreLeft, fade);
