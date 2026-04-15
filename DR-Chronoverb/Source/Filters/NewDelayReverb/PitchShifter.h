@@ -149,8 +149,6 @@ class GranularPitchBackend : public IPitchShifterBackend
     struct ReadHead
     {
         float ReadIndex = 0.0f;
-        float Phase01 = 0.0f;
-        float OffsetSamples = 0.0f;
     };
 
 public:
@@ -164,17 +162,12 @@ public:
 
         sampleRate = newSampleRate;
 
-        // Buffer holds enough for grains + some safety.
-        // This is not "the delay time"; it is just the pitch shifter work buffer.
         const int bufferMilliseconds = 200;
         const int bufferSizeSamples = std::max(1024, static_cast<int>(std::ceil((bufferMilliseconds * sampleRate) / 1000.0)));
 
         buffer.assign(static_cast<size_t>(bufferSizeSamples), 0.0f);
 
-        // Default grain length ~ 30 ms (common starting point).
-        // You can make this parameterized later if desired.
         SetGrainLengthMilliseconds(30.0f);
-
         Reset();
     }
 
@@ -183,120 +176,111 @@ public:
         std::fill(buffer.begin(), buffer.end(), 0.0f);
 
         writeIndex = 0;
-
-        lastPitchRatio = 1.0f;
         smoothedPitchRatio = 1.0f;
 
-        headA.Phase01 = 0.0f;
-        headB.Phase01 = 0.0f;
+        // Start the two grains half a grain-length apart in phase so their
+        // crossfade windows always sum to unity.
+        grainPhaseA = 0.0f;
+        grainPhaseB = 0.5f;
 
-        headA.OffsetSamples = 0.0f;
-        headB.OffsetSamples = static_cast<float>(grainLengthSamples);
-
-        reseedHead(headA, headA.OffsetSamples);
-        reseedHead(headB, headB.OffsetSamples);
+        anchorHeadToWrite(headA);
+        anchorHeadToWrite(headB);
     }
 
     float ProcessSample(float inputSample, float pitchRatio) override
     {
         if (buffer.empty())
-        {
             return inputSample;
-        }
 
         const float clampedPitchRatio = juce::jlimit(0.25f, 4.0f, pitchRatio);
         smoothPitchRatio(clampedPitchRatio);
 
+        // Write incoming sample
         buffer[static_cast<size_t>(writeIndex)] = inputSample;
-        incrementWrite();
+        writeIndex = (writeIndex + 1) % static_cast<int>(buffer.size());
 
-        // Master crossfade phase.
-        crossfadePhase01 += (1.0f / static_cast<float>(grainLengthSamples));
-        if (crossfadePhase01 >= 1.0f)
+        const float phaseIncrement = 1.0f / static_cast<float>(grainLengthSamples);
+
+        // Advance grain A
+        const float prevPhaseA = grainPhaseA;
+        grainPhaseA += phaseIncrement;
+
+        if (grainPhaseA >= 1.0f)
         {
-            crossfadePhase01 -= 1.0f;
-
-            // At phase wrap: windowA will be ~0, windowB will be ~1.
-            // So we can safely reseed headA (the silent head).
-            reseedHead(headA, headA.OffsetSamples);
+            grainPhaseA -= 1.0f;
+            anchorHeadToWrite(headA);
         }
 
-        const float windowA = windowFadeInEqualPower(crossfadePhase01);
-        const float windowB = windowFadeOutEqualPower(crossfadePhase01);
+        // Advance grain B
+        const float prevPhaseB = grainPhaseB;
+        grainPhaseB += phaseIncrement;
 
+        if (grainPhaseB >= 1.0f)
+        {
+            grainPhaseB -= 1.0f;
+            anchorHeadToWrite(headB);
+        }
+
+        // Read from each head
         const float sampleA = readLinear(headA.ReadIndex);
         const float sampleB = readLinear(headB.ReadIndex);
 
+        // Advance read positions by the pitch ratio
         headA.ReadIndex = wrapReadIndex(headA.ReadIndex + smoothedPitchRatio);
         headB.ReadIndex = wrapReadIndex(headB.ReadIndex + smoothedPitchRatio);
+
+        // Hann windows offset by half a period guarantee unity sum:
+        // hann(phase) + hann(phase + 0.5) = 1.0
+        const float windowA = hannWindow(grainPhaseA);
+        const float windowB = hannWindow(grainPhaseB);
 
         return (sampleA * windowA) + (sampleB * windowB);
     }
 
     void SetGrainLengthMilliseconds(float newGrainLengthMilliseconds)
     {
-        const float clamped = std::max(5.0f, std::min(80.0f, newGrainLengthMilliseconds));
-        const int newSamples = std::max(16, static_cast<int>(std::round((clamped * sampleRate) / 1000.0)));
-
-        grainLengthSamples = newSamples;
-
-        // Keep read heads consistent with the new grain.
-        //reanchorReadHeads();
+        const float clamped = juce::jlimit(5.0f, 80.0f, newGrainLengthMilliseconds);
+        grainLengthSamples = std::max(16, static_cast<int>(std::round((clamped * sampleRate) / 1000.0)));
     }
 
 private:
     void smoothPitchRatio(float targetPitchRatio)
     {
-        // One-pole smoothing. Adjust coefficient to taste.
-        // Smaller coefficient => smoother but slower response.
-        const float smoothing = 0.0025f;
-
-        lastPitchRatio = targetPitchRatio;
-        smoothedPitchRatio = smoothedPitchRatio + smoothing * (targetPitchRatio - smoothedPitchRatio);
+        // Much faster coefficient — converges in ~100 samples rather than thousands.
+        const float smoothingCoefficient = 0.05f;
+        smoothedPitchRatio += smoothingCoefficient * (targetPitchRatio - smoothedPitchRatio);
     }
 
-    static float fract01(float value)
+    void anchorHeadToWrite(ReadHead& readHead)
     {
-        float out = value - std::floor(value);
-        if (out < 0.0f)
-        {
-            out += 1.0f;
-        }
-        return out;
+        // Place the read head a safe distance behind the write head.
+        // For pitch ratios up to 4x, the read head advances at most 4x per sample,
+        // so over one grain it travels grainLength * 4 samples.
+        // We need the head to never catch the write pointer during a grain's lifetime.
+        // A lookback of grainLength * (maxRatio + 1) is safe.
+        const float lookbackSamples = static_cast<float>(grainLengthSamples) * 5.0f;
+        const float writeFloat = static_cast<float>(writeIndex);
+        readHead.ReadIndex = wrapReadIndex(writeFloat - lookbackSamples);
     }
 
-    static float hann01(float phase01In)
+    static float hannWindow(float phase01)
     {
-        // Standard Hann window in [0..1]:
-        // w = 0.5 - 0.5*cos(2*pi*phase)
+        // Hann window: w(t) = 0.5 - 0.5 * cos(2 * pi * t)
+        // Key property: hann(t) + hann(t + 0.5) = 1.0 for all t.
         const float twoPi = 2.0f * juce::MathConstants<float>::pi;
-        return 0.5f - 0.5f * std::cos(twoPi * phase01In);
-    }
-
-    void incrementWrite()
-    {
-        ++writeIndex;
-        if (writeIndex >= static_cast<int>(buffer.size()))
-        {
-            writeIndex = 0;
-        }
+        return 0.5f - 0.5f * std::cos(twoPi * phase01);
     }
 
     float wrapReadIndex(float index) const
     {
         const float size = static_cast<float>(buffer.size());
-
         float out = index;
 
         while (out < 0.0f)
-        {
             out += size;
-        }
 
         while (out >= size)
-        {
             out -= size;
-        }
 
         return out;
     }
@@ -304,61 +288,14 @@ private:
     float readLinear(float readIndexFloat) const
     {
         const int size = static_cast<int>(buffer.size());
-
         const float wrapped = wrapReadIndex(readIndexFloat);
 
         const int index0 = static_cast<int>(std::floor(wrapped));
         const int index1 = (index0 + 1) % size;
-
         const float fraction = wrapped - static_cast<float>(index0);
 
-        const float sample0 = buffer[static_cast<size_t>(index0)];
-        const float sample1 = buffer[static_cast<size_t>(index1)];
-
-        return sample0 + (sample1 - sample0) * fraction;
-    }
-
-    void reseedHead(ReadHead& readHead, float offsetSamples)
-    {
-        const float safeBehindSamples = static_cast<float>(grainLengthSamples) * 4.0f;
-        const float writeIndexFloat = static_cast<float>(writeIndex);
-        readHead.ReadIndex = wrapReadIndex(writeIndexFloat - safeBehindSamples + offsetSamples);
-    }
-
-    static float windowFadeInOut(float phase01)
-    {
-        // phase01 in [0..1].
-        // Use equal-power style:
-        // - first half fades in
-        // - second half fades out
-        const float clamped = juce::jlimit(0.0f, 1.0f, phase01);
-
-        if (clamped < 0.5f)
-        {
-            const float t = clamped * 2.0f; // 0..1
-            const float s = std::sin(0.5f * juce::MathConstants<float>::pi * t);
-            return s * s;
-        }
-        else
-        {
-            const float t = (clamped - 0.5f) * 2.0f; // 0..1
-            const float c = std::cos(0.5f * juce::MathConstants<float>::pi * t);
-            return c * c;
-        }
-    }
-
-    static float windowFadeInEqualPower(float phase01)
-    {
-        const float clamped = juce::jlimit(0.0f, 1.0f, phase01);
-        const float s = std::sin(0.5f * juce::MathConstants<float>::pi * clamped);
-        return s * s;
-    }
-
-    static float windowFadeOutEqualPower(float phase01)
-    {
-        const float clamped = juce::jlimit(0.0f, 1.0f, phase01);
-        const float c = std::cos(0.5f * juce::MathConstants<float>::pi * clamped);
-        return c * c;
+        return buffer[static_cast<size_t>(index0)] * (1.0f - fraction)
+             + buffer[static_cast<size_t>(index1)] * fraction;
     }
 
     double sampleRate = 48000.0;
@@ -366,15 +303,15 @@ private:
     std::vector<float> buffer;
     int writeIndex = 0;
 
-    int grainLengthSamples = 1440; // ~30 ms @ 48k
+    int grainLengthSamples = 1440;
 
     ReadHead headA;
     ReadHead headB;
 
-    float lastPitchRatio = 1.0f;
-    float smoothedPitchRatio = 1.0f;
+    float grainPhaseA = 0.0f;
+    float grainPhaseB = 0.5f;
 
-    float crossfadePhase01 = 0.0f;
+    float smoothedPitchRatio = 1.0f;
 };
 
 // Placeholder backend: currently does NO pitch shifting (passes through).
