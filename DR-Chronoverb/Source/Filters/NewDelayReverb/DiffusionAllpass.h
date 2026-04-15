@@ -69,13 +69,13 @@ public:
     {
         // Slew-limit to avoid zipper noise in fractional interpolation
         const float maxDelta = 0.05f; // Slower slewing for smoother changes
-        const float delta = juce::jlimit(-maxDelta, maxDelta, newDelaySamples - currentDelaySamples);
+        const float delta = juce::jlimit<float>(-maxDelta, maxDelta, newDelaySamples - currentDelaySamples);
         currentDelaySamples += delta;
 
         // Bound between 1 and buffer size - 3
         const float minD = 1.0f;
         const float maxD = static_cast<float>(std::max(4, static_cast<int>(inputBuffer.size()) - 3));
-        currentDelaySamples = juce::jlimit(minD, maxD, currentDelaySamples);
+        currentDelaySamples = juce::jlimit<float>(minD, maxD, currentDelaySamples);
     }
 
     void SetDelayMilliseconds(float newDelayMs)
