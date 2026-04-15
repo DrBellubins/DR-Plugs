@@ -123,7 +123,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float diffusedRight = diffusionRight->ProcessSample(dampedRight);
 
         // 5: Progressive pitch shift (shimmer)
-        const float pitchedFeedbackLeft = wetInputPitchShifterLeft.ProcessSample(diffusedLeft);
+        /*const float pitchedFeedbackLeft = wetInputPitchShifterLeft.ProcessSample(diffusedLeft);
         const float pitchedFeedbackRight = wetInputPitchShifterRight.ProcessSample(diffusedRight);
 
         // Advance echo boundary counters
@@ -143,10 +143,10 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         {
             echoSampleCounterR = 0;
             wetInputPitchShifterRight.OnNewEchoBoundary();
-        }
+        }*/
 
-        lastFeedbackL = pitchedFeedbackLeft * feedbackGain;
-        lastFeedbackR = pitchedFeedbackRight * feedbackGain;
+        lastFeedbackL = diffusedLeft * feedbackGain;
+        lastFeedbackR = diffusedRight * feedbackGain;
 
         // 5: Write to the main delay line: input + feedback (no diffusion-dependent lerp)
         mainDelayLeft->PushSample(preLeft + lastFeedbackL);
