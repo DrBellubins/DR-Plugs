@@ -30,6 +30,12 @@ public:
         SetDelayMilliseconds(delayMilliseconds);
         SetGain(gain);
         ensureBufferSize();
+
+        // Snap fractional delay state immediately so the slew limiter in
+        // SetCurrentDelaySamples does not ramp from the 2400-sample default.
+        delaySamplesInteger  = delaySamples;
+        currentDelaySamples  = static_cast<float>(delaySamples);
+
         Clear();
     }
 
@@ -57,9 +63,13 @@ public:
     // Set a base delay in milliseconds once (Configure calls this).
     void SetBaseDelayMilliseconds(float newDelayMs)
     {
-        delayMs = std::max(1.0f, newDelayMs);
-        delaySamplesInteger = static_cast<int>(std::floor((delayMs * sr) / 1000.0));
+        delayMs              = std::max(1.0f, newDelayMs);
+        delaySamplesInteger  = static_cast<int>(std::floor((delayMs * sr) / 1000.0));
         ensureBufferSize();
+
+        // Always snap both; callers that want a gentle slew should call
+        // SetCurrentDelaySamples afterwards.
+        delaySamples        = delaySamplesInteger;
         currentDelaySamples = static_cast<float>(delaySamplesInteger);
     }
 
