@@ -219,8 +219,11 @@ public:
         }
 
         // Read from each head
-        const float sampleA = readLinear(headA.ReadIndex);
-        const float sampleB = readLinear(headB.ReadIndex);
+        //const float sampleA = readLinear(headA.ReadIndex);
+        //const float sampleB = readLinear(headB.ReadIndex);
+
+        const float sampleA = readCubic(headA.ReadIndex);
+        const float sampleB = readCubic(headB.ReadIndex);
 
         // Advance read positions by the pitch ratio
         headA.ReadIndex = wrapReadIndex(headA.ReadIndex + smoothedPitchRatio);
@@ -299,6 +302,30 @@ private:
 
         return buffer[static_cast<size_t>(index0)] * (1.0f - fraction)
              + buffer[static_cast<size_t>(index1)] * fraction;
+    }
+
+    float readCubic(float readIndexFloat) const
+    {
+        const int size = static_cast<int>(buffer.size());
+        const float wrapped = wrapReadIndex(readIndexFloat);
+        const int index1 = static_cast<int>(std::floor(wrapped));
+        const float frac  = wrapped - static_cast<float>(index1);
+
+        const int index0 = (index1 - 1 + size) % size;
+        const int index2 = (index1 + 1)         % size;
+        const int index3 = (index1 + 2)         % size;
+
+        const float y0 = buffer[static_cast<size_t>(index0)];
+        const float y1 = buffer[static_cast<size_t>(index1)];
+        const float y2 = buffer[static_cast<size_t>(index2)];
+        const float y3 = buffer[static_cast<size_t>(index3)];
+
+        const float a0 = -0.5f * y0 + 1.5f * y1 - 1.5f * y2 + 0.5f * y3;
+        const float a1 =         y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
+        const float a2 = -0.5f * y0              + 0.5f * y2;
+        const float a3 =                    y1;
+
+        return ((a0 * frac + a1) * frac + a2) * frac + a3;
     }
 
     double sampleRate = 48000.0;
@@ -560,6 +587,8 @@ private:
     float smoothedPitchRatio = 1.0f;
 };*/
 
+
+
 // Placeholder backend: currently does NO pitch shifting (passes through).
 // This lets you wire the architecture now and drop in a real algorithm later.
 class PassthroughPitchBackend : public IPitchShifterBackend
@@ -586,14 +615,14 @@ public:
     OctaveEchoPitchShifter()
     {
         auto Backend = std::make_unique<GranularPitchBackend>();
-        Backend->SetGrainLengthMilliseconds(60.0f);
+        Backend->SetGrainLengthMilliseconds(150.0f);
 
         //auto ConstantSequence = std::make_unique<ConstantRatioSequence>();
         //ConstantSequence->SetPitchRatio(2.0f); // very obvious
 
         auto Progressive = std::make_unique<ProgressiveOctaveSequence>();
         Progressive->SetStepOctaves(1);      // +1 octave per echo (use -1 for downward)
-        Progressive->SetMaxAbsOctaves(4);    // clamp at ±4 octaves (48 semitones)
+        Progressive->SetMaxAbsOctaves(2);    // clamp at ±4 octaves (48 semitones)
 
         SetSequence(std::move(Progressive));
         SetBackend(std::move(Backend));
