@@ -212,6 +212,43 @@ public:
         tpdfNoiseSeedB.assign(effectiveStages, rand());
     }
 
+    // Reverb-quality tuning: longer, prime-spaced delays for lush modal density.
+    // Use this for the reverb diffusion path instead of Configure().
+    void ConfigureAsReverb(int numberOfStages, float size01)
+    {
+        cachedStageCount = std::max(1, numberOfStages);
+        cachedSize01 = std::max(0.0f, std::min(1.0f, size01));
+
+        stages.clear();
+        stages.reserve(static_cast<size_t>(cachedStageCount));
+        perStageDelayMs.clear();
+
+        // Prime-spaced, longer delays for dense reverb diffusion.
+        // Total at size=0 (scale 0.25): ~146ms. At size=1: ~584ms.
+        // These avoid common factors to prevent comb-filter clustering.
+        std::vector<float> reverbBaseDelays = { 29.0f, 37.0f, 43.0f, 53.0f, 71.0f, 89.0f, 113.0f, 149.0f };
+
+        int effectiveStages = std::min(cachedStageCount, static_cast<int>(reverbBaseDelays.size()));
+
+        for (int stageIndex = 0; stageIndex < effectiveStages; ++stageIndex)
+        {
+            float baseMilliseconds = reverbBaseDelays[stageIndex];
+            float scaledMilliseconds = baseMilliseconds * (0.25f + 0.75f * cachedSize01);
+
+            auto diffusionStage = std::make_unique<DiffusionAllpass>();
+            diffusionStage->Prepare(sampleRate);
+            diffusionStage->Configure(scaledMilliseconds, 0.7f);
+            stages.push_back(std::move(diffusionStage));
+            perStageDelayMs.push_back(scaledMilliseconds);
+        }
+
+        jitterLPState.assign(effectiveStages, 0.0f);
+        jitterDepthPercent.assign(effectiveStages, 0.003f);
+        jitterRateHz.assign(effectiveStages, 0.10f + 0.20f * random01());
+        tpdfNoiseSeedA.assign(effectiveStages, rand());
+        tpdfNoiseSeedB.assign(effectiveStages, rand());
+    }
+
     // Process a single sample through the diffusion chain.
     float ProcessSample(float inputSample)
     {

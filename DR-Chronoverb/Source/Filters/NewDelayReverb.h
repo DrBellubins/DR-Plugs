@@ -122,6 +122,10 @@ private:
     juce::dsp::IIR::Filter<float> highpassL;
     juce::dsp::IIR::Filter<float> highpassR;
 
+    float smoothedPreWriteBlend     = 0.0f;
+    float smoothedDelayReverbDiffBlend = 0.0f;
+    float kBlendSlewCoeff = 0.0f;
+
     // Temporary per-sample state
     float lastFeedbackL = 0.0f;
     float lastFeedbackR = 0.0f;
