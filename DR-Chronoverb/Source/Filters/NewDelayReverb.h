@@ -88,8 +88,9 @@ private:
     float smoothedCenteredReadDelayMilliseconds = 1.0f;
     float readDelaySlewCoefficient = 0.0f;
 
-    float centeredSwellRatio = 0.5f;          // 0.5 = symmetric target around nominal tap
-    float diffusionCompensationBias = 1.15f;   // >1.0 makes pre-swell longer (start with 1.15)
+    // TODO: This does not swell equally before/after nominal tap (shorter).
+    float centeredSwellRatio = 0.25f;          // 0.5 = symmetric target around nominal tap
+    float diffusionCompensationBias = 2.0f;   // >1.0 makes pre-swell longer (start with 1.15)
 
     float dryWet01 = 0.5f;
 
