@@ -381,7 +381,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
         const float earlyWetLeft = mainDelayLeft->ReadDelayMilliseconds(earlyReadMilliseconds, sampleRate);
         const float earlyWetRight = mainDelayRight->ReadDelayMilliseconds(earlyReadMilliseconds, sampleRate);
-        
+
         // Diffuse early branch only
         const float diffusedEarlyLeft = delayDiffusionLeft->ProcessSample(earlyWetLeft);
         const float diffusedEarlyRight = delayDiffusionRight->ProcessSample(earlyWetRight);
@@ -585,7 +585,8 @@ void NewDelayReverb::rebuildDiffusionIfNeeded()
         }
     }
 
-    staticDiffusionCompensationMilliseconds = totalDelayDiffusionMilliseconds * centeredSwellRatio;
+    const float baseCompensation = totalDelayDiffusionMilliseconds * centeredSwellRatio;
+    staticDiffusionCompensationMilliseconds = baseCompensation * diffusionCompensationBias;
 }
 
 void NewDelayReverb::updateFeedbackGainFromFeedbackTime()
