@@ -95,6 +95,8 @@ private:
 
     float pitchShifterLatencyMs = 0.0f;
 
+    std::atomic<bool> filterRebuildPending { false };
+
     // Set by setters; consumed at block start on audio thread
     std::atomic<bool> diffusionRebuildPending { false };
 

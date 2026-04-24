@@ -43,7 +43,8 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     updateFeedbackGainFromFeedbackTime();
 
     // Initialize HP/LP filters
-    updateFilters();
+    if (filterRebuildPending.exchange(false, std::memory_order_acq_rel))
+        updateFilters();
 
     // Spread setup
     updateStereoSpread();
@@ -103,7 +104,14 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         float outputLeft  = mainDelayLeft->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
         float outputRight = mainDelayRight->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
 
-        // 4: Apply diffusion to the delayed OUTPUT, not the feedback-summed input
+        // 4: Feedback from UNDIFFUSED output (clean delay loop)
+        const float dampedFeedbackLeft  = dampingLeft->ProcessSample(outputLeft,  lowpass01);
+        const float dampedFeedbackRight = dampingRight->ProcessSample(outputRight, lowpass01);
+
+        lastFeedbackL = dampedFeedbackLeft  * feedbackGain;
+        lastFeedbackR = dampedFeedbackRight * feedbackGain;
+
+        // 5: Apply diffusion ONLY to the output tap (cosmetic scatter, never fed back)
         float diffusedLeft  = outputLeft;
         float diffusedRight = outputRight;
 
@@ -117,11 +125,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             diffusedRight = outputRight * (1.0f - fade) + diffusedRight * fade;
         }
 
-        // 5: Damping in feedback path
-        const float dampedLeft = dampingLeft->ProcessSample(diffusedLeft, lowpass01);
-        const float dampedRight = dampingRight->ProcessSample(diffusedRight, lowpass01);
-
-        // 5: Progressive pitch shift (shimmer)
+        // 6: Progressive pitch shift (shimmer)
         //const float pitchedFeedbackLeft = wetInputPitchShifterLeft.ProcessSample(dampedLeft);
         //const float pitchedFeedbackRight = wetInputPitchShifterRight.ProcessSample(dampedRight);
 
@@ -144,17 +148,14 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             wetInputPitchShifterRight.OnNewEchoBoundary();
         }
 
-        lastFeedbackL = dampedLeft * feedbackGain;
-        lastFeedbackR = dampedRight * feedbackGain;
-
-        // 6: Output crossfade: morph between raw delay and diffused
+        // 7: Output crossfade: morph between raw delay and diffused
         const float fade = diffusionAmount01 * 0.5f * juce::MathConstants<float>::pi;
         //const float wetLeft = PMath::EqualPowerCrossfade(outputLeft, dampedLeft, fade);
         //const float wetRight = PMath::EqualPowerCrossfade(outputRight, dampedRight, fade);
         const float wetLeft  = diffusedLeft;
         const float wetRight = diffusedRight;
 
-        // 7: Stereo spread on wet
+        // 8: Stereo spread on wet
         float spreadWetLeft = wetLeft;
         float spreadWetRight = wetRight;
 
@@ -181,11 +182,11 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             }
         }
 
-        // 8: Dry/Wet mix
+        // 9: Dry/Wet mix
         float outLeft = PMath::EqualPowerCrossfade(inputLeft, spreadWetLeft, dryWet01);
         float outRight = PMath::EqualPowerCrossfade(inputRight, spreadWetRight, dryWet01);
 
-        // 9: Pre Highpass/Lowpass
+        // 10: Pre Highpass/Lowpass
         if (hplpPrePost01 >= 0.5f)
         {
             outLeft = highpassL.processSample(outLeft);
@@ -239,13 +240,13 @@ void NewDelayReverb::SetDryWetMix(float newDryWet01)
 void NewDelayReverb::SetLowpassCutoff(float newLowpass01)
 {
     lowpass01 = clamp01(newLowpass01);
-    updateFilters();
+    filterRebuildPending.store(true, std::memory_order_release);
 }
 
 void NewDelayReverb::SetHighpassCutoff(float newHighpass01)
 {
     highpass01 = clamp01(newHighpass01);
-    updateFilters();
+    filterRebuildPending.store(true, std::memory_order_release);
 }
 
 void NewDelayReverb::SetStereoSpread(float newSpreadMinus1To1)
