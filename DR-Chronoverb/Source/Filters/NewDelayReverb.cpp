@@ -103,7 +103,7 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     mainDelayRight->Clear();
 }
 
-void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
+/*void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 {
     const int numChannels = audioBuffer.getNumChannels();
     const int numSamples = audioBuffer.getNumSamples();
@@ -294,6 +294,170 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
         if (rightData != nullptr)
             rightData[sampleIndex] = outRight;
+    }
+}*/
+
+void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
+{
+    const int numChannels = audioBuffer.getNumChannels();
+    const int numSamples = audioBuffer.getNumSamples();
+
+    if (numChannels < 1 || numSamples <= 0)
+    {
+        return;
+    }
+
+    if (diffusionRebuildPending.exchange(false, std::memory_order_acq_rel))
+    {
+        rebuildDiffusionIfNeeded();
+    }
+
+    if (filterRebuildPending.exchange(false, std::memory_order_acq_rel))
+    {
+        updateFilters();
+    }
+
+    float* leftData = audioBuffer.getWritePointer(0);
+    float* rightData = (numChannels > 1 ? audioBuffer.getWritePointer(1) : nullptr);
+
+    pitchShifterLatencyMs = wetInputPitchShifterLeft.GetLatencyMilliseconds();
+
+    for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
+    {
+        const float dryLeft = leftData[sampleIndex];
+        const float dryRight = (rightData != nullptr ? rightData[sampleIndex] : dryLeft);
+
+        // Smooth diffusion amount for automation safety
+        smoothedDelayReverbDiffBlend += kBlendSlewCoeff * (diffusionAmount01 - smoothedDelayReverbDiffBlend);
+        const float diffusionAmountSmoothed = juce::jlimit(0.0f, 1.0f, smoothedDelayReverbDiffBlend);
+
+        // 1: Optional pre filtering on dry
+        float filteredDryLeft = dryLeft;
+        float filteredDryRight = dryRight;
+
+        if (hplpPrePost01 < 0.5f)
+        {
+            filteredDryLeft = highpassL.processSample(filteredDryLeft);
+            filteredDryLeft = lowpassL.processSample(filteredDryLeft);
+
+            filteredDryRight = highpassR.processSample(filteredDryRight);
+            filteredDryRight = lowpassR.processSample(filteredDryRight);
+        }
+
+        // 2: Input + feedback
+        const float preLeft = filteredDryLeft + lastFeedbackL;
+        const float preRight = filteredDryRight + lastFeedbackR;
+
+        // 3: Delay-path diffusion before write (delay chain only for now)
+        float writeLeft = preLeft;
+        float writeRight = preRight;
+
+        if (diffusionAmountSmoothed > 0.0001f)
+        {
+            const float delayDiffusedLeft = delayDiffusionLeft->ProcessSample(preLeft);
+            const float delayDiffusedRight = delayDiffusionRight->ProcessSample(preRight);
+
+            // Equal-power blend to maintain energy while introducing smear
+            const float cleanWriteGain = std::cos(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
+            const float diffusedWriteGain = std::sin(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
+
+            writeLeft = preLeft * cleanWriteGain + delayDiffusedLeft * diffusedWriteGain;
+            writeRight = preRight * cleanWriteGain + delayDiffusedRight * diffusedWriteGain;
+        }
+
+        // 4: Write
+        mainDelayLeft->PushSample(writeLeft);
+        mainDelayRight->PushSample(writeRight);
+
+        // 5: FIXED read (never offset by diffusion amount)
+        const float nominalWetLeft = mainDelayLeft->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
+        const float nominalWetRight = mainDelayRight->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
+
+        // 6: Build "swell branch" by diffusing the nominal tap
+        const float swellWetLeft = delayDiffusionLeft->ProcessSample(nominalWetLeft);
+        const float swellWetRight = delayDiffusionRight->ProcessSample(nominalWetRight);
+
+        // Strong nominal suppression in mid diffusion so clean tap does not sit on top
+        const float nominalBase = std::cos(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
+        const float nominalGain = nominalBase * nominalBase * nominalBase;
+        const float swellGain = std::sin(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
+
+        float wetLeft = nominalWetLeft * nominalGain + swellWetLeft * swellGain;
+        float wetRight = nominalWetRight * nominalGain + swellWetRight * swellGain;
+
+        // 7: Damping + feedback from composite wet (keeps loop behavior consistent with diffusion)
+        const float dampedLeft = dampingLeft->ProcessSample(wetLeft, lowpass01);
+        const float dampedRight = dampingRight->ProcessSample(wetRight, lowpass01);
+
+        lastFeedbackL = dampedLeft * feedbackGain;
+        lastFeedbackR = dampedRight * feedbackGain;
+
+        // Echo boundary counters (unchanged)
+        const int delaySamplesInt = static_cast<int>(std::round((delayMilliseconds * sampleRate) / 1000.0));
+
+        ++echoSampleCounterL;
+
+        if (echoSampleCounterL >= delaySamplesInt)
+        {
+            echoSampleCounterL = 0;
+            wetInputPitchShifterLeft.OnNewEchoBoundary();
+        }
+
+        ++echoSampleCounterR;
+
+        if (echoSampleCounterR >= delaySamplesInt)
+        {
+            echoSampleCounterR = 0;
+            wetInputPitchShifterRight.OnNewEchoBoundary();
+        }
+
+        // 8: Stereo spread
+        float spreadWetLeft = wetLeft;
+        float spreadWetRight = wetRight;
+
+        const float spread = juce::jlimit(-1.0f, 1.0f, stereoSpreadMinus1To1);
+
+        if (std::abs(spread) > 0.0001f)
+        {
+            const float widen = std::max(0.0f, spread);
+            const float narrow = std::max(0.0f, -spread);
+
+            if (widen > 0.0f)
+            {
+                const float cross = widen * 0.25f;
+                const float newLeft = spreadWetLeft - cross * spreadWetRight;
+                const float newRight = spreadWetRight - cross * spreadWetLeft;
+                spreadWetLeft = newLeft;
+                spreadWetRight = newRight;
+            }
+            else if (narrow > 0.0f)
+            {
+                const float mono = 0.5f * (spreadWetLeft + spreadWetRight);
+                spreadWetLeft = spreadWetLeft * (1.0f - narrow) + mono * narrow;
+                spreadWetRight = spreadWetRight * (1.0f - narrow) + mono * narrow;
+            }
+        }
+
+        // 9: Dry/Wet
+        float outputLeft = PMath::EqualPowerCrossfade(dryLeft, spreadWetLeft, dryWet01);
+        float outputRight = PMath::EqualPowerCrossfade(dryRight, spreadWetRight, dryWet01);
+
+        // 10: Optional post filtering
+        if (hplpPrePost01 >= 0.5f)
+        {
+            outputLeft = highpassL.processSample(outputLeft);
+            outputLeft = lowpassL.processSample(outputLeft);
+
+            outputRight = highpassR.processSample(outputRight);
+            outputRight = lowpassR.processSample(outputRight);
+        }
+
+        leftData[sampleIndex] = outputLeft;
+
+        if (rightData != nullptr)
+        {
+            rightData[sampleIndex] = outputRight;
+        }
     }
 }
 
