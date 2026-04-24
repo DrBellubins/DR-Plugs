@@ -98,6 +98,9 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
 
     kBlendSlewCoeff = 1.0f / (0.01f * static_cast<float>(sampleRate));
 
+    smoothedCenteredReadDelayMilliseconds = delayMilliseconds;
+    readDelaySlewCoefficient = 1.0f / (0.02f * static_cast<float>(sampleRate)); // 20 ms smoothing
+
     // Clear delay lines
     mainDelayLeft->Clear();
     mainDelayRight->Clear();
@@ -348,7 +351,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float preLeft = filteredDryLeft + lastFeedbackL;
         const float preRight = filteredDryRight + lastFeedbackR;
 
-        // 3: Delay-path diffusion before write (delay chain only for now)
+        // 3: Delay-path diffusion before write only
         float writeLeft = preLeft;
         float writeRight = preRight;
 
@@ -357,7 +360,6 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             const float delayDiffusedLeft = delayDiffusionLeft->ProcessSample(preLeft);
             const float delayDiffusedRight = delayDiffusionRight->ProcessSample(preRight);
 
-            // Equal-power blend to maintain energy while introducing smear
             const float cleanWriteGain = std::cos(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
             const float diffusedWriteGain = std::sin(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
 
@@ -369,21 +371,18 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         mainDelayLeft->PushSample(writeLeft);
         mainDelayRight->PushSample(writeRight);
 
-        // 5: FIXED read (never offset by diffusion amount)
-        const float nominalWetLeft = mainDelayLeft->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
-        const float nominalWetRight = mainDelayRight->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
+        // 5: Center smear around nominal tap with smoothed, compensated read
+        const float halfDiffusionMilliseconds = 0.5f * totalDelayDiffusionMilliseconds * diffusionAmountSmoothed;
+        const float targetCenteredReadDelayMilliseconds = std::max(1.0f, delayMilliseconds - halfDiffusionMilliseconds);
 
-        // 6: Build "swell branch" by diffusing the nominal tap
-        const float swellWetLeft = delayDiffusionLeft->ProcessSample(nominalWetLeft);
-        const float swellWetRight = delayDiffusionRight->ProcessSample(nominalWetRight);
+        smoothedCenteredReadDelayMilliseconds +=
+            readDelaySlewCoefficient * (targetCenteredReadDelayMilliseconds - smoothedCenteredReadDelayMilliseconds);
 
-        // Strong nominal suppression in mid diffusion so clean tap does not sit on top
-        const float nominalBase = std::cos(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
-        const float nominalGain = nominalBase * nominalBase * nominalBase;
-        const float swellGain = std::sin(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
+        const float centeredReadDelayMilliseconds = std::max(1.0f, smoothedCenteredReadDelayMilliseconds);
 
-        float wetLeft = nominalWetLeft * nominalGain + swellWetLeft * swellGain;
-        float wetRight = nominalWetRight * nominalGain + swellWetRight * swellGain;
+        // Read only once, no post-read diffusion branch
+        float wetLeft = mainDelayLeft->ReadDelayMilliseconds(centeredReadDelayMilliseconds, sampleRate);
+        float wetRight = mainDelayRight->ReadDelayMilliseconds(centeredReadDelayMilliseconds, sampleRate);
 
         // 7: Damping + feedback from composite wet (keeps loop behavior consistent with diffusion)
         const float dampedLeft = dampingLeft->ProcessSample(wetLeft, lowpass01);
@@ -533,7 +532,6 @@ void NewDelayReverb::updateDelayMillisecondsFromNormalized()
 
 void NewDelayReverb::rebuildDiffusionIfNeeded()
 {
-    // Only rebuild if something actually changed
     if (diffusionQualityStages == lastBuiltQualityStages
         && diffusionSize01 == lastBuiltSize01)
     {
@@ -543,17 +541,35 @@ void NewDelayReverb::rebuildDiffusionIfNeeded()
     lastBuiltQualityStages = diffusionQualityStages;
     lastBuiltSize01 = diffusionSize01;
 
-    if (delayDiffusionLeft)
+    if (delayDiffusionLeft != nullptr)
+    {
         delayDiffusionLeft->Configure(diffusionQualityStages, diffusionSize01);
+    }
 
-    if (delayDiffusionRight)
+    if (delayDiffusionRight != nullptr)
+    {
         delayDiffusionRight->Configure(diffusionQualityStages, diffusionSize01);
+    }
 
-    if (reverbDiffusionLeft)
+    if (reverbDiffusionLeft != nullptr)
+    {
         reverbDiffusionLeft->ConfigureAsReverb(diffusionQualityStages, diffusionSize01);
+    }
 
-    if (reverbDiffusionRight)
+    if (reverbDiffusionRight != nullptr)
+    {
         reverbDiffusionRight->ConfigureAsReverb(diffusionQualityStages, diffusionSize01);
+    }
+
+    totalDelayDiffusionMilliseconds = 0.0f;
+
+    if (delayDiffusionLeft != nullptr)
+    {
+        for (float stageDelayMilliseconds : delayDiffusionLeft->perStageDelayMs)
+        {
+            totalDelayDiffusionMilliseconds += stageDelayMilliseconds;
+        }
+    }
 }
 
 void NewDelayReverb::updateFeedbackGainFromFeedbackTime()
