@@ -94,7 +94,14 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         float preRight = inputRight + lastFeedbackR;
 
         // Pre HP/LP (unchanged)
-        if (hplpPrePost01 < 0.5f) { /* ... */ }
+        if (hplpPrePost01 < 0.5f)
+        {
+            preLeft = highpassL.processSample(preLeft);
+            preLeft = lowpassL.processSample(preLeft);
+
+            preRight = highpassR.processSample(preRight);
+            preRight = lowpassR.processSample(preRight);
+        }
 
         // 2: Write the clean (un-diffused) pre-sum directly to the delay line
         mainDelayLeft->PushSample(preLeft);
@@ -149,7 +156,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         }
 
         // 7: Output crossfade: morph between raw delay and diffused
-        const float fade = diffusionAmount01 * 0.5f * juce::MathConstants<float>::pi;
+        //const float fade = diffusionAmount01 * 0.5f * juce::MathConstants<float>::pi;
         //const float wetLeft = PMath::EqualPowerCrossfade(outputLeft, dampedLeft, fade);
         //const float wetRight = PMath::EqualPowerCrossfade(outputRight, dampedRight, fade);
         const float wetLeft  = diffusedLeft;
