@@ -45,10 +45,126 @@ public:
         sampleRate = newSampleRate;
     }
 
+    void Configure(int numberOfStages, float size01)
+    {
+        cachedStageCount = std::max(1, numberOfStages);
+        cachedSize01 = std::max(0.0f, std::min(1.0f, size01));
+
+        stages.clear();
+        perStageDelayMs.clear();
+
+        // Original 4 base delays (always used, even at quality 4)
+        //std::vector<float> coreDelays = {10.0f, 22.5f, 50.6f, 113.9f};
+        //std::vector<float> coreDelays = {47.0f, 71.0f, 79.0f, 97.0f};
+
+        std::vector<float> coreDelays = {5.0f, 17.0f, 47.0f, 71.0f};
+        //std::vector tunedBaseDelays = {5.0f, 11.0f, 17.0f, 23.0f, 47.0f, 67.0f, 71.0f, 73.0f};
+        //std::vector tunedBaseDelays = {10.0f, 15.0f, 22.5f, 33.75f, 50.6f, 75.9f, 113.9f, 170.8f};
+
+        // Scale by size
+        for (float& delayMs : coreDelays)
+            delayMs *= (0.25f + 0.75f * cachedSize01);
+
+        // If quality > 4, insert intermediate delays between existing ones
+        std::vector<float> finalDelays = coreDelays;
+
+        while (static_cast<int>(finalDelays.size()) < cachedStageCount && finalDelays.size() > 1)
+        {
+            std::vector<float> interpolated;
+
+            for (size_t i = 0; i < finalDelays.size() - 1; ++i)
+            {
+                interpolated.push_back(finalDelays[i]);
+
+                // Insert midpoint between current and next
+                float midpoint = (finalDelays[i] + finalDelays[i + 1]) * 0.5f;
+                interpolated.push_back(midpoint);
+            }
+
+            interpolated.push_back(finalDelays.back());
+            finalDelays = interpolated;
+        }
+
+        // Trim to exact stage count
+        finalDelays.resize(cachedStageCount);
+
+        // Create stages
+        for (int stageIndex = 0; stageIndex < cachedStageCount; ++stageIndex)
+        {
+            float stageDelayMs = finalDelays[stageIndex];
+            float stageGain = 0.7f;
+
+            auto diffusionStage = std::make_unique<DiffusionAllpass>();
+            diffusionStage->Prepare(sampleRate);
+            diffusionStage->Configure(stageDelayMs, stageGain);
+            stages.push_back(std::move(diffusionStage));
+            perStageDelayMs.push_back(stageDelayMs);
+        }
+
+        // Jitter state (unchanged)
+        jitterLPState.assign(cachedStageCount, 0.0f);
+        jitterDepthPercent.assign(cachedStageCount, 0.005f);
+        jitterRateHz.assign(cachedStageCount, 0.20f + 0.30f * random01());
+        tpdfNoiseSeedA.assign(cachedStageCount, rand());
+        tpdfNoiseSeedB.assign(cachedStageCount, rand());
+    }
+
+    /*void Configure(int numberOfStages, float size01)
+    {
+        cachedStageCount = std::max(1, numberOfStages);
+        cachedSize01 = std::max(0.0f, std::min(1.0f, size01));
+
+        stages.clear();
+        stages.reserve(static_cast<size_t>(cachedStageCount));
+        perStageDelayMs.clear();
+
+        // Fixed total diffusion time (scaled by size)
+        const float baseTotalDiffusionMs = 300.0f; // Adjust to taste (50-300ms typical)
+        const float totalDiffusionMs = baseTotalDiffusionMs * (0.25f + 0.75f * cachedSize01);
+
+        // Distribute delays across stages using prime-ish spacing for incoherence
+        // Strategy: Use a Fibonacci-like or exponential sequence normalized to fit totalDiffusionMs
+        std::vector<float> normalizedWeights;
+
+        // Example: Exponential spacing (earlier stages shorter, later stages longer)
+        float sum = 0.0f;
+        for (int stageIndex = 0; stageIndex < cachedStageCount; ++stageIndex)
+        {
+            // Exponential growth: weight = 1.5^stageIndex
+            float weight = std::pow(1.5f, static_cast<float>(stageIndex));
+            normalizedWeights.push_back(weight);
+            sum += weight;
+        }
+
+        // Normalize weights to sum to 1.0
+        for (float& weight : normalizedWeights)
+            weight /= sum;
+
+        // Assign delays
+        for (int stageIndex = 0; stageIndex < cachedStageCount; ++stageIndex)
+        {
+            float stageDelayMs = totalDiffusionMs * normalizedWeights[stageIndex];
+            float stageGain = 0.7f;
+
+            auto diffusionStage = std::make_unique<DiffusionAllpass>();
+            diffusionStage->Prepare(sampleRate);
+            diffusionStage->Configure(stageDelayMs, stageGain);
+            stages.push_back(std::move(diffusionStage));
+            perStageDelayMs.push_back(stageDelayMs);
+        }
+
+        // Per-stage jitter state (unchanged from your existing code)
+        jitterLPState.assign(cachedStageCount, 0.0f);
+        jitterDepthPercent.assign(cachedStageCount, 0.005f);
+        jitterRateHz.assign(cachedStageCount, 0.20f + 0.30f * random01());
+        tpdfNoiseSeedA.assign(cachedStageCount, rand());
+        tpdfNoiseSeedB.assign(cachedStageCount, rand());
+    }*/
+
     // Configure the chain with a given number of stages and size scaling factor.
     // - numberOfStages: 1..8, tune delays per all-pass filter.
     // - size01: 0..1 scales the per-stage delay milliseconds.
-    void Configure(int numberOfStages, float size01)
+    /*void Configure(int numberOfStages, float size01)
     {
         cachedStageCount = std::max(1, numberOfStages);
         cachedSize01 = std::max(0.0f, std::min(1.0f, size01));
@@ -65,10 +181,10 @@ public:
         //std::vector tunedBaseDelays = { 5.0f, 11.0f, 17.0f, 19.0f, 23.0f, 29.0f, 31.0f, 37.0f };
 
         // Use mixed delays: shorter for early stages (snappiness), longer for later (stability)
-        //std::vector tunedBaseDelays = {5.0f, 11.0f, 17.0f, 23.0f, 47.0f, 67.0f, 71.0f, 73.0f};
+        std::vector tunedBaseDelays = {5.0f, 11.0f, 17.0f, 23.0f, 47.0f, 67.0f, 71.0f, 73.0f};
 
         // Natural
-        std::vector tunedBaseDelays = {10.0f, 15.0f, 22.5f, 33.75f, 50.6f, 75.9f, 113.9f, 170.8f};
+        //std::vector tunedBaseDelays = {10.0f, 15.0f, 22.5f, 33.75f, 50.6f, 75.9f, 113.9f, 170.8f};
 
         // Use full array for max stages; slice first N for lower quality
         int effectiveStages = std::min(cachedStageCount, static_cast<int>(tunedBaseDelays.size()));
@@ -94,7 +210,7 @@ public:
         jitterRateHz.assign(effectiveStages, 0.20f + 0.30f * random01()); // 0.2..0.5 Hz equivalent noise refresh
         tpdfNoiseSeedA.assign(effectiveStages, rand());
         tpdfNoiseSeedB.assign(effectiveStages, rand());
-    }
+    }*/
 
     // Process a single sample through the diffusion chain.
     float ProcessSample(float inputSample)
