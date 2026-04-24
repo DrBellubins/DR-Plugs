@@ -113,22 +113,22 @@ private:
         const int size = static_cast<int>(inputBuffer.size());
         const float readIndexFloat = static_cast<float>(inputWrite) - delaySamplesFloat;
 
-        // Wrap and split into integer and frac
         float wrapped = readIndexFloat;
 
         while (wrapped < 0.0f)
             wrapped += static_cast<float>(size);
 
-        int indexA = static_cast<int>(std::floor(wrapped)) % size;
-        int indexB = (indexA - 1);
-        while (indexB < 0) indexB += size;
+        // Also clamp upper bound — previously missing, causes frac blow-up when wrapped >= size
+        while (wrapped >= static_cast<float>(size))
+            wrapped -= static_cast<float>(size);
 
-        const float frac = wrapped - static_cast<float>(indexA);
+        const float floorWrapped = std::floor(wrapped);
+        const float frac = wrapped - floorWrapped;  // always in [0, 1)
 
-        const float sampleA = inputBuffer[indexA];
-        const float sampleB = inputBuffer[indexB];
+        int indexA = static_cast<int>(floorWrapped) % size;
+        int indexB = (indexA - 1 + size) % size;
 
-        return sampleA * (1.0f - frac) + sampleB * frac;
+        return inputBuffer[indexA] * (1.0f - frac) + inputBuffer[indexB] * frac;
     }
 
     float readOutputDelaySamplesFractional(float delaySamplesFloat) const
@@ -141,16 +141,17 @@ private:
         while (wrapped < 0.0f)
             wrapped += static_cast<float>(size);
 
-        int indexA = static_cast<int>(std::floor(wrapped)) % size;
-        int indexB = (indexA - 1);
-        while (indexB < 0) indexB += size;
+        // Also clamp upper bound — previously missing, causes frac blow-up when wrapped >= size
+        while (wrapped >= static_cast<float>(size))
+            wrapped -= static_cast<float>(size);
 
-        const float frac = wrapped - static_cast<float>(indexA);
+        const float floorWrapped = std::floor(wrapped);
+        const float frac = wrapped - floorWrapped;  // always in [0, 1)
 
-        const float sampleA = outputBuffer[indexA];
-        const float sampleB = outputBuffer[indexB];
+        int indexA = static_cast<int>(floorWrapped) % size;
+        int indexB = (indexA - 1 + size) % size;
 
-        return sampleA * (1.0f - frac) + sampleB * frac;
+        return outputBuffer[indexA] * (1.0f - frac) + outputBuffer[indexB] * frac;
     }
 
     void ensureBufferSize()
