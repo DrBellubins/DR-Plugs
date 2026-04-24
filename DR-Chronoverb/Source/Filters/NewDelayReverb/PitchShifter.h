@@ -141,7 +141,7 @@ private:
 // - This introduces a small algorithmic latency roughly equal to grainLengthSamples.
 // - For shimmer-style echo stepping, call OctaveEchoPitchShifter::OnNewEchoBoundary()
 //   to change pitch ratio per echo, but this backend itself is continuous and will adapt.
-/*class GranularPitchBackend : public IPitchShifterBackend
+class GranularPitchBackend : public IPitchShifterBackend
 {
     struct ReadHead
     {
@@ -315,16 +315,17 @@ private:
     float grainPhaseB = 0.5f;
 
     float smoothedPitchRatio = 1.0f;
-};*/
+};
 
-class GranularPitchBackend : public IPitchShifterBackend
+/*class GranularPitchBackend : public IPitchShifterBackend
 {
     struct ReadHead
     {
-        float ReadIndex    = 0.0f;
-        float BlendGain    = 1.0f; // 1.0 = fully active, 0.0 = silent (fading out after teleport)
-        bool  IsFading     = false;
-        float FadeProgress = 0.0f; // 0..1 over CrossfadeSamples
+        float ReadIndex     = 0.0f;
+        float BlendGain     = 0.0f;  // NOTE: default standby is 0, not 1
+        bool  IsFadingOut   = false;
+        bool  IsFadingIn    = false;
+        float FadeProgress  = 0.0f;  // 0..1 — shared for both directions
     };
 
 public:
@@ -363,14 +364,20 @@ public:
     {
         std::fill(buffer.begin(), buffer.end(), 0.0f);
 
-        writeIndex      = 0;
+        writeIndex         = 0;
         smoothedPitchRatio = 1.0f;
 
-        // Place heads offset by half the lookback so only one is ever near the wrap point at a time.
         anchorHeadToWrite(headA);
-        headB.ReadIndex = wrapReadIndex(headA.ReadIndex - static_cast<float>(lookbackSamples) * 0.5f);
-        headB.BlendGain    = 1.0f;
-        headB.IsFading     = false;
+        headA.BlendGain   = 1.0f;   // headA starts as the active head
+        headA.IsFadingOut = false;
+        headA.IsFadingIn  = false;
+        headA.FadeProgress = 0.0f;
+
+        // headB starts offset by half the lookback and SILENT (standby)
+        headB.ReadIndex    = wrapReadIndex(headA.ReadIndex - static_cast<float>(lookbackSamples) * 0.5f);
+        headB.BlendGain    = 0.0f;  // silent until needed
+        headB.IsFadingOut  = false;
+        headB.IsFadingIn   = false;
         headB.FadeProgress = 0.0f;
     }
 
@@ -424,7 +431,8 @@ private:
     {
         readHead.ReadIndex    = wrapReadIndex(static_cast<float>(writeIndex) - static_cast<float>(lookbackSamples));
         readHead.BlendGain    = 1.0f;
-        readHead.IsFading     = false;
+        readHead.IsFadingIn   = false;
+        readHead.IsFadingOut  = false;
         readHead.FadeProgress = 0.0f;
     }
 
@@ -432,59 +440,68 @@ private:
     // hand its blend duty to otherHead for the crossfade duration.
     void checkAndTriggerTeleport(ReadHead& thisHead, ReadHead& otherHead)
     {
-        if (thisHead.IsFading)
-            return; // already being faded out; don't re-trigger
+        // Only the currently-active head can trigger a teleport
+        if (thisHead.IsFadingOut || thisHead.IsFadingIn)
+            return;
 
-        const int bufferSize = static_cast<int>(buffer.size());
+        if (thisHead.BlendGain < 0.5f)
+            return; // this is the standby head; don't check it
+
         const float distanceAhead = wrapReadIndex(
             static_cast<float>(writeIndex) - thisHead.ReadIndex
         );
 
-        // distanceAhead < danger threshold => head is about to lap the write pointer
         const float dangerSamples = static_cast<float>(crossfadeSamples) * 2.0f;
 
         if (distanceAhead < dangerSamples)
         {
-            juce::ignoreUnused(bufferSize);
-
-            // Start fading this head out over crossfadeSamples
-            thisHead.IsFading     = true;
+            // Start fading THIS head out
+            thisHead.IsFadingOut  = true;
+            thisHead.IsFadingIn   = false;
             thisHead.FadeProgress = 0.0f;
 
-            // Ensure the other head is active and placed safely
-            if (otherHead.IsFading)
-            {
-                // Edge case: both heads somehow fading at once — hard-reset other
-                anchorHeadToWrite(otherHead);
-            }
-            else
-            {
-                // Make sure it's at full gain
-                otherHead.BlendGain = 1.0f;
-            }
+            // Teleport the OTHER head to a safe position and start fading it in
+            anchorHeadToWrite(otherHead);
+            otherHead.BlendGain    = 0.0f;
+            otherHead.IsFadingOut  = false;
+            otherHead.IsFadingIn   = true;
+            otherHead.FadeProgress = 0.0f;
         }
     }
 
     void tickFade(ReadHead& readHead)
     {
-        if (!readHead.IsFading)
+        if (!readHead.IsFadingOut && !readHead.IsFadingIn)
             return;
 
         readHead.FadeProgress += 1.0f / static_cast<float>(crossfadeSamples);
 
-        if (readHead.FadeProgress >= 1.0f)
+        const float clampedProgress = juce::jlimit(0.0f, 1.0f, readHead.FadeProgress);
+
+        // Cosine ease: smooth for both directions
+        const float cosPhase = clampedProgress * juce::MathConstants<float>::pi;
+
+        if (readHead.IsFadingOut)
         {
-            // Fade complete — teleport the head to a safe position and bring it back to standby
-            anchorHeadToWrite(readHead);
-            readHead.BlendGain    = 0.0f; // stays silent until it's needed again
-            readHead.IsFading     = false;
-            readHead.FadeProgress = 0.0f;
-        }
-        else
-        {
-            // Ease-out fade: cosine so the amplitude ramp is perceptually smooth
-            const float cosPhase = readHead.FadeProgress * juce::MathConstants<float>::pi;
             readHead.BlendGain = 0.5f + 0.5f * std::cos(cosPhase); // 1 -> 0
+
+            if (readHead.FadeProgress >= 1.0f)
+            {
+                readHead.BlendGain    = 0.0f;  // goes to silent standby
+                readHead.IsFadingOut  = false;
+                readHead.FadeProgress = 0.0f;
+            }
+        }
+        else if (readHead.IsFadingIn)
+        {
+            readHead.BlendGain = 0.5f - 0.5f * std::cos(cosPhase); // 0 -> 1
+
+            if (readHead.FadeProgress >= 1.0f)
+            {
+                readHead.BlendGain   = 1.0f;  // fully active
+                readHead.IsFadingIn  = false;
+                readHead.FadeProgress = 0.0f;
+            }
         }
     }
 
@@ -541,7 +558,7 @@ private:
     ReadHead headB;
 
     float smoothedPitchRatio = 1.0f;
-};
+};*/
 
 // Placeholder backend: currently does NO pitch shifting (passes through).
 // This lets you wire the architecture now and drop in a real algorithm later.
@@ -569,7 +586,7 @@ public:
     OctaveEchoPitchShifter()
     {
         auto Backend = std::make_unique<GranularPitchBackend>();
-        //Backend->SetGrainLengthMilliseconds(15.0f);
+        Backend->SetGrainLengthMilliseconds(60.0f);
 
         //auto ConstantSequence = std::make_unique<ConstantRatioSequence>();
         //ConstantSequence->SetPitchRatio(2.0f); // very obvious
