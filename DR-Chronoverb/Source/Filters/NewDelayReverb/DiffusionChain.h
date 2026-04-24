@@ -32,6 +32,16 @@
 class DiffusionChain
 {
 public:
+    std::vector<float> delayTunings =
+    {
+        7.0f, 13.0f, 19.0f, 29.0f, 53.0f, 79.0f, 113.0f, 149.0f
+    };
+
+    std::vector<float> reverbTunings =
+    {
+        29.0f, 37.0f, 43.0f, 53.0f, 71.0f, 89.0f, 113.0f, 149.0f
+    };
+
     DiffusionChain()
     {
     }
@@ -181,18 +191,18 @@ public:
         //std::vector tunedBaseDelays = { 5.0f, 11.0f, 17.0f, 19.0f, 23.0f, 29.0f, 31.0f, 37.0f };
 
         // Use mixed delays: shorter for early stages (snappiness), longer for later (stability)
-        std::vector tunedBaseDelays = {5.0f, 11.0f, 17.0f, 23.0f, 47.0f, 67.0f, 71.0f, 73.0f};
+        //std::vector tunedBaseDelays = {5.0f, 11.0f, 17.0f, 23.0f, 47.0f, 67.0f, 71.0f, 73.0f};
 
         // Natural
         //std::vector tunedBaseDelays = {10.0f, 15.0f, 22.5f, 33.75f, 50.6f, 75.9f, 113.9f, 170.8f};
 
         // Use full array for max stages; slice first N for lower quality
-        int effectiveStages = std::min(cachedStageCount, static_cast<int>(tunedBaseDelays.size()));
+        int effectiveStages = std::min(cachedStageCount, static_cast<int>(delayTunings.size()));
 
         // Vary gain per stage: higher for early (dense), lower for later (less resonance)
         for (int stageIndex = 0; stageIndex < effectiveStages; ++stageIndex)
         {
-            float baseMilliseconds = tunedBaseDelays[stageIndex];
+            float baseMilliseconds = delayTunings[stageIndex];
             float scaledMilliseconds = baseMilliseconds * (0.25f + 0.75f * cachedSize01);
             //float stageGain = 0.65f - (stageIndex * 0.03f);     // Decrease from 0.65 to ~0.44 for 8 stages
             float stageGain = 0.7f;
@@ -226,13 +236,12 @@ public:
         // Prime-spaced, longer delays for dense reverb diffusion.
         // Total at size=0 (scale 0.25): ~146ms. At size=1: ~584ms.
         // These avoid common factors to prevent comb-filter clustering.
-        std::vector<float> reverbBaseDelays = { 29.0f, 37.0f, 43.0f, 53.0f, 71.0f, 89.0f, 113.0f, 149.0f };
 
-        int effectiveStages = std::min(cachedStageCount, static_cast<int>(reverbBaseDelays.size()));
+        int effectiveStages = std::min(cachedStageCount, static_cast<int>(reverbTunings.size()));
 
         for (int stageIndex = 0; stageIndex < effectiveStages; ++stageIndex)
         {
-            float baseMilliseconds = reverbBaseDelays[stageIndex];
+            float baseMilliseconds = reverbTunings[stageIndex];
             float scaledMilliseconds = baseMilliseconds * (0.25f + 0.75f * cachedSize01);
 
             auto diffusionStage = std::make_unique<DiffusionAllpass>();

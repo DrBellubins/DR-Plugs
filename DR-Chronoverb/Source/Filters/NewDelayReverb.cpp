@@ -585,8 +585,7 @@ void NewDelayReverb::rebuildDiffusionIfNeeded()
         }
     }
 
-    const float baseCompensation = totalDelayDiffusionMilliseconds * centeredSwellRatio;
-    staticDiffusionCompensationMilliseconds = baseCompensation * diffusionCompensationBias;
+    staticDiffusionCompensationMilliseconds = totalDelayDiffusionMilliseconds * centeredSwellRatio;
 }
 
 void NewDelayReverb::updateFeedbackGainFromFeedbackTime()
