@@ -386,10 +386,14 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float diffusedEarlyLeft = delayDiffusionLeft->ProcessSample(earlyWetLeft);
         const float diffusedEarlyRight = delayDiffusionRight->ProcessSample(earlyWetRight);
 
-        // Stronger clean suppression around mid amounts to hide direct tap
-        const float cleanBaseGain = std::cos(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
-        const float cleanGain = cleanBaseGain * cleanBaseGain * cleanBaseGain;
-        const float diffusedGain = std::sin(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
+        // Remap so midpoint already heavily suppresses clean tap.
+        const float diffusionDrive = juce::jlimit(0.0f, 1.0f, diffusionAmountSmoothed * 2.0f);
+
+        // Very aggressive clean suppression (clean ~= 0 at amount >= 0.5)
+        const float cleanGain = std::pow(1.0f - diffusionDrive, 4.0f);
+
+        // Keep diffuse energy stable
+        const float diffusedGain = std::sin(diffusionDrive * juce::MathConstants<float>::halfPi);
 
         float wetLeft = nominalWetLeft * cleanGain + diffusedEarlyLeft * diffusedGain;
         float wetRight = nominalWetRight * cleanGain + diffusedEarlyRight * diffusedGain;
@@ -581,8 +585,8 @@ void NewDelayReverb::rebuildDiffusionIfNeeded()
         }
     }
 
-    const float compensationRatio = 0.35f;
-    staticDiffusionCompensationMilliseconds = totalDelayDiffusionMilliseconds * compensationRatio;
+    const float baseCompensation = totalDelayDiffusionMilliseconds * centeredSwellRatio;
+    staticDiffusionCompensationMilliseconds = baseCompensation * diffusionCompensationBias;
 }
 
 void NewDelayReverb::updateFeedbackGainFromFeedbackTime()
