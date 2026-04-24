@@ -347,42 +347,27 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             filteredDryRight = lowpassR.processSample(filteredDryRight);
         }
 
-        // 2: Input + feedback
-        const float preLeft = filteredDryLeft + lastFeedbackL;
-        const float preRight = filteredDryRight + lastFeedbackR;
+        // Fixed read positions (do not depend on diffusion amount)
+        const float nominalReadMilliseconds = delayMilliseconds;
+        const float earlyReadMilliseconds = std::max(1.0f, delayMilliseconds - staticDiffusionCompensationMilliseconds);
 
-        // 3: Delay-path diffusion before write only
-        float writeLeft = preLeft;
-        float writeRight = preRight;
+        // Read nominal and early taps
+        const float nominalWetLeft = mainDelayLeft->ReadDelayMilliseconds(nominalReadMilliseconds, sampleRate);
+        const float nominalWetRight = mainDelayRight->ReadDelayMilliseconds(nominalReadMilliseconds, sampleRate);
 
-        if (diffusionAmountSmoothed > 0.0001f)
-        {
-            const float delayDiffusedLeft = delayDiffusionLeft->ProcessSample(preLeft);
-            const float delayDiffusedRight = delayDiffusionRight->ProcessSample(preRight);
+        const float earlyWetLeft = mainDelayLeft->ReadDelayMilliseconds(earlyReadMilliseconds, sampleRate);
+        const float earlyWetRight = mainDelayRight->ReadDelayMilliseconds(earlyReadMilliseconds, sampleRate);
 
-            const float cleanWriteGain = std::cos(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
-            const float diffusedWriteGain = std::sin(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
+        // Diffuse early branch only
+        const float diffusedEarlyLeft = delayDiffusionLeft->ProcessSample(earlyWetLeft);
+        const float diffusedEarlyRight = delayDiffusionRight->ProcessSample(earlyWetRight);
 
-            writeLeft = preLeft * cleanWriteGain + delayDiffusedLeft * diffusedWriteGain;
-            writeRight = preRight * cleanWriteGain + delayDiffusedRight * diffusedWriteGain;
-        }
+        // Crossfade: keep clean at low amounts, move to pre-arriving diffused branch at higher amounts
+        const float cleanGain = std::cos(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
+        const float diffusedGain = std::sin(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
 
-        // 4: Write
-        mainDelayLeft->PushSample(writeLeft);
-        mainDelayRight->PushSample(writeRight);
-
-        // 5: Center smear around nominal tap with smoothed, compensated read
-        const float halfDiffusionMilliseconds = 0.5f * totalDelayDiffusionMilliseconds * diffusionAmountSmoothed;
-        const float targetCenteredReadDelayMilliseconds = std::max(1.0f, delayMilliseconds - halfDiffusionMilliseconds);
-
-        smoothedCenteredReadDelayMilliseconds +=
-            readDelaySlewCoefficient * (targetCenteredReadDelayMilliseconds - smoothedCenteredReadDelayMilliseconds);
-
-        const float centeredReadDelayMilliseconds = std::max(1.0f, smoothedCenteredReadDelayMilliseconds);
-
-        // Read only once, no post-read diffusion branch
-        float wetLeft = mainDelayLeft->ReadDelayMilliseconds(centeredReadDelayMilliseconds, sampleRate);
-        float wetRight = mainDelayRight->ReadDelayMilliseconds(centeredReadDelayMilliseconds, sampleRate);
+        float wetLeft = nominalWetLeft * cleanGain + diffusedEarlyLeft * diffusedGain;
+        float wetRight = nominalWetRight * cleanGain + diffusedEarlyRight * diffusedGain;
 
         // 7: Damping + feedback from composite wet (keeps loop behavior consistent with diffusion)
         const float dampedLeft = dampingLeft->ProcessSample(wetLeft, lowpass01);
@@ -570,6 +555,9 @@ void NewDelayReverb::rebuildDiffusionIfNeeded()
             totalDelayDiffusionMilliseconds += stageDelayMilliseconds;
         }
     }
+
+    const float compensationRatio = 0.35f;
+    staticDiffusionCompensationMilliseconds = totalDelayDiffusionMilliseconds * compensationRatio;
 }
 
 void NewDelayReverb::updateFeedbackGainFromFeedbackTime()

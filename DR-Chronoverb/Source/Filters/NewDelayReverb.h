@@ -83,6 +83,8 @@ private:
     int diffusionQualityStages = 6;    // number of allpass stages; will clamp 4..8
 
     float totalDelayDiffusionMilliseconds = 0.0f;
+    float staticDiffusionCompensationMilliseconds = 0.0f;
+
     float smoothedCenteredReadDelayMilliseconds = 1.0f;
     float readDelaySlewCoefficient = 0.0f;
 
