@@ -209,7 +209,7 @@ void AudioPluginAudioProcessorEditor::createKnob(std::unique_ptr<ThemedKnob>& kn
 
     knob->setBounds(knobX, knobY, widthHeight, widthHeight);
 
-    //knob->setTextBoxStyle(juce::Slider::TextBoxBelow, false, 54, 22);
+    knob->setTextBoxStyle(juce::Slider::TextBoxBelow, false, 54, 22);
 }
 
 void AudioPluginAudioProcessorEditor::createKnobLabel(std::unique_ptr<juce::Label>& label,
