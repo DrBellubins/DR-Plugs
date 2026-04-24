@@ -239,7 +239,7 @@ public:
 
     void SetGrainLengthMilliseconds(float newGrainLengthMilliseconds)
     {
-        const float clamped = juce::jlimit(5.0f, 80.0f, newGrainLengthMilliseconds);
+        const float clamped = juce::jlimit(5.0f, 500.0f, newGrainLengthMilliseconds);
         grainLengthSamples = std::max(16, static_cast<int>(std::round((clamped * sampleRate) / 1000.0)));
     }
 

@@ -137,7 +137,9 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         float outputRight = mainDelayRight->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
 
         // 4b: Read for FEEDBACK (compensated — subtract pitch shifter latency so loop total = delayMilliseconds)
-        const float feedbackDelayMs = std::max(1.0f, delayMilliseconds - pitchShifterLatencyMs);
+        const float feedbackDelayMs = (pitchShifterLatencyMs < delayMilliseconds) ?
+            (delayMilliseconds - pitchShifterLatencyMs) : delayMilliseconds;
+
         float feedbackLeft = mainDelayLeft->ReadDelayMilliseconds(feedbackDelayMs, sampleRate);
         float feedbackRight = mainDelayRight->ReadDelayMilliseconds(feedbackDelayMs, sampleRate);
 
@@ -146,8 +148,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float dampedRight = dampingRight->ProcessSample(feedbackRight, lowpass01);
 
         // 5: Progressive pitch shift (shimmer)
-        const float pitchedFeedbackLeft = wetInputPitchShifterLeft.ProcessSample(dampedLeft);
-        const float pitchedFeedbackRight = wetInputPitchShifterRight.ProcessSample(dampedRight);
+        //const float pitchedFeedbackLeft = wetInputPitchShifterLeft.ProcessSample(dampedLeft);
+        //const float pitchedFeedbackRight = wetInputPitchShifterRight.ProcessSample(dampedRight);
 
         // Advance echo boundary counters
         const int delaySamplesInt = static_cast<int>(std::round((delayMilliseconds * sampleRate) / 1000.0));
@@ -168,8 +170,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             wetInputPitchShifterRight.OnNewEchoBoundary();
         }
 
-        lastFeedbackL = pitchedFeedbackLeft * feedbackGain;
-        lastFeedbackR = pitchedFeedbackRight * feedbackGain;
+        lastFeedbackL = dampedLeft * feedbackGain;
+        lastFeedbackR = dampedRight * feedbackGain;
 
         // 6: Output crossfade: morph between raw delay and diffused
         const float fade = diffusionAmount01 * 0.5f * juce::MathConstants<float>::pi;
