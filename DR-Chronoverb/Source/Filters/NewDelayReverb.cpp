@@ -46,6 +46,11 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     diffusionLeft->Prepare(sampleRate);
     diffusionRight->Prepare(sampleRate);
 
+    // Force rebuild on every PrepareToPlay — new chain objects are always unconfigured.
+    // The guard in rebuildDiffusionIfNeeded() is only useful mid-session (audio thread).
+    lastBuiltQualityStages = -1;
+    lastBuiltSize01 = -1.0f;
+
     // Initial diffusion config (safe here; not concurrently processing)
     rebuildDiffusionIfNeeded();
 
