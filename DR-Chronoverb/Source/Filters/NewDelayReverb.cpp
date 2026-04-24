@@ -347,7 +347,31 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             filteredDryRight = lowpassR.processSample(filteredDryRight);
         }
 
-        // Fixed read positions (do not depend on diffusion amount)
+        // 2: Sum input + feedback
+        float preLeft = filteredDryLeft + lastFeedbackL;
+        float preRight = filteredDryRight + lastFeedbackR;
+
+        // 3: Diffuse before write (amount-controlled)
+        float writeLeft = preLeft;
+        float writeRight = preRight;
+
+        if (diffusionAmountSmoothed > 0.0001f)
+        {
+            const float diffusedWriteLeft = delayDiffusionLeft->ProcessSample(preLeft);
+            const float diffusedWriteRight = delayDiffusionRight->ProcessSample(preRight);
+
+            const float cleanWriteGain = std::cos(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
+            const float diffusedWriteGain = std::sin(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
+
+            writeLeft = preLeft * cleanWriteGain + diffusedWriteLeft * diffusedWriteGain;
+            writeRight = preRight * cleanWriteGain + diffusedWriteRight * diffusedWriteGain;
+        }
+
+        // 4: IMPORTANT: write to delay line before reading
+        mainDelayLeft->PushSample(writeLeft);
+        mainDelayRight->PushSample(writeRight);
+
+        // 5: Fixed read positions (do not depend on diffusion amount)
         const float nominalReadMilliseconds = delayMilliseconds;
         const float earlyReadMilliseconds = std::max(1.0f, delayMilliseconds - staticDiffusionCompensationMilliseconds);
 
@@ -357,13 +381,14 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
         const float earlyWetLeft = mainDelayLeft->ReadDelayMilliseconds(earlyReadMilliseconds, sampleRate);
         const float earlyWetRight = mainDelayRight->ReadDelayMilliseconds(earlyReadMilliseconds, sampleRate);
-
+        
         // Diffuse early branch only
         const float diffusedEarlyLeft = delayDiffusionLeft->ProcessSample(earlyWetLeft);
         const float diffusedEarlyRight = delayDiffusionRight->ProcessSample(earlyWetRight);
 
-        // Crossfade: keep clean at low amounts, move to pre-arriving diffused branch at higher amounts
-        const float cleanGain = std::cos(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
+        // Stronger clean suppression around mid amounts to hide direct tap
+        const float cleanBaseGain = std::cos(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
+        const float cleanGain = cleanBaseGain * cleanBaseGain * cleanBaseGain;
         const float diffusedGain = std::sin(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
 
         float wetLeft = nominalWetLeft * cleanGain + diffusedEarlyLeft * diffusedGain;
