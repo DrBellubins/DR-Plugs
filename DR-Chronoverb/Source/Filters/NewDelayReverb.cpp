@@ -69,6 +69,7 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     if (reverbDiffusionLeft)  reverbDiffusionLeft->ClearState();
     if (reverbDiffusionRight) reverbDiffusionRight->ClearState();
 
+    smoothedDelayReverbDiffBlend = 0.0f;
     diffusionRebuildPending.store(false, std::memory_order_release);
 
     // Damping filters (feedback path)
@@ -136,9 +137,10 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
         const float targetFeedbackDiffBlend = std::max(0.0f, (diffusionAmount01 - 0.5f) * 2.0f);
 
-        // --- Slew blend values to avoid allpass-state discontinuities on knob changes ---
-        smoothedPreWriteBlend     += kBlendSlewCoeff * (targetPreWriteBlend     - smoothedPreWriteBlend);
-        smoothedDelayReverbDiffBlend += kBlendSlewCoeff * (targetFeedbackDiffBlend - smoothedDelayReverbDiffBlend);
+        // Slew blend toward target — fast enough for responsiveness, but
+        // it only affects write content, never the read position, so there
+        // is zero pitch artifact regardless of how fast it moves.
+        smoothedDelayReverbDiffBlend += kBlendSlewCoeff * (diffusionAmount01 - smoothedDelayReverbDiffBlend);
 
         // 1: Pre HP/LP on dry signal only
         float filteredDryLeft  = dryLeft;
@@ -152,64 +154,69 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             filteredDryRight = lowpassR.processSample(filteredDryRight);
         }
 
-        // 2: Pre-write diffusion on DRY INPUT ONLY — feedback must NOT enter this chain.
-        //    Diffusing the dry signal before mixing with feedback prevents double-diffusion
-        //    in the feedback loop which causes energy runaway in the 0.5-1.0 amount range.
-        float diffusedDryLeft  = filteredDryLeft;
-        float diffusedDryRight = filteredDryRight;
+        // 2: Sum input + feedback (Deelay architecture: diffusion sees the full sum)
+        float preLeft  = filteredDryLeft  + lastFeedbackL;
+        float preRight = filteredDryRight + lastFeedbackR;
 
-        if (smoothedPreWriteBlend > 0.001f)
-        {
-            const float diffLeft  = delayDiffusionLeft->ProcessSample(filteredDryLeft);
-            const float diffRight = delayDiffusionRight->ProcessSample(filteredDryRight);
-
-            const float cleanGain    = std::cos(smoothedPreWriteBlend * juce::MathConstants<float>::halfPi);
-            const float diffusedGain = std::sin(smoothedPreWriteBlend * juce::MathConstants<float>::halfPi);
-
-            diffusedDryLeft  = filteredDryLeft  * cleanGain + diffLeft  * diffusedGain;
-            diffusedDryRight = filteredDryRight * cleanGain + diffRight * diffusedGain;
-        }
-
-        // 3: Add feedback AFTER pre-write diffusion so feedback never re-enters the pre-write chain
-        float writeLeft  = diffusedDryLeft  + lastFeedbackL;
-        float writeRight = diffusedDryRight + lastFeedbackR;
-
-        // 4: Write to delay line
-        mainDelayLeft->PushSample(writeLeft);
-        mainDelayRight->PushSample(writeRight);
-
-        // 5: Compensate read position to center smear around nominal tap
-        const float halfDiffusionMs     = totalDiffusionMs * 0.5f * smoothedPreWriteBlend;
-        const float centeredReadDelayMs = std::max(1.0f, delayMilliseconds - halfDiffusionMs);
-
-        // 6: Read tap
-        float outputLeft  = mainDelayLeft->ReadDelayMilliseconds(centeredReadDelayMs, sampleRate);
-        float outputRight = mainDelayRight->ReadDelayMilliseconds(centeredReadDelayMs, sampleRate);
-
-        // 7: Damping in feedback path
-        const float dampedLeft  = dampingLeft->ProcessSample(outputLeft,  lowpass01);
-        const float dampedRight = dampingRight->ProcessSample(outputRight, lowpass01);
-
-        // 8: Feedback diffusion (reverb path, active in upper half of amount range).
-        //    Uses longer reverb-quality allpass tunings — each recirculation adds density
-        //    until discrete echoes merge into a continuous reverb tail.
-        float feedbackLeft  = dampedLeft;
-        float feedbackRight = dampedRight;
+        // 3: Diffuse the summed signal before writing.
+        //    Lower half (0..0.5): delay-quality diffusion chain.
+        //    Upper half (0.5..1.0): crossfade toward reverb-quality chain.
+        //    Read position is NEVER touched — no pitch artifact possible.
+        float writeLeft  = preLeft;
+        float writeRight = preRight;
 
         if (smoothedDelayReverbDiffBlend > 0.001f)
         {
-            const float diffFBLeft  = reverbDiffusionLeft->ProcessSample(dampedLeft);
-            const float diffFBRight = reverbDiffusionRight->ProcessSample(dampedRight);
+            const float blend = smoothedDelayReverbDiffBlend;
 
-            const float cleanGain    = std::cos(smoothedDelayReverbDiffBlend * juce::MathConstants<float>::halfPi);
-            const float diffusedGain = std::sin(smoothedDelayReverbDiffBlend * juce::MathConstants<float>::halfPi);
+            // Select which chain dominates based on which half of the range we're in
+            float diffLeft, diffRight;
 
-            feedbackLeft  = dampedLeft  * cleanGain + diffFBLeft  * diffusedGain;
-            feedbackRight = dampedRight * cleanGain + diffFBRight * diffusedGain;
+            if (blend <= 0.5f)
+            {
+                // Delay diffusion only
+                diffLeft  = delayDiffusionLeft->ProcessSample(preLeft);
+                diffRight = delayDiffusionRight->ProcessSample(preRight);
+            }
+            else
+            {
+                // Crossfade between delay and reverb chains
+                const float reverbBlend = (blend - 0.5f) * 2.0f; // 0..1 over upper half
+
+                const float delayDiffLeft  = delayDiffusionLeft->ProcessSample(preLeft);
+                const float delayDiffRight = delayDiffusionRight->ProcessSample(preRight);
+                const float reverbDiffLeft  = reverbDiffusionLeft->ProcessSample(preLeft);
+                const float reverbDiffRight = reverbDiffusionRight->ProcessSample(preRight);
+
+                const float delayGain  = std::cos(reverbBlend * juce::MathConstants<float>::halfPi);
+                const float reverbGain = std::sin(reverbBlend * juce::MathConstants<float>::halfPi);
+
+                diffLeft  = delayDiffLeft  * delayGain + reverbDiffLeft  * reverbGain;
+                diffRight = delayDiffRight * delayGain + reverbDiffRight * reverbGain;
+            }
+
+            // Equal-power crossfade between clean pre and diffused pre
+            const float cleanGain    = std::cos(blend * juce::MathConstants<float>::halfPi);
+            const float diffusedGain = std::sin(blend * juce::MathConstants<float>::halfPi);
+
+            writeLeft  = preLeft  * cleanGain + diffLeft  * diffusedGain;
+            writeRight = preRight * cleanGain + diffRight * diffusedGain;
         }
 
-        lastFeedbackL = feedbackLeft  * feedbackGain;
-        lastFeedbackR = feedbackRight * feedbackGain;
+        // 4: Write diffused signal to delay line
+        mainDelayLeft->PushSample(writeLeft);
+        mainDelayRight->PushSample(writeRight);
+
+        // 5: Read at FIXED delay — this never moves, so automation is artifact-free
+        float outputLeft  = mainDelayLeft->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
+        float outputRight = mainDelayRight->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
+
+        // 6: Damping + feedback
+        const float dampedLeft  = dampingLeft->ProcessSample(outputLeft,  lowpass01);
+        const float dampedRight = dampingRight->ProcessSample(outputRight, lowpass01);
+
+        lastFeedbackL = dampedLeft  * feedbackGain;
+        lastFeedbackR = dampedRight * feedbackGain;
 
         float wetLeft  = outputLeft;
         float wetRight = outputRight;
@@ -383,11 +390,6 @@ void NewDelayReverb::rebuildDiffusionIfNeeded()
 
     if (reverbDiffusionRight)
         reverbDiffusionRight->ConfigureAsReverb(diffusionQualityStages, diffusionSize01);
-
-    totalDiffusionMs = 0.0f;
-
-    for (float ms : delayDiffusionLeft->perStageDelayMs)
-        totalDiffusionMs += ms;
 }
 
 void NewDelayReverb::updateFeedbackGainFromFeedbackTime()

@@ -81,7 +81,6 @@ private:
     float diffusionAmount01 = 0.0f;    // crossfade amount
     float diffusionSize01 = 0.0f;      // scales individual allpass delay lengths
     int diffusionQualityStages = 6;    // number of allpass stages; will clamp 4..8
-    float totalDiffusionMs = 0.0f;
 
     float dryWet01 = 0.5f;
 
