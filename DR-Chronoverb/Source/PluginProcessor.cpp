@@ -329,7 +329,7 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     }
 
     // Computer Keyboard Square Synth
-    keyboardSynth.Process(buffer);
+    //keyboardSynth.Process(buffer);
 
     // Process reverb
     DelayReverb.ProcessBlock(buffer);

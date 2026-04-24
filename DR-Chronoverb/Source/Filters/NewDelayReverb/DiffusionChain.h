@@ -45,7 +45,7 @@ public:
         sampleRate = newSampleRate;
     }
 
-    void Configure(int numberOfStages, float size01)
+    /*void Configure(int numberOfStages, float size01)
     {
         cachedStageCount = std::max(1, numberOfStages);
         cachedSize01 = std::max(0.0f, std::min(1.0f, size01));
@@ -54,10 +54,10 @@ public:
         perStageDelayMs.clear();
 
         // Original 4 base delays (always used, even at quality 4)
-        //std::vector<float> coreDelays = {10.0f, 22.5f, 50.6f, 113.9f};
+        std::vector<float> coreDelays = {10.0f, 22.5f, 50.6f, 113.9f};
         //std::vector<float> coreDelays = {47.0f, 71.0f, 79.0f, 97.0f};
 
-        std::vector<float> coreDelays = {5.0f, 17.0f, 47.0f, 71.0f};
+        //std::vector<float> coreDelays = {5.0f, 17.0f, 47.0f, 71.0f};
         //std::vector tunedBaseDelays = {5.0f, 11.0f, 17.0f, 23.0f, 47.0f, 67.0f, 71.0f, 73.0f};
         //std::vector tunedBaseDelays = {10.0f, 15.0f, 22.5f, 33.75f, 50.6f, 75.9f, 113.9f, 170.8f};
 
@@ -107,7 +107,7 @@ public:
         jitterRateHz.assign(cachedStageCount, 0.20f + 0.30f * random01());
         tpdfNoiseSeedA.assign(cachedStageCount, rand());
         tpdfNoiseSeedB.assign(cachedStageCount, rand());
-    }
+    }*/
 
     /*void Configure(int numberOfStages, float size01)
     {
@@ -164,7 +164,7 @@ public:
     // Configure the chain with a given number of stages and size scaling factor.
     // - numberOfStages: 1..8, tune delays per all-pass filter.
     // - size01: 0..1 scales the per-stage delay milliseconds.
-    /*void Configure(int numberOfStages, float size01)
+    void Configure(int numberOfStages, float size01)
     {
         cachedStageCount = std::max(1, numberOfStages);
         cachedSize01 = std::max(0.0f, std::min(1.0f, size01));
@@ -210,7 +210,7 @@ public:
         jitterRateHz.assign(effectiveStages, 0.20f + 0.30f * random01()); // 0.2..0.5 Hz equivalent noise refresh
         tpdfNoiseSeedA.assign(effectiveStages, rand());
         tpdfNoiseSeedB.assign(effectiveStages, rand());
-    }*/
+    }
 
     // Process a single sample through the diffusion chain.
     float ProcessSample(float inputSample)

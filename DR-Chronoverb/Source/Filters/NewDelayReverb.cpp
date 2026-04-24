@@ -103,37 +103,46 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             preRight = lowpassR.processSample(preRight);
         }
 
-        // 2: Write the clean (un-diffused) pre-sum directly to the delay line
-        mainDelayLeft->PushSample(preLeft);
-        mainDelayRight->PushSample(preRight);
+        // 2: Pre-write diffusion (crossfade clean input with diffused input before writing)
+        float writeLeft  = preLeft;
+        float writeRight = preRight;
 
-        // 3: Read the delayed signal
-        float outputLeft  = mainDelayLeft->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
-        float outputRight = mainDelayRight->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
+        if (diffusionAmount01 > 0.001f)
+        {
+            float diffusedLeft  = diffusionLeft->ProcessSample(preLeft);
+            float diffusedRight = diffusionRight->ProcessSample(preRight);
 
-        // 4: Feedback from UNDIFFUSED output (clean delay loop)
+            const float cleanGain     = std::cos(diffusionAmount01 * juce::MathConstants<float>::halfPi);
+            const float diffusedGain  = std::sin(diffusionAmount01 * juce::MathConstants<float>::halfPi);
+
+            writeLeft  = preLeft  * cleanGain + diffusedLeft  * diffusedGain;
+            writeRight = preRight * cleanGain + diffusedRight * diffusedGain;
+        }
+
+        // 3: Write the (possibly diffused) signal to the delay line
+        mainDelayLeft->PushSample(writeLeft);
+        mainDelayRight->PushSample(writeRight);
+
+        // 4: Compensate read position to center smear around nominal tap
+        //    totalDiffusionMs is the sum of all allpass stage delays.
+        //    At amount=0: no compensation (clean tap). At amount=1: shift back by half the chain length.
+        const float halfDiffusionMs    = totalDiffusionMs * 0.5f * diffusionAmount01;
+        const float centeredReadDelayMs = std::max(1.0f, delayMilliseconds - halfDiffusionMs);
+
+        // 5: Read delayed signal at compensated position
+        float outputLeft  = mainDelayLeft->ReadDelayMilliseconds(centeredReadDelayMs, sampleRate);
+        float outputRight = mainDelayRight->ReadDelayMilliseconds(centeredReadDelayMs, sampleRate);
+
+        // 6: Feedback from the (already-diffused-in-write) output
         const float dampedFeedbackLeft  = dampingLeft->ProcessSample(outputLeft,  lowpass01);
         const float dampedFeedbackRight = dampingRight->ProcessSample(outputRight, lowpass01);
 
         lastFeedbackL = dampedFeedbackLeft  * feedbackGain;
         lastFeedbackR = dampedFeedbackRight * feedbackGain;
 
-        // 5: Apply diffusion and crossfade between clean and diffused taps
+        // Wet signal is now the output directly (diffusion was pre-write)
         float wetLeft  = outputLeft;
         float wetRight = outputRight;
-
-        if (diffusionAmount01 > 0.001f)
-        {
-            float diffusedLeft  = diffusionLeft->ProcessSample(outputLeft);
-            float diffusedRight = diffusionRight->ProcessSample(outputRight);
-
-            // Equal-power crossfade (preserves perceived loudness)
-            const float cleanGain = std::cos(diffusionAmount01 * juce::MathConstants<float>::halfPi);
-            const float diffusedGain = std::sin(diffusionAmount01 * juce::MathConstants<float>::halfPi);
-
-            wetLeft  = outputLeft  * cleanGain + diffusedLeft  * diffusedGain;
-            wetRight = outputRight * cleanGain + diffusedRight * diffusedGain;
-        }
 
         // 6: Progressive pitch shift (shimmer)
         //const float pitchedFeedbackLeft = wetInputPitchShifterLeft.ProcessSample(dampedLeft);
