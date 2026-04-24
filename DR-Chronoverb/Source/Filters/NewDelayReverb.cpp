@@ -118,18 +118,21 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         lastFeedbackL = dampedFeedbackLeft  * feedbackGain;
         lastFeedbackR = dampedFeedbackRight * feedbackGain;
 
-        // 5: Apply diffusion ONLY to the output tap (cosmetic scatter, never fed back)
-        float diffusedLeft  = outputLeft;
-        float diffusedRight = outputRight;
+        // 5: Apply diffusion and crossfade between clean and diffused taps
+        float wetLeft  = outputLeft;
+        float wetRight = outputRight;
 
         if (diffusionAmount01 > 0.001f)
         {
-            diffusedLeft  = diffusionLeft->ProcessSample(outputLeft);
-            diffusedRight = diffusionRight->ProcessSample(outputRight);
+            float diffusedLeft  = diffusionLeft->ProcessSample(outputLeft);
+            float diffusedRight = diffusionRight->ProcessSample(outputRight);
 
-            const float fade = diffusionAmount01;
-            diffusedLeft  = outputLeft  * (1.0f - fade) + diffusedLeft  * fade;
-            diffusedRight = outputRight * (1.0f - fade) + diffusedRight * fade;
+            // Equal-power crossfade (preserves perceived loudness)
+            const float cleanGain = std::cos(diffusionAmount01 * juce::MathConstants<float>::halfPi);
+            const float diffusedGain = std::sin(diffusionAmount01 * juce::MathConstants<float>::halfPi);
+
+            wetLeft  = outputLeft  * cleanGain + diffusedLeft  * diffusedGain;
+            wetRight = outputRight * cleanGain + diffusedRight * diffusedGain;
         }
 
         // 6: Progressive pitch shift (shimmer)
@@ -159,8 +162,6 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         //const float fade = diffusionAmount01 * 0.5f * juce::MathConstants<float>::pi;
         //const float wetLeft = PMath::EqualPowerCrossfade(outputLeft, dampedLeft, fade);
         //const float wetRight = PMath::EqualPowerCrossfade(outputRight, dampedRight, fade);
-        const float wetLeft  = diffusedLeft;
-        const float wetRight = diffusedRight;
 
         // 8: Stereo spread on wet
         float spreadWetLeft = wetLeft;
