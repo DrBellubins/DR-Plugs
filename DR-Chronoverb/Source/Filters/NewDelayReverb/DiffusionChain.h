@@ -250,6 +250,14 @@ public:
             stage->SetGain(newGain);
     }
 
+    void ClearState()
+    {
+        for (auto& stage : stages)
+            stage->Clear();
+
+        std::fill(jitterLPState.begin(), jitterLPState.end(), 0.0f);
+    }
+
     std::vector<float> perStageDelayMs;
 
 private:

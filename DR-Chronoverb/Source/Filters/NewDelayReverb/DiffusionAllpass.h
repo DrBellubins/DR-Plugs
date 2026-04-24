@@ -30,6 +30,7 @@ public:
         SetDelayMilliseconds(delayMilliseconds);
         SetGain(gain);
         ensureBufferSize();
+        currentDelaySamples = static_cast<float>(delaySamples); // Initialize before Clear()
         Clear();
     }
 

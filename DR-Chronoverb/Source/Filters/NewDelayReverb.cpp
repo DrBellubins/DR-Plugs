@@ -32,6 +32,7 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     // Force a coefficient update on first block
     filterRebuildPending.store(true, std::memory_order_release);
     updateFilters();
+    filterRebuildPending.store(false, std::memory_order_release);
 
     // Create main delay lines with 1000 ms max buffer
     const int maxDelaySamples = static_cast<int>(std::ceil(1.0 * sampleRate)); // 1000 ms
@@ -47,6 +48,12 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
 
     // Initial diffusion config (safe here; not concurrently processing)
     rebuildDiffusionIfNeeded();
+
+    // Always wipe audio state on prepare, even when config is unchanged.
+    // This prevents stale allpass buffer contents from leaking into offline renders.
+    if (diffusionLeft)  diffusionLeft->ClearState();
+    if (diffusionRight) diffusionRight->ClearState();
+
     diffusionRebuildPending.store(false, std::memory_order_release);
 
     // Damping filters (feedback path)
