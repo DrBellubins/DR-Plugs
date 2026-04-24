@@ -17,6 +17,22 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     sampleRate = newSampleRate;
     hostTempoBpm = initialHostTempoBpm;
 
+    // Prepare IIR filters with spec before first use
+    juce::dsp::ProcessSpec filterSpec;
+    filterSpec.sampleRate = sampleRate;
+    filterSpec.maximumBlockSize = 4096; // safe upper bound
+    filterSpec.numChannels = 1;
+
+    // Initialize HP/LP filters
+    lowpassL.prepare(filterSpec);
+    lowpassR.prepare(filterSpec);
+    highpassL.prepare(filterSpec);
+    highpassR.prepare(filterSpec);
+
+    // Force a coefficient update on first block
+    filterRebuildPending.store(true, std::memory_order_release);
+    updateFilters();
+
     // Create main delay lines with 1000 ms max buffer
     const int maxDelaySamples = static_cast<int>(std::ceil(1.0 * sampleRate)); // 1000 ms
     mainDelayLeft.reset(new DelayLine(maxDelaySamples));
@@ -41,10 +57,6 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
 
     updateDelayMillisecondsFromNormalized();
     updateFeedbackGainFromFeedbackTime();
-
-    // Initialize HP/LP filters
-    if (filterRebuildPending.exchange(false, std::memory_order_acq_rel))
-        updateFilters();
 
     // Spread setup
     updateStereoSpread();
@@ -77,7 +89,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
     if (diffusionRebuildPending.exchange(false, std::memory_order_acq_rel))
         rebuildDiffusionIfNeeded();
 
-    updateFilters();
+    if (filterRebuildPending.exchange(false, std::memory_order_acq_rel))
+        updateFilters();
 
     float* leftData = audioBuffer.getWritePointer(0);
     float* rightData = (numChannels > 1 ? audioBuffer.getWritePointer(1) : nullptr);
@@ -292,13 +305,22 @@ void NewDelayReverb::updateDelayMillisecondsFromNormalized()
 
 void NewDelayReverb::rebuildDiffusionIfNeeded()
 {
+    // Only rebuild if something actually changed
+    if (diffusionQualityStages == lastBuiltQualityStages
+        && diffusionSize01 == lastBuiltSize01)
+    {
+        return;
+    }
+
+    lastBuiltQualityStages = diffusionQualityStages;
+    lastBuiltSize01 = diffusionSize01;
+
     if (diffusionLeft)
         diffusionLeft->Configure(diffusionQualityStages, diffusionSize01);
 
     if (diffusionRight)
         diffusionRight->Configure(diffusionQualityStages, diffusionSize01);
 
-    // Compute total diffusion length ms
     totalDiffusionMs = 0.0f;
 
     for (float ms : diffusionLeft->perStageDelayMs)

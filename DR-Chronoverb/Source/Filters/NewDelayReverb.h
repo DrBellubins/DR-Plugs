@@ -123,6 +123,9 @@ private:
     float lastFeedbackL = 0.0f;
     float lastFeedbackR = 0.0f;
 
+    int lastBuiltQualityStages = -1;
+    float lastBuiltSize01 = -1.0f;
+
     // Utility
     static float map01ToRange(float value01, float minValue, float maxValue);
     static float clamp01(float value);
