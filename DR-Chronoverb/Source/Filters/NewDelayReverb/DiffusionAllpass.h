@@ -41,18 +41,25 @@ public:
 
     float ProcessSample(float inputSample)
     {
-        // Read delayed values using current fractional delay
+        // Add denormal killing at input
+        const float inputKilled = std::abs(inputSample) < 1e-15f ? 0.0f : inputSample;
+
         const float xDelayed = readDelaySamplesFractional(currentDelaySamples);
         const float yDelayed = readOutputDelaySamplesFractional(currentDelaySamples);
 
-        // Allpass equation
-        const float y = -g * inputSample + xDelayed + g * yDelayed;
+        // Kill denormals in delayed reads
+        const float xD = std::abs(xDelayed) < 1e-15f ? 0.0f : xDelayed;
+        const float yD = std::abs(yDelayed) < 1e-15f ? 0.0f : yDelayed;
 
-        // Push input and output
-        pushInput(inputSample);
-        pushOutput(y);
+        const float y = -g * inputKilled + xD + g * yD;
 
-        return y;
+        // Kill denormals in output before storing
+        const float yKilled = std::abs(y) < 1e-15f ? 0.0f : y;
+
+        pushInput(inputKilled);
+        pushOutput(yKilled);
+
+        return yKilled;
     }
 
     void SetGain(float newGain)
@@ -77,15 +84,14 @@ public:
     // Use this per-sample for jitter modulation.
     void SetCurrentDelaySamples(float newDelaySamples)
     {
-        // Slew-limit to avoid zipper noise in fractional interpolation
-        const float maxDelta = 0.05f; // Slower slewing for smoother changes
-        const float delta = juce::jlimit<float>(-maxDelta, maxDelta, newDelaySamples - currentDelaySamples);
+        // Increase slew rate for jitter stability
+        const float maxDelta = 0.5f; // Was 0.05f
+        const float delta = juce::jlimit(-maxDelta, maxDelta, newDelaySamples - currentDelaySamples);
         currentDelaySamples += delta;
 
-        // Bound between 1 and buffer size - 3
-        const float minD = 1.0f;
-        const float maxD = static_cast<float>(std::max(4, static_cast<int>(inputBuffer.size()) - 3));
-        currentDelaySamples = juce::jlimit<float>(minD, maxD, currentDelaySamples);
+        const float minD = 2.0f; // Was 1.0f - avoid fractional blow-up near 0
+        const float maxD = std::max(8.0f, static_cast<float>(inputBuffer.size()) - 3.0f);
+        currentDelaySamples = juce::jlimit(minD, maxD, currentDelaySamples);
     }
 
     void SetDelayMilliseconds(float newDelayMs)
@@ -121,24 +127,23 @@ private:
     float readDelaySamplesFractional(float delaySamplesFloat) const
     {
         const int size = static_cast<int>(inputBuffer.size());
-        const float readIndexFloat = static_cast<float>(inputWrite) - delaySamplesFloat;
+        float wrapped = static_cast<float>(inputWrite) - delaySamplesFloat;
 
-        float wrapped = readIndexFloat;
-
+        // Wrap to [0, size)
         while (wrapped < 0.0f)
             wrapped += static_cast<float>(size);
-
-        // Also clamp upper bound — previously missing, causes frac blow-up when wrapped >= size
-        while (wrapped >= static_cast<float>(size))
-            wrapped -= static_cast<float>(size);
+        wrapped = std::fmod(wrapped, static_cast<float>(size)); // Add this!
 
         const float floorWrapped = std::floor(wrapped);
-        const float frac = wrapped - floorWrapped;  // always in [0, 1)
+        const float frac = wrapped - floorWrapped;
+
+        // Add safety clamp
+        const float fracClamped = juce::jlimit(0.0f, 1.0f, frac);
 
         int indexA = static_cast<int>(floorWrapped) % size;
-        int indexB = (indexA - 1 + size) % size;
+        int indexB = (indexA + 1) % size; // Changed from indexA - 1
 
-        return inputBuffer[indexA] * (1.0f - frac) + inputBuffer[indexB] * frac;
+        return inputBuffer[indexA] * (1.0f - fracClamped) + inputBuffer[indexB] * fracClamped;
     }
 
     float readOutputDelaySamplesFractional(float delaySamplesFloat) const

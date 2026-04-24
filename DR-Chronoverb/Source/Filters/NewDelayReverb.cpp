@@ -43,8 +43,7 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     updateFeedbackGainFromFeedbackTime();
 
     // Initialize HP/LP filters
-    if (filterRebuildPending.exchange(false, std::memory_order_acq_rel))
-        updateFilters();
+    updateFilters();
 
     // Spread setup
     updateStereoSpread();
@@ -77,7 +76,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
     if (diffusionRebuildPending.exchange(false, std::memory_order_acq_rel))
         rebuildDiffusionIfNeeded();
 
-    updateFilters();
+    if (filterRebuildPending.exchange(false, std::memory_order_acq_rel))
+        updateFilters();
 
     float* leftData = audioBuffer.getWritePointer(0);
     float* rightData = (numChannels > 1 ? audioBuffer.getWritePointer(1) : nullptr);
@@ -89,41 +89,40 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float inputLeft = leftData[sampleIndex];
         const float inputRight = (rightData != nullptr ? rightData[sampleIndex] : inputLeft);
 
-        // 1: Add feedback to input (no diffusion yet)
+        // 1: Add feedback to input
         float preLeft  = inputLeft  + lastFeedbackL;
         float preRight = inputRight + lastFeedbackR;
 
-        // Pre HP/LP (unchanged)
-        if (hplpPrePost01 < 0.5f) { /* ... */ }
+        // 2: Diffuse the pre-sum BEFORE it enters the delay line.
+        //    The allpass chain now processes a bounded, fresh signal rather than
+        //    accumulating energy from overlapping sustained echoes.
+        float diffusedWriteLeft  = preLeft;
+        float diffusedWriteRight = preRight;
 
-        // 2: Write the clean (un-diffused) pre-sum directly to the delay line
-        mainDelayLeft->PushSample(preLeft);
-        mainDelayRight->PushSample(preRight);
+        if (diffusionAmount01 > 0.001f)
+        {
+            float chainLeft  = diffusionLeft->ProcessSample(preLeft);
+            float chainRight = diffusionRight->ProcessSample(preRight);
 
-        // 3: Read the delayed signal
+            const float fade = diffusionAmount01;
+            diffusedWriteLeft  = preLeft  * (1.0f - fade) + chainLeft  * fade;
+            diffusedWriteRight = preRight * (1.0f - fade) + chainRight * fade;
+        }
+
+        // 3: Write the diffused signal into the delay line
+        mainDelayLeft->PushSample(diffusedWriteLeft);
+        mainDelayRight->PushSample(diffusedWriteRight);
+
+        // 4: Read the delayed (already-diffused) signal
         float outputLeft  = mainDelayLeft->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
         float outputRight = mainDelayRight->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
 
-        // 4: Feedback from UNDIFFUSED output (clean delay loop)
+        // 5: Damping and feedback come directly from the delay output — no re-diffusion
         const float dampedFeedbackLeft  = dampingLeft->ProcessSample(outputLeft,  lowpass01);
         const float dampedFeedbackRight = dampingRight->ProcessSample(outputRight, lowpass01);
 
         lastFeedbackL = dampedFeedbackLeft  * feedbackGain;
         lastFeedbackR = dampedFeedbackRight * feedbackGain;
-
-        // 5: Apply diffusion ONLY to the output tap (cosmetic scatter, never fed back)
-        float diffusedLeft  = outputLeft;
-        float diffusedRight = outputRight;
-
-        if (diffusionAmount01 > 0.001f)
-        {
-            diffusedLeft  = diffusionLeft->ProcessSample(outputLeft);
-            diffusedRight = diffusionRight->ProcessSample(outputRight);
-
-            const float fade = diffusionAmount01;
-            diffusedLeft  = outputLeft  * (1.0f - fade) + diffusedLeft  * fade;
-            diffusedRight = outputRight * (1.0f - fade) + diffusedRight * fade;
-        }
 
         // 6: Progressive pitch shift (shimmer)
         //const float pitchedFeedbackLeft = wetInputPitchShifterLeft.ProcessSample(dampedLeft);
@@ -149,11 +148,11 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         }
 
         // 7: Output crossfade: morph between raw delay and diffused
-        const float fade = diffusionAmount01 * 0.5f * juce::MathConstants<float>::pi;
+        //const float fade = diffusionAmount01 * 0.5f * juce::MathConstants<float>::pi;
         //const float wetLeft = PMath::EqualPowerCrossfade(outputLeft, dampedLeft, fade);
         //const float wetRight = PMath::EqualPowerCrossfade(outputRight, dampedRight, fade);
-        const float wetLeft  = diffusedLeft;
-        const float wetRight = diffusedRight;
+        const float wetLeft  = outputLeft;
+        const float wetRight = outputRight;
 
         // 8: Stereo spread on wet
         float spreadWetLeft = wetLeft;

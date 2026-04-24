@@ -75,7 +75,7 @@ public:
         {
             float baseMilliseconds = tunedBaseDelays[stageIndex];
             float scaledMilliseconds = baseMilliseconds * (0.25f + 0.75f * cachedSize01);
-            float stageGain = 0.65f - (stageIndex * 0.03f);     // Decrease from 0.65 to ~0.44 for 8 stages
+            float stageGain = 0.58f - (stageIndex * 0.03f); // Was 0.65f, now starts lower
 
             auto diffusionStage = std::make_unique<DiffusionAllpass>();
             diffusionStage->Prepare(sampleRate);
@@ -86,7 +86,7 @@ public:
 
         // Per-stage jitter state
         jitterLPState.assign(effectiveStages, 0.0f);
-        jitterDepthPercent.assign(effectiveStages, 0.005f); // ±0.5% default
+        jitterDepthPercent.assign(effectiveStages, 0.0005f); // Was 0.005f (±0.5%), now ±0.05%
         jitterRateHz.assign(effectiveStages, 0.20f + 0.30f * random01()); // 0.2..0.5 Hz equivalent noise refresh
         tpdfNoiseSeedA.assign(effectiveStages, rand());
         tpdfNoiseSeedB.assign(effectiveStages, rand());
