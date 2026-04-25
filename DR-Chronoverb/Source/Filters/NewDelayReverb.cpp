@@ -351,9 +351,32 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         float preLeft = filteredDryLeft + lastFeedbackL;
         float preRight = filteredDryRight + lastFeedbackR;
 
-        // 3: Diffuse before write (amount-controlled)
-        float writeLeft = preLeft;
-        float writeRight = preRight;
+        // 3: Progressive pitch shift (shimmer)
+        const float pitchedFeedbackLeft = wetInputPitchShifterLeft.ProcessSample(preLeft);
+        const float pitchedFeedbackRight = wetInputPitchShifterRight.ProcessSample(preRight);
+
+        // Advance echo boundary counters
+        const int delaySamplesInt = static_cast<int>(std::round((delayMilliseconds * sampleRate) / 1000.0));
+
+        ++echoSampleCounterL;
+
+        if (echoSampleCounterL >= delaySamplesInt)
+        {
+            echoSampleCounterL = 0;
+            wetInputPitchShifterLeft.OnNewEchoBoundary();
+        }
+
+        ++echoSampleCounterR;
+
+        if (echoSampleCounterR >= delaySamplesInt)
+        {
+            echoSampleCounterR = 0;
+            wetInputPitchShifterRight.OnNewEchoBoundary();
+        }
+
+        // 4: Diffuse before write (amount-controlled)
+        float writeLeft = pitchedFeedbackLeft;
+        float writeRight = pitchedFeedbackRight;
 
         if (diffusionAmountSmoothed > 0.0001f)
         {
@@ -363,15 +386,15 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             const float cleanWriteGain = std::cos(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
             const float diffusedWriteGain = std::sin(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
 
-            writeLeft = preLeft * cleanWriteGain + diffusedWriteLeft * diffusedWriteGain;
-            writeRight = preRight * cleanWriteGain + diffusedWriteRight * diffusedWriteGain;
+            writeLeft = pitchedFeedbackLeft * cleanWriteGain + diffusedWriteLeft * diffusedWriteGain;
+            writeRight = pitchedFeedbackRight * cleanWriteGain + diffusedWriteRight * diffusedWriteGain;
         }
 
-        // 4: IMPORTANT: write to delay line before reading
+        // 5: IMPORTANT: write to delay line before reading
         mainDelayLeft->PushSample(writeLeft);
         mainDelayRight->PushSample(writeRight);
 
-        // 5: Fixed read positions (do not depend on diffusion amount)
+        // 6: Fixed read positions (do not depend on diffusion amount)
         const float nominalReadMilliseconds = delayMilliseconds;
         const float earlyReadMilliseconds = std::max(1.0f, delayMilliseconds - staticDiffusionCompensationMilliseconds);
 
@@ -404,25 +427,6 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
         lastFeedbackL = dampedLeft * feedbackGain;
         lastFeedbackR = dampedRight * feedbackGain;
-
-        // Echo boundary counters (unchanged)
-        const int delaySamplesInt = static_cast<int>(std::round((delayMilliseconds * sampleRate) / 1000.0));
-
-        ++echoSampleCounterL;
-
-        if (echoSampleCounterL >= delaySamplesInt)
-        {
-            echoSampleCounterL = 0;
-            wetInputPitchShifterLeft.OnNewEchoBoundary();
-        }
-
-        ++echoSampleCounterR;
-
-        if (echoSampleCounterR >= delaySamplesInt)
-        {
-            echoSampleCounterR = 0;
-            wetInputPitchShifterRight.OnNewEchoBoundary();
-        }
 
         // 8: Stereo spread
         float spreadWetLeft = wetLeft;
