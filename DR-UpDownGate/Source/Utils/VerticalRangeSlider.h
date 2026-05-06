@@ -63,13 +63,18 @@ private:
     DraggingThumb draggingThumb = None;
     HoveredThumb hoveredThumb = HoverNone;
 
-    float thumbWidth = 18.0f;
+    float thumbWidth = 50.0f;
     float thumbHeight = 4.0f;
     float thumbTopInset = 6.0f;
     float visualMinimumThumbSpacing = 8.0f;
 
+    int dragStartMouseY = 0;
+    float dragStartLowerValue = 0.0f;
+    float dragStartUpperValue = 0.0f;
+
     int valueToY(float value) const;
     float yToValue(int yPosition) const;
+    float deltaYToValueDelta(float deltaY) const;
 
     juce::Rectangle<float> getRangeRectangle() const;
     juce::Rectangle<float> getUpperThumbRectangle() const;

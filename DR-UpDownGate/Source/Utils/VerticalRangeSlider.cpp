@@ -86,30 +86,51 @@ juce::Rectangle<float> VerticalRangeSlider::getRangeRectangle() const
 
 juce::Rectangle<float> VerticalRangeSlider::getUpperThumbRectangle() const
 {
+    juce::Rectangle<float> bounds = getLocalBounds().toFloat();
     juce::Rectangle<float> rangeRectangle = getRangeRectangle();
 
     float thumbXPosition = rangeRectangle.getCentreX() - (thumbWidth * 0.5f);
-    float thumbYPosition = rangeRectangle.getY() + thumbTopInset;
+    float normalThumbYPosition = rangeRectangle.getY() + thumbTopInset;
 
-    return juce::Rectangle<float>(thumbXPosition, thumbYPosition, thumbWidth, thumbHeight);
+    float upperThumbYPosition = normalThumbYPosition;
+    float lowerThumbNormalYPosition = rangeRectangle.getBottom() - thumbTopInset - thumbHeight;
+
+    float availableSpacing = lowerThumbNormalYPosition - normalThumbYPosition;
+
+    if (availableSpacing < visualMinimumThumbSpacing)
+    {
+        float rangeCentreYPosition = rangeRectangle.getCentreY();
+        float halfVisualSpacing = (visualMinimumThumbSpacing + thumbHeight) * 0.5f;
+
+        upperThumbYPosition = rangeCentreYPosition - halfVisualSpacing;
+        upperThumbYPosition = juce::jlimit(bounds.getY(), bounds.getBottom() - thumbHeight, upperThumbYPosition);
+    }
+
+    return juce::Rectangle<float>(thumbXPosition, upperThumbYPosition, thumbWidth, thumbHeight);
 }
 
 juce::Rectangle<float> VerticalRangeSlider::getLowerThumbRectangle() const
 {
+    juce::Rectangle<float> bounds = getLocalBounds().toFloat();
     juce::Rectangle<float> rangeRectangle = getRangeRectangle();
 
     float thumbXPosition = rangeRectangle.getCentreX() - (thumbWidth * 0.5f);
-    float thumbYPosition = rangeRectangle.getBottom() - thumbTopInset - thumbHeight;
+    float upperThumbNormalYPosition = rangeRectangle.getY() + thumbTopInset;
+    float normalThumbYPosition = rangeRectangle.getBottom() - thumbTopInset - thumbHeight;
 
-    juce::Rectangle<float> lowerThumbRectangle(thumbXPosition, thumbYPosition, thumbWidth, thumbHeight);
-    juce::Rectangle<float> upperThumbRectangle = getUpperThumbRectangle();
+    float lowerThumbYPosition = normalThumbYPosition;
+    float availableSpacing = normalThumbYPosition - upperThumbNormalYPosition;
 
-    if (lowerThumbRectangle.getY() < upperThumbRectangle.getBottom() + visualMinimumThumbSpacing)
+    if (availableSpacing < visualMinimumThumbSpacing)
     {
-        lowerThumbRectangle.setY(upperThumbRectangle.getBottom() + visualMinimumThumbSpacing);
+        float rangeCentreYPosition = rangeRectangle.getCentreY();
+        float halfVisualSpacing = (visualMinimumThumbSpacing + thumbHeight) * 0.5f;
+
+        lowerThumbYPosition = rangeCentreYPosition + halfVisualSpacing - thumbHeight;
+        lowerThumbYPosition = juce::jlimit(bounds.getY(), bounds.getBottom() - thumbHeight, lowerThumbYPosition);
     }
 
-    return lowerThumbRectangle;
+    return juce::Rectangle<float>(thumbXPosition, lowerThumbYPosition, thumbWidth, thumbHeight);
 }
 
 VerticalRangeSlider::HoveredThumb VerticalRangeSlider::getHoveredThumbAtPosition(juce::Point<int> mousePosition) const
@@ -164,7 +185,9 @@ int VerticalRangeSlider::valueToY(float value) const
     float proportion = (value - minValue) / (maxValue - minValue);
 
     return juce::roundToInt(
-        juce::jmap(1.0f - proportion, static_cast<float>(bounds.getY()), static_cast<float>(bounds.getBottom()))
+        juce::jmap(1.0f - proportion,
+                   static_cast<float>(bounds.getY()),
+                   static_cast<float>(bounds.getBottom()))
     );
 }
 
@@ -174,6 +197,19 @@ float VerticalRangeSlider::yToValue(int yPosition) const
     float proportion = 1.0f - (static_cast<float>(yPosition - bounds.getY()) / static_cast<float>(bounds.getHeight()));
 
     return juce::jlimit(minValue, maxValue, minValue + proportion * (maxValue - minValue));
+}
+
+float VerticalRangeSlider::deltaYToValueDelta(float deltaY) const
+{
+    juce::Rectangle<int> bounds = getLocalBounds();
+
+    if (bounds.getHeight() <= 0)
+    {
+        return 0.0f;
+    }
+
+    float valueRange = maxValue - minValue;
+    return (-deltaY / static_cast<float>(bounds.getHeight())) * valueRange;
 }
 
 void VerticalRangeSlider::mouseDown(const juce::MouseEvent& mouseEvent)
@@ -193,20 +229,25 @@ void VerticalRangeSlider::mouseDown(const juce::MouseEvent& mouseEvent)
         draggingThumb = None;
     }
 
+    dragStartMouseY = mouseEvent.getPosition().getY();
+    dragStartLowerValue = lowerValue;
+    dragStartUpperValue = upperValue;
+
     repaint();
 }
 
 void VerticalRangeSlider::mouseDrag(const juce::MouseEvent& mouseEvent)
 {
-    float newValue = yToValue(mouseEvent.getPosition().getY());
+    float mouseDeltaY = static_cast<float>(mouseEvent.getPosition().getY() - dragStartMouseY);
+    float valueDelta = deltaYToValueDelta(mouseDeltaY);
 
     if (draggingThumb == Lower)
     {
-        setLowerValue(newValue);
+        setLowerValue(dragStartLowerValue + valueDelta);
     }
     else if (draggingThumb == Upper)
     {
-        setUpperValue(newValue);
+        setUpperValue(dragStartUpperValue + valueDelta);
     }
 }
 
@@ -226,7 +267,7 @@ void VerticalRangeSlider::mouseMove(const juce::MouseEvent& mouseEvent)
     }
     else
     {
-        setMouseCursor(juce::MouseCursor::PointingHandCursor);
+        setMouseCursor(juce::MouseCursor::UpDownResizeCursor);
     }
 }
 
