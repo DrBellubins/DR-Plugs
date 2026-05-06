@@ -19,10 +19,10 @@ parameters(*this, nullptr, "Parameters", {
             juce::NormalisableRange<float>(-60.0f, 1.0f), 0.0f),
 
         std::make_unique<juce::AudioParameterFloat>("attack", "Attack",
-            juce::NormalisableRange<float>(0.0f, 1.0f), 0.25f),
+            juce::NormalisableRange<float>(1.0f, 1000.0f), 250.0f),
 
         std::make_unique<juce::AudioParameterFloat>("release", "Release",
-            juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f)
+            juce::NormalisableRange<float>(1.0f, 1000.0f), 500.0f)
     })
 {
 
