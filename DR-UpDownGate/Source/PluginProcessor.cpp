@@ -165,7 +165,7 @@ void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
             envelopeLevel = (1.0 - releaseCoeff) * absValue + releaseCoeff * envelopeLevel;
 
         // Gate logic
-        float envelopeDb = juce::Decibels::gainToDecibels(static_cast<float>(juce::jmax(envelopeLevel, 1.0e-6)), -120.0f);
+        float envelopeDb = juce::Decibels::gainToDecibels(static_cast<float>(juce::jmax(envelopeLevel, 1.0e-6)), -60.0f);
 
         visualInputLevelDb.store(envelopeDb);
 

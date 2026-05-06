@@ -11,26 +11,21 @@ GateLevelDisplay::GateLevelDisplay(AudioPluginAudioProcessor& audioProcessor,
 
 void GateLevelDisplay::timerCallback()
 {
-    float currentLevelDb = processorRef.getVisualInputLevelDb();
-
-    levelHistory.add(currentLevelDb);
-
-    while (levelHistory.size() > maximumHistorySize)
-    {
-        levelHistory.remove(0);
-    }
-
+    currentLevelDecibels = processorRef.getVisualInputLevelDb();
     repaint();
 }
 
 float GateLevelDisplay::decibelsToY(float decibelValue) const
 {
-    juce::Rectangle<int> bounds = getLocalBounds();
+    juce::Rectangle<int> localBounds = getLocalBounds();
 
-    return juce::jmap(decibelValue,
-                      -60.0f, 0.0f,
-                      static_cast<float>(bounds.getBottom()),
-                      static_cast<float>(bounds.getY()));
+    float clampedDecibelValue = juce::jlimit(-60.0f, 0.0f, decibelValue);
+
+    return juce::jmap(clampedDecibelValue,
+                      -60.0f,
+                      0.0f,
+                      static_cast<float>(localBounds.getBottom()),
+                      static_cast<float>(localBounds.getY()));
 }
 
 void GateLevelDisplay::paint(juce::Graphics& graphics)
@@ -38,51 +33,52 @@ void GateLevelDisplay::paint(juce::Graphics& graphics)
     juce::Rectangle<float> bounds = getLocalBounds().toFloat();
 
     graphics.setColour(AccentGray);
-    graphics.fillRoundedRectangle(bounds, 8.0f);
+    graphics.fillRoundedRectangle(bounds, 6.0f);
 
-    float thresholdLow = rangeSliderRef.getLowerValue();
-    float thresholdHigh = rangeSliderRef.getUpperValue();
+    float thresholdLowDecibels = rangeSliderRef.getLowerValue();
+    float thresholdHighDecibels = rangeSliderRef.getUpperValue();
 
-    float thresholdHighY = decibelsToY(thresholdHigh);
-    float thresholdLowY = decibelsToY(thresholdLow);
+    float thresholdHighYPosition = decibelsToY(thresholdHighDecibels);
+    float thresholdLowYPosition = decibelsToY(thresholdLowDecibels);
 
-    juce::Rectangle<float> activeRangeRectangle(
+    juce::Rectangle<float> allowedRangeRectangle(
         bounds.getX(),
-        thresholdHighY,
+        thresholdHighYPosition,
         bounds.getWidth(),
-        thresholdLowY - thresholdHighY);
+        juce::jmax(1.0f, thresholdLowYPosition - thresholdHighYPosition));
 
-    graphics.setColour(ThemePink.withAlpha(0.15f));
-    graphics.fillRoundedRectangle(activeRangeRectangle, 6.0f);
+    graphics.setColour(ThemePink.withAlpha(0.10f));
+    graphics.fillRoundedRectangle(allowedRangeRectangle, 4.0f);
 
     graphics.setColour(ThemePink.withAlpha(0.35f));
-    graphics.drawLine(bounds.getX(), thresholdLowY, bounds.getRight(), thresholdLowY, 1.5f);
-    graphics.drawLine(bounds.getX(), thresholdHighY, bounds.getRight(), thresholdHighY, 1.5f);
+    graphics.drawLine(bounds.getX(), thresholdLowYPosition, bounds.getRight(), thresholdLowYPosition, 1.0f);
+    graphics.drawLine(bounds.getX(), thresholdHighYPosition, bounds.getRight(), thresholdHighYPosition, 1.0f);
 
-    if (levelHistory.size() > 1)
+    float levelYPosition = decibelsToY(currentLevelDecibels);
+
+    juce::Rectangle<float> meterRectangle(
+        bounds.getX() + 2.0f,
+        levelYPosition,
+        bounds.getWidth() - 4.0f,
+        bounds.getBottom() - levelYPosition - 2.0f);
+
+    bool isWithinAllowedRange =
+        currentLevelDecibels >= thresholdLowDecibels
+        && currentLevelDecibels <= thresholdHighDecibels;
+
+    juce::Colour meterColour = isWithinAllowedRange
+                               ? juce::Colours::white
+                               : juce::Colours::white.withAlpha(0.45f);
+
+    graphics.setColour(meterColour);
+
+    if (meterRectangle.getHeight() > 0.0f)
     {
-        juce::Path levelPath;
-
-        float xStep = bounds.getWidth() / static_cast<float>(juce::jmax(1, maximumHistorySize - 1));
-
-        for (int historyIndex = 0; historyIndex < levelHistory.size(); ++historyIndex)
-        {
-            float xPosition = bounds.getX() + xStep * static_cast<float>(historyIndex);
-            float yPosition = decibelsToY(levelHistory.getUnchecked(historyIndex));
-
-            if (historyIndex == 0)
-            {
-                levelPath.startNewSubPath(xPosition, yPosition);
-            }
-            else
-            {
-                levelPath.lineTo(xPosition, yPosition);
-            }
-        }
-
-        graphics.setColour(juce::Colours::white);
-        graphics.strokePath(levelPath, juce::PathStrokeType(2.0f));
+        graphics.fillRoundedRectangle(meterRectangle, 4.0f);
     }
+
+    graphics.setColour(FocusedGray);
+    graphics.drawRoundedRectangle(bounds.reduced(0.5f), 6.0f, 1.0f);
 }
 
 void GateLevelDisplay::resized()

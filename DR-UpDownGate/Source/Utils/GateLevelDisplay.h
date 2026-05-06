@@ -18,14 +18,12 @@ public:
 
 private:
     void timerCallback() override;
-
     float decibelsToY(float decibelValue) const;
 
     AudioPluginAudioProcessor& processorRef;
     VerticalRangeSlider& rangeSliderRef;
 
-    juce::Array<float> levelHistory;
-    int maximumHistorySize = 120;
+    float currentLevelDecibels = -60.0f;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GateLevelDisplay)
 };
