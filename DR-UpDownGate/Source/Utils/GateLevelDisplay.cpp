@@ -32,7 +32,7 @@ void GateLevelDisplay::paint(juce::Graphics& graphics)
 {
     juce::Rectangle<float> bounds = getLocalBounds().toFloat();
 
-    graphics.setColour(AccentGray);
+    graphics.setColour(juce::Colours::black.withAlpha(0.25f));
     graphics.fillRect(bounds);
 
     float thresholdLowDecibels = rangeSliderRef.getLowerValue();

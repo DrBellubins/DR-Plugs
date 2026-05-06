@@ -140,11 +140,12 @@ void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     float thresholdLow = parameters.getRawParameterValue("thresholdLow")->load();
     float thresholdHigh = parameters.getRawParameterValue("thresholdHigh")->load();
 
-    float attackValue = parameters.getRawParameterValue("attack")->load();
-    float releaseValue = parameters.getRawParameterValue("release")->load();
+    float attackMs = parameters.getRawParameterValue("attack")->load();
+    float releaseMs = parameters.getRawParameterValue("release")->load();
 
-    double attackTimeMs = 1.0 + attackValue * 999.0;
-    double releaseTimeMs = 1.0 + releaseValue * 999.0;
+    double attackTimeMs = juce::jmax(0.001, static_cast<double>(attackMs) / 1000.0);
+    double releaseTimeMs = juce::jmax(0.001, static_cast<double>(releaseMs) / 1000.0);
+
     double sampleRate = getSampleRate();
 
     double attackTimeSeconds = attackTimeMs / 1000.0;

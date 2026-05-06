@@ -31,7 +31,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     attackKnob->setLookAndFeel(&flatKnobLAF);
     attackKnob->setSliderStyle(juce::Slider::RotaryVerticalDrag);
     attackKnob->setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 20);
-    attackKnob->setRange(0.0, 1.0, 0.01);
+    attackKnob->setRange(1.0, 1000.0, 1.0);
     attackKnob->setBounds(25, 100, 100, 100);
 
     addAndMakeVisible(*attackKnob);
@@ -44,7 +44,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     releaseKnob->setLookAndFeel(&flatKnobLAF);
     releaseKnob->setSliderStyle(juce::Slider::RotaryVerticalDrag);
     releaseKnob->setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 20);
-    releaseKnob->setRange(0.0, 1.0, 0.01);
+    releaseKnob->setRange(1.0, 1000.0, 1.0);
     releaseKnob->setBounds(25, 300, 100, 100);
 
     addAndMakeVisible(*releaseKnob);
