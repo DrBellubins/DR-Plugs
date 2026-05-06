@@ -1,7 +1,6 @@
 #pragma once
 
 #include "PluginProcessor.h"
-#include "PluginEditor.h"
 #include "Utils/Theme.h"
 #include "Utils/FlatRotaryLookAndFeel.h"
 #include "Utils/EnvelopeKnob.h"

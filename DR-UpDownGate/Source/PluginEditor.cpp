@@ -13,7 +13,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     // editor's size to whatever you need it to be.
     setSize (300, 500);
 
-    BGAndLogo = juce::ImageFileFormat::loadFrom(BinaryData::bgandlogo_png, BinaryData::bgandlogo_pngSize);
+    BGAndLogo = juce::ImageFileFormat::loadFrom(BinaryData::BGAndLogo_png, BinaryData::BGAndLogo_pngSize);
 
     // Range slider
     rangeSlider = std::make_unique<VerticalRangeSlider>(-60.0f, 0.0f);
@@ -65,6 +65,11 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
 {
     // (Our component is opaque, so we must completely fill the background with a solid colour)
     graphics.fillAll(BGGray);
+
+    if (BGAndLogo.isValid())
+    {
+        graphics.drawImage(BGAndLogo, getLocalBounds().toFloat());
+    }
 }
 
 void AudioPluginAudioProcessorEditor::resized()
