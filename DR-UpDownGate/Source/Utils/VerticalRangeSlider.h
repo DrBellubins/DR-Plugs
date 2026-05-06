@@ -21,6 +21,7 @@ public:
 
     std::function<void(float)> OnLowerValueChanged;
     std::function<void(float)> OnUpperValueChanged;
+    std::function<void()> OnTooltipStateChanged;
 
     void setLowerValue(float newValue);
     void setUpperValue(float newValue);
@@ -29,7 +30,7 @@ public:
     void setMinimumRange(float newMinimumRange);
 
     bool shouldShowTooltip() const;
-    juce::Rectangle<float> getActiveThumbBoundsInParent() const;
+    juce::Rectangle<float> getActiveThumbBoundsInComponent(const juce::Component& targetComponent) const;
     juce::String getActiveThumbTooltipText() const;
 
     void paint(juce::Graphics& graphics) override;
@@ -86,6 +87,8 @@ private:
     juce::Rectangle<float> getLowerThumbRectangle() const;
     juce::Rectangle<float> getActiveThumbRectangle() const;
     HoveredThumb getHoveredThumbAtPosition(juce::Point<int> mousePosition) const;
+
+    void notifyTooltipStateChanged();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(VerticalRangeSlider)
 };

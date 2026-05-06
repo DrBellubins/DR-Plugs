@@ -59,11 +59,20 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     addAndMakeVisible(*gateLevelDisplay);
 
     // Tooltip Overlay
-    sliderTooltipOverlay = std::make_unique<SliderTooltipOverlay>(*rangeSlider);
-    sliderTooltipOverlay->toFront(false);
-    sliderTooltipOverlay->setBounds(getLocalBounds());
+    tooltipOverlay = std::make_unique<TooltipOverlay>(*rangeSlider);
+    tooltipOverlay->setBounds(getLocalBounds());
 
-    addAndMakeVisible(*sliderTooltipOverlay);
+    addAndMakeVisible(*tooltipOverlay);
+
+    tooltipOverlay->toFront(false);
+
+    rangeSlider->OnTooltipStateChanged = [this]()
+    {
+        if (tooltipOverlay)
+        {
+            tooltipOverlay->repaint();
+        }
+    };
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor() = default;
@@ -84,9 +93,9 @@ void AudioPluginAudioProcessorEditor::resized()
 {
     // This is generally where you'll want to lay out the positions of any
     // subcomponents in your editor
-    if (sliderTooltipOverlay)
+    if (tooltipOverlay)
     {
-        sliderTooltipOverlay->setBounds(getLocalBounds());
-        sliderTooltipOverlay->toFront(false);
+        tooltipOverlay->setBounds(getLocalBounds());
+        tooltipOverlay->toFront(false);
     }
 }

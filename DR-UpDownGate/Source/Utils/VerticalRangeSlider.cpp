@@ -24,6 +24,7 @@ void VerticalRangeSlider::setLowerValue(float newValue)
         }
 
         repaint();
+        notifyTooltipStateChanged();
     }
 }
 
@@ -42,6 +43,7 @@ void VerticalRangeSlider::setUpperValue(float newValue)
         }
 
         repaint();
+        notifyTooltipStateChanged();
     }
 }
 
@@ -66,6 +68,7 @@ void VerticalRangeSlider::setMinimumRange(float newMinimumRange)
     }
 
     repaint();
+    notifyTooltipStateChanged();
 }
 
 juce::Rectangle<float> VerticalRangeSlider::getRangeRectangle() const
@@ -181,7 +184,7 @@ bool VerticalRangeSlider::shouldShowTooltip() const
     return draggingThumb != None || hoveredThumb != HoverNone;
 }
 
-juce::Rectangle<float> VerticalRangeSlider::getActiveThumbBoundsInParent() const
+juce::Rectangle<float> VerticalRangeSlider::getActiveThumbBoundsInComponent(const juce::Component& targetComponent) const
 {
     juce::Rectangle<float> activeThumbRectangle = getActiveThumbRectangle();
 
@@ -190,15 +193,10 @@ juce::Rectangle<float> VerticalRangeSlider::getActiveThumbBoundsInParent() const
         return {};
     }
 
-    juce::Point<int> topLeftPosition = localPointToGlobal(activeThumbRectangle.getTopLeft().toInt());
-    juce::Point<int> bottomRightPosition = localPointToGlobal(activeThumbRectangle.getBottomRight().toInt());
+    juce::Rectangle<int> integerThumbRectangle = activeThumbRectangle.getSmallestIntegerContainer();
+    juce::Rectangle<int> targetRectangle = targetComponent.getLocalArea(this, integerThumbRectangle);
 
-    return juce::Rectangle<float>::leftTopRightBottom(
-        static_cast<float>(topLeftPosition.getX()),
-        static_cast<float>(topLeftPosition.getY()),
-        static_cast<float>(bottomRightPosition.getX()),
-        static_cast<float>(bottomRightPosition.getY())
-    );
+    return targetRectangle.toFloat();
 }
 
 juce::String VerticalRangeSlider::getActiveThumbTooltipText() const
@@ -314,11 +312,7 @@ void VerticalRangeSlider::mouseDown(const juce::MouseEvent& mouseEvent)
     dragStartUpperValue = upperValue;
 
     repaint();
-
-    if (auto* parentComponent = getParentComponent())
-    {
-        parentComponent->repaint();
-    }
+    notifyTooltipStateChanged();
 }
 
 void VerticalRangeSlider::mouseDrag(const juce::MouseEvent& mouseEvent)
@@ -335,10 +329,7 @@ void VerticalRangeSlider::mouseDrag(const juce::MouseEvent& mouseEvent)
         setUpperValue(dragStartUpperValue + valueDelta);
     }
 
-    if (auto* parentComponent = getParentComponent())
-    {
-        parentComponent->repaint();
-    }
+    notifyTooltipStateChanged();
 }
 
 void VerticalRangeSlider::mouseMove(const juce::MouseEvent& mouseEvent)
@@ -349,11 +340,7 @@ void VerticalRangeSlider::mouseMove(const juce::MouseEvent& mouseEvent)
     {
         hoveredThumb = newHoveredThumb;
         repaint();
-
-        if (auto* parentComponent = getParentComponent())
-        {
-            parentComponent->repaint();
-        }
+        notifyTooltipStateChanged();
     }
 
     if (hoveredThumb == HoverNone)
@@ -373,11 +360,7 @@ void VerticalRangeSlider::mouseExit(const juce::MouseEvent& mouseEvent)
     hoveredThumb = HoverNone;
     setMouseCursor(juce::MouseCursor::NormalCursor);
     repaint();
-
-    if (auto* parentComponent = getParentComponent())
-    {
-        parentComponent->repaint();
-    }
+    notifyTooltipStateChanged();
 }
 
 void VerticalRangeSlider::mouseUp(const juce::MouseEvent& mouseEvent)
@@ -386,9 +369,13 @@ void VerticalRangeSlider::mouseUp(const juce::MouseEvent& mouseEvent)
 
     draggingThumb = None;
     repaint();
+    notifyTooltipStateChanged();
+}
 
-    if (auto* parentComponent = getParentComponent())
+void VerticalRangeSlider::notifyTooltipStateChanged()
+{
+    if (OnTooltipStateChanged)
     {
-        parentComponent->repaint();
+        OnTooltipStateChanged();
     }
 }

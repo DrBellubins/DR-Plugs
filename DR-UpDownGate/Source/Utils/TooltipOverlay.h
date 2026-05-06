@@ -2,12 +2,13 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "VerticalRangeSlider.h"
+#include "Theme.h"
 
-class SliderTooltipOverlay : public juce::Component
+class TooltipOverlay : public juce::Component
 {
 public:
-    explicit SliderTooltipOverlay(VerticalRangeSlider& sliderToTrack)
-        : trackedSlider(sliderToTrack)
+    explicit TooltipOverlay(VerticalRangeSlider& verticalRangeSlider)
+        : trackedSlider(verticalRangeSlider)
     {
         setInterceptsMouseClicks(false, false);
         setAlwaysOnTop(true);
@@ -20,26 +21,27 @@ public:
             return;
         }
 
-        juce::Rectangle<float> thumbBoundsInParent = trackedSlider.getActiveThumbBoundsInParent();
+        juce::Rectangle<float> thumbBounds = trackedSlider.getActiveThumbBoundsInComponent(*this);
         juce::String tooltipText = trackedSlider.getActiveThumbTooltipText();
 
-        if (thumbBoundsInParent.isEmpty() || tooltipText.isEmpty())
+        if (thumbBounds.isEmpty() || tooltipText.isEmpty())
         {
             return;
         }
 
-        constexpr float tooltipPaddingX = 8.0f;
         constexpr float tooltipHeight = 24.0f;
+        constexpr float tooltipHorizontalPadding = 8.0f;
         constexpr float tooltipGap = 10.0f;
         constexpr float tooltipCornerRadius = 6.0f;
 
         juce::Font tooltipFont(14.0f);
         graphics.setFont(tooltipFont);
 
-        float tooltipWidth = static_cast<float>(tooltipFont.getStringWidth(tooltipText)) + (tooltipPaddingX * 2.0f);
+        float tooltipWidth = static_cast<float>(tooltipFont.getStringWidth(tooltipText))
+                             + (tooltipHorizontalPadding * 2.0f);
 
-        float tooltipXPosition = thumbBoundsInParent.getRight() + tooltipGap;
-        float tooltipYPosition = thumbBoundsInParent.getCentreY() - (tooltipHeight * 0.5f);
+        float tooltipXPosition = thumbBounds.getRight() + tooltipGap;
+        float tooltipYPosition = thumbBounds.getCentreY() - (tooltipHeight * 0.5f);
 
         juce::Rectangle<float> tooltipBounds(
             tooltipXPosition,
@@ -52,7 +54,7 @@ public:
 
         if (tooltipBounds.getRight() > overlayBounds.getRight())
         {
-            tooltipBounds.setX(thumbBoundsInParent.getX() - tooltipGap - tooltipWidth);
+            tooltipBounds.setX(thumbBounds.getX() - tooltipGap - tooltipWidth);
         }
 
         if (tooltipBounds.getY() < overlayBounds.getY())
@@ -65,7 +67,7 @@ public:
             tooltipBounds.setY(overlayBounds.getBottom() - tooltipHeight);
         }
 
-        graphics.setColour(juce::Colours::black.withAlpha(0.88f));
+        graphics.setColour(juce::Colours::black.withAlpha(0.5f));
         graphics.fillRoundedRectangle(tooltipBounds, tooltipCornerRadius);
 
         graphics.setColour(juce::Colours::white);
@@ -80,5 +82,5 @@ public:
 private:
     VerticalRangeSlider& trackedSlider;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SliderTooltipOverlay)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TooltipOverlay)
 };
