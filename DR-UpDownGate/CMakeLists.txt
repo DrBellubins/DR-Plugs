@@ -139,13 +139,18 @@ target_compile_definitions("${PROJECT_NAME}"
     # NAMESPACE ...                 # Namespace of the generated binary data class. "BinaryData" is used by default
 #   SOURCES ...)                    # List of asset files of any kind that should be built into the static library
 
+juce_add_binary_data(Assets
+        SOURCES
+        Assets/BGAndLogo.png
+)
+
 # `target_link_libraries` links libraries and JUCE modules to other libraries or executables. Here,
 # we're linking our executable target to the `juce::juce_audio_utils` module. Inter-module
 # dependencies are resolved automatically.
 
 target_link_libraries("${PROJECT_NAME}"
     PRIVATE
-        # Assets                # If we'd created a binary data target, we'd link to it here
+        Assets                # If we'd created a binary data target, we'd link to it here
         juce::juce_audio_utils
     PUBLIC
         juce::juce_recommended_config_flags

@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "BinaryData.h"
 
 static FlatRotaryLookAndFeel flatKnobLAF;
 
