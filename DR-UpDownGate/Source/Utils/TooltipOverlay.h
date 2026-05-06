@@ -101,10 +101,11 @@ private:
     void timerCallback() override
     {
         float targetAlpha = trackedSlider.shouldShowTooltip() ? 1.0f : 0.0f;
-        float fadeInSpeed = 0.14f;
-        float fadeOutSpeed = 0.07f;
+        float fadeInSpeed = 0.07f;
+        float fadeOutSpeed = 0.002f;
 
         if (currentAlpha < targetAlpha)
+
         {
             currentAlpha = juce::jmin(targetAlpha, currentAlpha + fadeInSpeed);
             repaint();

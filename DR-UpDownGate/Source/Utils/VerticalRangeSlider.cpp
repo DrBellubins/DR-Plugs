@@ -161,6 +161,31 @@ VerticalRangeSlider::ActiveThumb VerticalRangeSlider::getActiveThumb() const
     return NoThumb;
 }
 
+juce::Rectangle<float> VerticalRangeSlider::getActiveThumbRectangle() const
+{
+    if (draggingThumb == Upper)
+    {
+        return getUpperThumbRectangle();
+    }
+
+    if (draggingThumb == Lower)
+    {
+        return getLowerThumbRectangle();
+    }
+
+    if (hoveredThumb == HoverUpper)
+    {
+        return getUpperThumbRectangle();
+    }
+
+    if (hoveredThumb == HoverLower)
+    {
+        return getLowerThumbRectangle();
+    }
+
+    return {};
+}
+
 VerticalRangeSlider::HoveredThumb VerticalRangeSlider::getHoveredThumbAtPosition(juce::Point<int> mousePosition) const
 {
     juce::Rectangle<float> upperThumbRectangle = getUpperThumbRectangle().expanded(6.0f, 6.0f);
