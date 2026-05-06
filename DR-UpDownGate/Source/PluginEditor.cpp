@@ -48,6 +48,11 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     releaseKnobAttacthment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         processor.parameters, "release", *releaseKnob);
+
+    // Level display
+    gateLevelDisplay = std::make_unique<GateLevelDisplay>(processor, *rangeSlider);
+
+    addAndMakeVisible(*gateLevelDisplay);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor() = default;

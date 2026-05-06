@@ -166,6 +166,9 @@ void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
 
         // Gate logic
         float envelopeDb = juce::Decibels::gainToDecibels(static_cast<float>(juce::jmax(envelopeLevel, 1.0e-6)), -120.0f);
+
+        visualInputLevelDb.store(envelopeDb);
+
         bool gateClosed = (envelopeDb < thresholdLow || envelopeDb > thresholdHigh);
 
         if (gateClosed)

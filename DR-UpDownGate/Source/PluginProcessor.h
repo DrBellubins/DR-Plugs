@@ -44,10 +44,17 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    float getVisualInputLevelDb() const
+    {
+        return visualInputLevelDb.load();
+    }
+
 private:
     //==============================================================================
     // Envelope follower state
     double envelopeLevel = 0;
+
+    std::atomic<float> visualInputLevelDb { -60.0f };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessor)
 };

@@ -6,6 +6,7 @@
 #include "Utils/FlatRotaryLookAndFeel.h"
 #include "Utils/EnvelopeKnob.h"
 #include "PluginProcessor.h"
+#include "Utils/GateLevelDisplay.h"
 #include "Utils/VerticalRangeSlider.h"
 #include "Utils/VerticalRangeSliderAttachment.h"
 
@@ -38,6 +39,8 @@ private:
 
     std::unique_ptr<juce::Slider> releaseKnob;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> releaseKnobAttacthment;
+
+    std::unique_ptr<GateLevelDisplay> gateLevelDisplay;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };
