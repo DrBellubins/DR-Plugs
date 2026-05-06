@@ -1,6 +1,7 @@
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <functional>
 
 class VerticalRangeSlider : public juce::Component
 {
@@ -26,6 +27,10 @@ public:
 
     void setRoundness(float newRadius);
     void setMinimumRange(float newMinimumRange);
+
+    bool shouldShowTooltip() const;
+    juce::Rectangle<float> getActiveThumbBoundsInParent() const;
+    juce::String getActiveThumbTooltipText() const;
 
     void paint(juce::Graphics& graphics) override;
     void resized() override;
@@ -79,6 +84,7 @@ private:
     juce::Rectangle<float> getRangeRectangle() const;
     juce::Rectangle<float> getUpperThumbRectangle() const;
     juce::Rectangle<float> getLowerThumbRectangle() const;
+    juce::Rectangle<float> getActiveThumbRectangle() const;
     HoveredThumb getHoveredThumbAtPosition(juce::Point<int> mousePosition) const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(VerticalRangeSlider)

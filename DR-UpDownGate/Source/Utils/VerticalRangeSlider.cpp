@@ -133,6 +133,31 @@ juce::Rectangle<float> VerticalRangeSlider::getLowerThumbRectangle() const
     return juce::Rectangle<float>(thumbXPosition, lowerThumbYPosition, thumbWidth, thumbHeight);
 }
 
+juce::Rectangle<float> VerticalRangeSlider::getActiveThumbRectangle() const
+{
+    if (draggingThumb == Upper)
+    {
+        return getUpperThumbRectangle();
+    }
+
+    if (draggingThumb == Lower)
+    {
+        return getLowerThumbRectangle();
+    }
+
+    if (hoveredThumb == HoverUpper)
+    {
+        return getUpperThumbRectangle();
+    }
+
+    if (hoveredThumb == HoverLower)
+    {
+        return getLowerThumbRectangle();
+    }
+
+    return {};
+}
+
 VerticalRangeSlider::HoveredThumb VerticalRangeSlider::getHoveredThumbAtPosition(juce::Point<int> mousePosition) const
 {
     juce::Rectangle<float> upperThumbRectangle = getUpperThumbRectangle().expanded(6.0f, 6.0f);
@@ -151,6 +176,56 @@ VerticalRangeSlider::HoveredThumb VerticalRangeSlider::getHoveredThumbAtPosition
     return HoverNone;
 }
 
+bool VerticalRangeSlider::shouldShowTooltip() const
+{
+    return draggingThumb != None || hoveredThumb != HoverNone;
+}
+
+juce::Rectangle<float> VerticalRangeSlider::getActiveThumbBoundsInParent() const
+{
+    juce::Rectangle<float> activeThumbRectangle = getActiveThumbRectangle();
+
+    if (activeThumbRectangle.isEmpty())
+    {
+        return {};
+    }
+
+    juce::Point<int> topLeftPosition = localPointToGlobal(activeThumbRectangle.getTopLeft().toInt());
+    juce::Point<int> bottomRightPosition = localPointToGlobal(activeThumbRectangle.getBottomRight().toInt());
+
+    return juce::Rectangle<float>::leftTopRightBottom(
+        static_cast<float>(topLeftPosition.getX()),
+        static_cast<float>(topLeftPosition.getY()),
+        static_cast<float>(bottomRightPosition.getX()),
+        static_cast<float>(bottomRightPosition.getY())
+    );
+}
+
+juce::String VerticalRangeSlider::getActiveThumbTooltipText() const
+{
+    if (draggingThumb == Upper)
+    {
+        return juce::String(upperValue, 1) + " dB";
+    }
+
+    if (draggingThumb == Lower)
+    {
+        return juce::String(lowerValue, 1) + " dB";
+    }
+
+    if (hoveredThumb == HoverUpper)
+    {
+        return juce::String(upperValue, 1) + " dB";
+    }
+
+    if (hoveredThumb == HoverLower)
+    {
+        return juce::String(lowerValue, 1) + " dB";
+    }
+
+    return {};
+}
+
 void VerticalRangeSlider::paint(juce::Graphics& graphics)
 {
     juce::Rectangle<float> bounds = getLocalBounds().toFloat();
@@ -163,15 +238,18 @@ void VerticalRangeSlider::paint(juce::Graphics& graphics)
     graphics.fillRoundedRectangle(rangeRectangle, roundness);
 
     juce::Colour normalThumbColour = ThemePink.darker(0.2f);
-    juce::Colour hoveredThumbColour = ThemePink.brighter(0.35f);
+    juce::Colour activeThumbColour = ThemePink.brighter(0.35f);
 
     juce::Rectangle<float> upperThumbRectangle = getUpperThumbRectangle();
     juce::Rectangle<float> lowerThumbRectangle = getLowerThumbRectangle();
 
-    graphics.setColour(hoveredThumb == HoverUpper ? hoveredThumbColour : normalThumbColour);
+    bool upperThumbIsActive = (hoveredThumb == HoverUpper || draggingThumb == Upper);
+    bool lowerThumbIsActive = (hoveredThumb == HoverLower || draggingThumb == Lower);
+
+    graphics.setColour(upperThumbIsActive ? activeThumbColour : normalThumbColour);
     graphics.fillRoundedRectangle(upperThumbRectangle, thumbHeight * 0.5f);
 
-    graphics.setColour(hoveredThumb == HoverLower ? hoveredThumbColour : normalThumbColour);
+    graphics.setColour(lowerThumbIsActive ? activeThumbColour : normalThumbColour);
     graphics.fillRoundedRectangle(lowerThumbRectangle, thumbHeight * 0.5f);
 }
 
@@ -185,9 +263,11 @@ int VerticalRangeSlider::valueToY(float value) const
     float proportion = (value - minValue) / (maxValue - minValue);
 
     return juce::roundToInt(
-        juce::jmap(1.0f - proportion,
-                   static_cast<float>(bounds.getY()),
-                   static_cast<float>(bounds.getBottom()))
+        juce::jmap(
+            1.0f - proportion,
+            static_cast<float>(bounds.getY()),
+            static_cast<float>(bounds.getBottom())
+        )
     );
 }
 
@@ -234,6 +314,11 @@ void VerticalRangeSlider::mouseDown(const juce::MouseEvent& mouseEvent)
     dragStartUpperValue = upperValue;
 
     repaint();
+
+    if (auto* parentComponent = getParentComponent())
+    {
+        parentComponent->repaint();
+    }
 }
 
 void VerticalRangeSlider::mouseDrag(const juce::MouseEvent& mouseEvent)
@@ -249,6 +334,11 @@ void VerticalRangeSlider::mouseDrag(const juce::MouseEvent& mouseEvent)
     {
         setUpperValue(dragStartUpperValue + valueDelta);
     }
+
+    if (auto* parentComponent = getParentComponent())
+    {
+        parentComponent->repaint();
+    }
 }
 
 void VerticalRangeSlider::mouseMove(const juce::MouseEvent& mouseEvent)
@@ -259,6 +349,11 @@ void VerticalRangeSlider::mouseMove(const juce::MouseEvent& mouseEvent)
     {
         hoveredThumb = newHoveredThumb;
         repaint();
+
+        if (auto* parentComponent = getParentComponent())
+        {
+            parentComponent->repaint();
+        }
     }
 
     if (hoveredThumb == HoverNone)
@@ -278,6 +373,11 @@ void VerticalRangeSlider::mouseExit(const juce::MouseEvent& mouseEvent)
     hoveredThumb = HoverNone;
     setMouseCursor(juce::MouseCursor::NormalCursor);
     repaint();
+
+    if (auto* parentComponent = getParentComponent())
+    {
+        parentComponent->repaint();
+    }
 }
 
 void VerticalRangeSlider::mouseUp(const juce::MouseEvent& mouseEvent)
@@ -285,4 +385,10 @@ void VerticalRangeSlider::mouseUp(const juce::MouseEvent& mouseEvent)
     juce::ignoreUnused(mouseEvent);
 
     draggingThumb = None;
+    repaint();
+
+    if (auto* parentComponent = getParentComponent())
+    {
+        parentComponent->repaint();
+    }
 }

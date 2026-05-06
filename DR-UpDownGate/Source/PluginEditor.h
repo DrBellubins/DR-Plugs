@@ -6,6 +6,7 @@
 #include "Utils/EnvelopeKnob.h"
 #include "PluginProcessor.h"
 #include "Utils/GateLevelDisplay.h"
+#include "Utils/TooltipOverlay.h"
 #include "Utils/VerticalRangeSlider.h"
 #include "Utils/VerticalRangeSliderAttachment.h"
 
@@ -42,6 +43,8 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> releaseKnobAttacthment;
 
     std::unique_ptr<GateLevelDisplay> gateLevelDisplay;
+
+    std::unique_ptr<TooltipOverlay> tooltipOverlay;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };
