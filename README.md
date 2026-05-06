@@ -13,6 +13,6 @@ A clustered delay/reverb effect inspired by ![Deelay from Sixth Sample](https://
 A MIDI effect that takes the currently played chords, and randomly arpeggiates between them, with optional octave range for extra intrigue! Also has free mode allowing for smooth hz based rate automation!
 
 ### Range Gate
-![Range Gate FX](https://i.imgur.com/ctP2BA1.png)
+![Range Gate FX](https://i.imgur.com/qjK3aQJ.png)
 
 Though it looks simple (it kinda is), it allows for a huge breadth of audio engineering. It's an audio gate, that allows the sound to be gated if it either goes above, or below the given range. Can be used to create new and interesting transients (best used on hihats *wink* *wink*)
