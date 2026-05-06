@@ -33,7 +33,7 @@ void GateLevelDisplay::paint(juce::Graphics& graphics)
     juce::Rectangle<float> bounds = getLocalBounds().toFloat();
 
     graphics.setColour(AccentGray);
-    graphics.fillRoundedRectangle(bounds, 6.0f);
+    graphics.fillRect(bounds);
 
     float thresholdLowDecibels = rangeSliderRef.getLowerValue();
     float thresholdHighDecibels = rangeSliderRef.getUpperValue();
@@ -42,15 +42,15 @@ void GateLevelDisplay::paint(juce::Graphics& graphics)
     float thresholdLowYPosition = decibelsToY(thresholdLowDecibels);
 
     juce::Rectangle<float> allowedRangeRectangle(
-        bounds.getX(),
+        bounds.getX() + 2.0f,
         thresholdHighYPosition,
-        bounds.getWidth(),
+        bounds.getWidth() - 4.0f,
         juce::jmax(1.0f, thresholdLowYPosition - thresholdHighYPosition));
 
     graphics.setColour(ThemePink.withAlpha(0.10f));
-    graphics.fillRoundedRectangle(allowedRangeRectangle, 4.0f);
+    graphics.fillRect(allowedRangeRectangle);
 
-    graphics.setColour(ThemePink.withAlpha(0.35f));
+    graphics.setColour(ThemePink.withAlpha(0.30f));
     graphics.drawLine(bounds.getX(), thresholdLowYPosition, bounds.getRight(), thresholdLowYPosition, 1.0f);
     graphics.drawLine(bounds.getX(), thresholdHighYPosition, bounds.getRight(), thresholdHighYPosition, 1.0f);
 
@@ -60,25 +60,23 @@ void GateLevelDisplay::paint(juce::Graphics& graphics)
         bounds.getX() + 2.0f,
         levelYPosition,
         bounds.getWidth() - 4.0f,
-        bounds.getBottom() - levelYPosition - 2.0f);
-
-    bool isWithinAllowedRange =
-        currentLevelDecibels >= thresholdLowDecibels
-        && currentLevelDecibels <= thresholdHighDecibels;
-
-    juce::Colour meterColour = isWithinAllowedRange
-                               ? juce::Colours::white
-                               : juce::Colours::white.withAlpha(0.45f);
-
-    graphics.setColour(meterColour);
+        juce::jmax(0.0f, bounds.getBottom() - levelYPosition - 2.0f));
 
     if (meterRectangle.getHeight() > 0.0f)
     {
-        graphics.fillRoundedRectangle(meterRectangle, 4.0f);
-    }
+        juce::Colour outOfRangeMeterColour = FocusedGray.brighter(0.35f);
 
-    graphics.setColour(FocusedGray);
-    graphics.drawRoundedRectangle(bounds.reduced(0.5f), 6.0f, 1.0f);
+        graphics.setColour(outOfRangeMeterColour);
+        graphics.fillRect(meterRectangle);
+
+        juce::Rectangle<float> inRangeMeterRectangle = meterRectangle.getIntersection(allowedRangeRectangle);
+
+        if (inRangeMeterRectangle.getHeight() > 0.0f && inRangeMeterRectangle.getWidth() > 0.0f)
+        {
+            graphics.setColour(ThemePink.withAlpha(0.30f));
+            graphics.fillRect(inRangeMeterRectangle);
+        }
+    }
 }
 
 void GateLevelDisplay::resized()
