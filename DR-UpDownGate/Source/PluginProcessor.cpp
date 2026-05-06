@@ -137,22 +137,21 @@ bool AudioPluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layou
 
 void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
+    double sampleRate = getSampleRate();
+
     float thresholdLow = parameters.getRawParameterValue("thresholdLow")->load();
     float thresholdHigh = parameters.getRawParameterValue("thresholdHigh")->load();
 
-    float attackMs = parameters.getRawParameterValue("attack")->load();
-    float releaseMs = parameters.getRawParameterValue("release")->load();
+    float attackMilliseconds = parameters.getRawParameterValue("attack")->load();
+    float releaseMilliseconds = parameters.getRawParameterValue("release")->load();
 
-    double attackTimeMs = juce::jmax(0.001, static_cast<double>(attackMs) / 1000.0);
-    double releaseTimeMs = juce::jmax(0.001, static_cast<double>(releaseMs) / 1000.0);
+    double currentSampleRate = getSampleRate();
 
-    double sampleRate = getSampleRate();
+    double attackTimeSeconds = juce::jmax(0.001, static_cast<double>(attackMilliseconds) / 1000.0);
+    double releaseTimeSeconds = juce::jmax(0.001, static_cast<double>(releaseMilliseconds) / 1000.0);
 
-    double attackTimeSeconds = attackTimeMs / 1000.0;
-    double releaseTimeSeconds = releaseTimeMs / 1000.0;
-
-    double attackCoeff = std::exp(-1.0 / (attackTimeSeconds * sampleRate));
-    double releaseCoeff = std::exp(-1.0 / (releaseTimeSeconds * sampleRate));
+    double attackCoeff = std::exp(-1.0 / (attackTimeSeconds * currentSampleRate));
+    double releaseCoeff = std::exp(-1.0 / (releaseTimeSeconds * currentSampleRate));
 
     // Process each sample
     for (int sampleIndex = 0; sampleIndex < buffer.getNumSamples(); ++sampleIndex)
