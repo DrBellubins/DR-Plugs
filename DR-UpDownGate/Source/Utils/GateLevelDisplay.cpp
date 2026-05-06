@@ -73,7 +73,7 @@ void GateLevelDisplay::paint(juce::Graphics& graphics)
 
         if (inRangeMeterRectangle.getHeight() > 0.0f && inRangeMeterRectangle.getWidth() > 0.0f)
         {
-            graphics.setColour(ThemePink.withAlpha(0.30f));
+            graphics.setColour(ThemePink.darker(0.35f));
             graphics.fillRect(inRangeMeterRectangle);
         }
     }

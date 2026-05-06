@@ -31,6 +31,8 @@ private:
     // access the processor object that created it.
     AudioPluginAudioProcessor& processorRef;
 
+    juce::Image BGAndLogo;
+
     std::unique_ptr<VerticalRangeSlider> rangeSlider;
     std::unique_ptr<VerticalRangeSliderAttachment> rangeSliderAttachment;
 

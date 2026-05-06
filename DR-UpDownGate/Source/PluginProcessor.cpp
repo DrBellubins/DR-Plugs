@@ -12,10 +12,17 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
                      #endif
                        ),
 parameters(*this, nullptr, "Parameters", {
-        std::make_unique<juce::AudioParameterFloat>("thresholdLow", "Threshold Low", juce::NormalisableRange<float>(-60.0f, 1.0f), -60.0f),
-        std::make_unique<juce::AudioParameterFloat>("thresholdHigh", "Threshold High", juce::NormalisableRange<float>(-60.0f, 1.0f), 0.0f),
-        std::make_unique<juce::AudioParameterFloat>("attack", "Attack", juce::NormalisableRange<float>(0.0f, 1.0f), 0.1f),
-        std::make_unique<juce::AudioParameterFloat>("release", "Release", juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f)
+        std::make_unique<juce::AudioParameterFloat>("thresholdLow", "Threshold Low",
+            juce::NormalisableRange<float>(-60.0f, 1.0f), -60.0f),
+
+        std::make_unique<juce::AudioParameterFloat>("thresholdHigh", "Threshold High",
+            juce::NormalisableRange<float>(-60.0f, 1.0f), 0.0f),
+
+        std::make_unique<juce::AudioParameterFloat>("attack", "Attack",
+            juce::NormalisableRange<float>(0.0f, 1.0f), 0.25f),
+
+        std::make_unique<juce::AudioParameterFloat>("release", "Release",
+            juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f)
     })
 {
 

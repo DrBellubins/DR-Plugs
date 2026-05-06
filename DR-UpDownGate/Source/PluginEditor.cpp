@@ -12,6 +12,8 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     // editor's size to whatever you need it to be.
     setSize (300, 500);
 
+    BGAndLogo = juce::ImageFileFormat::loadFrom(BinaryData::bgandlogo_png, BinaryData::bgandlogo_pngSize);
+
     // Range slider
     rangeSlider = std::make_unique<VerticalRangeSlider>(-60.0f, 0.0f);
 
