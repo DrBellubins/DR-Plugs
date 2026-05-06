@@ -54,7 +54,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     // Level display
     gateLevelDisplay = std::make_unique<GateLevelDisplay>(processor, *rangeSlider);
-    gateLevelDisplay->setBounds(260, 50, 15, 400);
+    gateLevelDisplay->setBounds(275, 50, 15, 400);
     addAndMakeVisible(*gateLevelDisplay);
 }
 

@@ -143,6 +143,10 @@ juce_add_binary_data(Assets
         SOURCES Assets/BGAndLogo.png
 )
 
+set_target_properties(Assets PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+)
+
 # `target_link_libraries` links libraries and JUCE modules to other libraries or executables. Here,
 # we're linking our executable target to the `juce::juce_audio_utils` module. Inter-module
 # dependencies are resolved automatically.
