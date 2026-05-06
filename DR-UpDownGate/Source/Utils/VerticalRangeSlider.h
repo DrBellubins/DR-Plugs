@@ -6,6 +6,13 @@
 class VerticalRangeSlider : public juce::Component
 {
 public:
+    enum ActiveThumb
+    {
+        NoThumb,
+        LowerThumb,
+        UpperThumb
+    };
+
     VerticalRangeSlider(float minimumValue, float maximumValue);
     ~VerticalRangeSlider() override = default;
 
@@ -30,6 +37,7 @@ public:
     void setMinimumRange(float newMinimumRange);
 
     bool shouldShowTooltip() const;
+    ActiveThumb getActiveThumb() const;
     juce::Rectangle<float> getActiveThumbBoundsInComponent(const juce::Component& targetComponent) const;
     juce::String getActiveThumbTooltipText() const;
 
