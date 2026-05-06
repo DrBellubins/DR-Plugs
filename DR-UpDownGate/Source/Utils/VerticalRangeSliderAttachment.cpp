@@ -32,9 +32,10 @@ VerticalRangeSliderAttachment::VerticalRangeSliderAttachment(
         {
             updatingParameter = true;
 
-            if (auto* parameter = dynamic_cast<juce::AudioParameterFloat*>(valueTreeState.getParameter(lowerID)))
+            if (auto* parameter = dynamic_cast<juce::RangedAudioParameter*>(valueTreeState.getParameter(lowerID)))
             {
-                parameter->setValueNotifyingHost(newLowerValue);
+                float normalizedValue = parameter->convertTo0to1(newLowerValue);
+                parameter->setValueNotifyingHost(normalizedValue);
             }
 
             updatingParameter = false;
@@ -47,9 +48,10 @@ VerticalRangeSliderAttachment::VerticalRangeSliderAttachment(
         {
             updatingParameter = true;
 
-            if (auto* parameter = dynamic_cast<juce::AudioParameterFloat*>(valueTreeState.getParameter(upperID)))
+            if (auto* parameter = dynamic_cast<juce::RangedAudioParameter*>(valueTreeState.getParameter(upperID)))
             {
-                parameter->setValueNotifyingHost(newUpperValue);
+                float normalizedValue = parameter->convertTo0to1(newUpperValue);
+                parameter->setValueNotifyingHost(normalizedValue);
             }
 
             updatingParameter = false;

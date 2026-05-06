@@ -12,8 +12,8 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
                      #endif
                        ),
 parameters(*this, nullptr, "Parameters", {
-        std::make_unique<juce::AudioParameterFloat>("thresholdLow", "Threshold Low", juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f),
-        std::make_unique<juce::AudioParameterFloat>("thresholdHigh", "Threshold High", juce::NormalisableRange<float>(0.0f, 1.0f), 1.0f),
+        std::make_unique<juce::AudioParameterFloat>("thresholdLow", "Threshold Low", juce::NormalisableRange<float>(-60.0f, 1.0f), 0.0f),
+        std::make_unique<juce::AudioParameterFloat>("thresholdHigh", "Threshold High", juce::NormalisableRange<float>(-60.0f, 1.0f), 1.0f),
         std::make_unique<juce::AudioParameterFloat>("attack", "Attack", juce::NormalisableRange<float>(0.0f, 1.0f), 0.1f),
         std::make_unique<juce::AudioParameterFloat>("release", "Release", juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f)
     })
@@ -132,6 +132,7 @@ void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
 {
     float thresholdLow = parameters.getRawParameterValue("thresholdLow")->load();
     float thresholdHigh = parameters.getRawParameterValue("thresholdHigh")->load();
+
     float attackValue = parameters.getRawParameterValue("attack")->load();
     float releaseValue = parameters.getRawParameterValue("release")->load();
 
@@ -164,7 +165,8 @@ void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
             envelopeLevel = (1.0 - releaseCoeff) * absValue + releaseCoeff * envelopeLevel;
 
         // Gate logic
-        bool gateClosed = (envelopeLevel < thresholdLow || envelopeLevel > thresholdHigh);
+        float envelopeDb = juce::Decibels::gainToDecibels(static_cast<float>(juce::jmax(envelopeLevel, 1.0e-6)), -120.0f);
+        bool gateClosed = (envelopeDb < thresholdLow || envelopeDb > thresholdHigh);
 
         if (gateClosed)
         {

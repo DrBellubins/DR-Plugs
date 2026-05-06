@@ -13,7 +13,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     setSize (300, 500);
 
     // Range slider
-    rangeSlider = std::make_unique<VerticalRangeSlider>(0.0f, 1.0f);
+    rangeSlider = std::make_unique<VerticalRangeSlider>(-60.0f, 0.0f);
 
     addAndMakeVisible(*rangeSlider);
 
