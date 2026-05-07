@@ -21,7 +21,7 @@ FetchContent_Declare(juce
 FetchContent_MakeAvailable(juce)
 
 juce_add_plugin("${PROJECT_NAME}"
-        FORMATS Standalone AU VST3
+        FORMATS Standalone VST3
         PRODUCT_NAME "Dr Up-down gate"
         PLUGIN_NAME "Range Gate"
         COMPANY_NAME DrBell
