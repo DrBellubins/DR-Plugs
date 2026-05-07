@@ -14,7 +14,7 @@ set(LIB_JUCE_TAG "7.0.8")
 
 # Xcode: Disable automatic build scheme generation globally.
 #        Instead, we explicitely specify which targets require schemes.
-set(CMAKE_XCODE_GENERATE_SCHEME OFF)
+#set(CMAKE_XCODE_GENERATE_SCHEME OFF)
 
 # Optimize release build for size
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -s")
@@ -103,9 +103,10 @@ juce_add_plugin("${PROJECT_NAME}"
 target_compile_features("${PROJECT_NAME}" PUBLIC cxx_std_17)
 
 # Disable compiler extensions for the project targets (e.g. use -std=c++17 instead of -std=gnu++17).
-get_property(project_targets DIRECTORY "${PROJECT_SOURCE_DIR}" PROPERTY BUILDSYSTEM_TARGETS)
+#get_property(project_targets DIRECTORY "${PROJECT_SOURCE_DIR}" PROPERTY BUILDSYSTEM_TARGETS)
+set_target_properties("${PROJECT_NAME}" PROPERTIES CXX_EXTENSIONS OFF)
 
-set_target_properties(${project_targets} PROPERTIES CXX_EXTENSIONS OFF)
+#set_target_properties(${project_targets} PROPERTIES CXX_EXTENSIONS OFF)
 
 # Add the subdirectory with source files.
 add_subdirectory(Source)
@@ -165,16 +166,16 @@ target_link_libraries("${PROJECT_NAME}"
 
 # IDEs:  Place source groups for project targets into a "Targets" folder (to reduce visual clutter).
 # Xcode: Generate build schemes for project targets.
-set_target_properties(${project_targets} PROPERTIES
-    FOLDER "Targets"
-    XCODE_GENERATE_SCHEME ON)
+#set_target_properties(${project_targets} PROPERTIES
+#    FOLDER "Targets"
+#    XCODE_GENERATE_SCHEME ON)
 
 # IDEs:  Move the "shared code" source group (main target) out of the "Targets" folder
 #        to the top level.
-set_target_properties("${PROJECT_NAME}" PROPERTIES FOLDER "")
+#set_target_properties("${PROJECT_NAME}" PROPERTIES FOLDER "")
 
 # IDEs:  Organise source file grouping.
-get_target_property(project_sources "${PROJECT_NAME}" SOURCES)
+#get_target_property(project_sources "${PROJECT_NAME}" SOURCES)
 
 #   If JuceHeader.h is generated, remove it from the source file list and handle it individually.
 get_target_property(juce_library_code "${PROJECT_NAME}" JUCE_GENERATED_SOURCES_DIRECTORY)
@@ -187,11 +188,11 @@ source_group("JUCE Library Code" FILES "${juce_header}")
 source_group("JUCE Library Code/CMake Rules" FILES "${juce_header}.rule")
 
 #   Generate source groups that follow the organisation of source file directories.
-source_group(TREE "${PROJECT_SOURCE_DIR}/Source" FILES ${project_sources})
+#source_group(TREE "${PROJECT_SOURCE_DIR}/Source" FILES ${project_sources})
 
 #   Place Binary Data related source files into the root of their target folder.
-if(TARGET Assets)
-    get_target_property(project_assets Assets SOURCES)
-    source_group("" FILES ${project_assets})
-endif()
+#if(TARGET Assets)
+#    get_target_property(project_assets Assets SOURCES)
+#    source_group("" FILES ${project_assets})
+#endif()
 
