@@ -19,7 +19,7 @@ public:
     explicit AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor&);
     ~AudioPluginAudioProcessorEditor() override;
 
-    void createPrePostToggle(juce::AudioProcessorValueTreeState& state,
+    void createToggle(juce::AudioProcessorValueTreeState& state,
         std::unique_ptr<RoundedToggle>& toggle,
         std::unique_ptr<RoundedToggle::Attachment>& attachment,
         RoundedToggle::Orientation orientation,
@@ -136,9 +136,13 @@ private:
 
     std::unordered_set<int> lastHeldKeyCodes;
 
-    // Pre-Post toggles
+    // Pre-Post toggle
     std::unique_ptr<RoundedToggle> hplpFilterToggle;
     std::unique_ptr<RoundedToggle::Attachment> hplpFilterToggleAttachment;
+
+    // Pitch shift toggle
+    std::unique_ptr<RoundedToggle> pitchShiftToggle;
+    std::unique_ptr<RoundedToggle::Attachment> pitchShiftToggleAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };

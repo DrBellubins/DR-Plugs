@@ -28,6 +28,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     logo = juce::ImageFileFormat::loadFrom(BinaryData::logo_png, BinaryData::logo_pngSize);
 
     const int nonPitchYOffset = 50;
+    const int pitchYOffset = 230;
 
     // ------ KNOBS ------
     createKnob(delayTimeKnob, delayTimeAttachment, "delayTime", " ms", 100, 0, -25 + nonPitchYOffset);
@@ -113,20 +114,27 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
         };
     }
 
-    // Pre-Post toggles
-    createPrePostToggle(processorRef.parameters,
+    // ------ Toggles ------
+    createToggle(processorRef.parameters,
         hplpFilterToggle,
         hplpFilterToggleAttachment,
         RoundedToggle::Orientation::Vertical,
         "hplpPrePost",
         20, 50, -275, 50 + nonPitchYOffset);
+
+    createToggle(processorRef.parameters,
+        pitchShiftToggle,
+        pitchShiftToggleAttachment,
+        RoundedToggle::Orientation::Vertical,
+        "pitchShiftEnabled",
+        20, 50, 275, pitchYOffset - 25);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
 {
 }
 
-void AudioPluginAudioProcessorEditor::createPrePostToggle(juce::AudioProcessorValueTreeState& state,
+void AudioPluginAudioProcessorEditor::createToggle(juce::AudioProcessorValueTreeState& state,
         std::unique_ptr<RoundedToggle>& toggle,
         std::unique_ptr<RoundedToggle::Attachment>& attachment,
         RoundedToggle::Orientation orientation,
@@ -259,7 +267,7 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
         graphics.drawImage(logo, juce::Rectangle<float>(-70, -15, 512.0f, 120.0f), juce::RectanglePlacement::centred);
 
     // Draw bounding box for this component
-    /*graphics.setColour(juce::Colours::red);
+    graphics.setColour(juce::Colours::red);
     graphics.drawRect(getLocalBounds(), 2);
 
     // Draw bounding boxes for children
@@ -273,7 +281,7 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
             graphics.setColour(juce::Colours::green);
             graphics.drawRect(ChildBounds, 2);
         }
-    }*/
+    }
 }
 
 void AudioPluginAudioProcessorEditor::resized()

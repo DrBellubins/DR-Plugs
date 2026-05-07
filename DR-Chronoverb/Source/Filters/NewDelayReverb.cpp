@@ -98,6 +98,8 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
 
 void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 {
+    DBG("Test " << pitchShift01);
+
     const int numChannels = audioBuffer.getNumChannels();
     const int numSamples = audioBuffer.getNumSamples();
 
@@ -149,8 +151,10 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         float pitchedFeedbackLeft = preLeft;
         float pitchedFeedbackRight = preRight;
 
-        if (pitchShift01 > 0.5f)
+        if (pitchShift01 >= 0.5f)
         {
+
+
             pitchedFeedbackLeft = wetInputPitchShifterLeft.ProcessSample(preLeft);
             pitchedFeedbackRight = wetInputPitchShifterRight.ProcessSample(preRight);
 
