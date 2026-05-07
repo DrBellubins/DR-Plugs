@@ -11,14 +11,11 @@ option(JUCE_ENABLE_MODULE_SOURCE_GROUPS "Show all module sources in IDE projects
 
 include(FetchContent)
 
-set(FETCHCONTENT_BASE_DIR "${PROJECT_SOURCE_DIR}/Libs" CACHE PATH "External dependencies path." FORCE)
-
 FetchContent_Declare(juce
         GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
         GIT_TAG        ${LIB_JUCE_TAG}
         GIT_SHALLOW    TRUE
         GIT_CONFIG     advice.detachedHead=false
-        SOURCE_DIR     "${FETCHCONTENT_BASE_DIR}/JUCE"
 )
 
 FetchContent_MakeAvailable(juce)
