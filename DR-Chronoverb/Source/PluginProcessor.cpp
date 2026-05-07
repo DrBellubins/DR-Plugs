@@ -28,6 +28,7 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     parameters.addParameterListener("lowPassCutoff", this);
     parameters.addParameterListener("highPassCutoff", this);
     parameters.addParameterListener("hplpPrePost", this);
+    parameters.addParameterListener("pitchShiftEnabled", this);
 
     // Ducking
     parameters.addParameterListener("duckAmount", this);
@@ -58,6 +59,7 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     float lowPassCutoff = parameters.getRawParameterValue("lowPassCutoff")->load();
     float highPassCutoff = parameters.getRawParameterValue("highPassCutoff")->load();
     float hpLPPrePost = parameters.getRawParameterValue("hplpPrePost")->load();
+    float pitchShiftEnabled = parameters.getRawParameterValue("pitchShiftEnabled")->load();
 
     // Ducking
     float duckAmount = parameters.getRawParameterValue("duckAmount")->load();
@@ -75,6 +77,7 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     DelayReverb.SetLowpassCutoff(lowPassCutoff);
     DelayReverb.SetHighpassCutoff(highPassCutoff);
     DelayReverb.SetHPLPPrePost(hpLPPrePost);
+    DelayReverb.SetPitchShift(pitchShiftEnabled);
 
     //DelayReverb.SetDuckAmount(duckAmount);
     //DelayReverb.SetDuckAttack(duckAttack);
@@ -142,6 +145,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
 
     parameterList.push_back(std::make_unique<juce::AudioParameterBool>(
         "hplpPrePost", "HP/LP Pre/Post", true));
+
+    parameterList.push_back(std::make_unique<juce::AudioParameterBool>(
+        "pitchShiftEnabled", "Pitch Shift Enabled", false));
 
     // ---- Ducking ----
 

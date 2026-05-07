@@ -119,8 +119,6 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
     float* leftData = audioBuffer.getWritePointer(0);
     float* rightData = (numChannels > 1 ? audioBuffer.getWritePointer(1) : nullptr);
 
-    pitchShifterLatencyMs = wetInputPitchShifterLeft.GetLatencyMilliseconds();
-
     for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
     {
         const float dryLeft = leftData[sampleIndex];
@@ -148,26 +146,32 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         float preRight = filteredDryRight + lastFeedbackR;
 
         // 3: Progressive pitch shift (shimmer)
-        const float pitchedFeedbackLeft = wetInputPitchShifterLeft.ProcessSample(preLeft);
-        const float pitchedFeedbackRight = wetInputPitchShifterRight.ProcessSample(preRight);
+        float pitchedFeedbackLeft = preLeft;
+        float pitchedFeedbackRight = preRight;
 
-        // Advance echo boundary counters
-        const int delaySamplesInt = static_cast<int>(std::round((delayMilliseconds * sampleRate) / 1000.0));
-
-        ++echoSampleCounterL;
-
-        if (echoSampleCounterL >= delaySamplesInt)
+        if (pitchShift01 > 0.5f)
         {
-            echoSampleCounterL = 0;
-            wetInputPitchShifterLeft.OnNewEchoBoundary();
-        }
+            pitchedFeedbackLeft = wetInputPitchShifterLeft.ProcessSample(preLeft);
+            pitchedFeedbackRight = wetInputPitchShifterRight.ProcessSample(preRight);
 
-        ++echoSampleCounterR;
+            // Advance echo boundary counters
+            const int delaySamplesInt = static_cast<int>(std::round((delayMilliseconds * sampleRate) / 1000.0));
 
-        if (echoSampleCounterR >= delaySamplesInt)
-        {
-            echoSampleCounterR = 0;
-            wetInputPitchShifterRight.OnNewEchoBoundary();
+            ++echoSampleCounterL;
+
+            if (echoSampleCounterL >= delaySamplesInt)
+            {
+                echoSampleCounterL = 0;
+                wetInputPitchShifterLeft.OnNewEchoBoundary();
+            }
+
+            ++echoSampleCounterR;
+
+            if (echoSampleCounterR >= delaySamplesInt)
+            {
+                echoSampleCounterR = 0;
+                wetInputPitchShifterRight.OnNewEchoBoundary();
+            }
         }
 
         // 4: Diffuse before write (amount-controlled)
@@ -329,6 +333,11 @@ void NewDelayReverb::SetStereoSpread(float newSpreadMinus1To1)
 void NewDelayReverb::SetHPLPPrePost(float prePost01)
 {
     hplpPrePost01 = clamp01(prePost01);
+}
+
+void NewDelayReverb::SetPitchShift(float pitchShiftEnabled01)
+{
+    pitchShift01 = clamp01(pitchShiftEnabled01);
 }
 
 void NewDelayReverb::SetHostTempo(float bpm)
