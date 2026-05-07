@@ -1,9 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-#include "Utils/RoundedToggle.h"
-#include "Utils/ThemedCheckbox.h"
-
 // TODO: Derive class from RoundedToggle to make Pre/Post toggles with labels
 // TODO: Begin creation of Matrix Menu.
 // TODO: Implement pitch features (oh fuck).
@@ -123,10 +120,9 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
         "hplpPrePost",
         20, 50, -275, 50 + nonPitchYOffset);
 
-    createToggle(processorRef.parameters,
+    createCheckbox(processorRef.parameters,
         pitchShiftToggle,
         pitchShiftToggleAttachment,
-        RoundedToggle::Orientation::Vertical,
         "pitchShiftEnabled",
         20, 50, 275, pitchYOffset - 25);
 }
@@ -157,17 +153,22 @@ void AudioPluginAudioProcessorEditor::createToggle(juce::AudioProcessorValueTree
     toggle->setBounds(toggleX, toggleY, width, height);
 }
 
-void AudioPluginAudioProcessorEditor::createCheckbox(juce::AudioProcessorValueTreeState& state,
-        std::unique_ptr<ThemedCheckbox>& checkbox,
-        std::unique_ptr<ThemedCheckbox::Attachment>& attachment,
-        const juce::String& parameterID,
-        int width, int height, int offsetFromCenterX, int offsetFromCenterY)
+void AudioPluginAudioProcessorEditor::createCheckbox(
+    juce::AudioProcessorValueTreeState& state,
+    std::unique_ptr<ThemedCheckbox>& checkbox,
+    std::unique_ptr<ThemedCheckbox::Attachment>& attachment,
+    const juce::String& parameterID,
+    int width,
+    int height,
+    int offsetFromCenterX,
+    int offsetFromCenterY
+)
 {
     if (checkbox == nullptr)
         checkbox = std::make_unique<ThemedCheckbox>();
 
     if (attachment == nullptr)
-        attachment = std::make_unique<RoundedToggle::Attachment>(state, parameterID, *checkbox);
+        attachment = std::make_unique<ThemedCheckbox::Attachment>(state, parameterID, *checkbox);
 
     addAndMakeVisible(*checkbox);
 

@@ -9,6 +9,7 @@
 #include "Utils/RoundedToggle.h"
 #include "Utils/SegmentedButton.h"
 #include "Utils/Theme.h"
+#include "Utils/ThemedCheckbox.h"
 #include "Utils/ThemedKnob.h"
 #include "Utils/ThemedSlider.h"
 
@@ -25,6 +26,16 @@ public:
         RoundedToggle::Orientation orientation,
         const juce::String& parameterID,
         int width, int height, int offsetFromCenterX, int offsetFromCenterY);
+
+    void createCheckbox(
+        juce::AudioProcessorValueTreeState& state,
+        std::unique_ptr<ThemedCheckbox>& checkbox,
+        std::unique_ptr<ThemedCheckbox::Attachment>& attachment,
+        const juce::String& parameterID,
+        int width,
+        int height,
+        int offsetFromCenterX,
+        int offsetFromCenterY);
 
     void createSlider(std::unique_ptr<ThemedSlider>& slider, std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>& attachment, juce::String paramID,
         int width, int height, int offsetFromCenterX, int offsetFromCenterY);
@@ -141,8 +152,8 @@ private:
     std::unique_ptr<RoundedToggle::Attachment> hplpFilterToggleAttachment;
 
     // Pitch shift toggle
-    std::unique_ptr<RoundedToggle> pitchShiftToggle;
-    std::unique_ptr<RoundedToggle::Attachment> pitchShiftToggleAttachment;
+    std::unique_ptr<ThemedCheckbox> pitchShiftToggle;
+    std::unique_ptr<ThemedCheckbox::Attachment> pitchShiftToggleAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };
