@@ -137,8 +137,6 @@ bool AudioPluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layou
 
 void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
-    double sampleRate = getSampleRate();
-
     float thresholdLow = parameters.getRawParameterValue("thresholdLow")->load();
     float thresholdHigh = parameters.getRawParameterValue("thresholdHigh")->load();
 

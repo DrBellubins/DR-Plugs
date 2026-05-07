@@ -253,7 +253,7 @@ void VerticalRangeSlider::paint(juce::Graphics& graphics)
 {
     juce::Rectangle<float> bounds = getLocalBounds().toFloat();
 
-    graphics.setColour(juce::Colours::black.withAlpha(0.25f));
+    graphics.setColour(AccentGray);
     graphics.fillRoundedRectangle(bounds, roundness);
 
     juce::Rectangle<float> rangeRectangle = getRangeRectangle();

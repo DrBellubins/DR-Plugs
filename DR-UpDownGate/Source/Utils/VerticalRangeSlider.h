@@ -77,7 +77,7 @@ private:
     DraggingThumb draggingThumb = None;
     HoveredThumb hoveredThumb = HoverNone;
 
-    float thumbWidth = 50.0f;
+    float thumbWidth = 25.0f;
     float thumbHeight = 4.0f;
     float thumbTopInset = 6.0f;
     float visualMinimumThumbSpacing = 8.0f;

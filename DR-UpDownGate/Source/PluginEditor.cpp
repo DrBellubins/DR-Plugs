@@ -23,7 +23,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     rangeSliderAttachment = std::make_unique<VerticalRangeSliderAttachment>(
     processor.parameters, "thresholdLow", "thresholdHigh", *rangeSlider);
 
-    rangeSlider->setBounds(150, 50, 100, 400); // Position as needed
+    rangeSlider->setBounds(170, 50, 50, 400); // Position as needed
     rangeSlider->setRoundness(10.0f);
 
     // Attack knob
