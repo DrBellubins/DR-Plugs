@@ -253,7 +253,7 @@ void VerticalRangeSlider::paint(juce::Graphics& Graphics)
 {
     juce::Rectangle Bounds = getLocalBounds().toFloat();
 
-    Graphics.setColour(AccentGray);
+    Graphics.setColour(AccentGray.brighter(0.02f));
     Graphics.fillRoundedRectangle(Bounds, roundness);
 
     juce::Path BackgroundPath;
@@ -346,12 +346,12 @@ void VerticalRangeSlider::paint(juce::Graphics& Graphics)
     Graphics.reduceClipRegion(RangePath);
 
     juce::ColourGradient RangeFaceGradient(
-        ThemePink,
-        RangeRectangle.getCentreX(),
-        RangeRectangle.getY(),
-        ThemePink.darker(0.5f),
-        RangeRectangle.getCentreX(),
-        RangeRectangle.getBottom(),
+    ThemePink,
+        Bounds.getCentreX(),
+        Bounds.getY(),
+    ThemePink.darker(1.0f),
+        Bounds.getCentreX(),
+        Bounds.getBottom(),
         false
     );
 
@@ -435,11 +435,11 @@ void VerticalRangeSlider::paint(juce::Graphics& Graphics)
 
     Graphics.restoreState();
 
-    juce::Colour UpperNormalThumbColour = ThemePink.brighter(0.4f);
-    juce::Colour UpperActiveThumbColour = ThemePink.darker(0.1f);
+    juce::Colour UpperNormalThumbColour = juce::Colours::white.darker(0.2f).withAlpha(0.35f);
+    juce::Colour UpperActiveThumbColour = juce::Colours::white.withAlpha(0.5f);
 
-    juce::Colour LowerNormalThumbColour = ThemePink.darker(0.1f);
-    juce::Colour LowerActiveThumbColour = ThemePink.darker(0.3f);
+    juce::Colour LowerNormalThumbColour = juce::Colours::white.darker(0.2f).withAlpha(0.35f);
+    juce::Colour LowerActiveThumbColour = juce::Colours::white.withAlpha(0.5f);
 
     juce::Rectangle UpperThumbRectangle = getUpperThumbRectangle();
     juce::Rectangle LowerThumbRectangle = getLowerThumbRectangle();
