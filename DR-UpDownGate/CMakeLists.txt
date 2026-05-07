@@ -9,16 +9,7 @@ string(APPEND CMAKE_CXX_FLAGS_RELEASE " -O3 -s")
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 option(JUCE_ENABLE_MODULE_SOURCE_GROUPS "Show all module sources in IDE projects" ON)
 
-include(FetchContent)
-
-FetchContent_Declare(juce
-        GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
-        GIT_TAG        ${LIB_JUCE_TAG}
-        GIT_SHALLOW    TRUE
-        GIT_CONFIG     advice.detachedHead=false
-)
-
-FetchContent_MakeAvailable(juce)
+add_subdirectory(Libs/JUCE)
 
 juce_add_plugin("${PROJECT_NAME}"
         FORMATS Standalone VST3
