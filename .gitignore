@@ -3,6 +3,9 @@ cmake-build-debug/
 cmake-build-release/
 Libs/
 
+.idea/
+**/.idea/
+
 **/[Bb]uild*/
 /Libs/
 

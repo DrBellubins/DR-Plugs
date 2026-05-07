@@ -263,6 +263,7 @@ void VerticalRangeSlider::paint(juce::Graphics& Graphics)
     Graphics.reduceClipRegion(BackgroundPath);
 
     constexpr float InnerShadowSize = 10.0f;
+    constexpr float HighlightSize = 20.0f;
 
     juce::ColourGradient TopShadowGradient(
         juce::Colours::black.withAlpha(0.28f),
@@ -320,7 +321,7 @@ void VerticalRangeSlider::paint(juce::Graphics& Graphics)
 
     juce::ColourGradient RightHighlightGradient(
         juce::Colours::transparentWhite,
-        Bounds.getRight() - InnerShadowSize,
+        Bounds.getRight() - HighlightSize,
         Bounds.getCentreY(),
         juce::Colours::white.withAlpha(0.05f),
         Bounds.getRight(),
@@ -330,9 +331,9 @@ void VerticalRangeSlider::paint(juce::Graphics& Graphics)
 
     Graphics.setGradientFill(RightHighlightGradient);
     Graphics.fillRect(
-        Bounds.getRight() - InnerShadowSize,
+        Bounds.getRight() - HighlightSize,
         Bounds.getY(),
-        InnerShadowSize,
+        HighlightSize,
         Bounds.getHeight()
     );
 
