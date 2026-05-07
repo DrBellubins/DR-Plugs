@@ -46,13 +46,6 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     delayDiffusionLeft->Prepare(sampleRate);
     delayDiffusionRight->Prepare(sampleRate);
 
-    // Create reverb diffusion chains
-    reverbDiffusionLeft.reset(new DiffusionChain());
-    reverbDiffusionRight.reset(new DiffusionChain());
-
-    reverbDiffusionLeft->Prepare(sampleRate);
-    reverbDiffusionRight->Prepare(sampleRate);
-
     // Force rebuild on every PrepareToPlay — new chain objects are always unconfigured.
     // The guard in rebuildDiffusionIfNeeded() is only useful mid-session (audio thread).
     lastBuiltQualityStages = -1;
@@ -65,9 +58,6 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     // This prevents stale allpass buffer contents from leaking into offline renders.
     if (delayDiffusionLeft)  delayDiffusionLeft->ClearState();
     if (delayDiffusionRight) delayDiffusionRight->ClearState();
-
-    if (reverbDiffusionLeft)  reverbDiffusionLeft->ClearState();
-    if (reverbDiffusionRight) reverbDiffusionRight->ClearState();
 
     smoothedDelayReverbDiffBlend = 0.0f;
     diffusionRebuildPending.store(false, std::memory_order_release);
@@ -105,200 +95,6 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     mainDelayLeft->Clear();
     mainDelayRight->Clear();
 }
-
-/*void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
-{
-    const int numChannels = audioBuffer.getNumChannels();
-    const int numSamples = audioBuffer.getNumSamples();
-
-    if (numChannels < 1 || numSamples <= 0)
-        return;
-
-    if (diffusionRebuildPending.exchange(false, std::memory_order_acq_rel))
-        rebuildDiffusionIfNeeded();
-
-    if (filterRebuildPending.exchange(false, std::memory_order_acq_rel))
-        updateFilters();
-
-    float* leftData = audioBuffer.getWritePointer(0);
-    float* rightData = (numChannels > 1 ? audioBuffer.getWritePointer(1) : nullptr);
-
-    pitchShifterLatencyMs = wetInputPitchShifterLeft.GetLatencyMilliseconds();
-
-    for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
-    {
-        const float dryLeft  = leftData[sampleIndex];
-        const float dryRight = (rightData != nullptr ? rightData[sampleIndex] : dryLeft);
-
-        // --- Compute target blends ---
-        float targetPreWriteBlend;
-
-        if (diffusionAmount01 <= 0.5f)
-            targetPreWriteBlend = diffusionAmount01 * 2.0f;
-        else
-            targetPreWriteBlend = 1.0f - (diffusionAmount01 - 0.5f) * 2.0f;
-
-        const float targetFeedbackDiffBlend = std::max(0.0f, (diffusionAmount01 - 0.5f) * 2.0f);
-
-        // Slew blend toward target — fast enough for responsiveness, but
-        // it only affects write content, never the read position, so there
-        // is zero pitch artifact regardless of how fast it moves.
-        smoothedDelayReverbDiffBlend += kBlendSlewCoeff * (diffusionAmount01 - smoothedDelayReverbDiffBlend);
-
-        // 1: Pre HP/LP on dry signal only
-        float filteredDryLeft  = dryLeft;
-        float filteredDryRight = dryRight;
-
-        if (hplpPrePost01 < 0.5f)
-        {
-            filteredDryLeft  = highpassL.processSample(filteredDryLeft);
-            filteredDryLeft  = lowpassL.processSample(filteredDryLeft);
-            filteredDryRight = highpassR.processSample(filteredDryRight);
-            filteredDryRight = lowpassR.processSample(filteredDryRight);
-        }
-
-        // 2: Sum input + feedback (Deelay architecture: diffusion sees the full sum)
-        float preLeft  = filteredDryLeft  + lastFeedbackL;
-        float preRight = filteredDryRight + lastFeedbackR;
-
-        // 3: Diffuse the summed signal before writing.
-        //    Lower half (0..0.5): delay-quality diffusion chain.
-        //    Upper half (0.5..1.0): crossfade toward reverb-quality chain.
-        //    Read position is NEVER touched — no pitch artifact possible.
-        float writeLeft  = preLeft;
-        float writeRight = preRight;
-
-        if (smoothedDelayReverbDiffBlend > 0.001f)
-        {
-            const float blend = smoothedDelayReverbDiffBlend;
-
-            // Select which chain dominates based on which half of the range we're in
-            float diffLeft, diffRight;
-
-            if (blend <= 0.5f)
-            {
-                // Delay diffusion only
-                diffLeft  = delayDiffusionLeft->ProcessSample(preLeft);
-                diffRight = delayDiffusionRight->ProcessSample(preRight);
-            }
-            else
-            {
-                // Crossfade between delay and reverb chains
-                const float reverbBlend = (blend - 0.5f) * 2.0f; // 0..1 over upper half
-
-                const float delayDiffLeft  = delayDiffusionLeft->ProcessSample(preLeft);
-                const float delayDiffRight = delayDiffusionRight->ProcessSample(preRight);
-                const float reverbDiffLeft  = reverbDiffusionLeft->ProcessSample(preLeft);
-                const float reverbDiffRight = reverbDiffusionRight->ProcessSample(preRight);
-
-                const float delayGain  = std::cos(reverbBlend * juce::MathConstants<float>::halfPi);
-                const float reverbGain = std::sin(reverbBlend * juce::MathConstants<float>::halfPi);
-
-                diffLeft  = delayDiffLeft  * delayGain + reverbDiffLeft  * reverbGain;
-                diffRight = delayDiffRight * delayGain + reverbDiffRight * reverbGain;
-            }
-
-            // Equal-power crossfade between clean pre and diffused pre
-            const float cleanGain    = std::cos(blend * juce::MathConstants<float>::halfPi);
-            const float diffusedGain = std::sin(blend * juce::MathConstants<float>::halfPi);
-
-            writeLeft  = preLeft  * cleanGain + diffLeft  * diffusedGain;
-            writeRight = preRight * cleanGain + diffRight * diffusedGain;
-        }
-
-        // 4: Write diffused signal to delay line
-        mainDelayLeft->PushSample(writeLeft);
-        mainDelayRight->PushSample(writeRight);
-
-        // 5: Read at FIXED delay — this never moves, so automation is artifact-free
-        float outputLeft  = mainDelayLeft->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
-        float outputRight = mainDelayRight->ReadDelayMilliseconds(delayMilliseconds, sampleRate);
-
-        // 6: Damping + feedback
-        const float dampedLeft  = dampingLeft->ProcessSample(outputLeft,  lowpass01);
-        const float dampedRight = dampingRight->ProcessSample(outputRight, lowpass01);
-
-        lastFeedbackL = dampedLeft  * feedbackGain;
-        lastFeedbackR = dampedRight * feedbackGain;
-
-        float wetLeft  = outputLeft;
-        float wetRight = outputRight;
-
-        // 8: Progressive pitch shift (shimmer)
-        //const float pitchedFeedbackLeft = wetInputPitchShifterLeft.ProcessSample(dampedLeft);
-        //const float pitchedFeedbackRight = wetInputPitchShifterRight.ProcessSample(dampedRight);
-
-        // Advance echo boundary counters
-        const int delaySamplesInt = static_cast<int>(std::round((delayMilliseconds * sampleRate) / 1000.0));
-
-        ++echoSampleCounterL;
-
-        if (echoSampleCounterL >= delaySamplesInt)
-        {
-            echoSampleCounterL = 0;
-            wetInputPitchShifterLeft.OnNewEchoBoundary();
-        }
-
-        ++echoSampleCounterR;
-
-        if (echoSampleCounterR >= delaySamplesInt)
-        {
-            echoSampleCounterR = 0;
-            wetInputPitchShifterRight.OnNewEchoBoundary();
-        }
-
-        // 9: Output crossfade: morph between raw delay and diffused
-        //const float fade = diffusionAmount01 * 0.5f * juce::MathConstants<float>::pi;
-        //const float wetLeft = PMath::EqualPowerCrossfade(outputLeft, dampedLeft, fade);
-        //const float wetRight = PMath::EqualPowerCrossfade(outputRight, dampedRight, fade);
-
-        // 10: Stereo spread on wet
-        float spreadWetLeft = wetLeft;
-        float spreadWetRight = wetRight;
-
-        const float spread = juce::jlimit(-1.0f, 1.0f, stereoSpreadMinus1To1);
-
-        if (std::abs(spread) > 0.0001f)
-        {
-            const float widen = std::max(0.0f, spread);
-            const float narrow = std::max(0.0f, -spread);
-
-            if (widen > 0.0f)
-            {
-                const float cross = widen * 0.25f;
-                const float newL = spreadWetLeft - cross * spreadWetRight;
-                const float newR = spreadWetRight - cross * spreadWetLeft;
-                spreadWetLeft = newL;
-                spreadWetRight = newR;
-            }
-            else if (narrow > 0.0f)
-            {
-                const float mono = 0.5f * (spreadWetLeft + spreadWetRight);
-                spreadWetLeft = spreadWetLeft * (1.0f - narrow) + mono * narrow;
-                spreadWetRight = spreadWetRight * (1.0f - narrow) + mono * narrow;
-            }
-        }
-
-        // 11: Dry/Wet mix
-        float outLeft = PMath::EqualPowerCrossfade(dryLeft, spreadWetLeft, dryWet01);
-        float outRight = PMath::EqualPowerCrossfade(dryRight, spreadWetRight, dryWet01);
-
-        // 12: Post HP/LP
-        if (hplpPrePost01 >= 0.5f)
-        {
-            outLeft = highpassL.processSample(outLeft);
-            outLeft = lowpassL.processSample(outLeft);
-
-            outRight = highpassR.processSample(outRight);
-            outRight = lowpassR.processSample(outRight);
-        }
-
-        leftData[sampleIndex] = outLeft;
-
-        if (rightData != nullptr)
-            rightData[sampleIndex] = outRight;
-    }
-}*/
 
 void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 {
@@ -567,16 +363,6 @@ void NewDelayReverb::rebuildDiffusionIfNeeded()
     if (delayDiffusionRight != nullptr)
     {
         delayDiffusionRight->Configure(diffusionQualityStages, diffusionSize01);
-    }
-
-    if (reverbDiffusionLeft != nullptr)
-    {
-        reverbDiffusionLeft->ConfigureAsReverb(diffusionQualityStages, diffusionSize01);
-    }
-
-    if (reverbDiffusionRight != nullptr)
-    {
-        reverbDiffusionRight->ConfigureAsReverb(diffusionQualityStages, diffusionSize01);
     }
 
     totalDelayDiffusionMilliseconds = 0.0f;

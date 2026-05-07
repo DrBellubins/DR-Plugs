@@ -116,9 +116,6 @@ private:
     std::unique_ptr<DiffusionChain> delayDiffusionLeft;
     std::unique_ptr<DiffusionChain> delayDiffusionRight;
 
-    std::unique_ptr<DiffusionChain> reverbDiffusionLeft;
-    std::unique_ptr<DiffusionChain> reverbDiffusionRight;
-
     std::unique_ptr<DampingFilter> dampingLeft;
     std::unique_ptr<DampingFilter> dampingRight;
 
