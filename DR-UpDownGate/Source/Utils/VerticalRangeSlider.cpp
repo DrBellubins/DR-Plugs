@@ -358,7 +358,7 @@ void VerticalRangeSlider::paint(juce::Graphics& Graphics)
     Graphics.setGradientFill(RangeFaceGradient);
     Graphics.fillRoundedRectangle(RangeRectangle, roundness);
 
-    float BevelSize = juce::jmin(12.0f, RangeRectangle.getHeight() * 0.3f);
+    float BevelSize = juce::jmin(12.0f, RangeRectangle.getHeight() * 0.5f);
     BevelSize = juce::jmax(3.0f, BevelSize);
 
     juce::ColourGradient TopHighlightGradient(
@@ -435,22 +435,11 @@ void VerticalRangeSlider::paint(juce::Graphics& Graphics)
 
     Graphics.restoreState();
 
-    /*Graphics.setColour(juce::Colours::white.withAlpha(0.14f));
-    Graphics.drawRoundedRectangle(
-        RangeRectangle.reduced(0.5f),
-        roundness,
-        1.0f
-    );
+    juce::Colour UpperNormalThumbColour = ThemePink.brighter(0.4f);
+    juce::Colour UpperActiveThumbColour = ThemePink.darker(0.1f);
 
-    Graphics.setColour(ThemePink.darker(0.35f).withAlpha(0.55f));
-    Graphics.drawRoundedRectangle(
-        RangeRectangle.reduced(1.5f),
-        juce::jmax(0.0f, roundness - 1.0f),
-        1.0f
-    );*/
-
-    juce::Colour NormalThumbColour = ThemePink.darker(0.2f);
-    juce::Colour ActiveThumbColour = ThemePink.brighter(0.35f);
+    juce::Colour LowerNormalThumbColour = ThemePink.darker(0.1f);
+    juce::Colour LowerActiveThumbColour = ThemePink.darker(0.3f);
 
     juce::Rectangle UpperThumbRectangle = getUpperThumbRectangle();
     juce::Rectangle LowerThumbRectangle = getLowerThumbRectangle();
@@ -458,10 +447,10 @@ void VerticalRangeSlider::paint(juce::Graphics& Graphics)
     bool UpperThumbIsActive = (hoveredThumb == HoverUpper || draggingThumb == Upper);
     bool LowerThumbIsActive = (hoveredThumb == HoverLower || draggingThumb == Lower);
 
-    Graphics.setColour(UpperThumbIsActive ? ActiveThumbColour : NormalThumbColour);
+    Graphics.setColour(UpperThumbIsActive ? UpperActiveThumbColour : UpperNormalThumbColour);
     Graphics.fillRoundedRectangle(UpperThumbRectangle, thumbHeight * 0.5f);
 
-    Graphics.setColour(LowerThumbIsActive ? ActiveThumbColour : NormalThumbColour);
+    Graphics.setColour(LowerThumbIsActive ? LowerActiveThumbColour : LowerNormalThumbColour);
     Graphics.fillRoundedRectangle(LowerThumbRectangle, thumbHeight * 0.5f);
 }
 
