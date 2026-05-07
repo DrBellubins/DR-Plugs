@@ -7,41 +7,80 @@
 class FlatRotaryLookAndFeel : public juce::LookAndFeel_V4
 {
 public:
-    void drawRotarySlider (
-        juce::Graphics& graphics, int x, int y, int width, int height,
-        float sliderPosProportional, float rotaryStartAngle, float rotaryEndAngle,
-        juce::Slider& slider) override
+    void drawRotarySlider(
+        juce::Graphics& Graphics,
+        int X,
+        int Y,
+        int Width,
+        int Height,
+        float SliderPositionProportional,
+        float RotaryStartAngle,
+        float RotaryEndAngle,
+        juce::Slider& Slider) override
     {
-        auto bounds = juce::Rectangle<float>(x, y, width, height);
-        float diameter = juce::jmin(width, height) - 8.0f;
-        auto radius = diameter / 2.0f;
-        auto center = bounds.getCentre();
+        juce::ignoreUnused(Slider);
 
-        // Background
-        graphics.setColour(juce::Colours::black.withAlpha(0.25f));
-        graphics.fillEllipse(center.x - radius, center.y - radius, diameter, diameter);
+        juce::Rectangle<int> Bounds(X, Y, Width, Height);
 
-        // Value arc
-        float angle = rotaryStartAngle + sliderPosProportional * (rotaryEndAngle - rotaryStartAngle);
-        juce::Path valueArc;
-        valueArc.addArc(center.x - radius, center.y - radius, diameter, diameter,
-                        rotaryStartAngle, angle, true);
+        float Diameter = juce::jmin(static_cast<float>(Width), static_cast<float>(Height)) - 8.0f;
+        float Radius = Diameter * 0.5f;
+        juce::Point<float> Centre = Bounds.toFloat().getCentre();
 
-        graphics.setColour(ThemePink);
-        graphics.strokePath(valueArc, juce::PathStrokeType(6.0f));
+        juce::Rectangle<float> KnobBounds(
+            Centre.x - Radius,
+            Centre.y - Radius,
+            Diameter,
+            Diameter
+        );
+
+        juce::Path KnobPath;
+        KnobPath.addEllipse(KnobBounds);
+
+        juce::DropShadow KnobShadow(
+            juce::Colours::black.withAlpha(0.25f),
+            10,
+            juce::Point<int>(0, 10)
+        );
+
+        KnobShadow.drawForPath(Graphics, KnobPath);
+
+        Graphics.setColour(AccentGray.brighter(0.05f));
+        Graphics.fillEllipse(KnobBounds);
+
+        float Angle = RotaryStartAngle
+                      + SliderPositionProportional * (RotaryEndAngle - RotaryStartAngle);
+
+        juce::Path ValueArc;
+        ValueArc.addArc(
+            KnobBounds.getX(),
+            KnobBounds.getY(),
+            KnobBounds.getWidth(),
+            KnobBounds.getHeight(),
+            RotaryStartAngle,
+            Angle,
+            true
+        );
+
+        Graphics.setColour(ThemePink);
+        Graphics.strokePath(ValueArc, juce::PathStrokeType(6.0f));
     }
 
-    juce::Label* createSliderTextBox(juce::Slider&) override
+    juce::Label* createSliderTextBox(juce::Slider& Slider) override
     {
-        auto* box = new FlatTextBox();
-        return box;
+        juce::ignoreUnused(Slider);
+
+        return new FlatTextBox();
     }
 
-    void drawTextEditorOutline(juce::Graphics& graphics, int width, int height, juce::TextEditor& textEditor) override
+    void drawTextEditorOutline(
+        juce::Graphics& Graphics,
+        int Width,
+        int Height,
+        juce::TextEditor& TextEditor) override
     {
-        const int thickness = (textEditor.hasKeyboardFocus(false) ? 2 : 1);
+        int Thickness = TextEditor.hasKeyboardFocus(false) ? 2 : 1;
 
-        graphics.setColour(FocusedGray);
-        graphics.drawRect(0, 0, width, height, thickness);
+        Graphics.setColour(FocusedGray);
+        Graphics.drawRect(0, 0, Width, Height, Thickness);
     }
 };

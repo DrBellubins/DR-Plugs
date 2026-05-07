@@ -249,31 +249,96 @@ juce::String VerticalRangeSlider::getActiveThumbTooltipText() const
     return {};
 }
 
-void VerticalRangeSlider::paint(juce::Graphics& graphics)
+void VerticalRangeSlider::paint(juce::Graphics& Graphics)
 {
-    juce::Rectangle<float> bounds = getLocalBounds().toFloat();
+    juce::Rectangle<float> Bounds = getLocalBounds().toFloat();
 
-    graphics.setColour(AccentGray);
-    graphics.fillRoundedRectangle(bounds, roundness);
+    Graphics.setColour(AccentGray.brighter(0.05f));
+    Graphics.fillRoundedRectangle(Bounds, roundness);
 
-    juce::Rectangle<float> rangeRectangle = getRangeRectangle();
-    graphics.setColour(ThemePink);
-    graphics.fillRoundedRectangle(rangeRectangle, roundness);
+    juce::Path BackgroundPath;
+    BackgroundPath.addRoundedRectangle(Bounds, roundness);
 
-    juce::Colour normalThumbColour = ThemePink.darker(0.2f);
-    juce::Colour activeThumbColour = ThemePink.brighter(0.35f);
+    Graphics.saveState();
+    Graphics.reduceClipRegion(BackgroundPath);
 
-    juce::Rectangle<float> upperThumbRectangle = getUpperThumbRectangle();
-    juce::Rectangle<float> lowerThumbRectangle = getLowerThumbRectangle();
+    constexpr float InnerShadowSize = 10.0f;
 
-    bool upperThumbIsActive = (hoveredThumb == HoverUpper || draggingThumb == Upper);
-    bool lowerThumbIsActive = (hoveredThumb == HoverLower || draggingThumb == Lower);
+    // Inner shadow start
+    juce::ColourGradient TopShadowGradient(
+        juce::Colours::black.withAlpha(0.28f),
+        Bounds.getCentreX(),
+        Bounds.getY(),
+        juce::Colours::transparentBlack,
+        Bounds.getCentreX(),
+        Bounds.getY() + InnerShadowSize,
+        false
+    );
 
-    graphics.setColour(upperThumbIsActive ? activeThumbColour : normalThumbColour);
-    graphics.fillRoundedRectangle(upperThumbRectangle, thumbHeight * 0.5f);
+    Graphics.setGradientFill(TopShadowGradient);
+    Graphics.fillRect(Bounds.getX(), Bounds.getY(), Bounds.getWidth(), InnerShadowSize);
 
-    graphics.setColour(lowerThumbIsActive ? activeThumbColour : normalThumbColour);
-    graphics.fillRoundedRectangle(lowerThumbRectangle, thumbHeight * 0.5f);
+    juce::ColourGradient BottomShadowGradient(
+        juce::Colours::transparentBlack,
+        Bounds.getCentreX(),
+        Bounds.getBottom() - InnerShadowSize,
+        juce::Colours::black.withAlpha(0.20f),
+        Bounds.getCentreX(),
+        Bounds.getBottom(),
+        false
+    );
+
+    Graphics.setGradientFill(BottomShadowGradient);
+    Graphics.fillRect(Bounds.getX(), Bounds.getBottom() - InnerShadowSize, Bounds.getWidth(), InnerShadowSize);
+
+    juce::ColourGradient LeftShadowGradient(
+        juce::Colours::black.withAlpha(0.12f),
+        Bounds.getX(),
+        Bounds.getCentreY(),
+        juce::Colours::transparentBlack,
+        Bounds.getX() + InnerShadowSize,
+        Bounds.getCentreY(),
+        false
+    );
+
+    Graphics.setGradientFill(LeftShadowGradient);
+    Graphics.fillRect(Bounds.getX(), Bounds.getY(), InnerShadowSize, Bounds.getHeight());
+
+    juce::ColourGradient RightHighlightGradient(
+        juce::Colours::transparentWhite,
+        Bounds.getRight() - InnerShadowSize,
+        Bounds.getCentreY(),
+        juce::Colours::white.withAlpha(0.05f),
+        Bounds.getRight(),
+        Bounds.getCentreY(),
+        false
+    );
+
+    Graphics.setGradientFill(RightHighlightGradient);
+    Graphics.fillRect(Bounds.getRight() - InnerShadowSize, Bounds.getY(), InnerShadowSize, Bounds.getHeight());
+
+    Graphics.restoreState();
+
+    // Inner shadow end
+
+    juce::Rectangle<float> RangeRectangle = getRangeRectangle();
+    Graphics.setColour(ThemePink);
+    Graphics.fillRoundedRectangle(RangeRectangle, roundness);
+
+    juce::Colour NormalThumbColour = ThemePink.darker(0.2f);
+    juce::Colour ActiveThumbColour = ThemePink.brighter(0.35f);
+
+    juce::Rectangle<float> UpperThumbRectangle = getUpperThumbRectangle();
+    juce::Rectangle<float> LowerThumbRectangle = getLowerThumbRectangle();
+
+    bool UpperThumbIsActive = (hoveredThumb == HoverUpper || draggingThumb == Upper);
+    bool LowerThumbIsActive = (hoveredThumb == HoverLower || draggingThumb == Lower);
+
+    Graphics.setColour(UpperThumbIsActive ? ActiveThumbColour : NormalThumbColour);
+    Graphics.fillRoundedRectangle(UpperThumbRectangle, thumbHeight * 0.5f);
+
+    Graphics.setColour(LowerThumbIsActive ? ActiveThumbColour : NormalThumbColour);
+    Graphics.fillRoundedRectangle(LowerThumbRectangle, thumbHeight * 0.5f);
 }
 
 void VerticalRangeSlider::resized()
