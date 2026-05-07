@@ -297,6 +297,7 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
     if (parameterID == "lowPassCutoff") DelayReverb.SetLowpassCutoff(newValue);
     if (parameterID == "highPassCutoff") DelayReverb.SetHighpassCutoff(newValue);
     if (parameterID == "hplpPrePost") DelayReverb.SetHPLPPrePost(newValue);
+    if (parameterID == "pitchShiftEnabled") DelayReverb.SetPitchShift(newValue);
 
     // Ducking
     //if (parameterID == "duckAmount") DelayReverb.SetDuckAmount(newValue);

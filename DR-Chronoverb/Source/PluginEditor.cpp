@@ -2,6 +2,7 @@
 #include "PluginEditor.h"
 
 #include "Utils/RoundedToggle.h"
+#include "Utils/ThemedCheckbox.h"
 
 // TODO: Derive class from RoundedToggle to make Pre/Post toggles with labels
 // TODO: Begin creation of Matrix Menu.
@@ -154,6 +155,26 @@ void AudioPluginAudioProcessorEditor::createToggle(juce::AudioProcessorValueTree
     int toggleY = (getHeight() / 2) - (height / 2) + offsetFromCenterY;
 
     toggle->setBounds(toggleX, toggleY, width, height);
+}
+
+void AudioPluginAudioProcessorEditor::createCheckbox(juce::AudioProcessorValueTreeState& state,
+        std::unique_ptr<ThemedCheckbox>& checkbox,
+        std::unique_ptr<ThemedCheckbox::Attachment>& attachment,
+        const juce::String& parameterID,
+        int width, int height, int offsetFromCenterX, int offsetFromCenterY)
+{
+    if (checkbox == nullptr)
+        checkbox = std::make_unique<ThemedCheckbox>();
+
+    if (attachment == nullptr)
+        attachment = std::make_unique<RoundedToggle::Attachment>(state, parameterID, *checkbox);
+
+    addAndMakeVisible(*checkbox);
+
+    int toggleX = (getWidth() / 2) - (width / 2) + offsetFromCenterX;
+    int toggleY = (getHeight() / 2) - (height / 2) + offsetFromCenterY;
+
+    checkbox->setBounds(toggleX, toggleY, width, height);
 }
 
 void AudioPluginAudioProcessorEditor::createSlider(std::unique_ptr<ThemedSlider>& slider,
