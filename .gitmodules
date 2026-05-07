@@ -1,7 +1,6 @@
 [submodule "DR-UpDownGate/Libs/JUCE"]
 	path = DR-UpDownGate/Libs/JUCE
 	url = https://github.com/juce-framework/JUCE.git
-
 [submodule "DR-Chronoverb/Libs/JUCE"]
 	path = DR-Chronoverb/Libs/JUCE
 	url = https://github.com/juce-framework/JUCE.git
