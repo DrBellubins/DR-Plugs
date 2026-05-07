@@ -1,3 +1,3 @@
-[submodule "Libs/JUCE"]
-	path = Libs/JUCE
+[submodule "DR-UpDownGate/Libs/JUCE"]
+	path = DR-UpDownGate/Libs/JUCE
 	url = https://github.com/juce-framework/JUCE.git
