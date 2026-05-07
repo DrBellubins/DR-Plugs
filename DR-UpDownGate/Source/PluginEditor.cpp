@@ -32,6 +32,11 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     attackKnob->setSliderStyle(juce::Slider::RotaryVerticalDrag);
     attackKnob->setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 20);
     attackKnob->setRange(1.0, 1000.0, 1.0);
+
+    attackKnob->getProperties().set(
+        FlatRotaryLookAndFeel::KnobBackgroundColourPropertyName,
+        static_cast<int>(AccentGray.brighter(0.15f).getARGB()));
+
     attackKnob->setBounds(25, 100, 100, 100);
 
     addAndMakeVisible(*attackKnob);
@@ -45,6 +50,11 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     releaseKnob->setSliderStyle(juce::Slider::RotaryVerticalDrag);
     releaseKnob->setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 20);
     releaseKnob->setRange(1.0, 1000.0, 1.0);
+
+    releaseKnob->getProperties().set(
+        FlatRotaryLookAndFeel::KnobBackgroundColourPropertyName,
+        static_cast<int>(AccentGray.getARGB()));
+
     releaseKnob->setBounds(25, 300, 100, 100);
 
     addAndMakeVisible(*releaseKnob);

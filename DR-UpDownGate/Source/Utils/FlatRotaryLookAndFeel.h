@@ -7,6 +7,8 @@
 class FlatRotaryLookAndFeel : public juce::LookAndFeel_V4
 {
 public:
+    static constexpr const char* KnobBackgroundColourPropertyName = "KnobBackgroundColour";
+
     void drawRotarySlider(
         juce::Graphics& Graphics,
         int X,
@@ -18,8 +20,6 @@ public:
         float RotaryEndAngle,
         juce::Slider& Slider) override
     {
-        juce::ignoreUnused(Slider);
-
         juce::Rectangle<int> Bounds(X, Y, Width, Height);
 
         float Diameter = juce::jmin(static_cast<float>(Width), static_cast<float>(Height)) - 8.0f;
@@ -44,7 +44,19 @@ public:
 
         KnobShadow.drawForPath(Graphics, KnobPath);
 
-        Graphics.setColour(AccentGray.brighter(0.05f));
+        juce::Colour KnobBackgroundColour = AccentGray.brighter(0.05f);
+
+        if (Slider.getProperties().contains(KnobBackgroundColourPropertyName))
+        {
+            juce::var ColourValue = Slider.getProperties()[KnobBackgroundColourPropertyName];
+
+            if (ColourValue.isInt() || ColourValue.isInt64() || ColourValue.isDouble() || ColourValue.isBool())
+            {
+                KnobBackgroundColour = juce::Colour(static_cast<juce::uint32>(static_cast<int>(ColourValue)));
+            }
+        }
+
+        Graphics.setColour(KnobBackgroundColour);
         Graphics.fillEllipse(KnobBounds);
 
         float Angle = RotaryStartAngle
