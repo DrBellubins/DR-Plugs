@@ -251,7 +251,7 @@ juce::String VerticalRangeSlider::getActiveThumbTooltipText() const
 
 void VerticalRangeSlider::paint(juce::Graphics& Graphics)
 {
-    juce::Rectangle<float> Bounds = getLocalBounds().toFloat();
+    juce::Rectangle Bounds = getLocalBounds().toFloat();
 
     Graphics.setColour(AccentGray);
     Graphics.fillRoundedRectangle(Bounds, roundness);
@@ -264,7 +264,6 @@ void VerticalRangeSlider::paint(juce::Graphics& Graphics)
 
     constexpr float InnerShadowSize = 10.0f;
 
-    // Inner shadow start
     juce::ColourGradient TopShadowGradient(
         juce::Colours::black.withAlpha(0.28f),
         Bounds.getCentreX(),
@@ -276,7 +275,12 @@ void VerticalRangeSlider::paint(juce::Graphics& Graphics)
     );
 
     Graphics.setGradientFill(TopShadowGradient);
-    Graphics.fillRect(Bounds.getX(), Bounds.getY(), Bounds.getWidth(), InnerShadowSize);
+    Graphics.fillRect(
+        Bounds.getX(),
+        Bounds.getY(),
+        Bounds.getWidth(),
+        InnerShadowSize
+    );
 
     juce::ColourGradient BottomShadowGradient(
         juce::Colours::transparentBlack,
@@ -289,7 +293,12 @@ void VerticalRangeSlider::paint(juce::Graphics& Graphics)
     );
 
     Graphics.setGradientFill(BottomShadowGradient);
-    Graphics.fillRect(Bounds.getX(), Bounds.getBottom() - InnerShadowSize, Bounds.getWidth(), InnerShadowSize);
+    Graphics.fillRect(
+        Bounds.getX(),
+        Bounds.getBottom() - InnerShadowSize,
+        Bounds.getWidth(),
+        InnerShadowSize
+    );
 
     juce::ColourGradient LeftShadowGradient(
         juce::Colours::black.withAlpha(0.12f),
@@ -302,7 +311,12 @@ void VerticalRangeSlider::paint(juce::Graphics& Graphics)
     );
 
     Graphics.setGradientFill(LeftShadowGradient);
-    Graphics.fillRect(Bounds.getX(), Bounds.getY(), InnerShadowSize, Bounds.getHeight());
+    Graphics.fillRect(
+        Bounds.getX(),
+        Bounds.getY(),
+        InnerShadowSize,
+        Bounds.getHeight()
+    );
 
     juce::ColourGradient RightHighlightGradient(
         juce::Colours::transparentWhite,
@@ -315,21 +329,115 @@ void VerticalRangeSlider::paint(juce::Graphics& Graphics)
     );
 
     Graphics.setGradientFill(RightHighlightGradient);
-    Graphics.fillRect(Bounds.getRight() - InnerShadowSize, Bounds.getY(), InnerShadowSize, Bounds.getHeight());
+    Graphics.fillRect(
+        Bounds.getRight() - InnerShadowSize,
+        Bounds.getY(),
+        InnerShadowSize,
+        Bounds.getHeight()
+    );
 
     Graphics.restoreState();
 
-    // Inner shadow end
+    juce::Rectangle RangeRectangle = getRangeRectangle();
 
-    juce::Rectangle<float> RangeRectangle = getRangeRectangle();
     Graphics.setColour(ThemePink);
     Graphics.fillRoundedRectangle(RangeRectangle, roundness);
+
+    juce::Path RangePath;
+    RangePath.addRoundedRectangle(RangeRectangle, roundness);
+
+    Graphics.saveState();
+    Graphics.reduceClipRegion(RangePath);
+
+    float BevelSize = juce::jmin(8.0f, RangeRectangle.getHeight() * 0.25f);
+    BevelSize = juce::jmax(2.0f, BevelSize);
+
+    juce::ColourGradient TopHighlightGradient(
+        juce::Colours::white.withAlpha(0.16f),
+        RangeRectangle.getCentreX(),
+        RangeRectangle.getY(),
+        juce::Colours::transparentWhite,
+        RangeRectangle.getCentreX(),
+        RangeRectangle.getY() + BevelSize,
+        false
+    );
+
+    Graphics.setGradientFill(TopHighlightGradient);
+    Graphics.fillRect(
+        RangeRectangle.getX(),
+        RangeRectangle.getY(),
+        RangeRectangle.getWidth(),
+        BevelSize
+    );
+
+    juce::ColourGradient LeftHighlightGradient(
+        juce::Colours::white.withAlpha(0.08f),
+        RangeRectangle.getX(),
+        RangeRectangle.getCentreY(),
+        juce::Colours::transparentWhite,
+        RangeRectangle.getX() + BevelSize,
+        RangeRectangle.getCentreY(),
+        false
+    );
+
+    Graphics.setGradientFill(LeftHighlightGradient);
+    Graphics.fillRect(
+        RangeRectangle.getX(),
+        RangeRectangle.getY(),
+        BevelSize,
+        RangeRectangle.getHeight()
+    );
+
+    juce::ColourGradient BottomRangeShadowGradient(
+        juce::Colours::transparentBlack,
+        RangeRectangle.getCentreX(),
+        RangeRectangle.getBottom() - BevelSize,
+        juce::Colours::black.withAlpha(0.14f),
+        RangeRectangle.getCentreX(),
+        RangeRectangle.getBottom(),
+        false
+    );
+
+    Graphics.setGradientFill(BottomRangeShadowGradient);
+    Graphics.fillRect(
+        RangeRectangle.getX(),
+        RangeRectangle.getBottom() - BevelSize,
+        RangeRectangle.getWidth(),
+        BevelSize
+    );
+
+    juce::ColourGradient RightRangeShadowGradient(
+        juce::Colours::transparentBlack,
+        RangeRectangle.getRight() - BevelSize,
+        RangeRectangle.getCentreY(),
+        juce::Colours::black.withAlpha(0.10f),
+        RangeRectangle.getRight(),
+        RangeRectangle.getCentreY(),
+        false
+    );
+
+    Graphics.setGradientFill(RightRangeShadowGradient);
+    Graphics.fillRect(
+        RangeRectangle.getRight() - BevelSize,
+        RangeRectangle.getY(),
+        BevelSize,
+        RangeRectangle.getHeight()
+    );
+
+    Graphics.restoreState();
+
+    Graphics.setColour(juce::Colours::white.withAlpha(0.08f));
+    Graphics.drawRoundedRectangle(
+        RangeRectangle.reduced(0.5f),
+        roundness,
+        1.0f
+    );
 
     juce::Colour NormalThumbColour = ThemePink.darker(0.2f);
     juce::Colour ActiveThumbColour = ThemePink.brighter(0.35f);
 
-    juce::Rectangle<float> UpperThumbRectangle = getUpperThumbRectangle();
-    juce::Rectangle<float> LowerThumbRectangle = getLowerThumbRectangle();
+    juce::Rectangle UpperThumbRectangle = getUpperThumbRectangle();
+    juce::Rectangle LowerThumbRectangle = getLowerThumbRectangle();
 
     bool UpperThumbIsActive = (hoveredThumb == HoverUpper || draggingThumb == Upper);
     bool LowerThumbIsActive = (hoveredThumb == HoverLower || draggingThumb == Lower);
