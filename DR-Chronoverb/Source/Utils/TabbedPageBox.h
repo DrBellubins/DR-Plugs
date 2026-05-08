@@ -145,7 +145,7 @@ public:
             const juce::Rectangle<int> tabBounds = getTabBounds(tabIndex);
             const bool isSelected = (tabIndex == selectedTabIndex);
 
-            const juce::Colour tabColour = isSelected ? ThemePink : FocusedGray.darker(0.35f);
+            const juce::Colour tabColour = isSelected ? ThemePink : AccentGray.darker(0.7f);
             const juce::Colour textColour = juce::Colours::white;
 
             graphics.setColour(tabColour);
@@ -202,11 +202,11 @@ private:
 
     // Extra space at the top of the component so tabs can sit above the page panel
     // without being clipped by the component bounds.
-    int topExtension = 30;
+    int topExtension = 20;
 
     // Moves the tab within that extra top region.
     // 0 = aligned to topExtension area start, negative = higher, positive = lower.
-    int tabVerticalOffset = -18;
+    int tabVerticalOffset = -11;
 
     juce::Rectangle<int> getPanelBounds() const
     {
@@ -225,12 +225,9 @@ private:
 
     juce::Rectangle<int> getContentBounds() const
     {
-        juce::Rectangle<int> bounds = getPanelBounds();
+        juce::Rectangle bounds = getPanelBounds();
 
-        bounds.removeFromTop(headerHeight);
-        bounds.reduce(innerPadding, 0);
-        bounds.removeFromTop(2);
-        bounds.removeFromBottom(innerPadding);
+        bounds.reduce(innerPadding, innerPadding);
 
         return bounds;
     }
