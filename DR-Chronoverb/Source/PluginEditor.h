@@ -28,8 +28,11 @@ private:
     const int nonPitchYOffset = 50;
     const int pitchYOffset = 230;
 
-    FlatRotaryLookAndFeel flatKnobLAF;
+    // This reference is provided as a quick way for your editor to
+    // access the processor object that created it.
+    AudioPluginAudioProcessor& processorRef;
 
+    FlatRotaryLookAndFeel flatKnobLAF;
     UIHelpers uiHelpers;
 
     // Beat subdivision knob snap points (5 entries: Whole, Half, Quarter, Eighth, Sixteenth)
@@ -44,10 +47,6 @@ private:
     };
 
     void snapDelayKnobToNearestStep();
-
-    // This reference is provided as a quick way for your editor to
-    // access the processor object that created it.
-    AudioPluginAudioProcessor& processorRef;
 
     juce::Image background;
     juce::Image logo;
