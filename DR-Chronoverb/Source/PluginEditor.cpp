@@ -25,9 +25,6 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     // Logo
     logo = juce::ImageFileFormat::loadFrom(BinaryData::logo_png, BinaryData::logo_pngSize);
 
-    const int nonPitchYOffset = 50;
-    const int pitchYOffset = 230;
-
     // ------ KNOBS ------
     createKnob(delayTimeKnob, delayTimeAttachment, "delayTime", " ms", 100, 0, -25 + nonPitchYOffset);
     createKnob(feedbackTimeKnob, feedbackTimeAttachment, "feedbackTime", "", 80, 200, 50 + nonPitchYOffset);
@@ -124,7 +121,9 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
         pitchShiftToggle,
         pitchShiftToggleAttachment,
         "pitchShiftEnabled",
-        20, 50, 275, pitchYOffset - 25);
+        25, 25, -390, pitchYOffset - 25);
+
+    createLabel(pitchShiftTitle, "Pitch shifter", 15.0f, -380, pitchYOffset - 65.0f);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
@@ -221,6 +220,29 @@ void AudioPluginAudioProcessorEditor::createSliderLabel(std::unique_ptr<juce::La
     label->setBounds(labelX, labelY, labelWidth, 20);
 }
 
+void AudioPluginAudioProcessorEditor::createLabel(std::unique_ptr<juce::Label>& label,
+        juce::String text, float fontSize, int offsetFromCenterX, int offsetFromCenterY)
+{
+    label = std::make_unique<juce::Label>();
+    label->setText(text, juce::dontSendNotification);
+
+    juce::Font MainFont("Liberation Sans", fontSize, juce::Font::bold);
+    MainFont.setExtraKerningFactor(0.05f);
+
+    label->setFont(MainFont);
+    label->setJustificationType(juce::Justification::centred);
+
+    addAndMakeVisible(*label);
+
+    int labelWidth = getLabelWidth(label);
+    int intFontSize = static_cast<int>(fontSize);
+
+    int labelX = (getWidth() / 2) - (labelWidth / 2) + offsetFromCenterX;
+    int labelY = (getHeight() / 2) - (intFontSize / 2) + offsetFromCenterY;
+
+    label->setBounds(labelX, labelY, labelWidth, 20);
+}
+
 void AudioPluginAudioProcessorEditor::createKnob(std::unique_ptr<ThemedKnob>& knob, std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>& attachment,
     juce::String paramID, juce::String suffix, int widthHeight, int offsetFromCenterX, int offsetFromCenterY)
 {
@@ -288,8 +310,12 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
     if (logo.isValid())
         graphics.drawImage(logo, juce::Rectangle<float>(-70, -15, 512.0f, 120.0f), juce::RectanglePlacement::centred);
 
+    // Draw pitch shifting box
+    graphics.setColour(AccentGray.darker(0.25f));
+    graphics.fillRoundedRectangle(25.0f, 470, 830.0f, 100.0f, 25.0f);
+
     // Draw bounding box for this component
-    graphics.setColour(juce::Colours::red);
+    /*graphics.setColour(juce::Colours::red);
     graphics.drawRect(getLocalBounds(), 2);
 
     // Draw bounding boxes for children
@@ -303,7 +329,7 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
             graphics.setColour(juce::Colours::green);
             graphics.drawRect(ChildBounds, 2);
         }
-    }
+    }*/
 }
 
 void AudioPluginAudioProcessorEditor::resized()

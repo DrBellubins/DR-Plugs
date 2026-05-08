@@ -43,6 +43,9 @@ public:
     void createSliderLabel(std::unique_ptr<juce::Label>& label, ThemedSlider& slider,
         juce::String text, float fontSize, int offsetX);
 
+    void createLabel(std::unique_ptr<juce::Label>& label,
+        juce::String text, float fontSize, int offsetFromCenterX, int offsetFromCenterY);
+
     void createKnob(std::unique_ptr<ThemedKnob>& knob, std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>& attachment, juce::String paramID,
         juce::String suffix, int widthHeight, int offsetFromCenterX, int offsetFromCenterY);
 
@@ -62,6 +65,9 @@ public:
     bool keyStateChanged(bool isKeyDown, juce::Component* originatingComponent) override;
 
 private:
+    const int nonPitchYOffset = 50;
+    const int pitchYOffset = 230;
+
     FlatRotaryLookAndFeel flatKnobLAF;
 
     // Beat subdivision knob snap points (5 entries: Whole, Half, Quarter, Eighth, Sixteenth)
@@ -154,6 +160,7 @@ private:
     // Pitch shift toggle
     std::unique_ptr<ThemedCheckbox> pitchShiftToggle;
     std::unique_ptr<ThemedCheckbox::Attachment> pitchShiftToggleAttachment;
+    std::unique_ptr<juce::Label> pitchShiftTitle;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };

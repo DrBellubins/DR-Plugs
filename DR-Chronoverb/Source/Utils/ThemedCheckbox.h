@@ -13,50 +13,36 @@ public:
     }
 
     void paintButton(
-        juce::Graphics& graphics,
-        bool shouldDrawButtonAsHighlighted,
-        bool shouldDrawButtonAsDown
-    ) override
+    juce::Graphics& graphics,
+    bool shouldDrawButtonAsHighlighted,
+    bool shouldDrawButtonAsDown) override
     {
-        auto bounds = getLocalBounds().toFloat();
+        juce::ignoreUnused(shouldDrawButtonAsDown);
 
-        float outerSize = juce::jmin(bounds.getHeight(), 28.0f);
-        float innerSize = outerSize * 0.6f;
-        float outerRadius = outerSize / 4.0f;
-        float innerRadius = innerSize / 4.0f;
+        const juce::Rectangle<float> bounds = getLocalBounds().toFloat();
+        const float outerRadius = juce::jmin(bounds.getWidth(), bounds.getHeight()) * 0.2f;
 
-        float boxX = bounds.getX();
-        float boxY = bounds.getCentreY() - outerSize / 2.0f;
-
-        juce::Rectangle<float> outerRect(boxX, boxY, outerSize, outerSize);
         graphics.setColour(AccentGray);
-        graphics.fillRoundedRectangle(outerRect, outerRadius);
+        graphics.fillRoundedRectangle(bounds, outerRadius);
 
         if (getToggleState())
         {
-            float innerX = boxX + (outerSize - innerSize) / 2.0f;
-            float innerY = boxY + (outerSize - innerSize) / 2.0f;
-            juce::Rectangle<float> innerRect(innerX, innerY, innerSize, innerSize);
+            const juce::Rectangle<float> innerBounds = bounds.reduced(
+                bounds.getWidth() * 0.2f,
+                bounds.getHeight() * 0.2f
+            );
+
+            const float innerRadius = juce::jmin(innerBounds.getWidth(), innerBounds.getHeight()) * 0.2f;
+
             graphics.setColour(ThemePink);
-            graphics.fillRoundedRectangle(innerRect, innerRadius);
+            graphics.fillRoundedRectangle(innerBounds, innerRadius);
         }
 
-        if (shouldDrawButtonAsHighlighted || shouldDrawButtonAsDown)
+        if (shouldDrawButtonAsHighlighted)
         {
             graphics.setColour(FocusedGray);
-            graphics.drawRoundedRectangle(outerRect, outerRadius, 2.0f);
+            graphics.drawRoundedRectangle(bounds.reduced(1.0f), outerRadius, 2.0f);
         }
-
-        graphics.setColour(juce::Colours::white);
-        graphics.setFont(15.0f);
-
-        float textX = boxX + outerSize + 8.0f;
-        float textY = bounds.getY();
-        float textWidth = bounds.getWidth() - textX;
-        float textHeight = bounds.getHeight();
-
-        juce::Rectangle<float> textRect(textX, textY, textWidth, textHeight);
-        graphics.drawFittedText(getButtonText(), textRect.toNearestInt(), juce::Justification::centredLeft, 1);
     }
 
     class Attachment : public juce::AudioProcessorValueTreeState::Listener
