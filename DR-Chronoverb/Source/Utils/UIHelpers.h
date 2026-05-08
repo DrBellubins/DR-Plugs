@@ -13,12 +13,7 @@ public:
         juce::Component& newParentComponent,
         juce::AudioProcessorValueTreeState& newValueTreeState,
         FlatRotaryLookAndFeel& newRotaryLookAndFeel
-    )
-        : parentComponent(newParentComponent),
-          valueTreeState(newValueTreeState),
-          rotaryLookAndFeel(newRotaryLookAndFeel)
-    {
-    }
+    );
 
     void CreateToggle(
         std::unique_ptr<RoundedToggle>& toggle,
