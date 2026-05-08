@@ -168,7 +168,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     bottomTabbedPageBox = std::make_unique<TabbedPageBox>();
     addAndMakeVisible(*bottomTabbedPageBox);
-    bottomTabbedPageBox->setBounds(25, 450, 830, 120);
+    bottomTabbedPageBox->setBounds(25, 430, 830, 140);
 
     pitchPage = std::make_unique<Component>();
     distortionPage = std::make_unique<Component>();
@@ -185,8 +185,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
         "pitchShiftEnabled",
         20, 20, 30, 30);
 
-    uiHelpers.CreateLabel(*pitchPage, pitchShiftTitle, "Pitch shifter",
-        15.0f, -380, pitchYOffset - 65.0f);
+    uiHelpers.CreateCheckboxLabel(*pitchPage, pitchShiftTitle, *pitchShiftToggle, "", 14.0f, -40);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()

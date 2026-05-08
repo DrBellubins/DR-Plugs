@@ -25,7 +25,7 @@ public:
     bool keyStateChanged(bool isKeyDown, juce::Component* originatingComponent) override;
 
 private:
-    const int nonPitchYOffset = 50;
+    const int nonPitchYOffset = 20;
     const int pitchYOffset = 230;
 
     // This reference is provided as a quick way for your editor to

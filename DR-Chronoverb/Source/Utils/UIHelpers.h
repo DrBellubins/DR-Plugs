@@ -35,6 +35,14 @@ public:
         int x,
         int y);
 
+    void CreateCheckboxLabel(
+        juce::Component& parentComponent,
+        std::unique_ptr<juce::Label>& label,
+        RoundedToggle& toggle,
+        const juce::String& text,
+        float fontSize,
+        int offsetX);
+
     void CreateSlider(
         juce::Component& parentComponent,
         std::unique_ptr<ThemedSlider>& slider,

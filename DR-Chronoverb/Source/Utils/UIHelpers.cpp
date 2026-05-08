@@ -66,6 +66,34 @@ void UIHelpers::CreateCheckbox(
     checkbox->setBounds(checkboxX, checkboxY, width, height);
 }
 
+void UIHelpers::CreateCheckboxLabel(
+    juce::Component& parentComponent,
+    std::unique_ptr<juce::Label>& label,
+    RoundedToggle& toggle,
+    const juce::String& text,
+    float fontSize,
+    int offsetX)
+{
+    label = std::make_unique<juce::Label>();
+    label->setText(text, juce::dontSendNotification);
+
+    juce::Font mainFont("Liberation Sans", fontSize, juce::Font::bold);
+    mainFont.setExtraKerningFactor(0.05f);
+
+    label->setFont(mainFont);
+    label->setJustificationType(juce::Justification::centredLeft);
+
+    parentComponent.addAndMakeVisible(*label);
+
+    int labelWidth = GetLabelWidth(label);
+
+    juce::Rectangle<int> sliderBounds = toggle.getBounds();
+    int labelX = sliderBounds.getCentreX() - (labelWidth / 2) - offsetX;
+    int labelY = sliderBounds.getCentreY() - (sliderBounds.getHeight() / 2);
+
+    label->setBounds(labelX, labelY, labelWidth, 20);
+}
+
 void UIHelpers::CreateSlider(
     juce::Component& parentComponent,
     std::unique_ptr<ThemedSlider>& slider,
