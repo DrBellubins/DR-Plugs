@@ -22,8 +22,8 @@ public:
         const juce::String& parameterID,
         int width,
         int height,
-        int offsetFromCenterX,
-        int offsetFromCenterY);
+        int x,
+        int y);
 
     void CreateCheckbox(
         juce::Component& parentComponent,
@@ -32,8 +32,8 @@ public:
         const juce::String& parameterID,
         int width,
         int height,
-        int offsetFromCenterX,
-        int offsetFromCenterY);
+        int x,
+        int y);
 
     void CreateSlider(
         juce::Component& parentComponent,
@@ -42,8 +42,8 @@ public:
         const juce::String& parameterID,
         int width,
         int height,
-        int offsetFromCenterX,
-        int offsetFromCenterY);
+        int x,
+        int y);
 
     void CreateSliderLabel(
         juce::Component& parentComponent,
@@ -68,8 +68,8 @@ public:
         const juce::String& parameterID,
         const juce::String& suffix,
         int widthHeight,
-        int offsetFromCenterX,
-        int offsetFromCenterY);
+        int x,
+        int y);
 
     void CreateKnobLabel(
         juce::Component& parentComponent,

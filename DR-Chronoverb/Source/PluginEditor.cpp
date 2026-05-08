@@ -18,6 +18,9 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     // editor's size to whatever you need it to be.
     setSize(880, 580);
 
+    const int cX = getWidth() / 2;
+    const int cY = getHeight() / 2;
+
     setWantsKeyboardFocus(true);
     addKeyListener(this);
 
@@ -29,43 +32,43 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     // ------ KNOBS ------
     uiHelpers.CreateKnob(*this, delayTimeKnob, delayTimeAttachment, "delayTime",
-        " ms", 100, 0, -25 + nonPitchYOffset);
+        " ms", 100, cX + 0, cY + -25 + nonPitchYOffset);
 
     uiHelpers.CreateKnob(*this, feedbackTimeKnob, feedbackTimeAttachment, "feedbackTime",
-        "", 80, 200, 50 + nonPitchYOffset);
+        "", 80, cX + 200, cY + 50 + nonPitchYOffset);
 
     uiHelpers.CreateKnob(*this, diffusionAmountKnob, diffusionAmountAttachment, "diffusionAmount",
-        "", 80, -350, -125 + nonPitchYOffset);
+        "", 80, cX + -350, cY + -125 + nonPitchYOffset);
 
     uiHelpers.CreateKnob(*this, diffusionSizeKnob, diffusionSizeAttachment, "diffusionSize",
-        "", 80, -200, -125 + nonPitchYOffset);
+        "", 80, cX + -200, cY + -125 + nonPitchYOffset);
 
     uiHelpers.CreateKnob(*this, dryWetMixKnob, dryWetMixAttachment, "dryWetMix",
-        "", 80, 350, 50 + nonPitchYOffset);
+        "", 80, cX + 350, cY + 50 + nonPitchYOffset);
 
     // Filters
     uiHelpers.CreateKnob(*this, stereoSpreadKnob, stereoSpreadAttachment, "stereoSpread",
-        "", 80, 200, -125 + nonPitchYOffset);
+        "", 80, cX + 200, cY + -125 + nonPitchYOffset);
 
     uiHelpers.CreateKnob(*this, lowPassKnob, lowPassAttachment, "lowPassCutoff",
-        "", 80, -350, 50 + nonPitchYOffset);
+        "", 80, cX + -350, cY + 50 + nonPitchYOffset);
 
     uiHelpers.CreateKnob(*this, highPassKnob, highPassAttachment, "highPassCutoff",
-        "", 80, -200, 50 + nonPitchYOffset);
+        "", 80, cX + -200, cY + 50 + nonPitchYOffset);
 
     // Ducking
     uiHelpers.CreateKnob(*this, duckAmountKnob, duckAmountAttachment, "duckAmount",
-        "", 60, 0, -170 + nonPitchYOffset);
+        "", 60, cX + 0, cY + -170 + nonPitchYOffset);
 
     uiHelpers.CreateKnob(*this, duckAttackKnob, duckAttackAttachment, "duckAttack",
-        "", 60, -80, -170 + nonPitchYOffset);
+        "", 60, cX + -80, cY + -170 + nonPitchYOffset);
 
     uiHelpers.CreateKnob(*this, duckReleaseKnob, duckReleaseAttachment, "duckRelease",
-        "", 60, 80, -170 + nonPitchYOffset);
+        "", 60, cX + 80, cY + -170 + nonPitchYOffset);
 
     // Quality slider
     uiHelpers.CreateSlider(*this, diffusionQualitySlider, diffusionQualityAttachment, "diffusionQuality",
-        200, 20, 200, -260);
+        200, 20, cX + 200, cY + -260);
 
     uiHelpers.CreateSliderLabel(*this, diffusionQualityLabel, *diffusionQualitySlider,
         "Diffusion Quality", 15.0f, 170);
@@ -145,7 +148,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
         hplpFilterToggleAttachment,
         RoundedToggle::Orientation::Vertical,
         "hplpPrePost",
-        20, 50, -275, 50 + nonPitchYOffset);
+        20, 50, cX + -275, cY + 50 + nonPitchYOffset);
 
 
     // ------ TABBED PAGE BOX ------
@@ -167,7 +170,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     uiHelpers.CreateCheckbox(*pitchPage, pitchShiftToggle,
         pitchShiftToggleAttachment,
         "pitchShiftEnabled",
-        25, 25, -390, pitchYOffset - 25);
+        25, 25, 0, 0);
 
     uiHelpers.CreateLabel(*pitchPage, pitchShiftTitle, "Pitch shifter",
         15.0f, -380, pitchYOffset - 65.0f);

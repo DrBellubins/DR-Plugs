@@ -16,8 +16,8 @@ void UIHelpers::CreateToggle(
     const juce::String& parameterID,
     int width,
     int height,
-    int offsetFromCenterX,
-    int offsetFromCenterY)
+    int x,
+    int y)
 {
     if (toggle == nullptr)
     {
@@ -32,8 +32,8 @@ void UIHelpers::CreateToggle(
     parentComponent.addAndMakeVisible(*toggle);
     toggle->setOrientation(orientation);
 
-    int toggleX = (parentComponent.getWidth() / 2) - (width / 2) + offsetFromCenterX;
-    int toggleY = (parentComponent.getHeight() / 2) - (height / 2) + offsetFromCenterY;
+    int toggleX = x - (width / 2);
+    int toggleY = y - (height / 2);
 
     toggle->setBounds(toggleX, toggleY, width, height);
 }
@@ -45,8 +45,8 @@ void UIHelpers::CreateCheckbox(
     const juce::String& parameterID,
     int width,
     int height,
-    int offsetFromCenterX,
-    int offsetFromCenterY)
+    int x,
+    int y)
 {
     if (checkbox == nullptr)
     {
@@ -60,8 +60,8 @@ void UIHelpers::CreateCheckbox(
 
     parentComponent.addAndMakeVisible(*checkbox);
 
-    int checkboxX = (parentComponent.getWidth() / 2) - (width / 2) + offsetFromCenterX;
-    int checkboxY = (parentComponent.getHeight() / 2) - (height / 2) + offsetFromCenterY;
+    int checkboxX = x - (width / 2);
+    int checkboxY = y - (height / 2);
 
     checkbox->setBounds(checkboxX, checkboxY, width, height);
 }
@@ -73,8 +73,8 @@ void UIHelpers::CreateSlider(
     const juce::String& parameterID,
     int width,
     int height,
-    int offsetFromCenterX,
-    int offsetFromCenterY)
+    int x,
+    int y)
 {
     slider = std::make_unique<ThemedSlider>(
         "",
@@ -92,8 +92,8 @@ void UIHelpers::CreateSlider(
 
     parentComponent.addAndMakeVisible(*slider);
 
-    int sliderX = (parentComponent.getWidth() / 2) - (width / 2) + offsetFromCenterX;
-    int sliderY = (parentComponent.getHeight() / 2) - (height / 2) + offsetFromCenterY;
+    int sliderX = x - (width / 2);
+    int sliderY = y - (height / 2);
 
     slider->setBounds(sliderX, sliderY, width, height);
 }
@@ -131,8 +131,8 @@ void UIHelpers::CreateLabel(
     std::unique_ptr<juce::Label>& label,
     const juce::String& text,
     float fontSize,
-    int offsetFromCenterX,
-    int offsetFromCenterY)
+    int x,
+    int y)
 {
     label = std::make_unique<juce::Label>();
     label->setText(text, juce::dontSendNotification);
@@ -148,8 +148,8 @@ void UIHelpers::CreateLabel(
     int labelWidth = GetLabelWidth(label);
     int fontHeight = static_cast<int>(fontSize);
 
-    int labelX = (parentComponent.getWidth() / 2) - (labelWidth / 2) + offsetFromCenterX;
-    int labelY = (parentComponent.getHeight() / 2) - (fontHeight / 2) + offsetFromCenterY;
+    int labelX = x - (labelWidth / 2);
+    int labelY = y - (fontHeight / 2);
 
     label->setBounds(labelX, labelY, labelWidth, 20);
 }
@@ -161,8 +161,8 @@ void UIHelpers::CreateKnob(
     const juce::String& parameterID,
     const juce::String& suffix,
     int widthHeight,
-    int offsetFromCenterX,
-    int offsetFromCenterY)
+    int x,
+    int y)
 {
     knob = std::make_unique<ThemedKnob>(
         "",
@@ -180,8 +180,8 @@ void UIHelpers::CreateKnob(
 
     parentComponent.addAndMakeVisible(*knob);
 
-    int knobX = (parentComponent.getWidth() / 2) - (widthHeight / 2) + offsetFromCenterX;
-    int knobY = (parentComponent.getHeight() / 2) - (widthHeight / 2) + offsetFromCenterY;
+    int knobX = x - (widthHeight / 2);
+    int knobY = y - (widthHeight / 2);
 
     knob->setBounds(knobX, knobY, widthHeight, widthHeight);
     knob->setTextBoxStyle(juce::Slider::TextBoxBelow, false, 54, 22);
