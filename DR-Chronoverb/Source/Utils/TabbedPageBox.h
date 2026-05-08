@@ -126,11 +126,10 @@ public:
 
     void paint(juce::Graphics& graphics) override
     {
-        const juce::Rectangle<int> localBounds = getLocalBounds();
-        const juce::Rectangle<float> panelBounds = localBounds.toFloat();
+        const juce::Rectangle<int> panelBounds = getPanelBounds();
 
         graphics.setColour(AccentGray.darker(0.25f));
-        graphics.fillRoundedRectangle(panelBounds, cornerRadius);
+        graphics.fillRoundedRectangle(panelBounds.toFloat(), cornerRadius);
 
         if (tabs.empty())
         {
@@ -146,8 +145,8 @@ public:
             const juce::Rectangle<int> tabBounds = getTabBounds(tabIndex);
             const bool isSelected = (tabIndex == selectedTabIndex);
 
-            juce::Colour tabColour = isSelected ? ThemePink : AccentGray.brighter(0.1f);
-            juce::Colour textColour = juce::Colours::white;
+            const juce::Colour tabColour = isSelected ? ThemePink : FocusedGray.darker(0.35f);
+            const juce::Colour textColour = juce::Colours::white;
 
             graphics.setColour(tabColour);
             graphics.fillRoundedRectangle(tabBounds.toFloat(), tabCornerRadius);
@@ -200,32 +199,38 @@ private:
     int innerPadding = 10;
     int tabLeftPadding = 12;
     int tabGap = 6;
-    int tabVerticalOffset = -11;
 
-    // Extends the page area upward so pages can occupy space behind / just under the tabs.
-    // Increase this if you want more usable page area above the normal content start.
-    int pageBoundsExtendUpwards = 14;
+    // Extra space at the top of the component so tabs can sit above the page panel
+    // without being clipped by the component bounds.
+    int topExtension = 30;
+
+    // Moves the tab within that extra top region.
+    // 0 = aligned to topExtension area start, negative = higher, positive = lower.
+    int tabVerticalOffset = -18;
+
+    juce::Rectangle<int> getPanelBounds() const
+    {
+        juce::Rectangle<int> bounds = getLocalBounds();
+        bounds.removeFromTop(topExtension);
+        return bounds;
+    }
 
     juce::Rectangle<int> getTabBounds(int tabIndex) const
     {
         const int x = tabLeftPadding + (tabIndex * (tabWidth + tabGap));
-        const int y = ((headerHeight - tabHeight) / 2) + tabVerticalOffset;
+        const int y = ((topExtension + headerHeight - tabHeight) / 2) + tabVerticalOffset;
 
         return { x, y, tabWidth, tabHeight };
     }
 
     juce::Rectangle<int> getContentBounds() const
     {
-        juce::Rectangle<int> bounds = getLocalBounds();
+        juce::Rectangle<int> bounds = getPanelBounds();
 
         bounds.removeFromTop(headerHeight);
         bounds.reduce(innerPadding, 0);
         bounds.removeFromTop(2);
         bounds.removeFromBottom(innerPadding);
-
-        // Extend page area upward so components can live closer to / slightly behind tabs.
-        bounds.setY(bounds.getY() - pageBoundsExtendUpwards);
-        bounds.setHeight(bounds.getHeight() + pageBoundsExtendUpwards);
 
         return bounds;
     }

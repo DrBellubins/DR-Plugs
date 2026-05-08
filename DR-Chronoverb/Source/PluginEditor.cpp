@@ -168,7 +168,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     bottomTabbedPageBox = std::make_unique<TabbedPageBox>();
     addAndMakeVisible(*bottomTabbedPageBox);
-    bottomTabbedPageBox->setBounds(25, 470, 830, 100);
+    bottomTabbedPageBox->setBounds(25, 450, 830, 120);
 
     pitchPage = std::make_unique<DebugPage>();
     distortionPage = std::make_unique<juce::Component>();
@@ -206,7 +206,7 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
         graphics.drawImage(logo, juce::Rectangle<float>(-70, -15, 512.0f, 120.0f), juce::RectanglePlacement::centred);
 
     // Draw bounding box for this component
-    graphics.setColour(juce::Colours::red);
+    /*graphics.setColour(juce::Colours::red);
     graphics.drawRect(getLocalBounds(), 2);
 
 
@@ -221,7 +221,7 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
             graphics.setColour(juce::Colours::green);
             graphics.drawRect(ChildBounds, 2);
         }
-    }
+    }*/
 }
 
 void AudioPluginAudioProcessorEditor::resized()
