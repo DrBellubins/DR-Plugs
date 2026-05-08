@@ -1,16 +1,15 @@
 #include "UIHelpers.h"
 
 UIHelpers::UIHelpers(
-    juce::Component& newParentComponent,
     juce::AudioProcessorValueTreeState& newValueTreeState,
     FlatRotaryLookAndFeel& newRotaryLookAndFeel)
-    : parentComponent(newParentComponent),
-      valueTreeState(newValueTreeState),
+    : valueTreeState(newValueTreeState),
       rotaryLookAndFeel(newRotaryLookAndFeel)
 {
 }
 
 void UIHelpers::CreateToggle(
+    juce::Component& parentComponent,
     std::unique_ptr<RoundedToggle>& toggle,
     std::unique_ptr<RoundedToggle::Attachment>& attachment,
     RoundedToggle::Orientation orientation,
@@ -40,6 +39,7 @@ void UIHelpers::CreateToggle(
 }
 
 void UIHelpers::CreateCheckbox(
+    juce::Component& parentComponent,
     std::unique_ptr<ThemedCheckbox>& checkbox,
     std::unique_ptr<ThemedCheckbox::Attachment>& attachment,
     const juce::String& parameterID,
@@ -67,6 +67,7 @@ void UIHelpers::CreateCheckbox(
 }
 
 void UIHelpers::CreateSlider(
+    juce::Component& parentComponent,
     std::unique_ptr<ThemedSlider>& slider,
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>& attachment,
     const juce::String& parameterID,
@@ -98,6 +99,7 @@ void UIHelpers::CreateSlider(
 }
 
 void UIHelpers::CreateSliderLabel(
+    juce::Component& parentComponent,
     std::unique_ptr<juce::Label>& label,
     ThemedSlider& slider,
     const juce::String& text,
@@ -125,6 +127,7 @@ void UIHelpers::CreateSliderLabel(
 }
 
 void UIHelpers::CreateLabel(
+    juce::Component& parentComponent,
     std::unique_ptr<juce::Label>& label,
     const juce::String& text,
     float fontSize,
@@ -152,6 +155,7 @@ void UIHelpers::CreateLabel(
 }
 
 void UIHelpers::CreateKnob(
+    juce::Component& parentComponent,
     std::unique_ptr<ThemedKnob>& knob,
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>& attachment,
     const juce::String& parameterID,
@@ -184,6 +188,7 @@ void UIHelpers::CreateKnob(
 }
 
 void UIHelpers::CreateKnobLabel(
+    juce::Component& parentComponent,
     std::unique_ptr<juce::Label>& label,
     ThemedKnob& knob,
     const juce::String& text,

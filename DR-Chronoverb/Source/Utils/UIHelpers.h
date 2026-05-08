@@ -10,12 +10,12 @@ class UIHelpers
 {
 public:
     UIHelpers(
-        juce::Component& newParentComponent,
         juce::AudioProcessorValueTreeState& newValueTreeState,
         FlatRotaryLookAndFeel& newRotaryLookAndFeel
     );
 
     void CreateToggle(
+        juce::Component& parentComponent,
         std::unique_ptr<RoundedToggle>& toggle,
         std::unique_ptr<RoundedToggle::Attachment>& attachment,
         RoundedToggle::Orientation orientation,
@@ -26,6 +26,7 @@ public:
         int offsetFromCenterY);
 
     void CreateCheckbox(
+        juce::Component& parentComponent,
         std::unique_ptr<ThemedCheckbox>& checkbox,
         std::unique_ptr<ThemedCheckbox::Attachment>& attachment,
         const juce::String& parameterID,
@@ -35,6 +36,7 @@ public:
         int offsetFromCenterY);
 
     void CreateSlider(
+        juce::Component& parentComponent,
         std::unique_ptr<ThemedSlider>& slider,
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>& attachment,
         const juce::String& parameterID,
@@ -44,6 +46,7 @@ public:
         int offsetFromCenterY);
 
     void CreateSliderLabel(
+        juce::Component& parentComponent,
         std::unique_ptr<juce::Label>& label,
         ThemedSlider& slider,
         const juce::String& text,
@@ -51,6 +54,7 @@ public:
         int offsetX);
 
     void CreateLabel(
+        juce::Component& parentComponent,
         std::unique_ptr<juce::Label>& label,
         const juce::String& text,
         float fontSize,
@@ -58,6 +62,7 @@ public:
         int offsetFromCenterY);
 
     void CreateKnob(
+        juce::Component& parentComponent,
         std::unique_ptr<ThemedKnob>& knob,
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>& attachment,
         const juce::String& parameterID,
@@ -67,6 +72,7 @@ public:
         int offsetFromCenterY);
 
     void CreateKnobLabel(
+        juce::Component& parentComponent,
         std::unique_ptr<juce::Label>& label,
         ThemedKnob& knob,
         const juce::String& text,
@@ -81,7 +87,6 @@ public:
     int GetLabelWidth(const std::unique_ptr<juce::Label>& label) const;
 
 private:
-    juce::Component& parentComponent;
     juce::AudioProcessorValueTreeState& valueTreeState;
     FlatRotaryLookAndFeel& rotaryLookAndFeel;
 };

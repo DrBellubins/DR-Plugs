@@ -10,7 +10,7 @@
 AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor& processor)
     : AudioProcessorEditor(&processor),
       processorRef(processor),
-      uiHelpers(*this, processorRef.parameters, flatKnobLAF)
+      uiHelpers(processorRef.parameters, flatKnobLAF)
 {
     juce::ignoreUnused (processorRef);
 
@@ -28,46 +28,46 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     logo = juce::ImageFileFormat::loadFrom(BinaryData::logo_png, BinaryData::logo_pngSize);
 
     // ------ KNOBS ------
-    uiHelpers.CreateKnob(delayTimeKnob, delayTimeAttachment, "delayTime",
+    uiHelpers.CreateKnob(*this, delayTimeKnob, delayTimeAttachment, "delayTime",
         " ms", 100, 0, -25 + nonPitchYOffset);
 
-    uiHelpers.CreateKnob(feedbackTimeKnob, feedbackTimeAttachment, "feedbackTime",
+    uiHelpers.CreateKnob(*this, feedbackTimeKnob, feedbackTimeAttachment, "feedbackTime",
         "", 80, 200, 50 + nonPitchYOffset);
 
-    uiHelpers.CreateKnob(diffusionAmountKnob, diffusionAmountAttachment, "diffusionAmount",
+    uiHelpers.CreateKnob(*this, diffusionAmountKnob, diffusionAmountAttachment, "diffusionAmount",
         "", 80, -350, -125 + nonPitchYOffset);
 
-    uiHelpers.CreateKnob(diffusionSizeKnob, diffusionSizeAttachment, "diffusionSize",
+    uiHelpers.CreateKnob(*this, diffusionSizeKnob, diffusionSizeAttachment, "diffusionSize",
         "", 80, -200, -125 + nonPitchYOffset);
 
-    uiHelpers.CreateKnob(dryWetMixKnob, dryWetMixAttachment, "dryWetMix",
+    uiHelpers.CreateKnob(*this, dryWetMixKnob, dryWetMixAttachment, "dryWetMix",
         "", 80, 350, 50 + nonPitchYOffset);
 
     // Filters
-    uiHelpers.CreateKnob(stereoSpreadKnob, stereoSpreadAttachment, "stereoSpread",
+    uiHelpers.CreateKnob(*this, stereoSpreadKnob, stereoSpreadAttachment, "stereoSpread",
         "", 80, 200, -125 + nonPitchYOffset);
 
-    uiHelpers.CreateKnob(lowPassKnob, lowPassAttachment, "lowPassCutoff",
+    uiHelpers.CreateKnob(*this, lowPassKnob, lowPassAttachment, "lowPassCutoff",
         "", 80, -350, 50 + nonPitchYOffset);
 
-    uiHelpers.CreateKnob(highPassKnob, highPassAttachment, "highPassCutoff",
+    uiHelpers.CreateKnob(*this, highPassKnob, highPassAttachment, "highPassCutoff",
         "", 80, -200, 50 + nonPitchYOffset);
 
     // Ducking
-    uiHelpers.CreateKnob(duckAmountKnob, duckAmountAttachment, "duckAmount",
+    uiHelpers.CreateKnob(*this, duckAmountKnob, duckAmountAttachment, "duckAmount",
         "", 60, 0, -170 + nonPitchYOffset);
 
-    uiHelpers.CreateKnob(duckAttackKnob, duckAttackAttachment, "duckAttack",
+    uiHelpers.CreateKnob(*this, duckAttackKnob, duckAttackAttachment, "duckAttack",
         "", 60, -80, -170 + nonPitchYOffset);
 
-    uiHelpers.CreateKnob(duckReleaseKnob, duckReleaseAttachment, "duckRelease",
+    uiHelpers.CreateKnob(*this, duckReleaseKnob, duckReleaseAttachment, "duckRelease",
         "", 60, 80, -170 + nonPitchYOffset);
 
     // Quality slider
-    uiHelpers.CreateSlider(diffusionQualitySlider, diffusionQualityAttachment, "diffusionQuality",
+    uiHelpers.CreateSlider(*this, diffusionQualitySlider, diffusionQualityAttachment, "diffusionQuality",
         200, 20, 200, -260);
 
-    uiHelpers.CreateSliderLabel(diffusionQualityLabel, *diffusionQualitySlider,
+    uiHelpers.CreateSliderLabel(*this, diffusionQualityLabel, *diffusionQualitySlider,
         "Diffusion Quality", 15.0f, 170);
 
     /*if (diffusionQualitySlider != nullptr)
@@ -84,28 +84,28 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     }*/
 
     // ------ Knob Labels ------
-    uiHelpers.CreateKnobLabel(delayTimeLabel, *delayTimeKnob, "Delay Time", 20.0f, 80);
-    uiHelpers.CreateKnobLabel(feedbackLabel, *feedbackTimeKnob, "Feedback", 15.0f, 70);
+    uiHelpers.CreateKnobLabel(*this, delayTimeLabel, *delayTimeKnob, "Delay Time", 20.0f, 80);
+    uiHelpers.CreateKnobLabel(*this, feedbackLabel, *feedbackTimeKnob, "Feedback", 15.0f, 70);
 
-    uiHelpers.CreateKnobLabel(diffusionAmountLabel, *diffusionAmountKnob,
+    uiHelpers.CreateKnobLabel(*this, diffusionAmountLabel, *diffusionAmountKnob,
         "Diffusion Amount", 15.0f, 70);
 
-    uiHelpers.CreateKnobLabel(diffusionSizeLabel, *diffusionSizeKnob,
+    uiHelpers.CreateKnobLabel(*this, diffusionSizeLabel, *diffusionSizeKnob,
         "Diffusion Size", 15.0f, 70);
 
-    uiHelpers.CreateKnobLabel(dryWetMixLabel, *dryWetMixKnob, "Dry/Wet Mix", 15.0f, 70);
+    uiHelpers.CreateKnobLabel(*this, dryWetMixLabel, *dryWetMixKnob, "Dry/Wet Mix", 15.0f, 70);
 
     // Filters
-    uiHelpers.CreateKnobLabel(stereoSpreadLabel, *stereoSpreadKnob,
+    uiHelpers.CreateKnobLabel(*this, stereoSpreadLabel, *stereoSpreadKnob,
         "Stereo Spread", 15.0f, 70);
 
-    uiHelpers.CreateKnobLabel(lowPassLabel, *lowPassKnob, "Low Pass", 15.0f, 70);
-    uiHelpers.CreateKnobLabel(highPassLabel, *highPassKnob, "High Pass", 15.0f, 70);
+    uiHelpers.CreateKnobLabel(*this, lowPassLabel, *lowPassKnob, "Low Pass", 15.0f, 70);
+    uiHelpers.CreateKnobLabel(*this, highPassLabel, *highPassKnob, "High Pass", 15.0f, 70);
 
     // Ducking
-    uiHelpers.CreateKnobLabel(duckAmountLabel, *duckAmountKnob, "Duck", 15.0f, 50);
-    uiHelpers.CreateKnobLabel(duckAttackLabel, *duckAttackKnob, "Attack", 15.0f, 50);
-    uiHelpers.CreateKnobLabel(duckReleaseLabel, *duckReleaseKnob, "Release", 15.0f, 50);
+    uiHelpers.CreateKnobLabel(*this, duckAmountLabel, *duckAmountKnob, "Duck", 15.0f, 50);
+    uiHelpers.CreateKnobLabel(*this, duckAttackLabel, *duckAttackKnob, "Attack", 15.0f, 50);
+    uiHelpers.CreateKnobLabel(*this, duckReleaseLabel, *duckReleaseKnob, "Release", 15.0f, 50);
 
     // Delay mode
     delayTimeModeButtons = std::make_unique<SegmentedButton>(juce::StringArray{ "ms", "nrm", "trip", "dot" });
@@ -141,7 +141,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     }
 
     // ------ Toggles ------
-    uiHelpers.CreateToggle(hplpFilterToggle,
+    uiHelpers.CreateToggle(*this, hplpFilterToggle,
         hplpFilterToggleAttachment,
         RoundedToggle::Orientation::Vertical,
         "hplpPrePost",
@@ -164,23 +164,13 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     bottomTabbedPageBox->AddTab("Tape", tapePage.get());
     bottomTabbedPageBox->AddTab("Granular", granularPage.get());
 
-    uiHelpers.CreateCheckbox(pitchShiftToggle,
+    uiHelpers.CreateCheckbox(*pitchPage, pitchShiftToggle,
         pitchShiftToggleAttachment,
         "pitchShiftEnabled",
         25, 25, -390, pitchYOffset - 25);
 
-    uiHelpers.CreateLabel(pitchShiftTitle, "Pitch shifter",
+    uiHelpers.CreateLabel(*pitchPage, pitchShiftTitle, "Pitch shifter",
         15.0f, -380, pitchYOffset - 65.0f);
-
-    // Re-parent to tabbed box.
-    if (pitchPage != nullptr)
-    {
-        pitchPage->addAndMakeVisible(*pitchShiftToggle);
-        pitchPage->addAndMakeVisible(*pitchShiftTitle);
-
-        pitchShiftToggle->setBounds(10, 38, 25, 25);
-        pitchShiftTitle->setBounds(10, 8, 120, 20);
-    }
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
