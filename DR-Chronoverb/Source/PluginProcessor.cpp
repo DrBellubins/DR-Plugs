@@ -289,7 +289,7 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
     if (parameterID == "feedbackTime") DelayReverb.SetFeedbackTime(newValue);
     if (parameterID == "diffusionAmount") DelayReverb.SetDiffusionAmount(newValue);
     if (parameterID == "diffusionSize") DelayReverb.SetDiffusionSize(newValue);
-    if (parameterID == "diffusionQuality") DelayReverb.SetDiffusionQuality(static_cast<int>(newValue));
+    if (parameterID == "diffusionQuality") DelayReverb.SetDiffusionQuality(static_cast<int>(std::round(newValue)));
     if (parameterID == "dryWetMix") DelayReverb.SetDryWetMix(newValue);
 
     // Filters

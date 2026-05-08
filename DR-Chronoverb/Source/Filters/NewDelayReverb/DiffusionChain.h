@@ -42,7 +42,7 @@ public:
         perStageDelayMs.clear();
 
         const std::vector<float> finalDelays =
-            BuildInterpolatedStageDelays(sourceTunings, cachedStageCount, cachedSize01);
+            BuildQualityDistributedStageDelays(sourceTunings, cachedStageCount, cachedSize01);
 
         for (float stageDelayMilliseconds : finalDelays)
         {
@@ -122,10 +122,10 @@ private:
     double sampleRate = 48000.0;
     std::vector<std::unique_ptr<DiffusionAllpass>> stages;
 
-    std::vector<float> BuildInterpolatedStageDelays(
-        const std::vector<float>& sourceTunings,
-        int numberOfStages,
-        float size01) const
+    std::vector<float> BuildQualityDistributedStageDelays(
+    const std::vector<float>& sourceTunings,
+    int numberOfStages,
+    float size01) const
     {
         const int clampedStageCount = std::max(1, numberOfStages);
         const float clampedSize01 = std::max(0.0f, std::min(1.0f, size01));
@@ -135,52 +135,42 @@ private:
             return {};
         }
 
-        if (sourceTunings.size() == 1)
+        const int sourceCount = static_cast<int>(sourceTunings.size());
+        const int outputCount = std::min(clampedStageCount, sourceCount);
+
+        std::vector<float> finalDelays;
+        finalDelays.reserve(static_cast<size_t>(outputCount));
+
+        if (outputCount == 1)
         {
-            return { sourceTunings.front() * (0.25f + 0.75f * clampedSize01) };
+            const int centerIndex = sourceCount / 2;
+            const float scaledMilliseconds = sourceTunings[centerIndex] * (0.25f + 0.75f * clampedSize01);
+            finalDelays.push_back(scaledMilliseconds);
+            return finalDelays;
         }
 
-        std::vector<float> anchorDelays;
-
-        if (sourceTunings.size() >= 4)
+        for (int stageIndex = 0; stageIndex < outputCount; ++stageIndex)
         {
-            anchorDelays.push_back(sourceTunings[0]);
-            anchorDelays.push_back(sourceTunings[2]);
-            anchorDelays.push_back(sourceTunings[4]);
-            anchorDelays.push_back(sourceTunings[sourceTunings.size() - 1]);
-        }
-        else
-        {
-            anchorDelays = sourceTunings;
-        }
+            const float normalizedPosition =
+                static_cast<float>(stageIndex) / static_cast<float>(outputCount - 1);
 
-        for (float& delayMilliseconds : anchorDelays)
-        {
-            delayMilliseconds *= (0.25f + 0.75f * clampedSize01);
-        }
+            const float sourceIndexFloat =
+                normalizedPosition * static_cast<float>(sourceCount - 1);
 
-        std::vector<float> finalDelays = anchorDelays;
+            const int sourceIndexA = static_cast<int>(std::floor(sourceIndexFloat));
+            const int sourceIndexB = std::min(sourceIndexA + 1, sourceCount - 1);
+            const float fraction = sourceIndexFloat - static_cast<float>(sourceIndexA);
 
-        while (static_cast<int>(finalDelays.size()) < clampedStageCount && finalDelays.size() > 1)
-        {
-            std::vector<float> interpolatedDelays;
-            interpolatedDelays.reserve(finalDelays.size() * 2 - 1);
+            const float interpolatedMilliseconds =
+                sourceTunings[static_cast<size_t>(sourceIndexA)] * (1.0f - fraction)
+                + sourceTunings[static_cast<size_t>(sourceIndexB)] * fraction;
 
-            for (size_t delayIndex = 0; delayIndex < finalDelays.size() - 1; ++delayIndex)
-            {
-                interpolatedDelays.push_back(finalDelays[delayIndex]);
+            const float scaledMilliseconds =
+                interpolatedMilliseconds * (0.25f + 0.75f * clampedSize01);
 
-                const float midpointDelayMilliseconds =
-                    0.5f * (finalDelays[delayIndex] + finalDelays[delayIndex + 1]);
-
-                interpolatedDelays.push_back(midpointDelayMilliseconds);
-            }
-
-            interpolatedDelays.push_back(finalDelays.back());
-            finalDelays = std::move(interpolatedDelays);
+            finalDelays.push_back(scaledMilliseconds);
         }
 
-        finalDelays.resize(static_cast<size_t>(clampedStageCount));
         return finalDelays;
     }
 
