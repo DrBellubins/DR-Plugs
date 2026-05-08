@@ -1,0 +1,8 @@
+//
+// Created by justin on 5/8/26.
+//
+
+#ifndef CHRONOVERB_TABBEDPAGEBOX_H
+#define CHRONOVERB_TABBEDPAGEBOX_H
+
+#endif //CHRONOVERB_TABBEDPAGEBOX_H
