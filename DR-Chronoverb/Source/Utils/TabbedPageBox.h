@@ -200,12 +200,15 @@ private:
     int innerPadding = 10;
     int tabLeftPadding = 12;
     int tabGap = 6;
-    int tabVerticalOffset = -2;
+    int tabVerticalOffset = -11;
+
+    // Extends the page area upward so pages can occupy space behind / just under the tabs.
+    // Increase this if you want more usable page area above the normal content start.
+    int pageBoundsExtendUpwards = 14;
 
     juce::Rectangle<int> getTabBounds(int tabIndex) const
     {
         const int x = tabLeftPadding + (tabIndex * (tabWidth + tabGap));
-
         const int y = ((headerHeight - tabHeight) / 2) + tabVerticalOffset;
 
         return { x, y, tabWidth, tabHeight };
@@ -219,6 +222,10 @@ private:
         bounds.reduce(innerPadding, 0);
         bounds.removeFromTop(2);
         bounds.removeFromBottom(innerPadding);
+
+        // Extend page area upward so components can live closer to / slightly behind tabs.
+        bounds.setY(bounds.getY() - pageBoundsExtendUpwards);
+        bounds.setHeight(bounds.getHeight() + pageBoundsExtendUpwards);
 
         return bounds;
     }
