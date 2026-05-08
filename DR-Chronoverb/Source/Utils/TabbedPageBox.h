@@ -2,8 +2,9 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Theme.h"
+#include "ThemeContext.h"
 
-class TabbedPageBox : public juce::Component
+class TabbedPageBox : public juce::Component, public DarkeningThemeProvider
 {
 public:
     struct Tab
@@ -122,6 +123,17 @@ public:
         repaint();
     }
 
+    float GetThemeDarkeningAmount() const override
+    {
+        return themeDarkeningAmount;
+    }
+
+    void SetThemeDarkeningAmount(float newThemeDarkeningAmount)
+    {
+        themeDarkeningAmount = juce::jmax(0.0f, newThemeDarkeningAmount);
+        repaint();
+    }
+
     std::function<void(int)> onTabChanged;
 
     void paint(juce::Graphics& graphics) override
@@ -207,6 +219,8 @@ private:
     // Moves the tab within that extra top region.
     // 0 = aligned to topExtension area start, negative = higher, positive = lower.
     int tabVerticalOffset = -11;
+
+    float themeDarkeningAmount = 0.75f;
 
     juce::Rectangle<int> getPanelBounds() const
     {

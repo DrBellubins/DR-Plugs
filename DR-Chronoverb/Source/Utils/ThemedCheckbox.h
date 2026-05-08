@@ -2,6 +2,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Theme.h"
+#include "ThemeContext.h"
 
 // ThemedCheckbox: Custom checkbox using ThemePink and AccentGray colors, with a rounded square indicator.
 class ThemedCheckbox : public juce::ToggleButton
@@ -19,10 +20,13 @@ public:
     {
         juce::ignoreUnused(shouldDrawButtonAsDown);
 
+        const juce::Colour adjustedAccentGray = ThemeContext::GetAdjustedColour(AccentGray, *this);
+        const juce::Colour adjustedFocusedGray = ThemeContext::GetAdjustedColour(FocusedGray, *this);
+
         const juce::Rectangle<float> bounds = getLocalBounds().toFloat();
         const float outerRadius = juce::jmin(bounds.getWidth(), bounds.getHeight()) * 0.2f;
 
-        graphics.setColour(AccentGray);
+        graphics.setColour(adjustedAccentGray);
         graphics.fillRoundedRectangle(bounds, outerRadius);
 
         if (getToggleState())
@@ -40,7 +44,7 @@ public:
 
         if (shouldDrawButtonAsHighlighted)
         {
-            graphics.setColour(FocusedGray);
+            graphics.setColour(adjustedFocusedGray);
             graphics.drawRoundedRectangle(bounds.reduced(1.0f), outerRadius, 2.0f);
         }
     }

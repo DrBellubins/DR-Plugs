@@ -3,6 +3,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "Theme.h"
+#include "ThemeContext.h"
 
 // TODO: Tail is a circle, needs to be rounded rectangle
 // TODO: Animation is too slow
@@ -149,6 +150,11 @@ public:
     {
         const juce::Rectangle<int> Bounds = getLocalBounds();
 
+        const juce::Colour adjustedAccentGray = ThemeContext::GetAdjustedColour(AccentGray, *this);
+        const juce::Colour adjustedFocusedGray = ThemeContext::GetAdjustedColour(FocusedGray, *this);
+        const juce::Colour adjustedBGGray = ThemeContext::GetAdjustedColour(BGGray, *this);
+        const juce::Colour adjustedUnfocusedGray = ThemeContext::GetAdjustedColour(UnfocusedGray, *this);
+
         // Background outline (optional subtle border)
         //GraphicsContext.setColour(UnfocusedGray);
         //GraphicsContext.fillRoundedRectangle(Bounds.toFloat(), cornerRadius);
@@ -177,7 +183,7 @@ public:
             const bool IsSelected = (OptionIndex == selectedIndex);
 
             // Fill color
-            const juce::Colour FillColour = IsSelected ? ThemePink : AccentGray;
+            const juce::Colour FillColour = IsSelected ? ThemePink : adjustedAccentGray;
 
             // Build path with appropriate corner rounding
             juce::Path SegmentPath;
@@ -193,14 +199,14 @@ public:
             // Hover / focus highlight (optional subtle)
             if (hoveredIndex == OptionIndex && isEnabled())
             {
-                GraphicsContext.setColour(FocusedGray.withMultipliedAlpha(0.10f));
+                GraphicsContext.setColour(adjustedFocusedGray.withMultipliedAlpha(0.10f));
                 GraphicsContext.fillPath(SegmentPath);
             }
 
             // Divider between segments (skip after last)
             if (!IsLast && dividerThickness > 0.0f)
             {
-                GraphicsContext.setColour(BGGray.darker(0.2f));
+                GraphicsContext.setColour(adjustedBGGray.darker(0.2f));
                 const float DividerX = SegmentBounds.getRight();
                 GraphicsContext.fillRect(juce::Rectangle<float>(DividerX - (dividerThickness * 0.5f),
                                                                 SegmentBounds.getY() + 2.0f,
@@ -220,7 +226,7 @@ public:
         }
 
         // Outline on top for crisp edge
-        GraphicsContext.setColour(UnfocusedGray.brighter(0.1f));
+        GraphicsContext.setColour(adjustedUnfocusedGray.brighter(0.1f));
         GraphicsContext.drawRoundedRectangle(Bounds.toFloat().reduced(0.5f), cornerRadius, 1.0f);
     }
 

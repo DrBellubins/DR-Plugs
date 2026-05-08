@@ -183,7 +183,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     uiHelpers.CreateCheckbox(*pitchPage, pitchShiftToggle,
         pitchShiftToggleAttachment,
         "pitchShiftEnabled",
-        25, 25, 0, 0);
+        20, 20, 30, 30);
 
     uiHelpers.CreateLabel(*pitchPage, pitchShiftTitle, "Pitch shifter",
         15.0f, -380, pitchYOffset - 65.0f);

@@ -3,6 +3,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "Theme.h"
+#include "ThemeContext.h"
 
 // RoundedToggle
 // - A themed, rounded toggle switch supporting horizontal or vertical orientation.
@@ -204,8 +205,11 @@ public:
         juce::Path TrackPath;
         TrackPath.addRoundedRectangle(TrackBounds, EffectiveTrackCornerRadius);
 
+        const juce::Colour adjustedAccentGray = ThemeContext::GetAdjustedColour(AccentGray, *this);
+        const juce::Colour adjustedUnfocusedGray = ThemeContext::GetAdjustedColour(UnfocusedGray, *this);
+
         // Base track (unfilled portion)
-        GraphicsContext.setColour(AccentGray);
+        GraphicsContext.setColour(adjustedAccentGray);
         GraphicsContext.fillPath(TrackPath);
 
         // Animated pink tail: clip to follow the thumb position, then fill same rounded track path
@@ -236,7 +240,7 @@ public:
         }
 
         // Outline
-        GraphicsContext.setColour(UnfocusedGray.brighter(0.1f));
+        GraphicsContext.setColour(adjustedUnfocusedGray.brighter(0.1f));
         GraphicsContext.strokePath(TrackPath, juce::PathStrokeType(1.0f));
 
         // Thumb
