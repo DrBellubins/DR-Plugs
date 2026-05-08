@@ -6,6 +6,19 @@
 // TODO: Implement pitch features (oh fuck).
 // TODO: Implement playback direction features.
 
+class DebugPage : public juce::Component
+{
+public:
+    void paint(juce::Graphics& graphics) override
+    {
+        graphics.setColour(juce::Colours::yellow.withAlpha(0.2f));
+        graphics.fillRect(getLocalBounds());
+
+        graphics.setColour(juce::Colours::yellow);
+        graphics.drawRect(getLocalBounds(), 2);
+    }
+};
+
 //==============================================================================
 AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor& processor)
     : AudioProcessorEditor(&processor),
@@ -195,6 +208,7 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
     // Draw bounding box for this component
     /*graphics.setColour(juce::Colours::red);
     graphics.drawRect(getLocalBounds(), 2);
+
 
     // Draw bounding boxes for children
     for (int ChildIndex = 0; ChildIndex < getNumChildComponents(); ++ChildIndex)
