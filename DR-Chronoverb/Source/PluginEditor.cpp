@@ -170,7 +170,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     addAndMakeVisible(*bottomTabbedPageBox);
     bottomTabbedPageBox->setBounds(25, 470, 830, 100);
 
-    pitchPage = std::make_unique<juce::Component>();
+    pitchPage = std::make_unique<DebugPage>();
     distortionPage = std::make_unique<juce::Component>();
     tapePage = std::make_unique<juce::Component>();
     granularPage = std::make_unique<juce::Component>();

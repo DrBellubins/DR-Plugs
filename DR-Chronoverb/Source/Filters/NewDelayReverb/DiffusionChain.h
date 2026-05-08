@@ -10,14 +10,6 @@
 class DiffusionChain
 {
 public:
-    std::vector<float> delayTunings =
-    {
-        //7.0f, 13.0f, 19.0f, 29.0f, 53.0f, 79.0f, 113.0f, 149.0f   // Generated primes
-        //5.0f, 11.0f, 17.0f, 19.0f, 23.0f, 29.0f, 31.0f, 37.0f     // Bad Deelay approx.
-        //5.0f, 11.0f, 17.0f, 23.0f, 47.0f, 67.0f, 71.0f, 73.0f     // Also bad.
-        10.0f, 15.0f, 22.5f, 33.75f, 50.6f, 75.9f, 113.9f, 170.8f   // Natural
-    };
-
     DiffusionChain()
     {
     }
@@ -34,40 +26,48 @@ public:
     // Configure the chain with a given number of stages and size scaling factor.
     // - numberOfStages: 1..8, tune delays per all-pass filter.
     // - size01: 0..1 scales the per-stage delay milliseconds.
-    void Configure(int numberOfStages, float size01)
+    void Configure(
+        const std::vector<float>& sourceTunings,
+        int numberOfStages,
+        float size01,
+        float jitterDepthPercentValue,
+        float jitterRateMinimumHz,
+        float jitterRateRangeHz)
     {
         cachedStageCount = std::max(1, numberOfStages);
         cachedSize01 = std::max(0.0f, std::min(1.0f, size01));
 
         stages.clear();
         stages.reserve(static_cast<size_t>(cachedStageCount));
-
         perStageDelayMs.clear();
 
-        // Use full array for max stages; slice first N for lower quality
-        int effectiveStages = std::min(cachedStageCount, static_cast<int>(delayTunings.size()));
+        const std::vector<float> finalDelays =
+            BuildInterpolatedStageDelays(sourceTunings, cachedStageCount, cachedSize01);
 
-        // Vary gain per stage: higher for early (dense), lower for later (less resonance)
-        for (int stageIndex = 0; stageIndex < effectiveStages; ++stageIndex)
+        for (float stageDelayMilliseconds : finalDelays)
         {
-            float baseMilliseconds = delayTunings[stageIndex];
-            float scaledMilliseconds = baseMilliseconds * (0.25f + 0.75f * cachedSize01);
-            //float stageGain = 0.65f - (stageIndex * 0.03f);     // Decrease from 0.65 to ~0.44 for 8 stages
-            float stageGain = 0.7f;
+            const float stageGain = 0.7f;
 
             auto diffusionStage = std::make_unique<DiffusionAllpass>();
             diffusionStage->Prepare(sampleRate);
-            diffusionStage->Configure(scaledMilliseconds, stageGain);
+            diffusionStage->Configure(stageDelayMilliseconds, stageGain);
             stages.push_back(std::move(diffusionStage));
-            perStageDelayMs.push_back(scaledMilliseconds);
+            perStageDelayMs.push_back(stageDelayMilliseconds);
         }
 
-        // Per-stage jitter state
-        jitterLPState.assign(effectiveStages, 0.0f);
-        jitterDepthPercent.assign(effectiveStages, 0.005f); // ±0.5% default
-        jitterRateHz.assign(effectiveStages, 0.20f + 0.30f * random01()); // 0.2..0.5 Hz equivalent noise refresh
-        tpdfNoiseSeedA.assign(effectiveStages, rand());
-        tpdfNoiseSeedB.assign(effectiveStages, rand());
+        const int effectiveStages = static_cast<int>(perStageDelayMs.size());
+
+        jitterLPState.assign(static_cast<size_t>(effectiveStages), 0.0f);
+        jitterDepthPercent.assign(static_cast<size_t>(effectiveStages), jitterDepthPercentValue);
+        jitterRateHz.assign(static_cast<size_t>(effectiveStages), 0.0f);
+        tpdfNoiseSeedA.assign(static_cast<size_t>(effectiveStages), static_cast<unsigned int>(rand()));
+        tpdfNoiseSeedB.assign(static_cast<size_t>(effectiveStages), static_cast<unsigned int>(rand()));
+
+        for (int stageIndex = 0; stageIndex < effectiveStages; ++stageIndex)
+        {
+            jitterRateHz[static_cast<size_t>(stageIndex)] =
+                jitterRateMinimumHz + jitterRateRangeHz * random01();
+        }
     }
 
     // Process a single sample through the diffusion chain.
@@ -122,6 +122,68 @@ private:
     double sampleRate = 48000.0;
     std::vector<std::unique_ptr<DiffusionAllpass>> stages;
 
+    std::vector<float> BuildInterpolatedStageDelays(
+        const std::vector<float>& sourceTunings,
+        int numberOfStages,
+        float size01) const
+    {
+        const int clampedStageCount = std::max(1, numberOfStages);
+        const float clampedSize01 = std::max(0.0f, std::min(1.0f, size01));
+
+        if (sourceTunings.empty())
+        {
+            return {};
+        }
+
+        if (sourceTunings.size() == 1)
+        {
+            return { sourceTunings.front() * (0.25f + 0.75f * clampedSize01) };
+        }
+
+        std::vector<float> anchorDelays;
+
+        if (sourceTunings.size() >= 4)
+        {
+            anchorDelays.push_back(sourceTunings[0]);
+            anchorDelays.push_back(sourceTunings[2]);
+            anchorDelays.push_back(sourceTunings[4]);
+            anchorDelays.push_back(sourceTunings[sourceTunings.size() - 1]);
+        }
+        else
+        {
+            anchorDelays = sourceTunings;
+        }
+
+        for (float& delayMilliseconds : anchorDelays)
+        {
+            delayMilliseconds *= (0.25f + 0.75f * clampedSize01);
+        }
+
+        std::vector<float> finalDelays = anchorDelays;
+
+        while (static_cast<int>(finalDelays.size()) < clampedStageCount && finalDelays.size() > 1)
+        {
+            std::vector<float> interpolatedDelays;
+            interpolatedDelays.reserve(finalDelays.size() * 2 - 1);
+
+            for (size_t delayIndex = 0; delayIndex < finalDelays.size() - 1; ++delayIndex)
+            {
+                interpolatedDelays.push_back(finalDelays[delayIndex]);
+
+                const float midpointDelayMilliseconds =
+                    0.5f * (finalDelays[delayIndex] + finalDelays[delayIndex + 1]);
+
+                interpolatedDelays.push_back(midpointDelayMilliseconds);
+            }
+
+            interpolatedDelays.push_back(finalDelays.back());
+            finalDelays = std::move(interpolatedDelays);
+        }
+
+        finalDelays.resize(static_cast<size_t>(clampedStageCount));
+        return finalDelays;
+    }
+
     // Zero-mean TPDF generator per stage
     float generateTPDF(size_t stageIndex)
     {
@@ -172,5 +234,5 @@ private:
     std::vector<float> jitterPhase; // Per-stage phase
     std::vector<float> jitterRate;  // Per-stage rate (e.g., 0.001..0.01 per sample, randomized)
 
-    int sampleCounter;
+    int sampleCounter = 0;
 };

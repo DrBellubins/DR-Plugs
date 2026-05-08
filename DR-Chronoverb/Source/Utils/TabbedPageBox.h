@@ -150,10 +150,7 @@ public:
             juce::Colour textColour = juce::Colours::white;
 
             graphics.setColour(tabColour);
-            graphics.fillRoundedRectangle(tabBounds.toFloat(), 10.0f);
-
-            graphics.setColour(UnfocusedGray.brighter(0.2f));
-            graphics.drawRoundedRectangle(tabBounds.toFloat().reduced(0.5f), 10.0f, 1.0f);
+            graphics.fillRoundedRectangle(tabBounds.toFloat(), tabCornerRadius);
 
             graphics.setColour(textColour);
             graphics.drawFittedText(
@@ -196,17 +193,20 @@ private:
     int selectedTabIndex = -1;
 
     float cornerRadius = 25.0f;
-    int tabHeight = 28;
+    float tabCornerRadius = 5.0f;
+    int headerHeight = 34;
+    int tabHeight = 22;
     int tabWidth = 100;
     int innerPadding = 10;
-    int tabTopPadding = 8;
     int tabLeftPadding = 12;
     int tabGap = 6;
+    int tabVerticalOffset = -2;
 
     juce::Rectangle<int> getTabBounds(int tabIndex) const
     {
         const int x = tabLeftPadding + (tabIndex * (tabWidth + tabGap));
-        const int y = tabTopPadding;
+
+        const int y = ((headerHeight - tabHeight) / 2) + tabVerticalOffset;
 
         return { x, y, tabWidth, tabHeight };
     }
@@ -215,8 +215,10 @@ private:
     {
         juce::Rectangle<int> bounds = getLocalBounds();
 
-        bounds.removeFromTop(tabHeight + tabTopPadding + innerPadding);
-        bounds.reduce(innerPadding, innerPadding);
+        bounds.removeFromTop(headerHeight);
+        bounds.reduce(innerPadding, 0);
+        bounds.removeFromTop(2);
+        bounds.removeFromBottom(innerPadding);
 
         return bounds;
     }

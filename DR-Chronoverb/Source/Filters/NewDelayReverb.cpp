@@ -12,6 +12,14 @@ NewDelayReverb::~NewDelayReverb()
 {
 }
 
+std::vector<float> delayTunings =
+{
+    //7.0f, 13.0f, 19.0f, 29.0f, 53.0f, 79.0f, 113.0f, 149.0f   // Generated primes
+    //5.0f, 11.0f, 17.0f, 19.0f, 23.0f, 29.0f, 31.0f, 37.0f     // Bad Deelay approx.
+    //5.0f, 11.0f, 17.0f, 23.0f, 47.0f, 67.0f, 71.0f, 73.0f     // Also bad.
+    10.0f, 15.0f, 22.5f, 33.75f, 50.6f, 75.9f, 113.9f, 170.8f   // Natural
+};
+
 void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoBpm)
 {
     sampleRate = newSampleRate;
@@ -366,12 +374,14 @@ void NewDelayReverb::rebuildDiffusionIfNeeded()
 
     if (delayDiffusionLeft != nullptr)
     {
-        delayDiffusionLeft->Configure(diffusionQualityStages, diffusionSize01);
+        delayDiffusionLeft->Configure(delayTunings, diffusionQualityStages, diffusionSize01,
+            0.005f, 0.2f, 0.3f);
     }
 
     if (delayDiffusionRight != nullptr)
     {
-        delayDiffusionRight->Configure(diffusionQualityStages, diffusionSize01);
+        delayDiffusionRight->Configure(delayTunings, diffusionQualityStages, diffusionSize01,
+            0.005f, 0.2f, 0.3f);
     }
 
     totalDelayDiffusionMilliseconds = 0.0f;
