@@ -4,14 +4,10 @@
 #include "BinaryData.h"
 #include "PluginProcessor.h"
 
-#include "Utils/FlatLabel.h"
-#include "Utils/FlatRotaryLookAndFeel.h"
-#include "Utils/RoundedToggle.h"
+#include "Utils/UIHelpers.h"
 #include "Utils/SegmentedButton.h"
 #include "Utils/Theme.h"
-#include "Utils/ThemedCheckbox.h"
-#include "Utils/ThemedKnob.h"
-#include "Utils/ThemedSlider.h"
+#include "Utils/TabbedPageBox.h"
 
 //==============================================================================
 class AudioPluginAudioProcessorEditor  : public juce::AudioProcessorEditor, public juce::KeyListener
@@ -19,42 +15,6 @@ class AudioPluginAudioProcessorEditor  : public juce::AudioProcessorEditor, publ
 public:
     explicit AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor&);
     ~AudioPluginAudioProcessorEditor() override;
-
-    void createToggle(juce::AudioProcessorValueTreeState& state,
-        std::unique_ptr<RoundedToggle>& toggle,
-        std::unique_ptr<RoundedToggle::Attachment>& attachment,
-        RoundedToggle::Orientation orientation,
-        const juce::String& parameterID,
-        int width, int height, int offsetFromCenterX, int offsetFromCenterY);
-
-    void createCheckbox(
-        juce::AudioProcessorValueTreeState& state,
-        std::unique_ptr<ThemedCheckbox>& checkbox,
-        std::unique_ptr<ThemedCheckbox::Attachment>& attachment,
-        const juce::String& parameterID,
-        int width,
-        int height,
-        int offsetFromCenterX,
-        int offsetFromCenterY);
-
-    void createSlider(std::unique_ptr<ThemedSlider>& slider, std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>& attachment, juce::String paramID,
-        int width, int height, int offsetFromCenterX, int offsetFromCenterY);
-
-    void createSliderLabel(std::unique_ptr<juce::Label>& label, ThemedSlider& slider,
-        juce::String text, float fontSize, int offsetX);
-
-    void createLabel(std::unique_ptr<juce::Label>& label,
-        juce::String text, float fontSize, int offsetFromCenterX, int offsetFromCenterY);
-
-    void createKnob(std::unique_ptr<ThemedKnob>& knob, std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>& attachment, juce::String paramID,
-        juce::String suffix, int widthHeight, int offsetFromCenterX, int offsetFromCenterY);
-
-    void createKnobLabel(std::unique_ptr<juce::Label>& label, ThemedKnob& knob,
-        juce::String text, float fontSize, int offsetY);
-
-    void centerKnobLabel(std::unique_ptr<juce::Label>& label, ThemedKnob& knob, int offsetY);
-
-    int getLabelWidth(std::unique_ptr<juce::Label>& label);
 
     //==============================================================================
     void paint (juce::Graphics&) override;
@@ -69,6 +29,8 @@ private:
     const int pitchYOffset = 230;
 
     FlatRotaryLookAndFeel flatKnobLAF;
+
+    UIHelpers uiHelpers;
 
     // Beat subdivision knob snap points (5 entries: Whole, Half, Quarter, Eighth, Sixteenth)
     // Linear mapping: index / (Count - 1) -> {0.0, 0.25, 0.5, 0.75, 1.0}
@@ -156,6 +118,14 @@ private:
     // Pre-Post toggle
     std::unique_ptr<RoundedToggle> hplpFilterToggle;
     std::unique_ptr<RoundedToggle::Attachment> hplpFilterToggleAttachment;
+
+    // Tabbed page box
+    std::unique_ptr<TabbedPageBox> bottomTabbedPageBox;
+
+    std::unique_ptr<juce::Component> pitchPage;
+    std::unique_ptr<juce::Component> distortionPage;
+    std::unique_ptr<juce::Component> tapePage;
+    std::unique_ptr<juce::Component> granularPage;
 
     // Pitch shift toggle
     std::unique_ptr<ThemedCheckbox> pitchShiftToggle;
