@@ -1,230 +1,171 @@
 #include "ThemedDropdown.h"
 
-ThemedDropdown::DropdownLookAndFeel::DropdownLookAndFeel(ThemedDropdown& ownerDropdown)
-    : owner(ownerDropdown)
-{
-}
-
-void ThemedDropdown::DropdownLookAndFeel::drawComboBox(
-    juce::Graphics& GraphicsContext,
-    int width,
-    int height,
-    bool isButtonDown,
-    int buttonX,
-    int buttonY,
-    int buttonW,
-    int buttonH,
-    juce::ComboBox& comboBox)
-{
-    juce::ignoreUnused(isButtonDown, buttonX, buttonY, buttonW, buttonH);
-
-    juce::Rectangle<int> localBounds(0, 0, width, height);
-
-    const juce::Colour adjustedAccentGray =
-        ThemeContext::GetAdjustedColour(AccentGray, comboBox);
-
-    const juce::Colour adjustedUnfocusedGray =
-        ThemeContext::GetAdjustedColour(UnfocusedGray, comboBox);
-
-    const juce::Colour adjustedFocusedGray =
-        ThemeContext::GetAdjustedColour(FocusedGray, comboBox);
-
-    GraphicsContext.setColour(adjustedAccentGray);
-    GraphicsContext.fillRoundedRectangle(localBounds.toFloat(), owner.cornerRadius);
-
-    GraphicsContext.setColour(
-        comboBox.hasKeyboardFocus(true)
-            ? adjustedFocusedGray
-            : adjustedUnfocusedGray.brighter(0.1f));
-
-    GraphicsContext.drawRoundedRectangle(
-        localBounds.toFloat().reduced(owner.outlineThickness * 0.5f),
-        owner.cornerRadius,
-        owner.outlineThickness
-    );
-
-    juce::Rectangle<int> arrowAreaBounds = localBounds.removeFromRight(24);
-    const juce::Rectangle<float> arrowBounds = arrowAreaBounds.toFloat();
-
-    juce::Path arrowPath;
-    const float centreX = arrowBounds.getCentreX();
-    const float centreY = arrowBounds.getCentreY();
-    const float arrowHalfWidth = 5.0f;
-    const float arrowHeight = 3.5f;
-
-    arrowPath.startNewSubPath(centreX - arrowHalfWidth, centreY - arrowHeight);
-    arrowPath.lineTo(centreX, centreY + arrowHeight);
-    arrowPath.lineTo(centreX + arrowHalfWidth, centreY - arrowHeight);
-
-    GraphicsContext.setColour(ThemePink);
-    GraphicsContext.strokePath(arrowPath, juce::PathStrokeType(2.0f));
-}
-
-juce::Font ThemedDropdown::DropdownLookAndFeel::getComboBoxFont(juce::ComboBox& comboBox)
-{
-    juce::ignoreUnused(comboBox);
-    return juce::Font("Liberation Sans", 14.0f, juce::Font::bold);
-}
-
-juce::Label* ThemedDropdown::DropdownLookAndFeel::createComboBoxTextBox(juce::ComboBox& comboBox)
-{
-    juce::Label* comboLabel = juce::LookAndFeel_V4::createComboBoxTextBox(comboBox);
-
-    comboLabel->setFont(getComboBoxFont(comboBox));
-    comboLabel->setJustificationType(owner.textJustification);
-    comboLabel->setColour(juce::Label::textColourId, juce::Colours::white);
-    comboLabel->setColour(juce::Label::backgroundColourId, juce::Colours::transparentBlack);
-    comboLabel->setColour(juce::Label::outlineColourId, juce::Colours::transparentBlack);
-    comboLabel->setInterceptsMouseClicks(false, false);
-
-    return comboLabel;
-}
-
-void ThemedDropdown::DropdownLookAndFeel::positionComboBoxText(
-    juce::ComboBox& comboBox,
-    juce::Label& label)
-{
-    juce::Rectangle<int> textBounds = comboBox.getLocalBounds().reduced(10, 0);
-    textBounds.removeFromRight(24);
-
-    label.setBounds(textBounds);
-    label.setFont(getComboBoxFont(comboBox));
-    label.setJustificationType(owner.textJustification);
-}
-
-void ThemedDropdown::DropdownLookAndFeel::drawPopupMenuBackgroundWithOptions(
-    juce::Graphics& GraphicsContext,
-    int width,
-    int height,
-    const juce::PopupMenu::Options& options)
-{
-    juce::ignoreUnused(options);
-
-    const juce::Rectangle<int> popupBounds(0, 0, width, height);
-    const juce::Colour adjustedAccentGray =
-        ThemeContext::GetAdjustedColour(AccentGray, owner);
-
-    const juce::Colour adjustedUnfocusedGray =
-        ThemeContext::GetAdjustedColour(UnfocusedGray, owner);
-
-    GraphicsContext.setColour(adjustedAccentGray);
-    GraphicsContext.fillRoundedRectangle(popupBounds.toFloat(), owner.cornerRadius);
-
-    GraphicsContext.setColour(adjustedUnfocusedGray.brighter(0.1f));
-    GraphicsContext.drawRoundedRectangle(
-        popupBounds.toFloat().reduced(0.5f),
-        owner.cornerRadius,
-        1.0f
-    );
-}
-
-void ThemedDropdown::DropdownLookAndFeel::drawPopupMenuItem(
-    juce::Graphics& GraphicsContext,
-    const juce::Rectangle<int>& area,
-    bool isSeparator,
-    bool isActive,
-    bool isHighlighted,
-    bool isTicked,
-    bool hasSubMenu,
-    const juce::String& text,
-    const juce::String& shortcutKeyText,
-    const juce::Drawable* icon,
-    const juce::Colour* textColour)
-{
-    juce::ignoreUnused(shortcutKeyText, icon, textColour);
-
-    if (isSeparator)
-    {
-        const juce::Colour adjustedUnfocusedGray =
-            ThemeContext::GetAdjustedColour(UnfocusedGray, owner);
-
-        GraphicsContext.setColour(adjustedUnfocusedGray.brighter(0.2f));
-        GraphicsContext.fillRect(area.reduced(8, area.getHeight() / 2).withHeight(1));
-        return;
-    }
-
-    const juce::Colour adjustedAccentGray =
-        ThemeContext::GetAdjustedColour(AccentGray, owner);
-
-    const juce::Colour adjustedFocusedGray =
-        ThemeContext::GetAdjustedColour(FocusedGray, owner);
-
-    juce::ignoreUnused(adjustedAccentGray);
-
-    if (isHighlighted && isActive)
-    {
-        GraphicsContext.setColour(ThemePink);
-        GraphicsContext.fillRoundedRectangle(area.reduced(4, 2).toFloat(), 6.0f);
-    }
-
-    juce::Colour itemTextColour = isActive ? juce::Colours::white : adjustedFocusedGray;
-
-    GraphicsContext.setColour(itemTextColour);
-    GraphicsContext.setFont(juce::Font("Liberation Sans", 14.0f, juce::Font::bold));
-
-    juce::Rectangle<int> textBounds = area.reduced(12, 0);
-
-    if (isTicked)
-    {
-        juce::Path tickPath;
-        const float startX = static_cast<float>(textBounds.getX());
-        const float centreY = static_cast<float>(textBounds.getCentreY());
-
-        tickPath.startNewSubPath(startX, centreY);
-        tickPath.lineTo(startX + 4.0f, centreY + 4.0f);
-        tickPath.lineTo(startX + 10.0f, centreY - 4.0f);
-
-        GraphicsContext.strokePath(tickPath, juce::PathStrokeType(2.0f));
-
-        textBounds.removeFromLeft(16);
-    }
-
-    GraphicsContext.drawFittedText(
-        text,
-        textBounds,
-        juce::Justification::centredLeft,
-        1
-    );
-
-    if (hasSubMenu)
-    {
-        juce::Path arrowPath;
-        const float centreX = static_cast<float>(area.getRight() - 10);
-        const float centreY = static_cast<float>(area.getCentreY());
-
-        arrowPath.startNewSubPath(centreX - 3.0f, centreY - 4.0f);
-        arrowPath.lineTo(centreX + 2.0f, centreY);
-        arrowPath.lineTo(centreX - 3.0f, centreY + 4.0f);
-
-        GraphicsContext.strokePath(arrowPath, juce::PathStrokeType(1.5f));
-    }
-}
-
 ThemedDropdown::ThemedDropdown()
-    : dropdownLookAndFeel(*this)
 {
-    setEditableText(false);
-    setJustificationType(textJustification);
     setMouseCursor(juce::MouseCursor::PointingHandCursor);
-    setLookAndFeel(&dropdownLookAndFeel);
-
-    UpdateColours();
+    setInterceptsMouseClicks(true, true);
 }
 
 ThemedDropdown::~ThemedDropdown()
 {
-    setLookAndFeel(nullptr);
 }
 
-void ThemedDropdown::resized()
+void ThemedDropdown::paint(juce::Graphics& GraphicsContext)
 {
-    juce::ComboBox::resized();
+    const juce::Rectangle<int> closedBounds = GetClosedBounds();
+
+    const juce::Colour adjustedAccentGray =
+        ThemeContext::GetAdjustedColour(AccentGray, *this);
+
+    const juce::Colour adjustedUnfocusedGray =
+        ThemeContext::GetAdjustedColour(UnfocusedGray, *this);
+
+    const juce::Colour adjustedFocusedGray =
+        ThemeContext::GetAdjustedColour(FocusedGray, *this);
+
+    GraphicsContext.setColour(adjustedAccentGray);
+    GraphicsContext.fillRoundedRectangle(closedBounds.toFloat(), cornerRadius);
+
+    GraphicsContext.setColour(
+        hasKeyboardFocus(true)
+            ? adjustedFocusedGray
+            : adjustedUnfocusedGray.brighter(0.1f));
+
+    GraphicsContext.drawRoundedRectangle(
+        closedBounds.toFloat().reduced(outlineThickness * 0.5f),
+        cornerRadius,
+        outlineThickness
+    );
+
+    juce::Rectangle<int> textBounds = closedBounds.reduced(10, 0);
+    juce::Rectangle<int> arrowAreaBounds = textBounds.removeFromRight(24);
+
+    GraphicsContext.setColour(juce::Colours::white);
+    GraphicsContext.setFont(juce::Font("Liberation Sans", 14.0f, juce::Font::bold));
+
+    const juce::String displayedText = getText().isNotEmpty() ? getText() : "Select...";
+    GraphicsContext.drawFittedText(
+        displayedText,
+        textBounds,
+        textJustification,
+        1
+    );
+
+    {
+        const juce::Rectangle<float> arrowBounds = arrowAreaBounds.toFloat();
+
+        juce::Path arrowPath;
+        const float centreX = arrowBounds.getCentreX();
+        const float centreY = arrowBounds.getCentreY();
+        const float arrowHalfWidth = 5.0f;
+        const float arrowHeight = 3.5f;
+
+        if (!isExpanded)
+        {
+            arrowPath.startNewSubPath(centreX - arrowHalfWidth, centreY - arrowHeight);
+            arrowPath.lineTo(centreX, centreY + arrowHeight);
+            arrowPath.lineTo(centreX + arrowHalfWidth, centreY - arrowHeight);
+        }
+        else
+        {
+            arrowPath.startNewSubPath(centreX - arrowHalfWidth, centreY + arrowHeight);
+            arrowPath.lineTo(centreX, centreY - arrowHeight);
+            arrowPath.lineTo(centreX + arrowHalfWidth, centreY + arrowHeight);
+        }
+
+        GraphicsContext.setColour(ThemePink);
+        GraphicsContext.strokePath(arrowPath, juce::PathStrokeType(2.0f));
+    }
+
+    if (!isExpanded)
+    {
+        return;
+    }
+
+    const juce::Rectangle<int> popupBounds = GetPopupBounds();
+
+    GraphicsContext.setColour(adjustedAccentGray.darker(0.1f));
+    GraphicsContext.fillRoundedRectangle(popupBounds.toFloat(), cornerRadius);
+
+    GraphicsContext.setColour(adjustedUnfocusedGray.brighter(0.1f));
+    GraphicsContext.drawRoundedRectangle(
+        popupBounds.toFloat().reduced(0.5f),
+        cornerRadius,
+        1.0f
+    );
+
+    for (int itemIndex = 0; itemIndex < items.size(); ++itemIndex)
+    {
+        const juce::Rectangle<int> itemBounds = GetItemBounds(itemIndex);
+
+        if (itemIndex == hoveredItemIndex)
+        {
+            GraphicsContext.setColour(ThemePink);
+            GraphicsContext.fillRoundedRectangle(itemBounds.reduced(4, 2).toFloat(), 6.0f);
+        }
+
+        GraphicsContext.setColour(juce::Colours::white);
+        GraphicsContext.drawFittedText(
+            items.getReference(itemIndex).text,
+            itemBounds.reduced(12, 0),
+            juce::Justification::centredLeft,
+            1
+        );
+    }
+}
+
+void ThemedDropdown::mouseMove(const juce::MouseEvent& MouseEvent)
+{
+    if (!isExpanded)
+    {
+        hoveredItemIndex = -1;
+        return;
+    }
+
+    hoveredItemIndex = GetItemIndexAtPosition(MouseEvent.getPosition());
+    repaint();
+}
+
+void ThemedDropdown::mouseExit(const juce::MouseEvent& MouseEvent)
+{
+    juce::ignoreUnused(MouseEvent);
+
+    hoveredItemIndex = -1;
+    repaint();
+}
+
+void ThemedDropdown::mouseDown(const juce::MouseEvent& MouseEvent)
+{
+    const juce::Point<int> mousePosition = MouseEvent.getPosition();
+
+    if (GetClosedBounds().contains(mousePosition))
+    {
+        SetExpanded(!isExpanded);
+        return;
+    }
+
+    if (isExpanded && GetPopupBounds().contains(mousePosition))
+    {
+        const int clickedItemIndex = GetItemIndexAtPosition(mousePosition);
+
+        if (clickedItemIndex >= 0 && clickedItemIndex < items.size())
+        {
+            setSelectedItemIndex(clickedItemIndex, juce::sendNotificationAsync);
+        }
+
+        SetExpanded(false);
+        return;
+    }
+
+    if (isExpanded)
+    {
+        SetExpanded(false);
+    }
 }
 
 void ThemedDropdown::SetJustification(juce::Justification justificationType)
 {
     textJustification = justificationType;
-    setJustificationType(justificationType);
     repaint();
 }
 
@@ -240,17 +181,150 @@ void ThemedDropdown::SetOutlineThickness(float newOutlineThickness)
     repaint();
 }
 
-void ThemedDropdown::UpdateColours()
+void ThemedDropdown::SetItemHeight(int newItemHeight)
 {
-    setColour(juce::ComboBox::backgroundColourId, AccentGray);
-    setColour(juce::ComboBox::outlineColourId, UnfocusedGray.brighter(0.1f));
-    setColour(juce::ComboBox::textColourId, juce::Colours::white);
-    setColour(juce::ComboBox::arrowColourId, ThemePink);
+    itemHeight = juce::jmax(20, newItemHeight);
+    repaint();
+}
 
-    setColour(juce::PopupMenu::backgroundColourId, AccentGray);
-    setColour(juce::PopupMenu::textColourId, juce::Colours::white);
-    setColour(juce::PopupMenu::highlightedBackgroundColourId, ThemePink);
-    setColour(juce::PopupMenu::highlightedTextColourId, juce::Colours::white);
+void ThemedDropdown::addItem(const juce::String& itemText, int itemID)
+{
+    Item newItem;
+    newItem.text = itemText;
+    newItem.itemID = itemID;
+
+    items.add(newItem);
+
+    if (selectedItemIndex < 0)
+    {
+        selectedItemIndex = 0;
+    }
+
+    repaint();
+}
+
+void ThemedDropdown::clear(juce::NotificationType notificationType)
+{
+    items.clear();
+    selectedItemIndex = -1;
+    hoveredItemIndex = -1;
+    isExpanded = false;
+
+    if (notificationType == juce::sendNotification || notificationType == juce::sendNotificationAsync)
+    {
+        if (onChange != nullptr)
+        {
+            onChange();
+        }
+    }
+
+    repaint();
+}
+
+int ThemedDropdown::getNumItems() const
+{
+    return items.size();
+}
+
+int ThemedDropdown::getSelectedItemIndex() const
+{
+    return selectedItemIndex;
+}
+
+void ThemedDropdown::setSelectedItemIndex(int newSelectedItemIndex, juce::NotificationType notificationType)
+{
+    const int clampedItemIndex = juce::jlimit(-1, items.size() - 1, newSelectedItemIndex);
+
+    if (selectedItemIndex == clampedItemIndex)
+    {
+        return;
+    }
+
+    selectedItemIndex = clampedItemIndex;
+    repaint();
+
+    if (notificationType == juce::sendNotification || notificationType == juce::sendNotificationAsync)
+    {
+        if (onChange != nullptr)
+        {
+            onChange();
+        }
+    }
+}
+
+juce::String ThemedDropdown::getText() const
+{
+    if (selectedItemIndex >= 0 && selectedItemIndex < items.size())
+    {
+        return items.getReference(selectedItemIndex).text;
+    }
+
+    return {};
+}
+
+juce::Rectangle<int> ThemedDropdown::GetClosedBounds() const
+{
+    return juce::Rectangle<int>(0, 0, getWidth(), closedHeight);
+}
+
+juce::Rectangle<int> ThemedDropdown::GetPopupBounds() const
+{
+    if (!isExpanded || items.isEmpty())
+    {
+        return {};
+    }
+
+    return juce::Rectangle<int>(
+        0,
+        closedHeight + 4,
+        getWidth(),
+        items.size() * itemHeight
+    );
+}
+
+juce::Rectangle<int> ThemedDropdown::GetItemBounds(int itemIndex) const
+{
+    return juce::Rectangle<int>(
+        0,
+        closedHeight + 4 + (itemIndex * itemHeight),
+        getWidth(),
+        itemHeight
+    );
+}
+
+int ThemedDropdown::GetItemIndexAtPosition(juce::Point<int> mousePosition) const
+{
+    for (int itemIndex = 0; itemIndex < items.size(); ++itemIndex)
+    {
+        if (GetItemBounds(itemIndex).contains(mousePosition))
+        {
+            return itemIndex;
+        }
+    }
+
+    return -1;
+}
+
+void ThemedDropdown::SetExpanded(bool shouldBeExpanded)
+{
+    if (isExpanded == shouldBeExpanded)
+    {
+        return;
+    }
+
+    isExpanded = shouldBeExpanded;
+    hoveredItemIndex = -1;
+
+    if (auto* parentComponent = getParentComponent())
+    {
+        if (isExpanded)
+        {
+            parentComponent->getChildComponent(parentComponent->getNumChildComponents() - 1);
+            toFront(false);
+        }
+    }
+
+    repaint();
 }
 
 ThemedDropdown::Attachment::Attachment(
@@ -320,10 +394,10 @@ void ThemedDropdown::Attachment::SyncParameterToDropdown()
         return;
     }
 
-    const int selectedIndex = choiceParameter->getIndex();
+    const int selectedItemIndex = choiceParameter->getIndex();
 
     ignoreCallbacks.store(true);
-    dropdown.setSelectedItemIndex(selectedIndex, juce::dontSendNotification);
+    dropdown.setSelectedItemIndex(selectedItemIndex, juce::dontSendNotification);
     ignoreCallbacks.store(false);
 }
 
@@ -339,9 +413,9 @@ void ThemedDropdown::Attachment::SyncDropdownToParameter()
         return;
     }
 
-    const int selectedIndex = dropdown.getSelectedItemIndex();
+    const int selectedItemIndex = dropdown.getSelectedItemIndex();
 
-    if (selectedIndex < 0)
+    if (selectedItemIndex < 0)
     {
         return;
     }
@@ -354,7 +428,7 @@ void ThemedDropdown::Attachment::SyncDropdownToParameter()
     }
 
     const float normalizedValue =
-        static_cast<float>(selectedIndex)
+        static_cast<float>(selectedItemIndex)
         / static_cast<float>(numberOfChoices - 1);
 
     parameter->beginChangeGesture();
