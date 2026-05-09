@@ -8,6 +8,7 @@
 #include "Utils/SegmentedButton.h"
 #include "Utils/Theme.h"
 #include "Utils/TabbedPageBox.h"
+#include "Utils/TooltipOverlay.h"
 
 #include "Utils/HorizontalRangeSlider.h"
 

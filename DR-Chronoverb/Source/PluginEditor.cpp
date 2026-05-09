@@ -206,6 +206,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     horizontalPitchRangeTooltipOverlay = std::make_unique<TooltipOverlay>(*horizontalPitchRangeSlider);
     pitchPage->addAndMakeVisible(*horizontalPitchRangeTooltipOverlay);
+    horizontalPitchRangeTooltipOverlay->setBounds(pitchPage->getLocalBounds());
     horizontalPitchRangeTooltipOverlay->toFront(false);
 }
 
