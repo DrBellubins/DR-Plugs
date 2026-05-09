@@ -203,6 +203,10 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
         "pitchShiftRangeUpper",
         *horizontalPitchRangeSlider
     );
+
+    horizontalPitchRangeTooltipOverlay = std::make_unique<TooltipOverlay>(*horizontalPitchRangeSlider);
+    pitchPage->addAndMakeVisible(*horizontalPitchRangeTooltipOverlay);
+    horizontalPitchRangeTooltipOverlay->toFront(false);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
@@ -244,6 +248,12 @@ void AudioPluginAudioProcessorEditor::resized()
 {
     // This is generally where you'll want to lay out the positions of any
     // subcomponents in your editor.
+
+    if (pitchPage != nullptr && horizontalPitchRangeTooltipOverlay != nullptr)
+    {
+        horizontalPitchRangeTooltipOverlay->setBounds(pitchPage->getLocalBounds());
+        horizontalPitchRangeTooltipOverlay->toFront(false);
+    }
 }
 
 // Forward keyboard input to the Keyboard Synth in the processor.

@@ -4,7 +4,11 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <functional>
 
-class HorizontalRangeSlider : public juce::Component
+#include "Theme.h"
+#include "TooltipOverlay.h"
+
+class HorizontalRangeSlider : public juce::Component,
+                              public TooltipClient
 {
 public:
     enum ActiveThumb
@@ -14,7 +18,7 @@ public:
         UpperThumb
     };
 
-    HorizontalRangeSlider(float minimumValue, float maximumValue);
+    HorizontalRangeSlider(float MinimumValue, float MaximumValue);
     ~HorizontalRangeSlider() override = default;
 
     float getLowerValue() const
@@ -30,30 +34,44 @@ public:
     std::function<void(float)> OnLowerValueChanged;
     std::function<void(float)> OnUpperValueChanged;
     std::function<void()> OnTooltipStateChanged;
+    std::function<void()> OnDragStarted;
+    std::function<void()> OnDragEnded;
 
-    void setLowerValue(float newValue);
-    void setUpperValue(float newValue);
+    void setLowerValue(float NewValue);
+    void setUpperValue(float NewValue);
 
-    void setRoundness(float newRadius);
-    void setMinimumRange(float newMinimumRange);
+    void setRoundness(float NewRadius);
+    void setMinimumRange(float NewMinimumRange);
 
-    void setStepSize(float newStepSize);
-    void setSteppingEnabled(bool shouldEnableStepping);
+    void setSteppingEnabled(bool ShouldEnableStepping);
+    void setStepSize(float NewStepSize);
 
-    bool shouldShowTooltip() const;
+    bool isSteppingEnabled() const
+    {
+        return steppingEnabled;
+    }
+
+    float getStepSize() const
+    {
+        return stepSize;
+    }
+
+    bool ShouldShowTooltip() const override;
+    juce::Rectangle<float> GetTooltipTargetBoundsInComponent(const juce::Component& TargetComponent) const override;
+    juce::String GetTooltipText() const override;
+    Placement GetTooltipPlacement() const override;
+
     ActiveThumb getActiveThumb() const;
-    juce::Rectangle<float> getActiveThumbBoundsInComponent(const juce::Component& targetComponent) const;
-    juce::String getActiveThumbTooltipText() const;
 
-    void paint(juce::Graphics& graphics) override;
+    void paint(juce::Graphics& GraphicsContext) override;
     void resized() override;
 
 protected:
-    void mouseDown(const juce::MouseEvent& mouseEvent) override;
-    void mouseDrag(const juce::MouseEvent& mouseEvent) override;
-    void mouseMove(const juce::MouseEvent& mouseEvent) override;
-    void mouseExit(const juce::MouseEvent& mouseEvent) override;
-    void mouseUp(const juce::MouseEvent& mouseEvent) override;
+    void mouseDown(const juce::MouseEvent& MouseEvent) override;
+    void mouseDrag(const juce::MouseEvent& MouseEvent) override;
+    void mouseMove(const juce::MouseEvent& MouseEvent) override;
+    void mouseExit(const juce::MouseEvent& MouseEvent) override;
+    void mouseUp(const juce::MouseEvent& MouseEvent) override;
 
 private:
     enum DraggingThumb
@@ -70,10 +88,10 @@ private:
         HoverUpper
     };
 
-    float minValue;
-    float maxValue;
-    float lowerValue;
-    float upperValue;
+    float minValue = 0.0f;
+    float maxValue = 1.0f;
+    float lowerValue = 0.0f;
+    float upperValue = 1.0f;
 
     float minimumRange = 0.0f;
     float roundness = 20.0f;
@@ -85,25 +103,25 @@ private:
     HoveredThumb hoveredThumb = HoverNone;
 
     float thumbWidth = 4.0f;
-    float thumbHeight = 15.0f;
-    float thumbSideInset = 12.0f;
+    float thumbHeight = 25.0f;
+    float thumbSideInset = 6.0f;
     float visualMinimumThumbSpacing = 8.0f;
 
     int dragStartMouseX = 0;
     float dragStartLowerValue = 0.0f;
     float dragStartUpperValue = 0.0f;
 
-    int valueToX(float value) const;
-    float xToValue(int xPosition) const;
-    float deltaXToValueDelta(float deltaX) const;
+    int valueToX(float Value) const;
+    float xToValue(int XPosition) const;
+    float deltaXToValueDelta(float DeltaX) const;
 
     juce::Rectangle<float> getRangeRectangle() const;
     juce::Rectangle<float> getLowerThumbRectangle() const;
     juce::Rectangle<float> getUpperThumbRectangle() const;
     juce::Rectangle<float> getActiveThumbRectangle() const;
-    HoveredThumb getHoveredThumbAtPosition(juce::Point<int> mousePosition) const;
+    HoveredThumb getHoveredThumbAtPosition(juce::Point<int> MousePosition) const;
 
-    float snapValueToStep(float value) const;
+    float snapValueToStep(float Value) const;
     void notifyTooltipStateChanged();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(HorizontalRangeSlider)
@@ -113,10 +131,10 @@ class HorizontalRangeSliderAttachment : private juce::AudioProcessorValueTreeSta
 {
 public:
     HorizontalRangeSliderAttachment(
-        juce::AudioProcessorValueTreeState& parameterValueTreeState,
-        const juce::String& lowerParameterID,
-        const juce::String& upperParameterID,
-        HorizontalRangeSlider& rangeSlider);
+        juce::AudioProcessorValueTreeState& ParameterValueTreeState,
+        const juce::String& LowerParameterID,
+        const juce::String& UpperParameterID,
+        HorizontalRangeSlider& RangeSlider);
 
     ~HorizontalRangeSliderAttachment() override;
 
@@ -126,9 +144,18 @@ private:
     juce::String upperID;
     HorizontalRangeSlider& rangeSlider;
 
+    juce::RangedAudioParameter* lowerParameter = nullptr;
+    juce::RangedAudioParameter* upperParameter = nullptr;
+
     bool updatingSlider = false;
     bool updatingParameter = false;
+    bool gestureInProgress = false;
 
-    void parameterChanged(const juce::String& parameterID, float newValue) override;
+    void parameterChanged(const juce::String& ParameterID, float NewValue) override;
+
+    void beginGesture();
+    void endGesture();
     void updateSliderFromParameters();
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(HorizontalRangeSliderAttachment)
 };

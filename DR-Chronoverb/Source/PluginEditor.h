@@ -135,6 +135,7 @@ private:
 
     std::unique_ptr<HorizontalRangeSlider> horizontalPitchRangeSlider;
     std::unique_ptr<HorizontalRangeSliderAttachment> horizontalPitchRangeAttachment;
+    std::unique_ptr<TooltipOverlay> horizontalPitchRangeTooltipOverlay;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };
