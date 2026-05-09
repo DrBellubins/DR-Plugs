@@ -68,6 +68,10 @@ private:
 
         juce::Label* createComboBoxTextBox(juce::ComboBox& comboBox) override;
 
+        juce::PopupMenu::Options getOptionsForComboBoxPopupMenu(
+            juce::ComboBox& comboBox,
+            juce::Label& label) override;
+
         void positionComboBoxText(
             juce::ComboBox& comboBox,
             juce::Label& label) override;

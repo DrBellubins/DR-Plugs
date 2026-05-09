@@ -80,6 +80,20 @@ juce::Label* ThemedDropdown::DropdownLookAndFeel::createComboBoxTextBox(juce::Co
     return comboLabel;
 }
 
+juce::PopupMenu::Options ThemedDropdown::DropdownLookAndFeel::getOptionsForComboBoxPopupMenu(
+    juce::ComboBox& comboBox,
+    juce::Label& label)
+{
+    juce::ignoreUnused(label);
+
+    return juce::PopupMenu::Options()
+        .withTargetComponent(&comboBox)
+        .withItemThatMustBeVisible(comboBox.getSelectedId())
+        .withMinimumWidth(comboBox.getWidth())
+        .withMaximumNumColumns(1)
+        .withStandardItemHeight(24);
+}
+
 void ThemedDropdown::DropdownLookAndFeel::positionComboBoxText(
     juce::ComboBox& comboBox,
     juce::Label& label)
