@@ -157,7 +157,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         float pitchedFeedbackLeft = preLeft;
         float pitchedFeedbackRight = preRight;
 
-        if (pitchShift01 >= 0.5f)
+        if (pitchShiftEnabled >= 0.5f)
         {
             pitchedFeedbackLeft = wetInputPitchShifterLeft.ProcessSample(preLeft);
             pitchedFeedbackRight = wetInputPitchShifterRight.ProcessSample(preRight);
@@ -343,9 +343,19 @@ void NewDelayReverb::SetHPLPPrePost(float prePost01)
     hplpPrePost01 = clamp01(prePost01);
 }
 
-void NewDelayReverb::SetPitchShift(float pitchShiftEnabled01)
+void NewDelayReverb::SetPitchShiftEnabled(float pitchShiftEnabled01)
 {
-    pitchShift01 = clamp01(pitchShiftEnabled01);
+    pitchShiftEnabled = clamp01(pitchShiftEnabled01);
+}
+
+void NewDelayReverb::SetPitchShiftRangeLower(float pitchShiftRangeLower01)
+{
+    pitchShiftRangeLower = juce::jlimit(-48.0f, 48.0f, pitchShiftRangeLower01);
+}
+
+void NewDelayReverb::SetPitchShiftRangeUpper(float pitchShiftRangeUpper01)
+{
+    pitchShiftRangeUpper = juce::jlimit(-48.0f, 48.0f, pitchShiftRangeUpper01);
 }
 
 void NewDelayReverb::SetHostTempo(float bpm)

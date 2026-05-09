@@ -134,6 +134,7 @@ private:
     std::unique_ptr<juce::Label> pitchShiftTitle;
 
     std::unique_ptr<HorizontalRangeSlider> horizontalPitchRangeSlider;
+    std::unique_ptr<HorizontalRangeSliderAttachment> horizontalPitchRangeAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };

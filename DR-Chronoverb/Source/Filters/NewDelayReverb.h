@@ -56,7 +56,10 @@ public:
     void SetHighpassCutoff(float newHighpass01); // 0..1 mapped to [10 Hz .. 2000 Hz] (basic HP to tame DC/rumble)
     void SetStereoSpread(float newSpreadMinus1To1); // -1..1 basic widening/narrowing
     void SetHPLPPrePost(float prePost01); // 0 => Pre, 1 => Post
-    void SetPitchShift(float pitchShiftEnabled01);
+
+    void SetPitchShiftEnabled(float pitchShiftEnabled01);
+    void SetPitchShiftRangeLower(float pitchShiftRangeLower);
+    void SetPitchShiftRangeUpper(float pitchShiftRangeUpper);
 
     // Host tempo for sync modes (not used deeply yet, but retained for future porting)
     void SetHostTempo(float bpm);
@@ -99,7 +102,10 @@ private:
     float highpass01 = 0.0f;
     float stereoSpreadMinus1To1 = 0.0f;
     float hplpPrePost01 = 1.0f; // default Post
-    float pitchShift01 = 0.0f;
+
+    float pitchShiftEnabled = 0.0f;
+    float pitchShiftRangeLower = 0.0f;
+    float pitchShiftRangeUpper = 0.0f;
 
     int echoSampleCounterL = 0;
     int echoSampleCounterR = 0;

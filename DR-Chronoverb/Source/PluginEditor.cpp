@@ -192,9 +192,17 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     horizontalPitchRangeSlider->setMinimumRange(12.0f);
     horizontalPitchRangeSlider->setSteppingEnabled(true);
     horizontalPitchRangeSlider->setStepSize(12.0f);
+    horizontalPitchRangeSlider->setRoundness(7.0f);
 
     pitchPage->addAndMakeVisible(*horizontalPitchRangeSlider);
-    horizontalPitchRangeSlider->setBounds(40, 70, 220, 36);
+    horizontalPitchRangeSlider->setBounds(40, 60, 730, 25);
+
+    horizontalPitchRangeAttachment = std::make_unique<HorizontalRangeSliderAttachment>(
+        processorRef.parameters,
+        "pitchShiftRangeLower",
+        "pitchShiftRangeUpper",
+        *horizontalPitchRangeSlider
+    );
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()

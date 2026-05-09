@@ -85,8 +85,8 @@ private:
     HoveredThumb hoveredThumb = HoverNone;
 
     float thumbWidth = 4.0f;
-    float thumbHeight = 25.0f;
-    float thumbSideInset = 6.0f;
+    float thumbHeight = 15.0f;
+    float thumbSideInset = 12.0f;
     float visualMinimumThumbSpacing = 8.0f;
 
     int dragStartMouseX = 0;
