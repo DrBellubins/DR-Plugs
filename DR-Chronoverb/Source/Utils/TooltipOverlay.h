@@ -75,7 +75,7 @@ public:
         const juce::Rectangle<float> overlayBounds = getLocalBounds().toFloat();
         ClampTooltipBoundsToOverlay(tooltipBounds, overlayBounds);
 
-        const juce::Colour backgroundColour = AccentGray.darker(0.25f).withAlpha(currentAlpha);
+        const juce::Colour backgroundColour = juce::Colours::black.withAlpha(currentAlpha);
         const juce::Colour textColour = juce::Colours::white.withAlpha(currentAlpha);
 
         GraphicsContext.setColour(backgroundColour);
@@ -93,6 +93,7 @@ private:
     void timerCallback() override
     {
         const bool shouldShowTooltip = trackedTooltipClient.ShouldShowTooltip();
+        bool shouldRepaint = false;
 
         if (shouldShowTooltip)
         {
@@ -107,9 +108,15 @@ private:
 
             if (!latestTargetBounds.isEmpty() && !latestTooltipText.isEmpty())
             {
-                cachedTargetBounds = latestTargetBounds;
-                cachedTooltipText = latestTooltipText;
-                cachedPlacement = latestPlacement;
+                if (cachedTargetBounds != latestTargetBounds
+                    || cachedTooltipText != latestTooltipText
+                    || cachedPlacement != latestPlacement)
+                {
+                    cachedTargetBounds = latestTargetBounds;
+                    cachedTooltipText = latestTooltipText;
+                    cachedPlacement = latestPlacement;
+                    shouldRepaint = true;
+                }
             }
         }
 
@@ -120,12 +127,12 @@ private:
         if (currentAlpha < targetAlpha)
         {
             currentAlpha = juce::jmin(targetAlpha, currentAlpha + fadeInSpeed);
-            repaint();
+            shouldRepaint = true;
         }
         else if (currentAlpha > targetAlpha)
         {
             currentAlpha = juce::jmax(targetAlpha, currentAlpha - fadeOutSpeed);
-            repaint();
+            shouldRepaint = true;
 
             if (currentAlpha <= 0.001f)
             {
@@ -133,6 +140,11 @@ private:
                 cachedTooltipText.clear();
                 cachedPlacement = TooltipClient::Placement::Above;
             }
+        }
+
+        if (shouldRepaint)
+        {
+            repaint();
         }
     }
 
