@@ -15,8 +15,7 @@ public:
     ~ThemedDropdown() override;
 
     void paint(juce::Graphics& GraphicsContext) override;
-    void mouseMove(const juce::MouseEvent& MouseEvent) override;
-    void mouseExit(const juce::MouseEvent& MouseEvent) override;
+    void resized() override;
     void mouseDown(const juce::MouseEvent& MouseEvent) override;
 
     void SetJustification(juce::Justification justificationType);
@@ -68,15 +67,31 @@ private:
         int itemID = 0;
     };
 
+    class PopupList : public juce::Component
+    {
+    public:
+        explicit PopupList(ThemedDropdown& ownerDropdown);
+
+        void paint(juce::Graphics& GraphicsContext) override;
+        void mouseMove(const juce::MouseEvent& MouseEvent) override;
+        void mouseExit(const juce::MouseEvent& MouseEvent) override;
+        void mouseDown(const juce::MouseEvent& MouseEvent) override;
+
+        void UpdateBounds();
+        int GetItemIndexAtPosition(juce::Point<int> mousePosition) const;
+        juce::Rectangle<int> GetItemBounds(int itemIndex) const;
+
+    private:
+        ThemedDropdown& owner;
+        int hoveredItemIndex = -1;
+    };
+
     juce::Rectangle<int> GetClosedBounds() const;
-    juce::Rectangle<int> GetPopupBounds() const;
-    juce::Rectangle<int> GetItemBounds(int itemIndex) const;
-    int GetItemIndexAtPosition(juce::Point<int> mousePosition) const;
+    juce::Rectangle<int> GetArrowBounds() const;
     void SetExpanded(bool shouldBeExpanded);
 
     juce::Array<Item> items;
     int selectedItemIndex = -1;
-    int hoveredItemIndex = -1;
     bool isExpanded = false;
 
     juce::Justification textJustification = juce::Justification::centredLeft;
@@ -84,6 +99,8 @@ private:
     float outlineThickness = 1.0f;
     int itemHeight = 30;
     int closedHeight = 32;
+
+    PopupList popupList;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ThemedDropdown)
 };
