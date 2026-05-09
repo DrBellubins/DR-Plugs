@@ -86,8 +86,15 @@ juce::PopupMenu::Options ThemedDropdown::DropdownLookAndFeel::getOptionsForCombo
 {
     juce::ignoreUnused(label);
 
+    // Snapshot the screen bounds immediately.
+    // In JUCE 7, withTargetComponent defers getScreenBounds() — on Linux/X11
+    // that deferred call can fail and cause the popup to fall back to centering.
+    const juce::Rectangle<int> comboScreenBounds = comboBox.getScreenBounds();
+
     return juce::PopupMenu::Options()
         .withTargetComponent(&comboBox)
+        .withTargetScreenArea(comboScreenBounds)
+        .withParentComponent(comboBox.getTopLevelComponent())
         .withItemThatMustBeVisible(comboBox.getSelectedId())
         .withMinimumWidth(comboBox.getWidth())
         .withMaximumNumColumns(1)
