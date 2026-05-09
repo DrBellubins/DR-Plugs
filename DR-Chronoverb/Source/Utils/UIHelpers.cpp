@@ -69,7 +69,7 @@ void UIHelpers::CreateCheckbox(
 void UIHelpers::CreateCheckboxLabel(
     juce::Component& parentComponent,
     std::unique_ptr<juce::Label>& label,
-    RoundedToggle& toggle,
+    ThemedCheckbox& toggle,
     const juce::String& text,
     float fontSize,
     int offsetX)

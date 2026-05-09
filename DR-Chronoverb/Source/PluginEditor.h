@@ -9,6 +9,8 @@
 #include "Utils/Theme.h"
 #include "Utils/TabbedPageBox.h"
 
+#include "Utils/HorizontalRangeSlider.h"
+
 //==============================================================================
 class AudioPluginAudioProcessorEditor  : public juce::AudioProcessorEditor, public juce::KeyListener
 {
@@ -126,10 +128,12 @@ private:
     std::unique_ptr<juce::Component> tapePage;
     std::unique_ptr<juce::Component> granularPage;
 
-    // Pitch shift toggle
+    // Pitch shift
     std::unique_ptr<ThemedCheckbox> pitchShiftToggle;
     std::unique_ptr<ThemedCheckbox::Attachment> pitchShiftToggleAttachment;
     std::unique_ptr<juce::Label> pitchShiftTitle;
+
+    std::unique_ptr<HorizontalRangeSlider> horizontalPitchRangeSlider;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };

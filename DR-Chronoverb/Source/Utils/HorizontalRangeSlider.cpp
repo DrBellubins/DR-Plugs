@@ -1,164 +1,532 @@
 #include "HorizontalRangeSlider.h"
 #include "Theme.h"
 
-HorizontalRangeSlider::HorizontalRangeSlider(float MinimumValue, float MaximumValue)
-    : minValue(MinimumValue), maxValue(MaximumValue), lowerValue(MinimumValue), upperValue(MaximumValue)
+HorizontalRangeSlider::HorizontalRangeSlider(float minimumValue, float maximumValue)
+    : minValue(minimumValue),
+      maxValue(maximumValue),
+      lowerValue(minimumValue),
+      upperValue(maximumValue)
 {
 }
 
-void HorizontalRangeSlider::setLowerValue(float NewValue)
+void HorizontalRangeSlider::setLowerValue(float newValue)
 {
-    float clampedValue = juce::jlimit(minValue, upperValue, NewValue);
+    float snappedValue = snapValueToStep(newValue);
+    float maximumLowerValue = upperValue - minimumRange;
+    float clampedValue = juce::jlimit(minValue, maximumLowerValue, snappedValue);
 
     if (lowerValue != clampedValue)
     {
         lowerValue = clampedValue;
 
         if (OnLowerValueChanged)
+        {
             OnLowerValueChanged(lowerValue);
+        }
 
         repaint();
+        notifyTooltipStateChanged();
     }
 }
 
-void HorizontalRangeSlider::setUpperValue(float NewValue)
+void HorizontalRangeSlider::setUpperValue(float newValue)
 {
-    float clampedValue = juce::jlimit(lowerValue, maxValue, NewValue);
+    float snappedValue = snapValueToStep(newValue);
+    float minimumUpperValue = lowerValue + minimumRange;
+    float clampedValue = juce::jlimit(minimumUpperValue, maxValue, snappedValue);
 
     if (upperValue != clampedValue)
     {
         upperValue = clampedValue;
 
         if (OnUpperValueChanged)
+        {
             OnUpperValueChanged(upperValue);
+        }
 
         repaint();
+        notifyTooltipStateChanged();
     }
 }
 
-void HorizontalRangeSlider::Enable()
+void HorizontalRangeSlider::setRoundness(float newRadius)
 {
-	Enabled = true;
-	currentColour = ThemePink;
-	repaint();
-}
-
-void HorizontalRangeSlider::Disable()
-{
-	Enabled = false;
-	currentColour = UnfocusedGray;
-	repaint();
-}
-
-void HorizontalRangeSlider::setRoundness(float Radius)
-{
-    roundness = Radius;
+    roundness = newRadius;
     repaint();
 }
 
-void HorizontalRangeSlider::paint(juce::Graphics& Graphics)
+void HorizontalRangeSlider::setMinimumRange(float newMinimumRange)
 {
-    auto bounds = getLocalBounds().toFloat();
+    minimumRange = juce::jmax(0.0f, newMinimumRange);
 
-    // Draw track background (full component area)
-    Graphics.setColour(AccentGray);
-    Graphics.fillRoundedRectangle(bounds, roundness);
+    if ((upperValue - lowerValue) < minimumRange)
+    {
+        upperValue = juce::jmin(maxValue, lowerValue + minimumRange);
 
-    // Calculate range rectangle
-    float sliderHeight = bounds.getHeight();
-    float sliderY = bounds.getY() + (bounds.getHeight() - sliderHeight) / 2.0f;
-    float lowerX = valueToX(lowerValue);
-    float upperX = valueToX(upperValue);
+        if ((upperValue - lowerValue) < minimumRange)
+        {
+            lowerValue = juce::jmax(minValue, upperValue - minimumRange);
+        }
+    }
 
-    float rangeWidth = upperX - lowerX;
-    juce::Rectangle<float> rangeRect(lowerX, sliderY, rangeWidth, sliderHeight);
+    repaint();
+    notifyTooltipStateChanged();
+}
 
-    // Draw range rectangle
-    Graphics.setColour(currentColour);
-    Graphics.fillRoundedRectangle(rangeRect, roundness);
+void HorizontalRangeSlider::setStepSize(float newStepSize)
+{
+    stepSize = juce::jmax(0.000001f, newStepSize);
 
-    // Draw handles (flat lines)
-    Graphics.setColour(currentColour.darker(0.2f));
-    float handleInset = handleMargin;
-    float handleY1 = rangeRect.getY() + handleInset;
-    float handleY2 = rangeRect.getBottom() - handleInset;
+    if (steppingEnabled)
+    {
+        setLowerValue(lowerValue);
+        setUpperValue(upperValue);
+    }
+}
 
-    // Left handle (lowerValue)
-    Graphics.drawLine(lowerX + handleMargin, handleY1, lowerX + handleMargin, handleY2, (float)handleThickness);
+void HorizontalRangeSlider::setSteppingEnabled(bool shouldEnableStepping)
+{
+    steppingEnabled = shouldEnableStepping;
 
-    // Right handle (upperValue)
-    Graphics.drawLine(upperX - handleMargin, handleY1, upperX - handleMargin, handleY2, (float)handleThickness);
+    if (steppingEnabled)
+    {
+        setLowerValue(lowerValue);
+        setUpperValue(upperValue);
+    }
+}
+
+bool HorizontalRangeSlider::shouldShowTooltip() const
+{
+    return draggingThumb != None || hoveredThumb != HoverNone;
+}
+
+HorizontalRangeSlider::ActiveThumb HorizontalRangeSlider::getActiveThumb() const
+{
+    if (draggingThumb == Lower)
+    {
+        return LowerThumb;
+    }
+
+    if (draggingThumb == Upper)
+    {
+        return UpperThumb;
+    }
+
+    if (hoveredThumb == HoverLower)
+    {
+        return LowerThumb;
+    }
+
+    if (hoveredThumb == HoverUpper)
+    {
+        return UpperThumb;
+    }
+
+    return NoThumb;
+}
+
+juce::Rectangle<float> HorizontalRangeSlider::getActiveThumbBoundsInComponent(const juce::Component& targetComponent) const
+{
+    juce::Rectangle<float> activeThumbRectangle = getActiveThumbRectangle();
+
+    if (activeThumbRectangle.isEmpty())
+    {
+        return {};
+    }
+
+    juce::Rectangle<int> integerThumbRectangle = activeThumbRectangle.getSmallestIntegerContainer();
+    juce::Rectangle<int> targetRectangle = targetComponent.getLocalArea(this, integerThumbRectangle);
+
+    return targetRectangle.toFloat();
+}
+
+juce::String HorizontalRangeSlider::getActiveThumbTooltipText() const
+{
+    if (draggingThumb == Lower)
+    {
+        return juce::String(lowerValue, 2);
+    }
+
+    if (draggingThumb == Upper)
+    {
+        return juce::String(upperValue, 2);
+    }
+
+    if (hoveredThumb == HoverLower)
+    {
+        return juce::String(lowerValue, 2);
+    }
+
+    if (hoveredThumb == HoverUpper)
+    {
+        return juce::String(upperValue, 2);
+    }
+
+    return {};
+}
+
+void HorizontalRangeSlider::paint(juce::Graphics& graphics)
+{
+    juce::Rectangle<float> bounds = getLocalBounds().toFloat();
+
+    graphics.setColour(AccentGray.brighter(0.02f));
+    graphics.fillRoundedRectangle(bounds, roundness);
+
+    juce::Rectangle<float> rangeRectangle = getRangeRectangle();
+
+    graphics.setColour(ThemePink);
+    graphics.fillRoundedRectangle(rangeRectangle, roundness);
+
+    juce::Colour upperNormalThumbColour = juce::Colours::white.darker(0.2f).withAlpha(0.35f);
+    juce::Colour upperActiveThumbColour = juce::Colours::white.withAlpha(0.5f);
+
+    juce::Colour lowerNormalThumbColour = juce::Colours::white.darker(0.2f).withAlpha(0.35f);
+    juce::Colour lowerActiveThumbColour = juce::Colours::white.withAlpha(0.5f);
+
+    juce::Rectangle<float> lowerThumbRectangle = getLowerThumbRectangle();
+    juce::Rectangle<float> upperThumbRectangle = getUpperThumbRectangle();
+
+    bool lowerThumbIsActive = (hoveredThumb == HoverLower || draggingThumb == Lower);
+    bool upperThumbIsActive = (hoveredThumb == HoverUpper || draggingThumb == Upper);
+
+    graphics.setColour(lowerThumbIsActive ? lowerActiveThumbColour : lowerNormalThumbColour);
+    graphics.fillRoundedRectangle(lowerThumbRectangle, thumbWidth * 0.5f);
+
+    graphics.setColour(upperThumbIsActive ? upperActiveThumbColour : upperNormalThumbColour);
+    graphics.fillRoundedRectangle(upperThumbRectangle, thumbWidth * 0.5f);
 }
 
 void HorizontalRangeSlider::resized()
 {
-    // No layout needed, everything drawn relative to bounds
 }
 
-int HorizontalRangeSlider::valueToX(float Value) const
+int HorizontalRangeSlider::valueToX(float value) const
 {
-    auto bounds = getLocalBounds();
-    float proportion = (Value - minValue) / (maxValue - minValue);
+    juce::Rectangle<int> bounds = getLocalBounds();
+    float proportion = (value - minValue) / (maxValue - minValue);
 
-    return juce::jmap(proportion, float(bounds.getX()), float(bounds.getRight()));
+    return juce::roundToInt(
+        juce::jmap(
+            proportion,
+            static_cast<float>(bounds.getX()),
+            static_cast<float>(bounds.getRight())
+        )
+    );
 }
 
-float HorizontalRangeSlider::xToValue(int X) const
+float HorizontalRangeSlider::xToValue(int xPosition) const
 {
-    auto bounds = getLocalBounds();
-    float proportion = (float)(X - bounds.getX()) / bounds.getWidth();
+    juce::Rectangle<int> bounds = getLocalBounds();
+    float proportion = (static_cast<float>(xPosition - bounds.getX()) / static_cast<float>(bounds.getWidth()));
 
     return juce::jlimit(minValue, maxValue, minValue + proportion * (maxValue - minValue));
 }
 
-void HorizontalRangeSlider::mouseDown(const juce::MouseEvent& MouseEvent)
+float HorizontalRangeSlider::deltaXToValueDelta(float deltaX) const
 {
-    int mouseX = MouseEvent.getPosition().getX();
-    int lowerX = valueToX(lowerValue);
-    int upperX = valueToX(upperValue);
+    juce::Rectangle<int> bounds = getLocalBounds();
 
-    // Use a tolerance for the handle lines
-    int tolerance = 20;
-
-    if (std::abs(mouseX - lowerX) < tolerance)
+    if (bounds.getWidth() <= 0)
     {
-        dragging = Lower;
+        return 0.0f;
     }
-    else if (std::abs(mouseX - upperX) < tolerance)
+
+    float valueRange = maxValue - minValue;
+    return (deltaX / static_cast<float>(bounds.getWidth())) * valueRange;
+}
+
+juce::Rectangle<float> HorizontalRangeSlider::getRangeRectangle() const
+{
+    juce::Rectangle<float> bounds = getLocalBounds().toFloat();
+
+    float lowerXPosition = static_cast<float>(valueToX(lowerValue));
+    float upperXPosition = static_cast<float>(valueToX(upperValue));
+    float rangeWidth = juce::jmax(1.0f, upperXPosition - lowerXPosition);
+
+    return juce::Rectangle<float>(
+        lowerXPosition,
+        bounds.getY(),
+        rangeWidth,
+        bounds.getHeight()
+    );
+}
+
+juce::Rectangle<float> HorizontalRangeSlider::getLowerThumbRectangle() const
+{
+    juce::Rectangle<float> bounds = getLocalBounds().toFloat();
+    juce::Rectangle<float> rangeRectangle = getRangeRectangle();
+
+    float normalThumbXPosition = rangeRectangle.getX() + thumbSideInset;
+    float upperThumbNormalXPosition = rangeRectangle.getRight() - thumbSideInset - thumbWidth;
+    float lowerThumbXPosition = normalThumbXPosition;
+    float availableSpacing = upperThumbNormalXPosition - normalThumbXPosition;
+
+    if (availableSpacing < visualMinimumThumbSpacing)
     {
-        dragging = Upper;
+        float rangeCentreXPosition = rangeRectangle.getCentreX();
+        float halfVisualSpacing = (visualMinimumThumbSpacing + thumbWidth) * 0.5f;
+
+        lowerThumbXPosition = rangeCentreXPosition - halfVisualSpacing;
+        lowerThumbXPosition = juce::jlimit(bounds.getX(), bounds.getRight() - thumbWidth, lowerThumbXPosition);
+    }
+
+    float thumbYPosition = rangeRectangle.getCentreY() - (thumbHeight * 0.5f);
+
+    return juce::Rectangle<float>(lowerThumbXPosition, thumbYPosition, thumbWidth, thumbHeight);
+}
+
+juce::Rectangle<float> HorizontalRangeSlider::getUpperThumbRectangle() const
+{
+    juce::Rectangle<float> bounds = getLocalBounds().toFloat();
+    juce::Rectangle<float> rangeRectangle = getRangeRectangle();
+
+    float lowerThumbNormalXPosition = rangeRectangle.getX() + thumbSideInset;
+    float normalThumbXPosition = rangeRectangle.getRight() - thumbSideInset - thumbWidth;
+    float upperThumbXPosition = normalThumbXPosition;
+    float availableSpacing = normalThumbXPosition - lowerThumbNormalXPosition;
+
+    if (availableSpacing < visualMinimumThumbSpacing)
+    {
+        float rangeCentreXPosition = rangeRectangle.getCentreX();
+        float halfVisualSpacing = (visualMinimumThumbSpacing + thumbWidth) * 0.5f;
+
+        upperThumbXPosition = rangeCentreXPosition + halfVisualSpacing - thumbWidth;
+        upperThumbXPosition = juce::jlimit(bounds.getX(), bounds.getRight() - thumbWidth, upperThumbXPosition);
+    }
+
+    float thumbYPosition = rangeRectangle.getCentreY() - (thumbHeight * 0.5f);
+
+    return juce::Rectangle<float>(upperThumbXPosition, thumbYPosition, thumbWidth, thumbHeight);
+}
+
+juce::Rectangle<float> HorizontalRangeSlider::getActiveThumbRectangle() const
+{
+    if (draggingThumb == Lower)
+    {
+        return getLowerThumbRectangle();
+    }
+
+    if (draggingThumb == Upper)
+    {
+        return getUpperThumbRectangle();
+    }
+
+    if (hoveredThumb == HoverLower)
+    {
+        return getLowerThumbRectangle();
+    }
+
+    if (hoveredThumb == HoverUpper)
+    {
+        return getUpperThumbRectangle();
+    }
+
+    return {};
+}
+
+HorizontalRangeSlider::HoveredThumb HorizontalRangeSlider::getHoveredThumbAtPosition(juce::Point<int> mousePosition) const
+{
+    juce::Rectangle<float> lowerThumbRectangle = getLowerThumbRectangle().expanded(6.0f, 6.0f);
+    juce::Rectangle<float> upperThumbRectangle = getUpperThumbRectangle().expanded(6.0f, 6.0f);
+
+    if (lowerThumbRectangle.contains(mousePosition.toFloat()))
+    {
+        return HoverLower;
+    }
+
+    if (upperThumbRectangle.contains(mousePosition.toFloat()))
+    {
+        return HoverUpper;
+    }
+
+    return HoverNone;
+}
+
+float HorizontalRangeSlider::snapValueToStep(float value) const
+{
+    if (!steppingEnabled || stepSize <= 0.0f)
+    {
+        return value;
+    }
+
+    float stepsFromMinimum = std::round((value - minValue) / stepSize);
+    float snappedValue = minValue + (stepsFromMinimum * stepSize);
+
+    return juce::jlimit(minValue, maxValue, snappedValue);
+}
+
+void HorizontalRangeSlider::mouseDown(const juce::MouseEvent& mouseEvent)
+{
+    hoveredThumb = getHoveredThumbAtPosition(mouseEvent.getPosition());
+
+    if (hoveredThumb == HoverLower)
+    {
+        draggingThumb = Lower;
+    }
+    else if (hoveredThumb == HoverUpper)
+    {
+        draggingThumb = Upper;
     }
     else
     {
-        dragging = None;
+        draggingThumb = None;
     }
+
+    dragStartMouseX = mouseEvent.getPosition().getX();
+    dragStartLowerValue = lowerValue;
+    dragStartUpperValue = upperValue;
+
+    repaint();
+    notifyTooltipStateChanged();
 }
 
-void HorizontalRangeSlider::mouseDrag(const juce::MouseEvent& MouseEvent)
+void HorizontalRangeSlider::mouseDrag(const juce::MouseEvent& mouseEvent)
 {
-    int mouseX = MouseEvent.getPosition().getX();
-    float value = xToValue(mouseX);
+    float mouseDeltaX = static_cast<float>(mouseEvent.getPosition().getX() - dragStartMouseX);
+    float valueDelta = deltaXToValueDelta(mouseDeltaX);
 
-    if (dragging == Lower)
-        setLowerValue(value);
-    else if (dragging == Upper)
-        setUpperValue(value);
-}
-
-void HorizontalRangeSlider::mouseMove(const juce::MouseEvent& MouseEvent)
-{
-    int mouseX = MouseEvent.getPosition().getX();
-    int lowerX = valueToX(lowerValue);
-    int upperX = valueToX(upperValue);
-
-    int tolerance = 20;
-
-    if (std::abs(mouseX - lowerX) < tolerance || std::abs(mouseX - upperX) < tolerance)
+    if (draggingThumb == Lower)
     {
-        setMouseCursor(juce::MouseCursor::PointingHandCursor);
+        setLowerValue(dragStartLowerValue + valueDelta);
     }
-    else
+    else if (draggingThumb == Upper)
+    {
+        setUpperValue(dragStartUpperValue + valueDelta);
+    }
+
+    notifyTooltipStateChanged();
+}
+
+void HorizontalRangeSlider::mouseMove(const juce::MouseEvent& mouseEvent)
+{
+    HoveredThumb newHoveredThumb = getHoveredThumbAtPosition(mouseEvent.getPosition());
+
+    if (hoveredThumb != newHoveredThumb)
+    {
+        hoveredThumb = newHoveredThumb;
+        repaint();
+        notifyTooltipStateChanged();
+    }
+
+    if (hoveredThumb == HoverNone)
     {
         setMouseCursor(juce::MouseCursor::NormalCursor);
+    }
+    else
+    {
+        setMouseCursor(juce::MouseCursor::LeftRightResizeCursor);
+    }
+}
+
+void HorizontalRangeSlider::mouseExit(const juce::MouseEvent& mouseEvent)
+{
+    juce::ignoreUnused(mouseEvent);
+
+    hoveredThumb = HoverNone;
+    setMouseCursor(juce::MouseCursor::NormalCursor);
+    repaint();
+    notifyTooltipStateChanged();
+}
+
+void HorizontalRangeSlider::mouseUp(const juce::MouseEvent& mouseEvent)
+{
+    juce::ignoreUnused(mouseEvent);
+
+    draggingThumb = None;
+    repaint();
+    notifyTooltipStateChanged();
+}
+
+void HorizontalRangeSlider::notifyTooltipStateChanged()
+{
+    if (OnTooltipStateChanged)
+    {
+        OnTooltipStateChanged();
+    }
+}
+
+HorizontalRangeSliderAttachment::HorizontalRangeSliderAttachment(
+    juce::AudioProcessorValueTreeState& parameterValueTreeState,
+    const juce::String& lowerParameterID,
+    const juce::String& upperParameterID,
+    HorizontalRangeSlider& rangeSliderToControl)
+    : valueTreeState(parameterValueTreeState),
+      lowerID(lowerParameterID),
+      upperID(upperParameterID),
+      rangeSlider(rangeSliderToControl)
+{
+    valueTreeState.addParameterListener(lowerID, this);
+    valueTreeState.addParameterListener(upperID, this);
+
+    updateSliderFromParameters();
+
+    rangeSlider.OnLowerValueChanged = [this](float newValue)
+    {
+        if (!updatingParameter)
+        {
+            updatingSlider = true;
+
+            if (auto* parameter = valueTreeState.getParameter(lowerID))
+            {
+                parameter->beginChangeGesture();
+                parameter->setValueNotifyingHost(parameter->convertTo0to1(newValue));
+                parameter->endChangeGesture();
+            }
+
+            updatingSlider = false;
+        }
+    };
+
+    rangeSlider.OnUpperValueChanged = [this](float newValue)
+    {
+        if (!updatingParameter)
+        {
+            updatingSlider = true;
+
+            if (auto* parameter = valueTreeState.getParameter(upperID))
+            {
+                parameter->beginChangeGesture();
+                parameter->setValueNotifyingHost(parameter->convertTo0to1(newValue));
+                parameter->endChangeGesture();
+            }
+
+            updatingSlider = false;
+        }
+    };
+}
+
+HorizontalRangeSliderAttachment::~HorizontalRangeSliderAttachment()
+{
+    valueTreeState.removeParameterListener(lowerID, this);
+    valueTreeState.removeParameterListener(upperID, this);
+}
+
+void HorizontalRangeSliderAttachment::parameterChanged(const juce::String& parameterID, float newValue)
+{
+    juce::ignoreUnused(parameterID, newValue);
+
+    if (!updatingSlider)
+    {
+        updatingParameter = true;
+        juce::MessageManager::callAsync([this]()
+        {
+            updateSliderFromParameters();
+            updatingParameter = false;
+        });
+    }
+}
+
+void HorizontalRangeSliderAttachment::updateSliderFromParameters()
+{
+    if (auto* lowerParameter = valueTreeState.getParameter(lowerID))
+    {
+        float lowerParameterValue = lowerParameter->convertFrom0to1(lowerParameter->getValue());
+        rangeSlider.setLowerValue(lowerParameterValue);
+    }
+
+    if (auto* upperParameter = valueTreeState.getParameter(upperID))
+    {
+        float upperParameterValue = upperParameter->convertFrom0to1(upperParameter->getValue());
+        rangeSlider.setUpperValue(upperParameterValue);
     }
 }

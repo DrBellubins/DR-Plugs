@@ -38,7 +38,7 @@ public:
     void CreateCheckboxLabel(
         juce::Component& parentComponent,
         std::unique_ptr<juce::Label>& label,
-        RoundedToggle& toggle,
+        ThemedCheckbox& checkbox,
         const juce::String& text,
         float fontSize,
         int offsetX);

@@ -165,7 +165,6 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
 
     // ------ TABBED PAGE BOX ------
-
     bottomTabbedPageBox = std::make_unique<TabbedPageBox>();
     addAndMakeVisible(*bottomTabbedPageBox);
     bottomTabbedPageBox->setBounds(25, 430, 830, 140);
@@ -180,12 +179,22 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     bottomTabbedPageBox->AddTab("Tape", tapePage.get());
     bottomTabbedPageBox->AddTab("Granular", granularPage.get());
 
+    // Pitch shifting
     uiHelpers.CreateCheckbox(*pitchPage, pitchShiftToggle,
         pitchShiftToggleAttachment,
         "pitchShiftEnabled",
         20, 20, 30, 30);
 
-    uiHelpers.CreateCheckboxLabel(*pitchPage, pitchShiftTitle, *pitchShiftToggle, "", 14.0f, -40);
+    uiHelpers.CreateCheckboxLabel(*pitchPage, pitchShiftTitle, *pitchShiftToggle,
+        "Enabled", 14.0f, -40);
+
+    horizontalPitchRangeSlider = std::make_unique<HorizontalRangeSlider>(-48.0f, 48.0f);
+    horizontalPitchRangeSlider->setMinimumRange(12.0f);
+    horizontalPitchRangeSlider->setSteppingEnabled(true);
+    horizontalPitchRangeSlider->setStepSize(12.0f);
+
+    pitchPage->addAndMakeVisible(*horizontalPitchRangeSlider);
+    horizontalPitchRangeSlider->setBounds(40, 70, 220, 36);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
