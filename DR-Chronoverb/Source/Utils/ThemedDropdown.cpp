@@ -1,57 +1,49 @@
 #include "ThemedDropdown.h"
 
-ThemedDropdown::ThemedDropdown()
-{
-    setEditableText(false);
-    setJustificationType(textJustification);
-    setMouseCursor(juce::MouseCursor::PointingHandCursor);
-
-    setColour(juce::ComboBox::backgroundColourId, AccentGray);
-    setColour(juce::ComboBox::outlineColourId, UnfocusedGray.brighter(0.1f));
-    setColour(juce::ComboBox::textColourId, juce::Colours::white);
-    setColour(juce::ComboBox::arrowColourId, ThemePink);
-}
-
-ThemedDropdown::~ThemedDropdown()
+ThemedDropdown::DropdownLookAndFeel::DropdownLookAndFeel(ThemedDropdown& ownerDropdown)
+    : owner(ownerDropdown)
 {
 }
 
-void ThemedDropdown::paint(juce::Graphics& GraphicsContext)
+void ThemedDropdown::DropdownLookAndFeel::drawComboBox(
+    juce::Graphics& GraphicsContext,
+    int width,
+    int height,
+    bool isButtonDown,
+    int buttonX,
+    int buttonY,
+    int buttonW,
+    int buttonH,
+    juce::ComboBox& comboBox)
 {
-    juce::Rectangle<int> localBounds = getLocalBounds();
-    juce::Rectangle<int> textBounds = localBounds.reduced(10, 0);
-    juce::Rectangle<int> arrowAreaBounds = localBounds.removeFromRight(24);
-    textBounds.removeFromRight(24);
+    juce::ignoreUnused(isButtonDown, buttonX, buttonY, buttonW, buttonH);
 
-    const juce::Colour adjustedAccentGray = ThemeContext::GetAdjustedColour(AccentGray, *this);
-    const juce::Colour adjustedUnfocusedGray = ThemeContext::GetAdjustedColour(UnfocusedGray, *this);
-    const juce::Colour adjustedFocusedGray = ThemeContext::GetAdjustedColour(FocusedGray, *this);
+    juce::Rectangle<int> localBounds(0, 0, width, height);
+
+    const juce::Colour adjustedAccentGray =
+        ThemeContext::GetAdjustedColour(AccentGray, comboBox);
+
+    const juce::Colour adjustedUnfocusedGray =
+        ThemeContext::GetAdjustedColour(UnfocusedGray, comboBox);
+
+    const juce::Colour adjustedFocusedGray =
+        ThemeContext::GetAdjustedColour(FocusedGray, comboBox);
 
     GraphicsContext.setColour(adjustedAccentGray);
-    GraphicsContext.fillRoundedRectangle(getLocalBounds().toFloat(), cornerRadius);
+    GraphicsContext.fillRoundedRectangle(localBounds.toFloat(), owner.cornerRadius);
 
     GraphicsContext.setColour(
-        hasKeyboardFocus(true)
+        comboBox.hasKeyboardFocus(true)
             ? adjustedFocusedGray
             : adjustedUnfocusedGray.brighter(0.1f));
 
     GraphicsContext.drawRoundedRectangle(
-        getLocalBounds().toFloat().reduced(outlineThickness * 0.5f),
-        cornerRadius,
-        outlineThickness
+        localBounds.toFloat().reduced(owner.outlineThickness * 0.5f),
+        owner.cornerRadius,
+        owner.outlineThickness
     );
 
-    const juce::String displayedText = getText().isEmpty() ? "Select..." : getText();
-
-    GraphicsContext.setColour(juce::Colours::white);
-    GraphicsContext.setFont(juce::Font("Liberation Sans", 14.0f, juce::Font::bold));
-    GraphicsContext.drawFittedText(
-        displayedText,
-        textBounds,
-        textJustification,
-        1
-    );
-
+    juce::Rectangle<int> arrowAreaBounds = localBounds.removeFromRight(24);
     const juce::Rectangle<float> arrowBounds = arrowAreaBounds.toFloat();
 
     juce::Path arrowPath;
@@ -68,21 +60,57 @@ void ThemedDropdown::paint(juce::Graphics& GraphicsContext)
     GraphicsContext.strokePath(arrowPath, juce::PathStrokeType(2.0f));
 }
 
+juce::Font ThemedDropdown::DropdownLookAndFeel::getComboBoxFont(juce::ComboBox& comboBox)
+{
+    juce::ignoreUnused(comboBox);
+    return juce::Font("Liberation Sans", 14.0f, juce::Font::bold);
+}
+
+juce::Label* ThemedDropdown::DropdownLookAndFeel::createComboBoxTextBox(juce::ComboBox& comboBox)
+{
+    juce::Label* comboLabel = juce::LookAndFeel_V4::createComboBoxTextBox(comboBox);
+
+    comboLabel->setFont(getComboBoxFont(comboBox));
+    comboLabel->setJustificationType(owner.textJustification);
+    comboLabel->setColour(juce::Label::textColourId, juce::Colours::white);
+    comboLabel->setColour(juce::Label::backgroundColourId, juce::Colours::transparentBlack);
+    comboLabel->setColour(juce::Label::outlineColourId, juce::Colours::transparentBlack);
+    comboLabel->setInterceptsMouseClicks(false, false);
+
+    return comboLabel;
+}
+
+void ThemedDropdown::DropdownLookAndFeel::positionComboBoxText(
+    juce::ComboBox& comboBox,
+    juce::Label& label)
+{
+    juce::Rectangle<int> textBounds = comboBox.getLocalBounds().reduced(10, 0);
+    textBounds.removeFromRight(24);
+
+    label.setBounds(textBounds);
+    label.setFont(getComboBoxFont(comboBox));
+    label.setJustificationType(owner.textJustification);
+}
+
+ThemedDropdown::ThemedDropdown()
+    : dropdownLookAndFeel(*this)
+{
+    setEditableText(false);
+    setJustificationType(textJustification);
+    setMouseCursor(juce::MouseCursor::PointingHandCursor);
+    setLookAndFeel(&dropdownLookAndFeel);
+
+    UpdateColours();
+}
+
+ThemedDropdown::~ThemedDropdown()
+{
+    setLookAndFeel(nullptr);
+}
+
 void ThemedDropdown::resized()
 {
     juce::ComboBox::resized();
-}
-
-void ThemedDropdown::mouseDown(const juce::MouseEvent& MouseEvent)
-{
-    juce::ignoreUnused(MouseEvent);
-
-    if (!isEnabled())
-    {
-        return;
-    }
-
-    showPopup();
 }
 
 void ThemedDropdown::SetJustification(juce::Justification justificationType)
@@ -102,6 +130,19 @@ void ThemedDropdown::SetOutlineThickness(float newOutlineThickness)
 {
     outlineThickness = juce::jmax(0.0f, newOutlineThickness);
     repaint();
+}
+
+void ThemedDropdown::UpdateColours()
+{
+    setColour(juce::ComboBox::backgroundColourId, AccentGray);
+    setColour(juce::ComboBox::outlineColourId, UnfocusedGray.brighter(0.1f));
+    setColour(juce::ComboBox::textColourId, juce::Colours::white);
+    setColour(juce::ComboBox::arrowColourId, ThemePink);
+
+    setColour(juce::PopupMenu::backgroundColourId, AccentGray);
+    setColour(juce::PopupMenu::textColourId, juce::Colours::white);
+    setColour(juce::PopupMenu::highlightedBackgroundColourId, ThemePink);
+    setColour(juce::PopupMenu::highlightedTextColourId, juce::Colours::white);
 }
 
 ThemedDropdown::Attachment::Attachment(

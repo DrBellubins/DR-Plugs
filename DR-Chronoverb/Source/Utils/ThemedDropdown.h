@@ -14,9 +14,7 @@ public:
     ThemedDropdown();
     ~ThemedDropdown() override;
 
-    void paint(juce::Graphics& GraphicsContext) override;
     void resized() override;
-    void mouseDown(const juce::MouseEvent& MouseEvent) override;
 
     void SetJustification(juce::Justification justificationType);
     void SetCornerRadius(float newCornerRadius);
@@ -50,9 +48,41 @@ public:
     };
 
 private:
+    class DropdownLookAndFeel : public juce::LookAndFeel_V4
+    {
+    public:
+        DropdownLookAndFeel(ThemedDropdown& ownerDropdown);
+
+        void drawComboBox(
+            juce::Graphics& GraphicsContext,
+            int width,
+            int height,
+            bool isButtonDown,
+            int buttonX,
+            int buttonY,
+            int buttonW,
+            int buttonH,
+            juce::ComboBox& comboBox) override;
+
+        juce::Font getComboBoxFont(juce::ComboBox& comboBox) override;
+
+        juce::Label* createComboBoxTextBox(juce::ComboBox& comboBox) override;
+
+        void positionComboBoxText(
+            juce::ComboBox& comboBox,
+            juce::Label& label) override;
+
+    private:
+        ThemedDropdown& owner;
+    };
+
+    void UpdateColours();
+
     juce::Justification textJustification = juce::Justification::centredLeft;
     float cornerRadius = 8.0f;
     float outlineThickness = 1.0f;
+
+    DropdownLookAndFeel dropdownLookAndFeel;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ThemedDropdown)
 };
