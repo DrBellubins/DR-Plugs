@@ -16,7 +16,7 @@ ThemedDropdown::~ThemedDropdown()
 
 void ThemedDropdown::paint(juce::Graphics& GraphicsContext)
 {
-    const juce::Rectangle<int> localBounds = getLocalBounds();
+    juce::Rectangle<int> localBounds = getLocalBounds();
 
     const juce::Colour adjustedAccentGray = ThemeContext::GetAdjustedColour(AccentGray, *this);
     const juce::Colour adjustedUnfocusedGray = ThemeContext::GetAdjustedColour(UnfocusedGray, *this);

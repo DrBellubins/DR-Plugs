@@ -9,6 +9,7 @@
 #include "Utils/Theme.h"
 #include "Utils/TabbedPageBox.h"
 #include "Utils/TooltipOverlay.h"
+#include "Utils/ThemedDropdown.h"
 
 #include "Utils/HorizontalRangeSlider.h"
 
@@ -137,6 +138,10 @@ private:
     std::unique_ptr<HorizontalRangeSlider> horizontalPitchRangeSlider;
     std::unique_ptr<HorizontalRangeSliderAttachment> horizontalPitchRangeAttachment;
     std::unique_ptr<TooltipOverlay> horizontalPitchRangeTooltipOverlay;
+
+    std::unique_ptr<ThemedDropdown> pitchShiftModeDropdown;
+    std::unique_ptr<ThemedDropdown::Attachment> pitchShiftModeAttachment;
+    std::unique_ptr<juce::Label> pitchShiftModeLabel;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };

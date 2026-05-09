@@ -2,9 +2,7 @@
 
 #include "Theme.h"
 #include "ThemeContext.h"
-#include "juce_audio_processors/utilities/juce_AudioProcessorValueTreeState.h"
-#include "juce_audio_processors/utilities/juce_RangedAudioParameter.h"
-#include "juce_audio_processors/utilities/juce_AudioParameterChoice.h"
+#include <juce_audio_processors/juce_audio_processors.h>
 
 class ThemedDropdown : public juce::ComboBox
 {

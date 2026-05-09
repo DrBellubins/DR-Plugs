@@ -38,6 +38,7 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     parameters.addParameterListener("pitchShiftEnabled", this);
     parameters.addParameterListener("pitchShiftRangeLower", this);
     parameters.addParameterListener("pitchShiftRangeUpper", this);
+    parameters.addParameterListener("pitchShiftMode", this);
 
     // Set delay initial values
     float delayTime = parameters.getRawParameterValue("delayTime")->load();
@@ -190,6 +191,20 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
         juce::NormalisableRange<float>(-48.0f, 48.0f, 12.0f),
         12.0f));
 
+    parameterList.push_back(
+    std::make_unique<juce::AudioParameterChoice>(
+        "pitchShiftMode",
+        "Pitch Shift Mode",
+        juce::StringArray
+        {
+            "Up",
+            "Down",
+            "Random"
+        },
+        0
+    )
+);
+
     return { parameterList.begin(), parameterList.end() };
 }
 
@@ -331,6 +346,26 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
     if (parameterID == "pitchShiftEnabled") DelayReverb.SetPitchShiftEnabled(newValue);
     if (parameterID == "pitchShiftRangeLower") DelayReverb.SetPitchShiftRangeLower(newValue);
     if (parameterID == "pitchShiftRangeUpper") DelayReverb.SetPitchShiftRangeUpper(newValue);
+
+    if (parameterID == "pitchShiftMode")
+    {
+        auto* pitchShiftModeParameter =
+            dynamic_cast<juce::AudioParameterChoice*>(parameters.getParameter("pitchShiftMode"));
+
+        if (pitchShiftModeParameter != nullptr)
+        {
+            const int selectedModeIndex = pitchShiftModeParameter->getIndex();
+
+            juce::ignoreUnused(selectedModeIndex);
+
+            // TODO:
+            // 0 = Up
+            // 1 = Down
+            // 2 = Random
+            //
+            // Later, send this into DelayReverb / pitch sequence logic.
+        }
+    }
 
     #if DEBUG
     //DBG("Changed: " << parameterID << " to " << newValue);
