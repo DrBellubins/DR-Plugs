@@ -5,7 +5,7 @@
 
 # Gather all .cpp and .h files in Utils
 file(GLOB UTILS_SOURCES "Utils/*.cpp" "Utils/*.h")
-file(GLOB FILTERS_SOURCES "Filters/*.cpp" "Utils/*.h")
+file(GLOB FILTERS_SOURCES "Filters/*.cpp" "Filters/*.h")
 
 target_sources("${PROJECT_NAME}"
     PRIVATE

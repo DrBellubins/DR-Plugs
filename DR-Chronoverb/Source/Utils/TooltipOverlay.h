@@ -1,124 +1,121 @@
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
-#include "VerticalRangeSlider.h"
 #include "Theme.h"
+
+class TooltipClient
+{
+public:
+    enum class Placement
+    {
+        Above,
+        Below,
+        Left,
+        Right
+    };
+
+    virtual ~TooltipClient() = default;
+
+    virtual bool ShouldShowTooltip() const = 0;
+
+    virtual juce::Rectangle<float> GetTooltipTargetBoundsInComponent(
+        const juce::Component& TargetComponent) const = 0;
+
+    virtual juce::String GetTooltipText() const = 0;
+
+    virtual Placement GetTooltipPlacement() const
+    {
+        return Placement::Above;
+    }
+};
 
 class TooltipOverlay : public juce::Component,
                        private juce::Timer
 {
 public:
-    explicit TooltipOverlay(VerticalRangeSlider& verticalRangeSlider)
-        : trackedSlider(verticalRangeSlider)
+    explicit TooltipOverlay(TooltipClient& TooltipClientReference)
+        : trackedTooltipClient(TooltipClientReference)
     {
         setInterceptsMouseClicks(false, false);
         setAlwaysOnTop(true);
         startTimerHz(60);
     }
 
-    void paint(juce::Graphics& graphics) override
+    ~TooltipOverlay() override = default;
+
+    void paint(juce::Graphics& GraphicsContext) override
     {
         if (currentAlpha <= 0.001f)
         {
             return;
         }
 
-        if (cachedThumbBounds.isEmpty() || cachedTooltipText.isEmpty() || cachedActiveThumb == VerticalRangeSlider::NoThumb)
+        if (cachedTargetBounds.isEmpty() || cachedTooltipText.isEmpty())
         {
             return;
         }
 
         constexpr float tooltipHeight = 24.0f;
         constexpr float tooltipHorizontalPadding = 8.0f;
-        constexpr float tooltipVerticalGap = 10.0f;
+        constexpr float tooltipGap = 10.0f;
         constexpr float tooltipCornerRadius = 6.0f;
 
         juce::Font tooltipFont(14.0f);
-        graphics.setFont(tooltipFont);
+        GraphicsContext.setFont(tooltipFont);
 
-        float tooltipWidth = static_cast<float>(tooltipFont.getStringWidth(cachedTooltipText))
-                             + (tooltipHorizontalPadding * 2.0f);
+        const float tooltipWidth =
+            static_cast<float>(tooltipFont.getStringWidth(cachedTooltipText))
+            + (tooltipHorizontalPadding * 2.0f);
 
-        float tooltipXPosition = cachedThumbBounds.getCentreX() - (tooltipWidth * 0.5f);
-        float tooltipYPosition = 0.0f;
-
-        if (cachedActiveThumb == VerticalRangeSlider::UpperThumb)
-        {
-            tooltipYPosition = cachedThumbBounds.getY() - tooltipVerticalGap - tooltipHeight;
-        }
-        else
-        {
-            tooltipYPosition = cachedThumbBounds.getBottom() + tooltipVerticalGap;
-        }
-
-        juce::Rectangle<float> tooltipBounds(
-            tooltipXPosition,
-            tooltipYPosition,
+        juce::Rectangle<float> tooltipBounds = CalculateTooltipBounds(
             tooltipWidth,
-            tooltipHeight
-        );
+            tooltipHeight,
+            tooltipGap);
 
-        juce::Rectangle<float> overlayBounds = getLocalBounds().toFloat();
+        const juce::Rectangle<float> overlayBounds = getLocalBounds().toFloat();
+        ClampTooltipBoundsToOverlay(tooltipBounds, overlayBounds);
 
-        if (tooltipBounds.getX() < overlayBounds.getX())
-        {
-            tooltipBounds.setX(overlayBounds.getX());
-        }
+        const juce::Colour backgroundColour = AccentGray.darker(0.25f).withAlpha(currentAlpha);
+        const juce::Colour textColour = juce::Colours::white.withAlpha(currentAlpha);
 
-        if (tooltipBounds.getRight() > overlayBounds.getRight())
-        {
-            tooltipBounds.setX(overlayBounds.getRight() - tooltipWidth);
-        }
+        GraphicsContext.setColour(backgroundColour);
+        GraphicsContext.fillRoundedRectangle(tooltipBounds, tooltipCornerRadius);
 
-        if (tooltipBounds.getY() < overlayBounds.getY())
-        {
-            tooltipBounds.setY(overlayBounds.getY());
-        }
-
-        if (tooltipBounds.getBottom() > overlayBounds.getBottom())
-        {
-            tooltipBounds.setY(overlayBounds.getBottom() - tooltipHeight);
-        }
-
-        juce::Colour backgroundColour = AccentGray.darker(0.25f).withAlpha(currentAlpha);
-        juce::Colour textColour = juce::Colours::white.withAlpha(currentAlpha);
-
-        graphics.setColour(backgroundColour);
-        graphics.fillRoundedRectangle(tooltipBounds, tooltipCornerRadius);
-
-        graphics.setColour(textColour);
-        graphics.drawFittedText(
+        GraphicsContext.setColour(textColour);
+        GraphicsContext.drawFittedText(
             cachedTooltipText,
             tooltipBounds.getSmallestIntegerContainer(),
             juce::Justification::centred,
-            1
-        );
+            1);
     }
 
 private:
     void timerCallback() override
     {
-        bool shouldShowTooltip = trackedSlider.shouldShowTooltip();
+        const bool shouldShowTooltip = trackedTooltipClient.ShouldShowTooltip();
 
         if (shouldShowTooltip)
         {
-            juce::Rectangle<float> latestThumbBounds = trackedSlider.getActiveThumbBoundsInComponent(*this);
-            juce::String latestTooltipText = trackedSlider.getActiveThumbTooltipText();
-            VerticalRangeSlider::ActiveThumb latestActiveThumb = trackedSlider.getActiveThumb();
+            const juce::Rectangle<float> latestTargetBounds =
+                trackedTooltipClient.GetTooltipTargetBoundsInComponent(*this);
 
-            if (!latestThumbBounds.isEmpty()
-                && !latestTooltipText.isEmpty()
-                && latestActiveThumb != VerticalRangeSlider::NoThumb)
+            const juce::String latestTooltipText =
+                trackedTooltipClient.GetTooltipText();
+
+            const TooltipClient::Placement latestPlacement =
+                trackedTooltipClient.GetTooltipPlacement();
+
+            if (!latestTargetBounds.isEmpty() && !latestTooltipText.isEmpty())
             {
-                cachedThumbBounds = latestThumbBounds;
+                cachedTargetBounds = latestTargetBounds;
                 cachedTooltipText = latestTooltipText;
-                cachedActiveThumb = latestActiveThumb;
+                cachedPlacement = latestPlacement;
             }
         }
 
-        float targetAlpha = shouldShowTooltip ? 1.0f : 0.0f;
-        float fadeInSpeed = 0.07f;
-        float fadeOutSpeed = 0.045f;
+        const float targetAlpha = shouldShowTooltip ? 1.0f : 0.0f;
+        const float fadeInSpeed = 0.07f;
+        const float fadeOutSpeed = 0.045f;
 
         if (currentAlpha < targetAlpha)
         {
@@ -132,19 +129,106 @@ private:
 
             if (currentAlpha <= 0.001f)
             {
-                cachedThumbBounds = {};
+                cachedTargetBounds = {};
                 cachedTooltipText.clear();
-                cachedActiveThumb = VerticalRangeSlider::NoThumb;
+                cachedPlacement = TooltipClient::Placement::Above;
             }
         }
     }
 
-    VerticalRangeSlider& trackedSlider;
+    juce::Rectangle<float> CalculateTooltipBounds(
+        float TooltipWidth,
+        float TooltipHeight,
+        float TooltipGap) const
+    {
+        float tooltipXPosition = 0.0f;
+        float tooltipYPosition = 0.0f;
+
+        switch (cachedPlacement)
+        {
+            case TooltipClient::Placement::Above:
+            {
+                tooltipXPosition = cachedTargetBounds.getCentreX() - (TooltipWidth * 0.5f);
+                tooltipYPosition = cachedTargetBounds.getY() - TooltipGap - TooltipHeight;
+                break;
+            }
+
+            case TooltipClient::Placement::Below:
+            {
+                tooltipXPosition = cachedTargetBounds.getCentreX() - (TooltipWidth * 0.5f);
+                tooltipYPosition = cachedTargetBounds.getBottom() + TooltipGap;
+                break;
+            }
+
+            case TooltipClient::Placement::Left:
+            {
+                tooltipXPosition = cachedTargetBounds.getX() - TooltipGap - TooltipWidth;
+                tooltipYPosition = cachedTargetBounds.getCentreY() - (TooltipHeight * 0.5f);
+                break;
+            }
+
+            case TooltipClient::Placement::Right:
+            {
+                tooltipXPosition = cachedTargetBounds.getRight() + TooltipGap;
+                tooltipYPosition = cachedTargetBounds.getCentreY() - (TooltipHeight * 0.5f);
+                break;
+            }
+        }
+
+        return juce::Rectangle<float>(
+            tooltipXPosition,
+            tooltipYPosition,
+            TooltipWidth,
+            TooltipHeight);
+    }
+
+    void ClampTooltipBoundsToOverlay(
+        juce::Rectangle<float>& TooltipBounds,
+        const juce::Rectangle<float>& OverlayBounds) const
+    {
+        if (TooltipBounds.getWidth() > OverlayBounds.getWidth())
+        {
+            TooltipBounds.setWidth(OverlayBounds.getWidth());
+            TooltipBounds.setX(OverlayBounds.getX());
+        }
+        else
+        {
+            if (TooltipBounds.getX() < OverlayBounds.getX())
+            {
+                TooltipBounds.setX(OverlayBounds.getX());
+            }
+
+            if (TooltipBounds.getRight() > OverlayBounds.getRight())
+            {
+                TooltipBounds.setX(OverlayBounds.getRight() - TooltipBounds.getWidth());
+            }
+        }
+
+        if (TooltipBounds.getHeight() > OverlayBounds.getHeight())
+        {
+            TooltipBounds.setHeight(OverlayBounds.getHeight());
+            TooltipBounds.setY(OverlayBounds.getY());
+        }
+        else
+        {
+            if (TooltipBounds.getY() < OverlayBounds.getY())
+            {
+                TooltipBounds.setY(OverlayBounds.getY());
+            }
+
+            if (TooltipBounds.getBottom() > OverlayBounds.getBottom())
+            {
+                TooltipBounds.setY(OverlayBounds.getBottom() - TooltipBounds.getHeight());
+            }
+        }
+    }
+
+    TooltipClient& trackedTooltipClient;
 
     float currentAlpha = 0.0f;
-    juce::Rectangle<float> cachedThumbBounds;
+    juce::Rectangle<float> cachedTargetBounds;
     juce::String cachedTooltipText;
-    VerticalRangeSlider::ActiveThumb cachedActiveThumb = VerticalRangeSlider::NoThumb;
+    TooltipClient::Placement cachedPlacement = TooltipClient::Placement::Above;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TooltipOverlay)
 };
