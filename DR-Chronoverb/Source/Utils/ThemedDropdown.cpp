@@ -4,6 +4,8 @@ ThemedDropdown::ThemedDropdown()
 {
     setEditableText(false);
     setJustificationType(textJustification);
+    setMouseCursor(juce::MouseCursor::PointingHandCursor);
+
     setColour(juce::ComboBox::backgroundColourId, AccentGray);
     setColour(juce::ComboBox::outlineColourId, UnfocusedGray.brighter(0.1f));
     setColour(juce::ComboBox::textColourId, juce::Colours::white);
@@ -17,35 +19,40 @@ ThemedDropdown::~ThemedDropdown()
 void ThemedDropdown::paint(juce::Graphics& GraphicsContext)
 {
     juce::Rectangle<int> localBounds = getLocalBounds();
+    juce::Rectangle<int> textBounds = localBounds.reduced(10, 0);
+    juce::Rectangle<int> arrowAreaBounds = localBounds.removeFromRight(24);
+    textBounds.removeFromRight(24);
 
     const juce::Colour adjustedAccentGray = ThemeContext::GetAdjustedColour(AccentGray, *this);
     const juce::Colour adjustedUnfocusedGray = ThemeContext::GetAdjustedColour(UnfocusedGray, *this);
     const juce::Colour adjustedFocusedGray = ThemeContext::GetAdjustedColour(FocusedGray, *this);
 
     GraphicsContext.setColour(adjustedAccentGray);
-    GraphicsContext.fillRoundedRectangle(localBounds.toFloat(), cornerRadius);
+    GraphicsContext.fillRoundedRectangle(getLocalBounds().toFloat(), cornerRadius);
 
-    GraphicsContext.setColour(hasKeyboardFocus(true) ? adjustedFocusedGray : adjustedUnfocusedGray.brighter(0.1f));
+    GraphicsContext.setColour(
+        hasKeyboardFocus(true)
+            ? adjustedFocusedGray
+            : adjustedUnfocusedGray.brighter(0.1f));
+
     GraphicsContext.drawRoundedRectangle(
-        localBounds.toFloat().reduced(outlineThickness * 0.5f),
+        getLocalBounds().toFloat().reduced(outlineThickness * 0.5f),
         cornerRadius,
         outlineThickness
     );
 
-    juce::Rectangle<int> textBounds = localBounds.reduced(10, 0);
-    textBounds.removeFromRight(24);
+    const juce::String displayedText = getText().isEmpty() ? "Select..." : getText();
 
     GraphicsContext.setColour(juce::Colours::white);
     GraphicsContext.setFont(juce::Font("Liberation Sans", 14.0f, juce::Font::bold));
     GraphicsContext.drawFittedText(
-        getText(),
+        displayedText,
         textBounds,
         textJustification,
         1
     );
 
-    const int arrowAreaWidth = 24;
-    const juce::Rectangle<float> arrowBounds = localBounds.removeFromRight(arrowAreaWidth).toFloat();
+    const juce::Rectangle<float> arrowBounds = arrowAreaBounds.toFloat();
 
     juce::Path arrowPath;
     const float centreX = arrowBounds.getCentreX();
@@ -64,6 +71,18 @@ void ThemedDropdown::paint(juce::Graphics& GraphicsContext)
 void ThemedDropdown::resized()
 {
     juce::ComboBox::resized();
+}
+
+void ThemedDropdown::mouseDown(const juce::MouseEvent& MouseEvent)
+{
+    juce::ignoreUnused(MouseEvent);
+
+    if (!isEnabled())
+    {
+        return;
+    }
+
+    showPopup();
 }
 
 void ThemedDropdown::SetJustification(juce::Justification justificationType)
@@ -95,9 +114,15 @@ ThemedDropdown::Attachment::Attachment(
       dropdown(dropdownToControl)
 {
     parameter = apvts.getParameter(attachedParameterID);
+
     jassert(parameter != nullptr && "ThemedDropdown::Attachment: Parameter ID not found.");
 
-    if (auto* choiceParameter = dynamic_cast<juce::AudioParameterChoice*>(parameter))
+    choiceParameter = dynamic_cast<juce::AudioParameterChoice*>(parameter);
+
+    jassert(choiceParameter != nullptr
+        && "ThemedDropdown::Attachment: Parameter must be an AudioParameterChoice.");
+
+    if (choiceParameter != nullptr)
     {
         dropdown.clear(juce::dontSendNotification);
 
@@ -122,7 +147,9 @@ ThemedDropdown::Attachment::~Attachment()
     dropdown.onChange = nullptr;
 }
 
-void ThemedDropdown::Attachment::parameterChanged(const juce::String& changedParameterID, float newValue)
+void ThemedDropdown::Attachment::parameterChanged(
+    const juce::String& changedParameterID,
+    float newValue)
 {
     juce::ignoreUnused(newValue);
 
@@ -139,13 +166,12 @@ void ThemedDropdown::Attachment::parameterChanged(const juce::String& changedPar
 
 void ThemedDropdown::Attachment::SyncParameterToDropdown()
 {
-    if (parameter == nullptr)
+    if (choiceParameter == nullptr)
     {
         return;
     }
 
-    const float rawValue = parameter->convertFrom0to1(parameter->getValue());
-    const int selectedIndex = static_cast<int>(std::round(rawValue));
+    const int selectedIndex = choiceParameter->getIndex();
 
     ignoreCallbacks.store(true);
     dropdown.setSelectedItemIndex(selectedIndex, juce::dontSendNotification);
@@ -159,7 +185,7 @@ void ThemedDropdown::Attachment::SyncDropdownToParameter()
         return;
     }
 
-    if (parameter == nullptr)
+    if (parameter == nullptr || choiceParameter == nullptr)
     {
         return;
     }
@@ -171,10 +197,18 @@ void ThemedDropdown::Attachment::SyncDropdownToParameter()
         return;
     }
 
+    const int numberOfChoices = choiceParameter->choices.size();
+
+    if (numberOfChoices <= 1)
+    {
+        return;
+    }
+
+    const float normalizedValue =
+        static_cast<float>(selectedIndex)
+        / static_cast<float>(numberOfChoices - 1);
+
     parameter->beginChangeGesture();
-
-    const float normalizedValue = parameter->convertTo0to1(static_cast<float>(selectedIndex));
     parameter->setValueNotifyingHost(normalizedValue);
-
     parameter->endChangeGesture();
 }

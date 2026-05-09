@@ -210,22 +210,23 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     horizontalPitchRangeTooltipOverlay->setBounds(pitchPage->getLocalBounds());
     horizontalPitchRangeTooltipOverlay->toFront(false);
 
+    // Pitch shift mode dropdown
+    /*pitchShiftModeLabel = std::make_unique<juce::Label>();
+    pitchShiftModeLabel->setText("Mode", juce::dontSendNotification);
+    pitchShiftModeLabel->setFont(juce::Font("Liberation Sans", 14.0f, juce::Font::bold));
+    pitchShiftModeLabel->setJustificationType(juce::Justification::centredLeft);
+    pitchPage->addAndMakeVisible(*pitchShiftModeLabel);
+    pitchShiftModeLabel->setBounds(200, 92, 160, 20);*/
+
     pitchShiftModeDropdown = std::make_unique<ThemedDropdown>();
     pitchPage->addAndMakeVisible(*pitchShiftModeDropdown);
-    pitchShiftModeDropdown->setBounds(200, 95, 140, 28);
+    pitchShiftModeDropdown->setBounds(200, 0, 180, 32);
 
     pitchShiftModeAttachment = std::make_unique<ThemedDropdown::Attachment>(
         processorRef.parameters,
         "pitchShiftMode",
         *pitchShiftModeDropdown
     );
-
-    pitchShiftModeLabel = std::make_unique<juce::Label>();
-    pitchShiftModeLabel->setText("Mode", juce::dontSendNotification);
-    pitchShiftModeLabel->setFont(juce::Font("Liberation Sans", 14.0f, juce::Font::bold));
-    pitchShiftModeLabel->setJustificationType(juce::Justification::centredLeft);
-    pitchPage->addAndMakeVisible(*pitchShiftModeLabel);
-    pitchShiftModeLabel->setBounds(200, 30, 140, 20);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()

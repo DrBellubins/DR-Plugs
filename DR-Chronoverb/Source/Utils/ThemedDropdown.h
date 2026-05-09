@@ -1,8 +1,12 @@
 #pragma once
 
+#include <atomic>
+
+#include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_gui_basics/juce_gui_basics.h>
+
 #include "Theme.h"
 #include "ThemeContext.h"
-#include <juce_audio_processors/juce_audio_processors.h>
 
 class ThemedDropdown : public juce::ComboBox
 {
@@ -12,6 +16,7 @@ public:
 
     void paint(juce::Graphics& GraphicsContext) override;
     void resized() override;
+    void mouseDown(const juce::MouseEvent& MouseEvent) override;
 
     void SetJustification(juce::Justification justificationType);
     void SetCornerRadius(float newCornerRadius);
@@ -28,7 +33,9 @@ public:
 
         ~Attachment() override;
 
-        void parameterChanged(const juce::String& changedParameterID, float newValue) override;
+        void parameterChanged(
+            const juce::String& changedParameterID,
+            float newValue) override;
 
     private:
         void SyncParameterToDropdown();
@@ -36,7 +43,8 @@ public:
 
         juce::AudioProcessorValueTreeState& apvts;
         juce::String attachedParameterID;
-        juce::RangedAudioParameter* parameter = nullptr;
+        juce::AudioProcessorParameter* parameter = nullptr;
+        juce::AudioParameterChoice* choiceParameter = nullptr;
         ThemedDropdown& dropdown;
         std::atomic<bool> ignoreCallbacks { false };
     };
