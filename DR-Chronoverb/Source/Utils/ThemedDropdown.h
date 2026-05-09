@@ -8,30 +8,17 @@
 #include "Theme.h"
 #include "ThemeContext.h"
 
-class ThemedDropdown : public juce::Component
+class ThemedDropdown : public juce::ComboBox
 {
 public:
     ThemedDropdown();
     ~ThemedDropdown() override;
 
-    void paint(juce::Graphics& GraphicsContext) override;
     void resized() override;
-    void mouseDown(const juce::MouseEvent& MouseEvent) override;
 
     void SetJustification(juce::Justification justificationType);
     void SetCornerRadius(float newCornerRadius);
     void SetOutlineThickness(float newOutlineThickness);
-    void SetItemHeight(int newItemHeight);
-
-    void addItem(const juce::String& itemText, int itemID);
-    void clear(juce::NotificationType notificationType = juce::dontSendNotification);
-
-    int getNumItems() const;
-    int getSelectedItemIndex() const;
-    void setSelectedItemIndex(int newSelectedItemIndex, juce::NotificationType notificationType);
-    juce::String getText() const;
-
-    std::function<void()> onChange;
 
     class Attachment : public juce::AudioProcessorValueTreeState::Listener
     {
@@ -61,46 +48,60 @@ public:
     };
 
 private:
-    struct Item
-    {
-        juce::String text;
-        int itemID = 0;
-    };
-
-    class PopupList : public juce::Component
+    class DropdownLookAndFeel : public juce::LookAndFeel_V4
     {
     public:
-        explicit PopupList(ThemedDropdown& ownerDropdown);
+        DropdownLookAndFeel(ThemedDropdown& ownerDropdown);
 
-        void paint(juce::Graphics& GraphicsContext) override;
-        void mouseMove(const juce::MouseEvent& MouseEvent) override;
-        void mouseExit(const juce::MouseEvent& MouseEvent) override;
-        void mouseDown(const juce::MouseEvent& MouseEvent) override;
+        void drawComboBox(
+            juce::Graphics& GraphicsContext,
+            int width,
+            int height,
+            bool isButtonDown,
+            int buttonX,
+            int buttonY,
+            int buttonW,
+            int buttonH,
+            juce::ComboBox& comboBox) override;
 
-        void UpdateBounds();
-        int GetItemIndexAtPosition(juce::Point<int> mousePosition) const;
-        juce::Rectangle<int> GetItemBounds(int itemIndex) const;
+        juce::Font getComboBoxFont(juce::ComboBox& comboBox) override;
+
+        juce::Label* createComboBoxTextBox(juce::ComboBox& comboBox) override;
+
+        void positionComboBoxText(
+            juce::ComboBox& comboBox,
+            juce::Label& label) override;
+
+        void drawPopupMenuBackgroundWithOptions(
+            juce::Graphics& GraphicsContext,
+            int width,
+            int height,
+            const juce::PopupMenu::Options& options) override;
+
+        void drawPopupMenuItem(
+            juce::Graphics& GraphicsContext,
+            const juce::Rectangle<int>& area,
+            bool isSeparator,
+            bool isActive,
+            bool isHighlighted,
+            bool isTicked,
+            bool hasSubMenu,
+            const juce::String& text,
+            const juce::String& shortcutKeyText,
+            const juce::Drawable* icon,
+            const juce::Colour* textColour) override;
 
     private:
         ThemedDropdown& owner;
-        int hoveredItemIndex = -1;
     };
 
-    juce::Rectangle<int> GetClosedBounds() const;
-    juce::Rectangle<int> GetArrowBounds() const;
-    void SetExpanded(bool shouldBeExpanded);
-
-    juce::Array<Item> items;
-    int selectedItemIndex = -1;
-    bool isExpanded = false;
+    void UpdateColours();
 
     juce::Justification textJustification = juce::Justification::centredLeft;
     float cornerRadius = 8.0f;
     float outlineThickness = 1.0f;
-    int itemHeight = 30;
-    int closedHeight = 32;
 
-    PopupList popupList;
+    DropdownLookAndFeel dropdownLookAndFeel;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ThemedDropdown)
 };
