@@ -72,6 +72,25 @@ private:
             juce::ComboBox& comboBox,
             juce::Label& label) override;
 
+        void drawPopupMenuBackgroundWithOptions(
+            juce::Graphics& GraphicsContext,
+            int width,
+            int height,
+            const juce::PopupMenu::Options& options) override;
+
+        void drawPopupMenuItem(
+            juce::Graphics& GraphicsContext,
+            const juce::Rectangle<int>& area,
+            bool isSeparator,
+            bool isActive,
+            bool isHighlighted,
+            bool isTicked,
+            bool hasSubMenu,
+            const juce::String& text,
+            const juce::String& shortcutKeyText,
+            const juce::Drawable* icon,
+            const juce::Colour* textColour) override;
+
     private:
         ThemedDropdown& owner;
     };

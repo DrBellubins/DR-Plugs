@@ -92,6 +92,114 @@ void ThemedDropdown::DropdownLookAndFeel::positionComboBoxText(
     label.setJustificationType(owner.textJustification);
 }
 
+void ThemedDropdown::DropdownLookAndFeel::drawPopupMenuBackgroundWithOptions(
+    juce::Graphics& GraphicsContext,
+    int width,
+    int height,
+    const juce::PopupMenu::Options& options)
+{
+    juce::ignoreUnused(options);
+
+    const juce::Rectangle<int> popupBounds(0, 0, width, height);
+    const juce::Colour adjustedAccentGray =
+        ThemeContext::GetAdjustedColour(AccentGray, owner);
+
+    const juce::Colour adjustedUnfocusedGray =
+        ThemeContext::GetAdjustedColour(UnfocusedGray, owner);
+
+    GraphicsContext.setColour(adjustedAccentGray);
+    GraphicsContext.fillRoundedRectangle(popupBounds.toFloat(), owner.cornerRadius);
+
+    GraphicsContext.setColour(adjustedUnfocusedGray.brighter(0.1f));
+    GraphicsContext.drawRoundedRectangle(
+        popupBounds.toFloat().reduced(0.5f),
+        owner.cornerRadius,
+        1.0f
+    );
+}
+
+void ThemedDropdown::DropdownLookAndFeel::drawPopupMenuItem(
+    juce::Graphics& GraphicsContext,
+    const juce::Rectangle<int>& area,
+    bool isSeparator,
+    bool isActive,
+    bool isHighlighted,
+    bool isTicked,
+    bool hasSubMenu,
+    const juce::String& text,
+    const juce::String& shortcutKeyText,
+    const juce::Drawable* icon,
+    const juce::Colour* textColour)
+{
+    juce::ignoreUnused(shortcutKeyText, icon, textColour);
+
+    if (isSeparator)
+    {
+        const juce::Colour adjustedUnfocusedGray =
+            ThemeContext::GetAdjustedColour(UnfocusedGray, owner);
+
+        GraphicsContext.setColour(adjustedUnfocusedGray.brighter(0.2f));
+        GraphicsContext.fillRect(area.reduced(8, area.getHeight() / 2).withHeight(1));
+        return;
+    }
+
+    const juce::Colour adjustedAccentGray =
+        ThemeContext::GetAdjustedColour(AccentGray, owner);
+
+    const juce::Colour adjustedFocusedGray =
+        ThemeContext::GetAdjustedColour(FocusedGray, owner);
+
+    juce::ignoreUnused(adjustedAccentGray);
+
+    if (isHighlighted && isActive)
+    {
+        GraphicsContext.setColour(ThemePink);
+        GraphicsContext.fillRoundedRectangle(area.reduced(4, 2).toFloat(), 6.0f);
+    }
+
+    juce::Colour itemTextColour = isActive ? juce::Colours::white : adjustedFocusedGray;
+
+    GraphicsContext.setColour(itemTextColour);
+    GraphicsContext.setFont(juce::Font("Liberation Sans", 14.0f, juce::Font::bold));
+
+    juce::Rectangle<int> textBounds = area.reduced(12, 0);
+
+    if (isTicked)
+    {
+        juce::Path tickPath;
+        const float startX = static_cast<float>(textBounds.getX());
+        const float centreY = static_cast<float>(textBounds.getCentreY());
+
+        tickPath.startNewSubPath(startX, centreY);
+        tickPath.lineTo(startX + 4.0f, centreY + 4.0f);
+        tickPath.lineTo(startX + 10.0f, centreY - 4.0f);
+
+        GraphicsContext.strokePath(tickPath, juce::PathStrokeType(2.0f));
+
+        textBounds.removeFromLeft(16);
+    }
+
+    GraphicsContext.drawFittedText(
+        text,
+        textBounds,
+        juce::Justification::centredLeft,
+        1
+    );
+
+    if (hasSubMenu)
+    {
+        juce::Path arrowPath;
+        const float centreX = static_cast<float>(area.getRight() - 10);
+        const float centreY = static_cast<float>(area.getCentreY());
+
+        arrowPath.startNewSubPath(centreX - 3.0f, centreY - 4.0f);
+        arrowPath.lineTo(centreX + 2.0f, centreY);
+        arrowPath.lineTo(centreX - 3.0f, centreY + 4.0f);
+
+        GraphicsContext.strokePath(arrowPath, juce::PathStrokeType(1.5f));
+    }
+}
+
 ThemedDropdown::ThemedDropdown()
     : dropdownLookAndFeel(*this)
 {
