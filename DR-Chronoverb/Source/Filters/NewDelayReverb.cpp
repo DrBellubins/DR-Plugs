@@ -88,6 +88,8 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     wetInputPitchShifterLeft.SetEnabled(true);
     wetInputPitchShifterRight.SetEnabled(true);
 
+    rebuildPitchSequences();
+
     echoSampleCounterL = 0;
     echoSampleCounterR = 0;
 
@@ -351,11 +353,13 @@ void NewDelayReverb::SetPitchShiftEnabled(float pitchShiftEnabled01)
 void NewDelayReverb::SetPitchShiftRangeLower(float pitchShiftRangeLower01)
 {
     pitchShiftRangeLower = juce::jlimit(-48.0f, 48.0f, pitchShiftRangeLower01);
+    rebuildPitchSequences();
 }
 
 void NewDelayReverb::SetPitchShiftRangeUpper(float pitchShiftRangeUpper01)
 {
     pitchShiftRangeUpper = juce::jlimit(-48.0f, 48.0f, pitchShiftRangeUpper01);
+    rebuildPitchSequences();
 }
 
 void NewDelayReverb::SetPitchShiftMode(int modeIndex)
@@ -443,8 +447,8 @@ void NewDelayReverb::updateFilters()
 
 void NewDelayReverb::rebuildPitchSequences()
 {
-    wetInputPitchShifterLeft.RebuildSequence(pitchShiftMode, pitchShiftRangeLower, pitchShiftRangeUpper);
-    wetInputPitchShifterRight.RebuildSequence(pitchShiftMode, pitchShiftRangeLower, pitchShiftRangeUpper);
+    //wetInputPitchShifterLeft.RebuildSequence(pitchShiftMode, pitchShiftRangeLower, pitchShiftRangeUpper);
+    //wetInputPitchShifterRight.RebuildSequence(pitchShiftMode, pitchShiftRangeLower, pitchShiftRangeUpper);
 }
 
 void NewDelayReverb::updateStereoSpread()

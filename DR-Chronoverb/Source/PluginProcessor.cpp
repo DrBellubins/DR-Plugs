@@ -352,18 +352,16 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
         auto* pitchShiftModeParameter =
             dynamic_cast<juce::AudioParameterChoice*>(parameters.getParameter("pitchShiftMode"));
 
-        if (pitchShiftModeParameter != nullptr)
+        if (parameterID == "pitchShiftMode")
         {
-            const int selectedModeIndex = pitchShiftModeParameter->getIndex();
+            auto* pitchShiftModeParameter =
+                dynamic_cast<juce::AudioParameterChoice*>(parameters.getParameter("pitchShiftMode"));
 
-            juce::ignoreUnused(selectedModeIndex);
-
-            // TODO:
-            // 0 = Up
-            // 1 = Down
-            // 2 = Random
-            //
-            // Later, send this into DelayReverb / pitch sequence logic.
+            if (pitchShiftModeParameter != nullptr)
+            {
+                const int selectedModeIndex = pitchShiftModeParameter->getIndex();
+                DelayReverb.SetPitchShiftMode(selectedModeIndex);
+            }
         }
     }
 
