@@ -187,14 +187,15 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         float wetLeft  = nominalWetLeft  * cleanGain + diffusedEarlyLeft  * diffusedGain;
         float wetRight = nominalWetRight * cleanGain + diffusedEarlyRight * diffusedGain;
 
-        // Step 6: Damp and feed back from UN-pitched wet
-        const float dampedLeft  = dampingLeft->ProcessSample(wetLeft, lowpass01);
+        // 6: Damping + feedback from UN-pitched wet so the delay buffer
+        //    never accumulates pitch shifts across echoes
+        const float dampedLeft  = dampingLeft->ProcessSample(wetLeft,  lowpass01);
         const float dampedRight = dampingRight->ProcessSample(wetRight, lowpass01);
 
         lastFeedbackL = dampedLeft  * feedbackGain;
         lastFeedbackR = dampedRight * feedbackGain;
 
-        // Step 7: Pitch shift ONLY the output wet signal (not fed back)
+        // 7: Apply pitch shift to wet output ONLY (not fed back into delay)
         float pitchedWetLeft  = wetLeft;
         float pitchedWetRight = wetRight;
 
