@@ -6,6 +6,7 @@
 #include <memory>
 #include <cmath>
 #include <cstdlib>
+#include <limits.h>
 
 // ============================ Pitch ratio sequence API ============================
 
@@ -26,7 +27,8 @@ public:
     virtual float GetCurrentPitchRatio() const = 0;
 };
 
-// Progressive octaves: starts at 0 (unison), then steps by stepOctaves per echo.
+// Progressive octaves: starts at startOctave, steps by stepOctaves per echo,
+// clamped to [lowerBound, upperBound].
 class ProgressiveOctaveSequence : public IPitchSequence
 {
 public:
@@ -34,38 +36,36 @@ public:
     {
     }
 
+    // Sets the inclusive octave range for clamping.
+    void SetRange(int newLowerBound, int newUpperBound)
+    {
+        lowerBound = std::min(newLowerBound, newUpperBound);
+        upperBound = std::max(newLowerBound, newUpperBound);
+    }
+
+    // Sets the octave value the sequence starts at on Reset().
+    void SetStartOctave(int newStartOctave)
+    {
+        startOctave = newStartOctave;
+    }
+
+    // Positive = step up each echo, negative = step down each echo.
     void SetStepOctaves(int newStepOctaves)
     {
         stepOctaves = newStepOctaves;
     }
 
-    void SetMaxAbsOctaves(int newMaxAbsOctaves)
-    {
-        maxAbsOctaves = std::max(0, newMaxAbsOctaves);
-    }
-
     void Reset() override
     {
         currentEchoIndex = 0;
-        // Fix: Start at 0 (unison) — first echo is dry pitch, second echo is +stepOctaves, etc.
-        // This avoids immediately pitch-shifting echo #0.
-        currentOctaves = 0;
+        currentOctaves = startOctave;
     }
 
     void AdvanceToNextEcho() override
     {
         ++currentEchoIndex;
-
         const int nextOctaves = currentOctaves + stepOctaves;
-
-        if (maxAbsOctaves > 0)
-        {
-            currentOctaves = std::max(-maxAbsOctaves, std::min(maxAbsOctaves, nextOctaves));
-        }
-        else
-        {
-            currentOctaves = nextOctaves;
-        }
+        currentOctaves = std::max(lowerBound, std::min(upperBound, nextOctaves));
     }
 
     float GetCurrentPitchRatio() const override
@@ -75,9 +75,86 @@ public:
 
 private:
     int stepOctaves    = 1;
-    int maxAbsOctaves  = 0;
+    int startOctave    = 0;
+    int lowerBound     = -2;
+    int upperBound     =  2;
     int currentEchoIndex = 0;
     int currentOctaves = 0;
+};
+
+// Random octave sequence: picks a random octave within [lowerBound, upperBound]
+// each echo, avoiding an immediate back-to-back repeat when more than one choice exists.
+class RandomOctaveSequence : public IPitchSequence
+{
+public:
+    RandomOctaveSequence()
+    {
+        BuildOctaveList();
+    }
+
+    void SetRange(int newLowerBound, int newUpperBound)
+    {
+        lowerBound = std::min(newLowerBound, newUpperBound);
+        upperBound = std::max(newLowerBound, newUpperBound);
+        BuildOctaveList();
+    }
+
+    void Reset() override
+    {
+        lastOctave = INT_MIN;
+        currentOctave = PickRandom(lastOctave);
+    }
+
+    void AdvanceToNextEcho() override
+    {
+        lastOctave = currentOctave;
+        currentOctave = PickRandom(lastOctave);
+    }
+
+    float GetCurrentPitchRatio() const override
+    {
+        return std::pow(2.0f, static_cast<float>(currentOctave));
+    }
+
+private:
+    void BuildOctaveList()
+    {
+        octaves.clear();
+
+        for (int octave = lowerBound; octave <= upperBound; ++octave)
+            octaves.push_back(octave);
+    }
+
+    int PickRandom(int excludeOctave) const
+    {
+        if (octaves.empty())
+            return 0;
+
+        if (static_cast<int>(octaves.size()) == 1)
+            return octaves[0];
+
+        std::vector<int> candidates;
+        candidates.reserve(octaves.size());
+
+        for (int octave : octaves)
+        {
+            if (octave != excludeOctave)
+                candidates.push_back(octave);
+        }
+
+        if (candidates.empty())
+            return octaves[0];
+
+        const int selectedIndex = rand() % static_cast<int>(candidates.size());
+        return candidates[static_cast<size_t>(selectedIndex)];
+    }
+
+    int lowerBound    = -2;
+    int upperBound    =  2;
+    int currentOctave =  0;
+    int lastOctave    = INT_MIN;
+
+    std::vector<int> octaves;
 };
 
 // ============================ Pitch shifter backend API ============================
@@ -395,13 +472,14 @@ public:
     OctaveEchoPitchShifter()
     {
         auto granularBackend = std::make_unique<GranularPitchBackend>();
-        granularBackend->SetGrainLengthMilliseconds(35.0f);  // Was 150ms — now 35ms
-        granularBackend->SetJitterPercent(0.15f);             // Break up metallic artifacts
-        granularBackend->SetLookbackMultiplier(3.0f);         // 3× is safe for ≤1 octave shift
+        granularBackend->SetGrainLengthMilliseconds(35.0f);
+        granularBackend->SetJitterPercent(0.15f);
+        granularBackend->SetLookbackMultiplier(3.0f);
 
         auto progressiveSequence = std::make_unique<ProgressiveOctaveSequence>();
-        progressiveSequence->SetStepOctaves(1);    // +1 octave per echo
-        progressiveSequence->SetMaxAbsOctaves(2);  // Clamp at ±2 octaves
+        progressiveSequence->SetRange(-2, 2);     // ±2 octaves default
+        progressiveSequence->SetStartOctave(0);   // First echo at unison
+        progressiveSequence->SetStepOctaves(1);   // Step up each echo
 
         SetSequence(std::move(progressiveSequence));
         SetBackend(std::move(granularBackend));

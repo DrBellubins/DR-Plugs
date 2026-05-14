@@ -349,9 +349,6 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
 
     if (parameterID == "pitchShiftMode")
     {
-        auto* pitchShiftModeParameter =
-            dynamic_cast<juce::AudioParameterChoice*>(parameters.getParameter("pitchShiftMode"));
-
         if (parameterID == "pitchShiftMode")
         {
             auto* pitchShiftModeParameter =

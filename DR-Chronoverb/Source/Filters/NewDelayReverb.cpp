@@ -447,8 +447,43 @@ void NewDelayReverb::updateFilters()
 
 void NewDelayReverb::rebuildPitchSequences()
 {
-    //wetInputPitchShifterLeft.RebuildSequence(pitchShiftMode, pitchShiftRangeLower, pitchShiftRangeUpper);
-    //wetInputPitchShifterRight.RebuildSequence(pitchShiftMode, pitchShiftRangeLower, pitchShiftRangeUpper);
+    // Convert semitone range to octaves (params are multiples of 12).
+    const int lowerOctave =
+        static_cast<int>(std::round(pitchShiftRangeLower / 12.0f));
+
+    const int upperOctave =
+        static_cast<int>(std::round(pitchShiftRangeUpper / 12.0f));
+
+    auto configureShifter = [&](OctaveEchoPitchShifter& shifter)
+    {
+        if (pitchShiftMode == 2) // Random
+        {
+            auto randomSequence = std::make_unique<RandomOctaveSequence>();
+            randomSequence->SetRange(lowerOctave, upperOctave);
+            shifter.SetSequence(std::move(randomSequence));
+        }
+        else // Up (0) or Down (1)
+        {
+            auto progressiveSequence = std::make_unique<ProgressiveOctaveSequence>();
+            progressiveSequence->SetRange(lowerOctave, upperOctave);
+
+            if (pitchShiftMode == 0) // Up: start at lower, step +1
+            {
+                progressiveSequence->SetStartOctave(lowerOctave);
+                progressiveSequence->SetStepOctaves(1);
+            }
+            else // Down (1): start at upper, step -1
+            {
+                progressiveSequence->SetStartOctave(upperOctave);
+                progressiveSequence->SetStepOctaves(-1);
+            }
+
+            shifter.SetSequence(std::move(progressiveSequence));
+        }
+    };
+
+    configureShifter(wetInputPitchShifterLeft);
+    configureShifter(wetInputPitchShifterRight);
 }
 
 void NewDelayReverb::updateStereoSpread()
