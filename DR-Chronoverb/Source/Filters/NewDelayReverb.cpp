@@ -358,6 +358,12 @@ void NewDelayReverb::SetPitchShiftRangeUpper(float pitchShiftRangeUpper01)
     pitchShiftRangeUpper = juce::jlimit(-48.0f, 48.0f, pitchShiftRangeUpper01);
 }
 
+void NewDelayReverb::SetPitchShiftMode(int modeIndex)
+{
+    pitchShiftMode = juce::jlimit(0, 2, modeIndex);
+    rebuildPitchSequences();
+}
+
 void NewDelayReverb::SetHostTempo(float bpm)
 {
     if (bpm > 0.0f)
@@ -433,6 +439,12 @@ void NewDelayReverb::updateFilters()
     *lowpassR.coefficients = *lpCoeffs;
     *highpassL.coefficients = *hpCoeffs;
     *highpassR.coefficients = *hpCoeffs;
+}
+
+void NewDelayReverb::rebuildPitchSequences()
+{
+    wetInputPitchShifterLeft.RebuildSequence(pitchShiftMode, pitchShiftRangeLower, pitchShiftRangeUpper);
+    wetInputPitchShifterRight.RebuildSequence(pitchShiftMode, pitchShiftRangeLower, pitchShiftRangeUpper);
 }
 
 void NewDelayReverb::updateStereoSpread()

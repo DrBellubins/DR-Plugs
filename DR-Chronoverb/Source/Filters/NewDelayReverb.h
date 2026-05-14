@@ -60,6 +60,8 @@ public:
     void SetPitchShiftEnabled(float pitchShiftEnabled01);
     void SetPitchShiftRangeLower(float pitchShiftRangeLower);
     void SetPitchShiftRangeUpper(float pitchShiftRangeUpper);
+    void SetPitchShiftMode(int modeIndex);
+
 
     // Host tempo for sync modes (not used deeply yet, but retained for future porting)
     void SetHostTempo(float bpm);
@@ -71,6 +73,7 @@ private:
     void updateFeedbackGainFromFeedbackTime();
     void updateFilters();
     void updateStereoSpread();
+    void rebuildPitchSequences();
 
     // Parameters
     double sampleRate = 48000.0;
@@ -106,6 +109,7 @@ private:
     float pitchShiftEnabled = 0.0f;
     float pitchShiftRangeLower = 0.0f;
     float pitchShiftRangeUpper = 0.0f;
+    int pitchShiftMode = 0;
 
     int echoSampleCounterL = 0;
     int echoSampleCounterR = 0;

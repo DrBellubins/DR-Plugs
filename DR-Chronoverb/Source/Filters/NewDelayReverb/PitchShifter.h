@@ -129,6 +129,175 @@ private:
     float pitchRatio = 1.0f;
 };
 
+// DirectionalOctaveSequence
+// Steps through octave values from lowerSemitones to upperSemitones (or reverse),
+// wrapping around when the end is reached.
+// Semitone values are snapped to the nearest multiple of 12.
+class DirectionalOctaveSequence : public IPitchSequence
+{
+public:
+    DirectionalOctaveSequence()
+    {
+    }
+
+    void SetRange(float newLowerSemitones, float newUpperSemitones)
+    {
+        lowerSemitones = newLowerSemitones;
+        upperSemitones = newUpperSemitones;
+        BuildPool();
+    }
+
+    void SetDirectionUp(bool shouldGoUp)
+    {
+        directionUp = shouldGoUp;
+    }
+
+    void Reset() override
+    {
+        BuildPool();
+
+        if (pool.empty())
+        {
+            currentIndex = 0;
+            return;
+        }
+
+        currentIndex = directionUp ? 0 : static_cast<int>(pool.size()) - 1;
+    }
+
+    void AdvanceToNextEcho() override
+    {
+        if (pool.empty())
+            return;
+
+        if (directionUp)
+        {
+            ++currentIndex;
+
+            if (currentIndex >= static_cast<int>(pool.size()))
+                currentIndex = 0;
+        }
+        else
+        {
+            --currentIndex;
+
+            if (currentIndex < 0)
+                currentIndex = static_cast<int>(pool.size()) - 1;
+        }
+    }
+
+    float GetCurrentPitchRatio() const override
+    {
+        if (pool.empty())
+            return 1.0f;
+
+        const float semitones = pool[static_cast<size_t>(currentIndex)];
+        return std::pow(2.0f, semitones / 12.0f);
+    }
+
+private:
+    void BuildPool()
+    {
+        pool.clear();
+
+        // Snap lower/upper to nearest multiple of 12 and step through them
+        const float snappedLower = std::round(lowerSemitones / 12.0f) * 12.0f;
+        const float snappedUpper = std::round(upperSemitones / 12.0f) * 12.0f;
+        const float low  = std::min(snappedLower, snappedUpper);
+        const float high = std::max(snappedLower, snappedUpper);
+
+        for (float semitoneValue = low; semitoneValue <= high + 0.01f; semitoneValue += 12.0f)
+            pool.push_back(semitoneValue);
+    }
+
+    float lowerSemitones = -12.0f;
+    float upperSemitones =  12.0f;
+    bool  directionUp    = true;
+    int   currentIndex   = 0;
+
+    std::vector<float> pool;
+};
+
+// RandomOctaveSequence
+// Picks a random octave value within the semitone range each echo.
+// Avoids repeating the same value back-to-back when the pool has more than one entry.
+class RandomOctaveSequence : public IPitchSequence
+{
+public:
+    RandomOctaveSequence()
+    {
+    }
+
+    void SetRange(float newLowerSemitones, float newUpperSemitones)
+    {
+        lowerSemitones = newLowerSemitones;
+        upperSemitones = newUpperSemitones;
+        BuildPool();
+    }
+
+    void Reset() override
+    {
+        BuildPool();
+
+        if (pool.empty())
+        {
+            currentSemitones = 0.0f;
+            return;
+        }
+
+        currentSemitones = pool[static_cast<size_t>(rand()) % pool.size()];
+    }
+
+    void AdvanceToNextEcho() override
+    {
+        if (pool.empty())
+            return;
+
+        if (pool.size() == 1)
+        {
+            currentSemitones = pool[0];
+            return;
+        }
+
+        float chosen = currentSemitones;
+
+        for (int attempt = 0; attempt < 20; ++attempt)
+        {
+            chosen = pool[static_cast<size_t>(rand()) % pool.size()];
+
+            if (chosen != currentSemitones)
+                break;
+        }
+
+        currentSemitones = chosen;
+    }
+
+    float GetCurrentPitchRatio() const override
+    {
+        return std::pow(2.0f, currentSemitones / 12.0f);
+    }
+
+private:
+    void BuildPool()
+    {
+        pool.clear();
+
+        const float snappedLower = std::round(lowerSemitones / 12.0f) * 12.0f;
+        const float snappedUpper = std::round(upperSemitones / 12.0f) * 12.0f;
+        const float low  = std::min(snappedLower, snappedUpper);
+        const float high = std::max(snappedLower, snappedUpper);
+
+        for (float semitoneValue = low; semitoneValue <= high + 0.01f; semitoneValue += 12.0f)
+            pool.push_back(semitoneValue);
+    }
+
+    float lowerSemitones  = -12.0f;
+    float upperSemitones  =  12.0f;
+    float currentSemitones = 0.0f;
+
+    std::vector<float> pool;
+};
+
 // ============================ Granular pitch backend ============================
 // Dual read-head delay/grain pitch shifter.
 //
@@ -388,7 +557,6 @@ public:
 // ============================ Octave-per-echo pitch extension ============================
 // Integrates into NewDelayReverb feedback path.
 // Owns a sequence + backend; exposes OnNewEchoBoundary() so the delay can increment pitch.
-
 class OctaveEchoPitchShifter
 {
 public:
@@ -493,6 +661,25 @@ public:
             return granularBackend->GetLatencyMilliseconds();
 
         return 0.0f;
+    }
+
+    // Rebuild the active sequence based on mode index and semitone range.
+    // modeIndex: 0 = Up, 1 = Down, 2 = Random
+    void RebuildSequence(int modeIndex, float lowerSemitones, float upperSemitones)
+    {
+        if (modeIndex == 2)
+        {
+            auto randomSequence = std::make_unique<RandomOctaveSequence>();
+            randomSequence->SetRange(lowerSemitones, upperSemitones);
+            SetSequence(std::move(randomSequence));
+        }
+        else
+        {
+            auto directionalSequence = std::make_unique<DirectionalOctaveSequence>();
+            directionalSequence->SetRange(lowerSemitones, upperSemitones);
+            directionalSequence->SetDirectionUp(modeIndex == 0);
+            SetSequence(std::move(directionalSequence));
+        }
     }
 
 private:
