@@ -163,15 +163,14 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             writeRight = preRight * cleanWriteGain + diffusedWriteRight * diffusedWriteGain;
         }
 
-        // 4: Fixed read positions
-        const float nominalReadMilliseconds = delayMilliseconds;
-        const float earlyReadMilliseconds   = std::max(1.0f, delayMilliseconds - staticDiffusionCompensationMilliseconds);
-
-        // 5: Write to delay line
+        // 4: Write to delay line before reading
         mainDelayLeft->PushSample(writeLeft);
         mainDelayRight->PushSample(writeRight);
 
-        // 6: Read wet taps
+        // 5: Fixed read positions
+        const float nominalReadMilliseconds = delayMilliseconds;
+        const float earlyReadMilliseconds   = std::max(1.0f, delayMilliseconds - staticDiffusionCompensationMilliseconds);
+
         const float nominalWetLeft  = mainDelayLeft->ReadDelayMilliseconds(nominalReadMilliseconds, sampleRate);
         const float nominalWetRight = mainDelayRight->ReadDelayMilliseconds(nominalReadMilliseconds, sampleRate);
 
@@ -188,14 +187,14 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         float wetLeft  = nominalWetLeft  * cleanGain + diffusedEarlyLeft  * diffusedGain;
         float wetRight = nominalWetRight * cleanGain + diffusedEarlyRight * diffusedGain;
 
-        // 7: Damp and feed back BEFORE pitch shift — feedback is NEVER pitched
-        const float dampedLeft  = dampingLeft->ProcessSample(wetLeft,  lowpass01);
+        // Step 6: Damp and feed back from UN-pitched wet
+        const float dampedLeft  = dampingLeft->ProcessSample(wetLeft, lowpass01);
         const float dampedRight = dampingRight->ProcessSample(wetRight, lowpass01);
 
         lastFeedbackL = dampedLeft  * feedbackGain;
         lastFeedbackR = dampedRight * feedbackGain;
 
-        // 8: Pitch shift ONLY the output tap — never enters the feedback loop
+        // Step 7: Pitch shift ONLY the output wet signal (not fed back)
         float pitchedWetLeft  = wetLeft;
         float pitchedWetRight = wetRight;
 
@@ -224,7 +223,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             }
         }
 
-        // 9: Stereo spread (on pitched wet)
+        // 8: Stereo spread (on pitched wet)
         float spreadWetLeft  = pitchedWetLeft;
         float spreadWetRight = pitchedWetRight;
 
@@ -251,11 +250,11 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             }
         }
 
-        // 10: Dry/Wet
+        // 9: Dry/Wet
         float outputLeft  = PMath::EqualPowerCrossfade(dryLeft,  spreadWetLeft,  dryWet01);
         float outputRight = PMath::EqualPowerCrossfade(dryRight, spreadWetRight, dryWet01);
 
-        // 11: Optional post filtering
+        // 10: Optional post filtering
         if (hplpPrePost01 >= 0.5f)
         {
             outputLeft  = highpassL.processSample(outputLeft);
