@@ -351,11 +351,19 @@ void NewDelayReverb::SetPitchShiftEnabled(float pitchShiftEnabled01)
 void NewDelayReverb::SetPitchShiftRangeLower(float pitchShiftRangeLower01)
 {
     pitchShiftRangeLower = juce::jlimit(-48.0f, 48.0f, pitchShiftRangeLower01);
+    rebuildPitchSequences();
 }
 
 void NewDelayReverb::SetPitchShiftRangeUpper(float pitchShiftRangeUpper01)
 {
     pitchShiftRangeUpper = juce::jlimit(-48.0f, 48.0f, pitchShiftRangeUpper01);
+    rebuildPitchSequences();
+}
+
+void NewDelayReverb::SetPitchShiftMode(int modeIndex)
+{
+    pitchShiftMode = juce::jlimit(0, 2, modeIndex);
+    rebuildPitchSequences();
 }
 
 void NewDelayReverb::SetHostTempo(float bpm)
@@ -418,6 +426,12 @@ void NewDelayReverb::updateFeedbackGainFromFeedbackTime()
 
     // Keep a minimum to avoid tail immediately dying when not desired.
     feedbackGain = std::max(0.0f, std::min(feedbackGain, 0.95f));
+}
+
+void NewDelayReverb::rebuildPitchSequences()
+{
+    wetInputPitchShifterLeft.RebuildSequence(pitchShiftMode, pitchShiftRangeLower, pitchShiftRangeUpper);
+    wetInputPitchShifterRight.RebuildSequence(pitchShiftMode, pitchShiftRangeLower, pitchShiftRangeUpper);
 }
 
 void NewDelayReverb::updateFilters()
