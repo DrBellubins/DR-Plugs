@@ -1,14 +1,13 @@
 #pragma once
 
-#include <cmath>
-#include <cstdint>
-#include <memory>
+#include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_core/juce_core.h>
 #include <vector>
-#include <atomic>
+#include <memory>
+#include <cmath>
+#include <cstdlib>
 
 // ============================ Pitch ratio sequence API ============================
-// The sequence decides which pitch ratio applies to the current echo iteration.
-// Later you can add Random, PingPong, CustomPattern, MIDI-scale quantized, etc.
 
 class IPitchSequence
 {
@@ -19,7 +18,6 @@ public:
     {
     }
 
-    // Called when a new echo iteration begins (typically at the delay wrap / tap event).
     virtual void AdvanceToNextEcho()
     {
     }
@@ -28,7 +26,7 @@ public:
     virtual float GetCurrentPitchRatio() const = 0;
 };
 
-// Progressive octaves: 0, +1, +2, +3... (or negative if stepOctaves is negative).
+// Progressive octaves: starts at 0 (unison), then steps by stepOctaves per echo.
 class ProgressiveOctaveSequence : public IPitchSequence
 {
 public:
@@ -36,20 +34,22 @@ public:
     {
     }
 
-    void SetStepOctaves(int stepOctavesIn)
+    void SetStepOctaves(int newStepOctaves)
     {
-        stepOctaves = stepOctavesIn;
+        stepOctaves = newStepOctaves;
     }
 
-    void SetMaxAbsOctaves(int maxAbsOctavesIn)
+    void SetMaxAbsOctaves(int newMaxAbsOctaves)
     {
-        maxAbsOctaves = std::max(0, maxAbsOctavesIn);
+        maxAbsOctaves = std::max(0, newMaxAbsOctaves);
     }
 
     void Reset() override
     {
         currentEchoIndex = 0;
-        currentOctaves = stepOctaves;
+        // Fix: Start at 0 (unison) — first echo is dry pitch, second echo is +stepOctaves, etc.
+        // This avoids immediately pitch-shifting echo #0.
+        currentOctaves = 0;
     }
 
     void AdvanceToNextEcho() override
@@ -70,30 +70,26 @@ public:
 
     float GetCurrentPitchRatio() const override
     {
-        // ratio = 2^(octaves)
         return std::pow(2.0f, static_cast<float>(currentOctaves));
     }
 
 private:
-    int stepOctaves = 1;
-    int maxAbsOctaves = 0; // 0 = unlimited
-
+    int stepOctaves    = 1;
+    int maxAbsOctaves  = 0;
     int currentEchoIndex = 0;
     int currentOctaves = 0;
 };
 
 // ============================ Pitch shifter backend API ============================
-// Backend is responsible for actually shifting pitch by ratio.
-// Keep it interface-based so you can replace implementation without touching the sequencing.
 
 class IPitchShifterBackend
 {
 public:
     virtual ~IPitchShifterBackend() = default;
 
-    virtual void Prepare(double sampleRate, int maximumBlockSize)
+    virtual void Prepare(double newSampleRate, int maximumBlockSize)
     {
-        (void)sampleRate;
+        (void)newSampleRate;
         (void)maximumBlockSize;
     }
 
@@ -101,7 +97,6 @@ public:
     {
     }
 
-    // Process a single sample for now. If you later want a better algorithm, switch to block processing.
     virtual float ProcessSample(float inputSample, float pitchRatio) = 0;
 };
 
@@ -131,16 +126,23 @@ public:
     }
 
 private:
-    float pitchRatio = 2.0f; // default: +1 octave so it's obvious
+    float pitchRatio = 1.0f;
 };
 
 // ============================ Granular pitch backend ============================
 // Dual read-head delay/grain pitch shifter.
 //
-// Notes:
-// - This introduces a small algorithmic latency roughly equal to grainLengthSamples.
-// - For shimmer-style echo stepping, call OctaveEchoPitchShifter::OnNewEchoBoundary()
-//   to change pitch ratio per echo, but this backend itself is continuous and will adapt.
+// Key tuning parameters:
+// - grainLengthMs: 20–50ms is the sweet spot for shimmer. Longer = more smear + latency.
+//   150ms (old default) was far too long.
+// - lookbackMultiplier: 3.0 is safe for ratios ≤ 2× (one octave up/down).
+//   Increase to 4.0 if using ratios > 2×.
+// - jitterPercent: 0.10–0.20 breaks up the periodic anchor pattern that causes
+//   metallic buzz artifacts.
+//
+// Latency introduced = grainLengthSamples * lookbackMultiplier samples.
+// At 35ms grain + 3× lookback + 48kHz: ~5040 samples / ~105ms latency.
+// This latency is absorbed into the reverb feedback path — not directly perceptible.
 class GranularPitchBackend : public IPitchShifterBackend
 {
     struct ReadHead
@@ -159,12 +161,16 @@ public:
 
         sampleRate = newSampleRate;
 
+        // Buffer is 200ms — plenty for any lookback at our grain sizes.
         const int bufferMilliseconds = 200;
-        const int bufferSizeSamples = std::max(1024, static_cast<int>(std::ceil((bufferMilliseconds * sampleRate) / 1000.0)));
+        const int bufferSizeSamples = std::max(
+            1024,
+            static_cast<int>(std::ceil((bufferMilliseconds * sampleRate) / 1000.0)));
 
         buffer.assign(static_cast<size_t>(bufferSizeSamples), 0.0f);
 
-        SetGrainLengthMilliseconds(30.0f);
+        // Default: 35ms grains. This is tunable via SetGrainLengthMilliseconds().
+        SetGrainLengthMilliseconds(35.0f);
         Reset();
     }
 
@@ -176,12 +182,12 @@ public:
         smoothedPitchRatio = 1.0f;
 
         // Start the two grains half a grain-length apart in phase so their
-        // crossfade windows always sum to unity.
+        // Hann windows sum to unity at all times: hann(t) + hann(t+0.5) = 1.0
         grainPhaseA = 0.0f;
         grainPhaseB = 0.5f;
 
-        anchorHeadToWrite(headA);
-        anchorHeadToWrite(headB);
+        anchorHeadToWrite(headA, 0.0f);
+        anchorHeadToWrite(headB, 0.0f);
     }
 
     float ProcessSample(float inputSample, float pitchRatio) override
@@ -198,30 +204,28 @@ public:
 
         const float phaseIncrement = 1.0f / static_cast<float>(grainLengthSamples);
 
-        // Advance grain A
-        const float prevPhaseA = grainPhaseA;
+        // Advance grain A phase; re-anchor when it wraps
         grainPhaseA += phaseIncrement;
 
         if (grainPhaseA >= 1.0f)
         {
             grainPhaseA -= 1.0f;
-            anchorHeadToWrite(headA);
+            // Jitter anchor position to break up metallic periodic artifact
+            const float jitterSamples = generateJitter();
+            anchorHeadToWrite(headA, jitterSamples);
         }
 
-        // Advance grain B
-        const float prevPhaseB = grainPhaseB;
+        // Advance grain B phase; re-anchor when it wraps
         grainPhaseB += phaseIncrement;
 
         if (grainPhaseB >= 1.0f)
         {
             grainPhaseB -= 1.0f;
-            anchorHeadToWrite(headB);
+            const float jitterSamples = generateJitter();
+            anchorHeadToWrite(headB, jitterSamples);
         }
 
-        // Read from each head
-        //const float sampleA = readLinear(headA.ReadIndex);
-        //const float sampleB = readLinear(headB.ReadIndex);
-
+        // Read from each head using cubic interpolation
         const float sampleA = readCubic(headA.ReadIndex);
         const float sampleB = readCubic(headB.ReadIndex);
 
@@ -229,49 +233,77 @@ public:
         headA.ReadIndex = wrapReadIndex(headA.ReadIndex + smoothedPitchRatio);
         headB.ReadIndex = wrapReadIndex(headB.ReadIndex + smoothedPitchRatio);
 
-        // Hann windows offset by half a period guarantee unity sum:
-        // hann(phase) + hann(phase + 0.5) = 1.0
+        // Hann windows offset by half a period guarantee unity sum at all times
         const float windowA = hannWindow(grainPhaseA);
         const float windowB = hannWindow(grainPhaseB);
 
         return (sampleA * windowA) + (sampleB * windowB);
     }
 
+    // Grain length in milliseconds. 20–50ms recommended for shimmer.
+    // Shorter = crisper / more transient-friendly, but slightly more grainy.
+    // Longer = smoother but more smear and latency.
     void SetGrainLengthMilliseconds(float newGrainLengthMilliseconds)
     {
         const float clamped = juce::jlimit(5.0f, 500.0f, newGrainLengthMilliseconds);
         grainLengthSamples = std::max(16, static_cast<int>(std::round((clamped * sampleRate) / 1000.0)));
     }
 
+    // Jitter as a fraction of grain length. 0.10–0.20 recommended.
+    // Reduces metallic/buzzing artifact from deterministic grain anchoring.
+    void SetJitterPercent(float newJitterPercent)
+    {
+        jitterPercent = juce::jlimit(0.0f, 0.5f, newJitterPercent);
+    }
+
+    // Lookback multiplier. 3.0 is safe for ratios ≤ 2×.
+    // Increase to 4.0–5.0 for ratios up to 4×.
+    void SetLookbackMultiplier(float newLookbackMultiplier)
+    {
+        lookbackMultiplier = juce::jlimit(2.0f, 6.0f, newLookbackMultiplier);
+    }
+
     float GetLatencyMilliseconds() const
     {
-        const float lookbackSamples = static_cast<float>(grainLengthSamples) * 5.0f;
+        const float lookbackSamples =
+            static_cast<float>(grainLengthSamples) * lookbackMultiplier;
+
         return static_cast<float>((lookbackSamples * 1000.0) / sampleRate);
     }
 
 private:
+    // Exponential smoothing toward target pitch ratio.
+    // Coefficient of 0.05 converges in ~20 samples (~0.4ms at 48kHz) — fast enough.
     void smoothPitchRatio(float targetPitchRatio)
     {
-        // Much faster coefficient — converges in ~100 samples rather than thousands.
         const float smoothingCoefficient = 0.05f;
         smoothedPitchRatio += smoothingCoefficient * (targetPitchRatio - smoothedPitchRatio);
     }
 
-    void anchorHeadToWrite(ReadHead& readHead)
+    // Place the read head behind the write head by (lookbackMultiplier × grainLength) samples,
+    // optionally offset by a jitter amount to break up periodic anchor patterns.
+    void anchorHeadToWrite(ReadHead& readHead, float jitterOffsetSamples)
     {
-        // Place the read head a safe distance behind the write head.
-        // For pitch ratios up to 4x, the read head advances at most 4x per sample,
-        // so over one grain it travels grainLength * 4 samples.
-        // We need the head to never catch the write pointer during a grain's lifetime.
-        // A lookback of grainLength * (maxRatio + 1) is safe.
-        const float lookbackSamples = static_cast<float>(grainLengthSamples) * 5.0f;
+        const float lookbackSamples =
+            static_cast<float>(grainLengthSamples) * lookbackMultiplier;
+
         const float writeFloat = static_cast<float>(writeIndex);
-        readHead.ReadIndex = wrapReadIndex(writeFloat - lookbackSamples);
+        readHead.ReadIndex = wrapReadIndex(writeFloat - lookbackSamples + jitterOffsetSamples);
+    }
+
+    // Returns a random jitter offset in samples, bounded to ±(jitterPercent × grainLength).
+    float generateJitter() const
+    {
+        // Simple uniform random in [-1, +1]
+        const float unitRandom =
+            (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * 2.0f - 1.0f;
+
+        return unitRandom * jitterPercent * static_cast<float>(grainLengthSamples);
     }
 
     static float hannWindow(float phase01)
     {
-        // Hann window: w(t) = 0.5 - 0.5 * cos(2 * pi * t)
+        // hann(t) = 0.5 - 0.5 * cos(2π * t)
         // Key property: hann(t) + hann(t + 0.5) = 1.0 for all t.
         const float twoPi = 2.0f * juce::MathConstants<float>::pi;
         return 0.5f - 0.5f * std::cos(twoPi * phase01);
@@ -289,19 +321,6 @@ private:
             out -= size;
 
         return out;
-    }
-
-    float readLinear(float readIndexFloat) const
-    {
-        const int size = static_cast<int>(buffer.size());
-        const float wrapped = wrapReadIndex(readIndexFloat);
-
-        const int index0 = static_cast<int>(std::floor(wrapped));
-        const int index1 = (index0 + 1) % size;
-        const float fraction = wrapped - static_cast<float>(index0);
-
-        return buffer[static_cast<size_t>(index0)] * (1.0f - fraction)
-             + buffer[static_cast<size_t>(index1)] * fraction;
     }
 
     float readCubic(float readIndexFloat) const
@@ -333,7 +352,7 @@ private:
     std::vector<float> buffer;
     int writeIndex = 0;
 
-    int grainLengthSamples = 1440;
+    int grainLengthSamples = 1680; // Default ~35ms at 48kHz
 
     ReadHead headA;
     ReadHead headB;
@@ -342,10 +361,16 @@ private:
     float grainPhaseB = 0.5f;
 
     float smoothedPitchRatio = 1.0f;
+
+    // 3.0 is safe for max ratio of 2× (one octave up/down).
+    // For max ratio 4×, increase to 5.0.
+    float lookbackMultiplier = 3.0f;
+
+    // Jitter fraction of grain length (0.15 = ±15% of grain length).
+    float jitterPercent = 0.15f;
 };
 
-// Placeholder backend: currently does NO pitch shifting (passes through).
-// This lets you wire the architecture now and drop in a real algorithm later.
+// Passthrough backend for testing/bypassing without touching architecture.
 class PassthroughPitchBackend : public IPitchShifterBackend
 {
 public:
@@ -361,26 +386,25 @@ public:
 };
 
 // ============================ Octave-per-echo pitch extension ============================
-// This is the class you integrate into NewDelayReverb feedback path.
-// It owns a sequence + backend and exposes "OnNewEchoBoundary" so your delay can increment.
+// Integrates into NewDelayReverb feedback path.
+// Owns a sequence + backend; exposes OnNewEchoBoundary() so the delay can increment pitch.
 
 class OctaveEchoPitchShifter
 {
 public:
     OctaveEchoPitchShifter()
     {
-        auto Backend = std::make_unique<GranularPitchBackend>();
-        Backend->SetGrainLengthMilliseconds(150.0f);
+        auto granularBackend = std::make_unique<GranularPitchBackend>();
+        granularBackend->SetGrainLengthMilliseconds(35.0f);  // Was 150ms — now 35ms
+        granularBackend->SetJitterPercent(0.15f);             // Break up metallic artifacts
+        granularBackend->SetLookbackMultiplier(3.0f);         // 3× is safe for ≤1 octave shift
 
-        //auto ConstantSequence = std::make_unique<ConstantRatioSequence>();
-        //ConstantSequence->SetPitchRatio(2.0f); // very obvious
+        auto progressiveSequence = std::make_unique<ProgressiveOctaveSequence>();
+        progressiveSequence->SetStepOctaves(1);    // +1 octave per echo
+        progressiveSequence->SetMaxAbsOctaves(2);  // Clamp at ±2 octaves
 
-        auto Progressive = std::make_unique<ProgressiveOctaveSequence>();
-        Progressive->SetStepOctaves(1);      // +1 octave per echo (use -1 for downward)
-        Progressive->SetMaxAbsOctaves(2);    // clamp at ±4 octaves (48 semitones)
-
-        SetSequence(std::move(Progressive));
-        SetBackend(std::move(Backend));
+        SetSequence(std::move(progressiveSequence));
+        SetBackend(std::move(granularBackend));
     }
 
     void Prepare(double newSampleRate, int maximumBlockSize)
@@ -401,8 +425,6 @@ public:
 
         if (backend != nullptr)
             backend->Reset();
-
-        //enabled.store(false, std::memory_order_release);
     }
 
     void SetEnabled(bool shouldBeEnabled)
@@ -415,11 +437,7 @@ public:
         return enabled.load(std::memory_order_acquire);
     }
 
-    // Call this at the moment your delay produces a "new echo generation".
-    // Practical trigger options:
-    // - When your delay write index wraps (fixed delay = easier)
-    // - When sampleCounter reaches delaySamples (if you track it)
-    // - When you detect the tap boundary you consider "next echo"
+    // Call this when your delay produces a new echo generation.
     void OnNewEchoBoundary()
     {
         if (sequence != nullptr)
@@ -438,7 +456,6 @@ public:
         return backend->ProcessSample(inputSample, pitchRatio);
     }
 
-    // ---- Extension points ----
     void SetSequence(std::unique_ptr<IPitchSequence> newSequence)
     {
         sequence = std::move(newSequence);
@@ -458,10 +475,14 @@ public:
         }
     }
 
-    // Convenience access for configuring the default progressive sequence without downcasting elsewhere.
     ProgressiveOctaveSequence* GetProgressiveOctaveSequence()
     {
         return dynamic_cast<ProgressiveOctaveSequence*>(sequence.get());
+    }
+
+    GranularPitchBackend* GetGranularBackend()
+    {
+        return dynamic_cast<GranularPitchBackend*>(backend.get());
     }
 
     float GetLatencyMilliseconds() const
