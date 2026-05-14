@@ -171,21 +171,38 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         mainDelayLeft->PushSample(writeLeft);
         mainDelayRight->PushSample(writeRight);
 
-        // 6: Read taps
+        // 6: Read wet taps
         const float nominalWetLeft  = mainDelayLeft->ReadDelayMilliseconds(nominalReadMilliseconds, sampleRate);
         const float nominalWetRight = mainDelayRight->ReadDelayMilliseconds(nominalReadMilliseconds, sampleRate);
 
         const float earlyWetLeft  = mainDelayLeft->ReadDelayMilliseconds(earlyReadMilliseconds, sampleRate);
         const float earlyWetRight = mainDelayRight->ReadDelayMilliseconds(earlyReadMilliseconds, sampleRate);
 
-        // 7: Pitch shift ONLY the clean nominal tap — before any diffusion blend
-        float pitchedNominalLeft  = nominalWetLeft;
-        float pitchedNominalRight = nominalWetRight;
+        const float diffusedEarlyLeft  = delayDiffusionLeft->ProcessSample(earlyWetLeft);
+        const float diffusedEarlyRight = delayDiffusionRight->ProcessSample(earlyWetRight);
+
+        const float diffusionDrive = juce::jlimit(0.0f, 1.0f, diffusionAmountSmoothed * 2.0f);
+        const float cleanGain      = std::pow(1.0f - diffusionDrive, 4.0f);
+        const float diffusedGain   = std::sin(diffusionDrive * juce::MathConstants<float>::halfPi);
+
+        float wetLeft  = nominalWetLeft  * cleanGain + diffusedEarlyLeft  * diffusedGain;
+        float wetRight = nominalWetRight * cleanGain + diffusedEarlyRight * diffusedGain;
+
+        // 7: Damp and feed back BEFORE pitch shift — feedback is NEVER pitched
+        const float dampedLeft  = dampingLeft->ProcessSample(wetLeft,  lowpass01);
+        const float dampedRight = dampingRight->ProcessSample(wetRight, lowpass01);
+
+        lastFeedbackL = dampedLeft  * feedbackGain;
+        lastFeedbackR = dampedRight * feedbackGain;
+
+        // 8: Pitch shift ONLY the output tap — never enters the feedback loop
+        float pitchedWetLeft  = wetLeft;
+        float pitchedWetRight = wetRight;
 
         if (pitchShiftEnabled >= 0.5f)
         {
-            pitchedNominalLeft  = wetInputPitchShifterLeft.ProcessSample(nominalWetLeft);
-            pitchedNominalRight = wetInputPitchShifterRight.ProcessSample(nominalWetRight);
+            pitchedWetLeft  = wetInputPitchShifterLeft.ProcessSample(wetLeft);
+            pitchedWetRight = wetInputPitchShifterRight.ProcessSample(wetRight);
 
             const int delaySamplesInt =
                 static_cast<int>(std::round((delayMilliseconds * sampleRate) / 1000.0));
@@ -207,28 +224,9 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             }
         }
 
-        // 8: Diffuse early tap and blend with pitched nominal
-        const float diffusedEarlyLeft  = delayDiffusionLeft->ProcessSample(earlyWetLeft);
-        const float diffusedEarlyRight = delayDiffusionRight->ProcessSample(earlyWetRight);
-
-        const float diffusionDrive = juce::jlimit(0.0f, 1.0f, diffusionAmountSmoothed * 2.0f);
-        const float cleanGain      = std::pow(1.0f - diffusionDrive, 4.0f);
-        const float diffusedGain   = std::sin(diffusionDrive * juce::MathConstants<float>::halfPi);
-
-        // Pitched nominal blends with un-pitched diffused tail
-        float wetLeft  = pitchedNominalLeft  * cleanGain + diffusedEarlyLeft  * diffusedGain;
-        float wetRight = pitchedNominalRight * cleanGain + diffusedEarlyRight * diffusedGain;
-
-        // 9: Damp and feed back from composite wet — feedback remains un-pitched
-        const float dampedLeft  = dampingLeft->ProcessSample(wetLeft,  lowpass01);
-        const float dampedRight = dampingRight->ProcessSample(wetRight, lowpass01);
-
-        lastFeedbackL = dampedLeft  * feedbackGain;
-        lastFeedbackR = dampedRight * feedbackGain;
-
         // 9: Stereo spread (on pitched wet)
-        float spreadWetLeft  = wetLeft;
-        float spreadWetRight = wetRight;
+        float spreadWetLeft  = pitchedWetLeft;
+        float spreadWetRight = pitchedWetRight;
 
         const float spread = juce::jlimit(-1.0f, 1.0f, stereoSpreadMinus1To1);
 
