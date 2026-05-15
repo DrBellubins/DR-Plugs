@@ -10,64 +10,40 @@
 #include "NewDelayReverb/DiffusionChain.h"
 #include "NewDelayReverb/PitchShifter.h"
 
-// Forward declarations of internal components
 class DelayLine;
 class DampingFilter;
 class DiffusionChain;
-class SimpleFDN;
 
-// NewDelayReverb
-// A minimal, modular delay+reverb core based on the Deelay estimate:
-// - Input + feedback sum
-// - Diffusion (chain of allpass filters; amount, size, quality)
-// - Main delay line (fixed max 1000 ms buffer, adjustable read offset via delayTime 0..1 -> 0..1000 ms)
-// - Damping lowpass in feedback path
-// - Feedback gain
-// - Dry/Wet mix
-//
-// This class is intentionally self-contained and uses simple parameters in normalized ranges.
-// Later, you can wire these to AudioProcessorValueTreeState parameters in your existing processor.
 class NewDelayReverb
 {
 public:
     NewDelayReverb();
     ~NewDelayReverb();
 
-    // Prepare DSP for given sample rate and block size
     void PrepareToPlay(double sampleRate, float initialHostTempoBpm);
-
-    // Process a single audio buffer in-place (stereo supported, mono also works)
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
 
     // ---------------- Parameter Setters ----------------
-    // All normalized except feedbackGain and tempo.
-    // delayTime: 0..1 mapped to 0..1000 ms
-    void SetDelayTime(float newDelayTimeNormalized);
-    // feedbackTime: conceptual time; we map it to feedbackGain via a simple curve for now.
-    // For basic functionality, we treat this as a gain shaper: larger -> more feedback.
-    void SetFeedbackTime(float newFeedbackTimeSeconds);
+    void SetDelayTime(float newDelayTimeNormalized);      // 0..1 -> 0..1000 ms
+    void SetFeedbackTime(float newFeedbackTimeSeconds);   // 0..10 s
     void SetDiffusionAmount(float newAmount01);
     void SetDiffusionSize(float newSize01);
-    void SetDiffusionQuality(int newQualityStages);  // 0..10 -> number of allpass stages
+    void SetDiffusionQuality(int newQualityStages);       // 1..8
     void SetDryWetMix(float newDryWet01);
 
-    // Filters and spread
-    void SetLowpassCutoff(float newLowpass01);  // 0..1 mapped to [500 Hz .. 9000 Hz]
-    void SetHighpassCutoff(float newHighpass01); // 0..1 mapped to [10 Hz .. 2000 Hz] (basic HP to tame DC/rumble)
-    void SetStereoSpread(float newSpreadMinus1To1); // -1..1 basic widening/narrowing
-    void SetHPLPPrePost(float prePost01); // 0 => Pre, 1 => Post
+    void SetLowpassCutoff(float newLowpass01);            // 0..1 -> 500..9000 Hz
+    void SetHighpassCutoff(float newHighpass01);          // 0..1 -> 10..2000 Hz
+    void SetStereoSpread(float newSpreadMinus1To1);       // -1..1
+    void SetHPLPPrePost(float prePost01);                 // 0 = Pre, 1 = Post
 
     void SetPitchShiftEnabled(float pitchShiftEnabled01);
-    void SetPitchShiftRangeLower(float pitchShiftRangeLower);
-    void SetPitchShiftRangeUpper(float pitchShiftRangeUpper);
-    void SetPitchShiftMode(int modeIndex);
+    void SetPitchShiftRangeLower(float pitchShiftRangeLowerSemitones);
+    void SetPitchShiftRangeUpper(float pitchShiftRangeUpperSemitones);
+    void SetPitchShiftMode(int modeIndex);                // 0=Up, 1=Down, 2=Random
 
-
-    // Host tempo for sync modes (not used deeply yet, but retained for future porting)
     void SetHostTempo(float bpm);
 
 private:
-    // Internal helpers
     void updateDelayMillisecondsFromNormalized();
     void rebuildDiffusionIfNeeded();
     void updateFeedbackGainFromFeedbackTime();
@@ -76,55 +52,59 @@ private:
     void rebuildPitchSequences();
 
     // Parameters
-    double sampleRate = 48000.0;
-    float hostTempoBpm = 120.0f;
+    double sampleRate    = 48000.0;
+    float  hostTempoBpm  = 120.0f;
 
-    float delayTimeNormalized = 0.3f;  // 300 ms
-    float delayMilliseconds = 300.0f;
+    float delayTimeNormalized = 0.3f;
+    float delayMilliseconds   = 300.0f;
 
     float feedbackTimeSeconds = 3.0f;
-    float feedbackGain = 0.5f;         // core feedback gain
+    float feedbackGain        = 0.5f;
 
-    float diffusionAmount01 = 0.0f;    // crossfade amount
-    float diffusionSize01 = 0.0f;      // scales individual allpass delay lengths
-    int diffusionQualityStages = 6;    // number of allpass stages; will clamp 4..8
+    float diffusionAmount01      = 0.0f;
+    float diffusionSize01        = 0.0f;
+    int   diffusionQualityStages = 6;
 
-    float totalDelayDiffusionMilliseconds = 0.0f;
-    float staticDiffusionCompensationMilliseconds = 0.0f;
+    float totalDelayDiffusionMilliseconds          = 0.0f;
+    float staticDiffusionCompensationMilliseconds  = 0.0f;
 
     float smoothedCenteredReadDelayMilliseconds = 1.0f;
-    float readDelaySlewCoefficient = 0.0f;
+    float readDelaySlewCoefficient              = 0.0f;
 
-    // TODO: This does not swell equally before/after nominal tap (shorter).
-    float centeredSwellRatio = 0.25f;          // 0.5 = symmetric target around nominal tap
-    float diffusionCompensationBias = 1.5f;   // >1.0 makes pre-swell longer (start with 1.15)
+    float centeredSwellRatio       = 0.25f;
+    float diffusionCompensationBias = 1.5f;
 
-    float dryWet01 = 0.5f;
+    float dryWet01                = 0.5f;
+    float lowpass01               = 0.0f;
+    float highpass01              = 0.0f;
+    float stereoSpreadMinus1To1   = 0.0f;
+    float hplpPrePost01           = 1.0f;
 
-    float lowpass01 = 0.0f;
-    float highpass01 = 0.0f;
-    float stereoSpreadMinus1To1 = 0.0f;
-    float hplpPrePost01 = 1.0f; // default Post
+    float pitchShiftEnabled    = 0.0f;
+    float pitchShiftRangeLower = -12.0f;
+    float pitchShiftRangeUpper =  12.0f;
+    int   pitchShiftMode       = 0;
 
-    float pitchShiftEnabled = 0.0f;
-    float pitchShiftRangeLower = 0.0f;
-    float pitchShiftRangeUpper = 0.0f;
-    int pitchShiftMode = 0;
+    float pitchShifterLatencyMs = 0.0f;
 
     int echoSampleCounterL = 0;
     int echoSampleCounterR = 0;
 
-    std::atomic<bool> filterRebuildPending { false };
-
-    // Set by setters; consumed at block start on audio thread
+    std::atomic<bool> filterRebuildPending    { false };
     std::atomic<bool> diffusionRebuildPending { false };
 
-    // Components
+    // Delay lines
     std::unique_ptr<DelayLine> mainDelayLeft;
     std::unique_ptr<DelayLine> mainDelayRight;
 
+    // Diffusion chains — two pairs:
+    //   delayDiffusion  : delay-quality blur (amount 0..0.5 and post-read early tap)
+    //   reverbDiffusion : reverb-quality smear (crossfaded in for amount 0.5..1)
     std::unique_ptr<DiffusionChain> delayDiffusionLeft;
     std::unique_ptr<DiffusionChain> delayDiffusionRight;
+
+    std::unique_ptr<DiffusionChain> reverbDiffusionLeft;
+    std::unique_ptr<DiffusionChain> reverbDiffusionRight;
 
     std::unique_ptr<DampingFilter> dampingLeft;
     std::unique_ptr<DampingFilter> dampingRight;
@@ -132,25 +112,21 @@ private:
     OctaveEchoPitchShifter wetInputPitchShifterLeft;
     OctaveEchoPitchShifter wetInputPitchShifterRight;
 
-    // Basic HP/LP filters (JUCE one-pole IIR) for pre/post spectral shaping
     juce::dsp::IIR::Filter<float> lowpassL;
     juce::dsp::IIR::Filter<float> lowpassR;
     juce::dsp::IIR::Filter<float> highpassL;
     juce::dsp::IIR::Filter<float> highpassR;
 
-    float smoothedPreWriteBlend     = 0.0f;
     float smoothedDelayReverbDiffBlend = 0.0f;
-    float kBlendSlewCoeff = 0.0f;
+    float kBlendSlewCoeff              = 0.0f;
 
-    // Temporary per-sample state
     float lastFeedbackL = 0.0f;
     float lastFeedbackR = 0.0f;
 
     int lastBuiltQualityStages = -1;
-    float lastBuiltSize01 = -1.0f;
+    float lastBuiltSize01      = -1.0f;
 
-    // Utility
     static float map01ToRange(float value01, float minValue, float maxValue);
     static float clamp01(float value);
-    static int clampInt(int value, int minValue, int maxValue);
+    static int   clampInt(int value, int minValue, int maxValue);
 };
