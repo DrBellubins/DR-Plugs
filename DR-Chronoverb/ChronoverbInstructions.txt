@@ -1,0 +1,108 @@
+The following describes the core architecture of the delay/reverb plugin, in accordance with the assumed Deelay by Sixth Sample design, which it is attempting to recreate, though with a slightly unique character.
+
+None of the following should be deviated from without listing clear and concise reasoning.
+
+I'm trying to make mimic an audio plugin called Deelay by Sixth Sample with JUCE in Clion on Arch Linux.
+
+-- Code style start --
+
+Always use the allman style as a base.
+Bracket usage should be relagated to loops and if statements that are greater than one line of code.
+
+Do not use shortened parameter names in functions (example: function(MouseEvent e) or function(JuceGraphics g)) use full parameter names function(ParameterType ParameterName)
+
+-- Code style end --
+
+---- BEGINNING OF CRUCIAL DESIGN CHARACTERISTICS ----
+Under NO circumstances should the order of operations of any of the following within this "CRUCIAL DESIGN CHARACTERISTICS" section be suggested modification, without explicitly stated reasoning, and listing the pros and cons of the modification.
+
+It uses 8 carefully tuned allpass filters. The quality of which is changed with the Diffusion Quality slider, which when turned down, avoids the tail lengths from getting shorter, leading to it sounding like delay time has been reduced, by interpolating the given allpass tunings, which are as follows:
+
+// Delay-mode tunings: shorter, natural-spacing delays for discrete-tap blur.
+std::vector<float> delayTunings =
+{
+     10.0f, 15.0f, 22.5f, 33.75f, 50.6f, 75.9f, 113.9f, 170.8f
+};
+
+// Reverb-mode tunings: longer, prime-spaced delays for lush modal density.
+std::vector<float> reverbTunings =
+{
+      29.0f, 37.0f, 43.0f, 53.0f, 71.0f, 89.0f, 113.0f, 149.0f
+};
+
+The diffusion space knob controls the perceived "space" of the wet signal by scaling the allpass tunings by the diffusion space value. Diffusion space should be smoothed so that it can be changed at runtime without ugly artifacting. This smoothing in Deelay causes changing the space to "pitch warp". This is the intended characteristic.
+
+The diffusion amount knob is the most complex, having nuanced cross-fades between various input signals, and and output signals. The knob characteristics are as follows:
+
+Amount Range	Character
+0.0	            Pure delay. Sharp repeats, no smearing. Clean tap only.
+0.0 → 0.2	    Subtle blur on tap edges. Pre-write gets mild allpass smear. Clean tap still dominant.
+0.2 → 0.5	    Noticeable thickening. Clean tap fades rapidly (the pow(4) curve). Pre-echo clusters become audible. Distinct echoes start dissolving.
+0.5	            Clean tap is completely gone. Pre-write is fully delay-chain diffused. The output is entirely blurred echoes — sounds like a slapback in a tiled room.
+0.5 → 1.0	    The reverb diffusion chain fades in via equal-power crossfade. Delays lengthen (29–149 ms, prime-spaced). Tails become continuous. Spectral distribution widens.
+1.0	            Full reverb character. Pre-write signal is entirely the reverb-quality chain. The 1-second delay is still structurally there (you can hear periodicity), but each                  repeat is a dense wash rather than a discrete tap.
+
+The diffusion amount knob, in accordance with Deelay's design, shouldn't have any artifacts when changing it while diffusion is running. I am currently unsure if Deelay's diffusion amount knob has any smoothing, it is responsive without artifacts, but is hard to tell with the feedback loop.
+
+Delay time mode controls the mode at which it plays, either free hz (ms) setting (ranging from 1 to 1000 ms), or normal (nrm) which is a tempo beat-sync (ranging from 1/1 to 1/16). triplets (trip) is the same range, but with triplet tempo synced echos. Same range with dotted (dot), but with dotted tempo sync.
+
+Delay time controls when the delay taps show up, it changes contextually based on what mode is set. If ms is set, it can be freely be move up and down. If any of the beat synced modes are set it can still be changed on the fly, or automated (with pitch warping artifacts from the smoothing of delay time), but both the internal time value, and the visual knob "snaps" to the set time sync beat. The delay time should be smoothed whether in ms, nrm, trip, or dot mode.
+
+---- ENDING OF CRUCIAL DESIGN CHARACTERISTICS ----
+
+There is an optional Ping-Pong mode.
+Ping-pong can be either Left/Right or Mid-Side ping pong (ping pong between mono and stereo information, which also takes optional haas stereo spread into account).
+
+The various creative options are seperated into 4 tabs:
+Pitch - Pitch shifting, with given ranges, and various algorithms and sequence options.
+Distortion - Various distortion algorithms, with responsive and readable displays.
+Tape - Various tape simulation algorithms, with responsive and readable displays.
+Granular - A granular delay/reverb mixed into the input of diffusion.
+
+There are independant volume knobs for the Dry and Wet signal, instead of a siingle Dry/Wet mix knob.
+
+-- Pitch shifting start --
+The pitch shifting is made to be modular, so that various backends and sequences can be plugged in easily. I have a range slider that controls the pitch range of the given sequence. 
+
+Currently, I have 3 pitch shifting modes: Up, Down, and Random:
+Up starts from the lower pitch range value, and goes up by octaves until the higher pitch range value.
+Down starts at the higher pitch range value and goes down by an octave to the lower pitch range value.
+Random randomly goes to a different octave within the pitch range, never repeating the last octave twice in a row, if possible.
+
+All of these modes should, under no circumstance, change pitch mid-echo. They should only change pitch at the alloted delay time. Pitch shifting should be audible in both the delay signal, and the reverb signal.
+
+Pitch shifting also has two algorithms, one lower quality, but faster with CPU Usage. The other is higher quality, but slower with CPU usage. The two algorithms are Granular (low quality), and Phase Vocoder (high quality).
+
+-- Pitch shifting end --
+
+-- Distortion start --
+
+Distortion will have mulitple algorithms, with the option for it to be applied pre feedback (on the input signal before diffusion), or post feedback (on the output signal).
+
+The various algorithms I want are:
+
+- Bitwig Studio algorithms -
+Heat - An S-Shaped clipper that starts soft, but can drive hard
+Chebyshev - Non-linear shaper that can target harmonics
+
+- Regular algorithms -
+Hard Clipper - A simple hard clipper.
+Diode - Classic circuit model. Used to biasing and clipping.
+Tube Distortion - A gentle distortion algorithm mimicking vacuum tube distortion. (I would like this to mimic fabfilter saturn 2's implementation, though simpler).
+Tape Distortion - Non-linear distortion mimicking magnetic tape distortion. (I would like this to also mimic fabfilter 2's implementation, but simpler).
+
+-- Distortion end --
+
+-- Tape start --
+
+
+
+-- Tape end --
+
+-- Granular start --
+
+Granular is fed into the same diffusion chain as the regular delay/reverb. It is added on top of the input + feedback signal.
+
+There is a Wet volume knob
+
+-- Granular end --
