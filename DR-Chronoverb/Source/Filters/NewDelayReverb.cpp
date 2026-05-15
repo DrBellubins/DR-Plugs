@@ -18,9 +18,9 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
 
     // Prepare IIR filters
     juce::dsp::ProcessSpec filterSpec;
-    filterSpec.sampleRate      = sampleRate;
+    filterSpec.sampleRate = sampleRate;
     filterSpec.maximumBlockSize = 4096;
-    filterSpec.numChannels      = 1;
+    filterSpec.numChannels = 1;
 
     lowpassL.prepare(filterSpec);
     lowpassR.prepare(filterSpec);
@@ -50,12 +50,12 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
 
     // Force full rebuild
     lastBuiltQualityStages = -1;
-    lastBuiltSize01        = -1.0f;
+    lastBuiltSize01 = -1.0f;
     rebuildDiffusionIfNeeded();
 
-    if (delayDiffusionLeft)   delayDiffusionLeft->ClearState();
-    if (delayDiffusionRight)  delayDiffusionRight->ClearState();
-    if (reverbDiffusionLeft)  reverbDiffusionLeft->ClearState();
+    if (delayDiffusionLeft) delayDiffusionLeft->ClearState();
+    if (delayDiffusionRight) delayDiffusionRight->ClearState();
+    if (reverbDiffusionLeft) reverbDiffusionLeft->ClearState();
     if (reverbDiffusionRight) reverbDiffusionRight->ClearState();
 
     smoothedDelayReverbDiffBlend = 0.0f;
@@ -115,7 +115,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
     for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
     {
-        const float dryLeft  = leftData[sampleIndex];
+        const float dryLeft = leftData[sampleIndex];
         const float dryRight = (rightData != nullptr ? rightData[sampleIndex] : dryLeft);
 
         // Smooth diffusion amount
@@ -126,7 +126,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             juce::jlimit(0.0f, 1.0f, smoothedDelayReverbDiffBlend);
 
         // ---- 1: Optional pre-filtering ----
-        float filteredDryLeft  = dryLeft;
+        float filteredDryLeft = dryLeft;
         float filteredDryRight = dryRight;
 
         if (hplpPrePost01 < 0.5f)
@@ -138,16 +138,16 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         }
 
         // ---- 2: Sum input + feedback ----
-        const float preLeft  = filteredDryLeft  + lastFeedbackL;
+        const float preLeft = filteredDryLeft  + lastFeedbackL;
         const float preRight = filteredDryRight + lastFeedbackR;
 
         // ---- 3: Optional pitch shift ----
-        float pitchedLeft  = preLeft;
+        float pitchedLeft = preLeft;
         float pitchedRight = preRight;
 
         if (pitchShiftEnabled >= 0.5f)
         {
-            pitchedLeft  = wetInputPitchShifterLeft.ProcessSample(preLeft);
+            pitchedLeft = wetInputPitchShifterLeft.ProcessSample(preLeft);
             pitchedRight = wetInputPitchShifterRight.ProcessSample(preRight);
         }
 
@@ -180,7 +180,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         //
         //  The whole diffused signal is then equal-power crossfaded against the
         //  clean pitched signal so amount=0 is a pure delay.
-        float writeLeft  = pitchedLeft;
+        float writeLeft = pitchedLeft;
         float writeRight = pitchedRight;
 
         if (diffusionAmountSmoothed > 0.001f)
@@ -191,7 +191,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             if (diffusionAmountSmoothed <= 0.5f)
             {
                 // Lower half: delay-quality diffusion only
-                diffLeft  = delayDiffusionLeft->ProcessSample(pitchedLeft);
+                diffLeft = delayDiffusionLeft->ProcessSample(pitchedLeft);
                 diffRight = delayDiffusionRight->ProcessSample(pitchedRight);
             }
             else
@@ -200,9 +200,9 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
                 const float reverbBlend =
                     (diffusionAmountSmoothed - 0.5f) * 2.0f; // 0..1
 
-                const float delayDiffLeft  = delayDiffusionLeft->ProcessSample(pitchedLeft);
+                const float delayDiffLeft = delayDiffusionLeft->ProcessSample(pitchedLeft);
                 const float delayDiffRight = delayDiffusionRight->ProcessSample(pitchedRight);
-                const float reverbDiffLeft  = reverbDiffusionLeft->ProcessSample(pitchedLeft);
+                const float reverbDiffLeft = reverbDiffusionLeft->ProcessSample(pitchedLeft);
                 const float reverbDiffRight = reverbDiffusionRight->ProcessSample(pitchedRight);
 
                 const float delayGain =
@@ -211,7 +211,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
                 const float reverbGain =
                     std::sin(reverbBlend * juce::MathConstants<float>::halfPi);
 
-                diffLeft  = delayDiffLeft  * delayGain + reverbDiffLeft  * reverbGain;
+                diffLeft = delayDiffLeft  * delayGain + reverbDiffLeft  * reverbGain;
                 diffRight = delayDiffRight * delayGain + reverbDiffRight * reverbGain;
             }
 
@@ -222,7 +222,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             const float diffusedGain =
                 std::sin(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
 
-            writeLeft  = pitchedLeft  * cleanGain + diffLeft  * diffusedGain;
+            writeLeft = pitchedLeft  * cleanGain + diffLeft  * diffusedGain;
             writeRight = pitchedRight * cleanGain + diffRight * diffusedGain;
         }
 
@@ -231,26 +231,27 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         mainDelayRight->PushSample(writeRight);
 
         // ---- 6: Read nominal tap and early tap ----
-        const float nominalReadMilliseconds =
-            delayMilliseconds;
+        const float nominalReadMilliseconds = delayMilliseconds;
 
         const float earlyReadMilliseconds =
             std::max(1.0f, delayMilliseconds - staticDiffusionCompensationMilliseconds);
 
         const float nominalWetLeft  =
             mainDelayLeft->ReadDelayMilliseconds(nominalReadMilliseconds, sampleRate);
+
         const float nominalWetRight =
             mainDelayRight->ReadDelayMilliseconds(nominalReadMilliseconds, sampleRate);
 
         const float earlyWetLeft  =
             mainDelayLeft->ReadDelayMilliseconds(earlyReadMilliseconds, sampleRate);
+
         const float earlyWetRight =
             mainDelayRight->ReadDelayMilliseconds(earlyReadMilliseconds, sampleRate);
 
         // ---- 7: Diffuse the early tap (second pass through delay chain) ----
         // This gives the characteristic "blur around each tap" and creates
         // audible content before the nominal tap on each feedback recirculation.
-        const float diffusedEarlyLeft  = delayDiffusionLeft->ProcessSample(earlyWetLeft);
+        const float diffusedEarlyLeft = delayDiffusionLeft->ProcessSample(earlyWetLeft);
         const float diffusedEarlyRight = delayDiffusionRight->ProcessSample(earlyWetRight);
 
         // Remap amount so clean tap suppression is aggressive (gone by amount=0.5)
@@ -263,52 +264,52 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float diffusedTapGain =
             std::sin(diffusionDrive * juce::MathConstants<float>::halfPi);
 
-        float wetLeft  = nominalWetLeft  * cleanTapGain + diffusedEarlyLeft  * diffusedTapGain;
+        float wetLeft = nominalWetLeft  * cleanTapGain + diffusedEarlyLeft  * diffusedTapGain;
         float wetRight = nominalWetRight * cleanTapGain + diffusedEarlyRight * diffusedTapGain;
 
         // ---- 8: Damping + feedback recirculation ----
-        const float dampedLeft  = dampingLeft->ProcessSample(wetLeft,  lowpass01);
+        const float dampedLeft = dampingLeft->ProcessSample(wetLeft,  lowpass01);
         const float dampedRight = dampingRight->ProcessSample(wetRight, lowpass01);
 
-        lastFeedbackL = dampedLeft  * feedbackGain;
+        lastFeedbackL = dampedLeft * feedbackGain;
         lastFeedbackR = dampedRight * feedbackGain;
 
         // ---- 9: Stereo spread ----
-        float spreadWetLeft  = wetLeft;
+        float spreadWetLeft = wetLeft;
         float spreadWetRight = wetRight;
 
         const float spread = juce::jlimit(-1.0f, 1.0f, stereoSpreadMinus1To1);
 
         if (std::abs(spread) > 0.0001f)
         {
-            const float widen  = std::max(0.0f,  spread);
+            const float widen = std::max(0.0f,  spread);
             const float narrow = std::max(0.0f, -spread);
 
             if (widen > 0.0f)
             {
-                const float cross  = widen * 0.25f;
-                const float newLeft  = spreadWetLeft  - cross * spreadWetRight;
+                const float cross = widen * 0.25f;
+                const float newLeft = spreadWetLeft  - cross * spreadWetRight;
                 const float newRight = spreadWetRight - cross * spreadWetLeft;
-                spreadWetLeft  = newLeft;
+                spreadWetLeft = newLeft;
                 spreadWetRight = newRight;
             }
             else if (narrow > 0.0f)
             {
                 const float mono = 0.5f * (spreadWetLeft + spreadWetRight);
-                spreadWetLeft  = spreadWetLeft  * (1.0f - narrow) + mono * narrow;
+                spreadWetLeft = spreadWetLeft * (1.0f - narrow) + mono * narrow;
                 spreadWetRight = spreadWetRight * (1.0f - narrow) + mono * narrow;
             }
         }
 
         // ---- 10: Dry/wet mix ----
-        float outputLeft  = PMath::EqualPowerCrossfade(dryLeft,  spreadWetLeft,  dryWet01);
+        float outputLeft = PMath::EqualPowerCrossfade(dryLeft, spreadWetLeft, dryWet01);
         float outputRight = PMath::EqualPowerCrossfade(dryRight, spreadWetRight, dryWet01);
 
         // ---- 11: Optional post-filtering ----
         if (hplpPrePost01 >= 0.5f)
         {
-            outputLeft  = highpassL.processSample(outputLeft);
-            outputLeft  = lowpassL.processSample(outputLeft);
+            outputLeft = highpassL.processSample(outputLeft);
+            outputLeft = lowpassL.processSample(outputLeft);
             outputRight = highpassR.processSample(outputRight);
             outputRight = lowpassR.processSample(outputRight);
         }
@@ -423,7 +424,7 @@ void NewDelayReverb::rebuildDiffusionIfNeeded()
     }
 
     lastBuiltQualityStages = diffusionQualityStages;
-    lastBuiltSize01        = diffusionSize01;
+    lastBuiltSize01 = diffusionSize01;
 
     if (delayDiffusionLeft  != nullptr)
         delayDiffusionLeft->Configure(diffusionQualityStages, diffusionSize01, DelayTunings);
@@ -452,7 +453,7 @@ void NewDelayReverb::rebuildDiffusionIfNeeded()
 void NewDelayReverb::updateFeedbackGainFromFeedbackTime()
 {
     const float normalized = juce::jlimit(0.0f, 1.0f, feedbackTimeSeconds / 10.0f);
-    const float curved     = std::sqrt(normalized);
+    const float curved = std::sqrt(normalized);
     feedbackGain = std::max(0.0f, std::min(0.85f * curved, 0.95f));
 }
 
@@ -464,8 +465,8 @@ void NewDelayReverb::updateFilters()
     auto lpCoeffs = juce::dsp::IIR::Coefficients<float>::makeLowPass(sampleRate,  lpHz);
     auto hpCoeffs = juce::dsp::IIR::Coefficients<float>::makeHighPass(sampleRate, hpHz);
 
-    *lowpassL.coefficients  = *lpCoeffs;
-    *lowpassR.coefficients  = *lpCoeffs;
+    *lowpassL.coefficients = *lpCoeffs;
+    *lowpassR.coefficients = *lpCoeffs;
     *highpassL.coefficients = *hpCoeffs;
     *highpassR.coefficients = *hpCoeffs;
 }
@@ -477,11 +478,8 @@ void NewDelayReverb::updateStereoSpread()
 
 void NewDelayReverb::rebuildPitchSequences()
 {
-    const int lowerOctave =
-        static_cast<int>(std::round(pitchShiftRangeLower / 12.0f));
-
-    const int upperOctave =
-        static_cast<int>(std::round(pitchShiftRangeUpper / 12.0f));
+    const int lowerOctave = static_cast<int>(std::round(pitchShiftRangeLower / 12.0f));
+    const int upperOctave = static_cast<int>(std::round(pitchShiftRangeUpper / 12.0f));
 
     auto configureShifter = [&](OctaveEchoPitchShifter& shifter)
     {
@@ -489,6 +487,7 @@ void NewDelayReverb::rebuildPitchSequences()
         {
             auto randomSequence = std::make_unique<RandomOctaveSequence>();
             randomSequence->SetRange(lowerOctave, upperOctave);
+            
             shifter.SetSequence(std::move(randomSequence));
         }
         else // Up (0) or Down (1)

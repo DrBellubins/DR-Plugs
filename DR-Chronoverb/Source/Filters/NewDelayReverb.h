@@ -67,38 +67,38 @@ private:
     void rebuildPitchSequences();
 
     // Parameters
-    double sampleRate    = 48000.0;
-    float  hostTempoBpm  = 120.0f;
+    double sampleRate = 48000.0;
+    float  hostTempoBpm = 120.0f;
 
     float delayTimeNormalized = 0.3f;
-    float delayMilliseconds   = 300.0f;
+    float delayMilliseconds = 300.0f;
 
     float feedbackTimeSeconds = 3.0f;
-    float feedbackGain        = 0.5f;
+    float feedbackGain = 0.5f;
 
-    float diffusionAmount01      = 0.0f;
-    float diffusionSize01        = 0.0f;
+    float diffusionAmount01 = 0.0f;
+    float diffusionSize01 = 0.0f;
     int   diffusionQualityStages = 6;
 
-    float totalDelayDiffusionMilliseconds          = 0.0f;
-    float staticDiffusionCompensationMilliseconds  = 0.0f;
+    float totalDelayDiffusionMilliseconds = 0.0f;
+    float staticDiffusionCompensationMilliseconds = 0.0f;
 
     float smoothedCenteredReadDelayMilliseconds = 1.0f;
-    float readDelaySlewCoefficient              = 0.0f;
+    float readDelaySlewCoefficient = 0.0f;
 
-    float centeredSwellRatio       = 0.25f;
+    float centeredSwellRatio = 0.25f;
     float diffusionCompensationBias = 1.5f;
 
-    float dryWet01                = 0.5f;
-    float lowpass01               = 0.0f;
-    float highpass01              = 0.0f;
-    float stereoSpreadMinus1To1   = 0.0f;
-    float hplpPrePost01           = 1.0f;
+    float dryWet01 = 0.5f;
+    float lowpass01 = 0.0f;
+    float highpass01 = 0.0f;
+    float stereoSpreadMinus1To1 = 0.0f;
+    float hplpPrePost01 = 1.0f;
 
-    float pitchShiftEnabled    = 0.0f;
+    float pitchShiftEnabled = 0.0f;
     float pitchShiftRangeLower = -12.0f;
-    float pitchShiftRangeUpper =  12.0f;
-    int   pitchShiftMode       = 0;
+    float pitchShiftRangeUpper = 12.0f;
+    int   pitchShiftMode = 0;
 
     float pitchShifterLatencyMs = 0.0f;
 
@@ -133,13 +133,13 @@ private:
     juce::dsp::IIR::Filter<float> highpassR;
 
     float smoothedDelayReverbDiffBlend = 0.0f;
-    float kBlendSlewCoeff              = 0.0f;
+    float kBlendSlewCoeff = 0.0f;
 
     float lastFeedbackL = 0.0f;
     float lastFeedbackR = 0.0f;
 
     int lastBuiltQualityStages = -1;
-    float lastBuiltSize01      = -1.0f;
+    float lastBuiltSize01 = -1.0f;
 
     static float map01ToRange(float value01, float minValue, float maxValue);
     static float clamp01(float value);
