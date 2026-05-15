@@ -1,3 +1,4 @@
+```markdown
 ## Code Style
 
 ### Braces (Modified Allman Style)
@@ -72,4 +73,23 @@ private:
         float deltaTime = GetDelta();
     }
 };
+```
+
+---
+
+### Variable Alignment
+- **Never** pad variable declarations or assignments with extra spaces/tabs to align `=` signs.
+- Each declaration uses only a single space before and after `=`, regardless of surrounding lines.
+
+```cpp
+// ❌ Forbidden
+string basicString = "Foo";
+string myString    = "Bar";
+int    count       = 0;
+
+// ✅ Required
+string basicString = "Foo";
+string myString = "Bar";
+int count = 0;
+```
 ```

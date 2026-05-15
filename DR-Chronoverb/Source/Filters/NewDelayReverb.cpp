@@ -426,16 +426,16 @@ void NewDelayReverb::rebuildDiffusionIfNeeded()
     lastBuiltSize01        = diffusionSize01;
 
     if (delayDiffusionLeft  != nullptr)
-        delayDiffusionLeft->Configure(diffusionQualityStages, diffusionSize01);
+        delayDiffusionLeft->Configure(diffusionQualityStages, diffusionSize01, DelayTunings);
 
     if (delayDiffusionRight != nullptr)
-        delayDiffusionRight->Configure(diffusionQualityStages, diffusionSize01);
+        delayDiffusionRight->Configure(diffusionQualityStages, diffusionSize01, DelayTunings);
 
     if (reverbDiffusionLeft  != nullptr)
-        reverbDiffusionLeft->ConfigureAsReverb(diffusionQualityStages, diffusionSize01);
+        reverbDiffusionLeft->ConfigureAsReverb(diffusionQualityStages, diffusionSize01, DeverbTunings);
 
     if (reverbDiffusionRight != nullptr)
-        reverbDiffusionRight->ConfigureAsReverb(diffusionQualityStages, diffusionSize01);
+        reverbDiffusionRight->ConfigureAsReverb(diffusionQualityStages, diffusionSize01, DeverbTunings);
 
     totalDelayDiffusionMilliseconds = 0.0f;
 

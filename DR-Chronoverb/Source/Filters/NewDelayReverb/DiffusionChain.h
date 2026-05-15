@@ -13,18 +13,6 @@
 class DiffusionChain
 {
 public:
-    // Delay-mode tunings: shorter, natural-spacing delays for discrete-tap blur.
-    std::vector<float> delayTunings =
-    {
-        10.0f, 15.0f, 22.5f, 33.75f, 50.6f, 75.9f, 113.9f, 170.8f
-    };
-
-    // Reverb-mode tunings: longer, prime-spaced delays for lush modal density.
-    std::vector<float> reverbTunings =
-    {
-        29.0f, 37.0f, 43.0f, 53.0f, 71.0f, 89.0f, 113.0f, 149.0f
-    };
-
     DiffusionChain()
     {
     }
@@ -45,7 +33,7 @@ public:
     // Stage delays are distributed across the FULL tuning list regardless of
     // numberOfStages, so reducing quality makes the diffusion sparser (fewer
     // taps spread across the same time span) rather than shorter.
-    void Configure(int numberOfStages, float size01)
+    void Configure(int numberOfStages, float size01, const std::vector<float>& delayTunings)
     {
         cachedStageCount = std::max(1, numberOfStages);
         cachedSize01     = std::max(0.0f, std::min(1.0f, size01));
@@ -77,7 +65,7 @@ public:
 
     // Reverb-quality configuration.
     // Same distributed-resampling logic, using the longer reverb tunings.
-    void ConfigureAsReverb(int numberOfStages, float size01)
+    void ConfigureAsReverb(int numberOfStages, float size01, const std::vector<float>& reverbTunings)
     {
         cachedStageCount = std::max(1, numberOfStages);
         cachedSize01     = std::max(0.0f, std::min(1.0f, size01));
