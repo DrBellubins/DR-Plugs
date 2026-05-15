@@ -4,15 +4,6 @@ None of the following should be deviated from without listing clear and concise 
 
 I'm trying to make mimic an audio plugin called Deelay by Sixth Sample with JUCE in Clion on Arch Linux.
 
--- Code style start --
-
-Always use the allman style as a base.
-Bracket usage should be relagated to loops and if statements that are greater than one line of code.
-
-Do not use shortened parameter names in functions (example: function(MouseEvent e) or function(JuceGraphics g)) use full parameter names function(ParameterType ParameterName)
-
--- Code style end --
-
 ---- BEGINNING OF CRUCIAL DESIGN CHARACTERISTICS ----
 Under NO circumstances should the order of operations of any of the following within this "CRUCIAL DESIGN CHARACTERISTICS" section be suggested modification, without explicitly stated reasoning, and listing the pros and cons of the modification.
 
@@ -50,6 +41,8 @@ Delay time controls when the delay taps show up, it changes contextually based o
 
 ---- ENDING OF CRUCIAL DESIGN CHARACTERISTICS ----
 
+There are independant volume knobs for the Dry and Wet signal, instead of a single Dry/Wet mix knob.
+
 There is an optional Ping-Pong mode.
 Ping-pong can be either Left/Right or Mid-Side ping pong (ping pong between mono and stereo information, which also takes optional haas stereo spread into account).
 
@@ -59,8 +52,7 @@ Distortion - Various distortion algorithms, with responsive and readable display
 Tape - Various tape simulation algorithms, with responsive and readable displays.
 Granular - A granular delay/reverb mixed into the input of diffusion.
 
-There are independant volume knobs for the Dry and Wet signal, instead of a siingle Dry/Wet mix knob.
-
+--------------------------------------------
 -- Pitch shifting start --
 The pitch shifting is made to be modular, so that various backends and sequences can be plugged in easily. I have a range slider that controls the pitch range of the given sequence. 
 
@@ -74,7 +66,7 @@ All of these modes should, under no circumstance, change pitch mid-echo. They sh
 Pitch shifting also has two algorithms, one lower quality, but faster with CPU Usage. The other is higher quality, but slower with CPU usage. The two algorithms are Granular (low quality), and Phase Vocoder (high quality).
 
 -- Pitch shifting end --
-
+--------------------------------------------
 -- Distortion start --
 
 Distortion will have mulitple algorithms, with the option for it to be applied pre feedback (on the input signal before diffusion), or post feedback (on the output signal).
@@ -88,21 +80,33 @@ Chebyshev - Non-linear shaper that can target harmonics
 - Regular algorithms -
 Hard Clipper - A simple hard clipper.
 Diode - Classic circuit model. Used to biasing and clipping.
-Tube Distortion - A gentle distortion algorithm mimicking vacuum tube distortion. (I would like this to mimic fabfilter saturn 2's implementation, though simpler).
-Tape Distortion - Non-linear distortion mimicking magnetic tape distortion. (I would like this to also mimic fabfilter 2's implementation, but simpler).
+Tube Distortion - A gentle distortion algorithm mimicking vacuum tube distortion. (I would like this to mimic fabfilter saturn 2's warm tube).
+Tape Distortion - Non-linear distortion mimicking magnetic tape distortion. (I would also like this to mimic fabfilter 2's warm tape).
 
 -- Distortion end --
-
+--------------------------------------------
 -- Tape start --
 
+Various VHS, and cassette tape designs are up in the air for now.
+However, for sure there will not be any noise/crackling added to the sound.
+Any tape simulating distortion will be optional in the distortion tab.
 
+I will likely want to implement the following:
+Wow - A slow, low-frequency pitch modulation (typically below 4 Hz) caused by the tape reel turning at a slightly inconsistent speed. Adds a gentle, woozy quality to sustained notes. Very noticeable on piano and organ.
+
+Flutter - A faster pitch modulation (roughly 4–15 Hz) caused by irregularities in the capstan or pinch roller. Creates a subtle shimmer or tremolo on sustained tones. At extreme settings, it sounds like tape damage.
+
+Dropouts - Brief moments where the oxide coating is absent or damaged, causing momentary silences or thinning. Found in cassette and damaged reel-to-reel simulation.
+
+For dropouts, I will only want thinning, avoiding full silent dropouts.
 
 -- Tape end --
-
+--------------------------------------------
 -- Granular start --
 
-Granular is fed into the same diffusion chain as the regular delay/reverb. It is added on top of the input + feedback signal.
+Granular is fed into the same diffusion chain as the regular delay/reverb. It is added on top of the input + feedback signal before diffusion.
 
-There is a Wet volume knob
+There is a Wet volume knob that controls the volume of the granular delay/reverb that allows for extensive control between how loud the regular delay/reverb is, with its Wet volume knob, vs granular with its own independant Wet volume knob.
 
 -- Granular end --
+--------------------------------------------
