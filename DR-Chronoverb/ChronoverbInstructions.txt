@@ -4,13 +4,6 @@ None of the following should be deviated from without listing clear and concise 
 
 I'm trying to make mimic an audio plugin called Deelay by Sixth Sample with JUCE in Clion on Arch Linux.
 
-string basicString = "Foo"
-string myString    = "Bar"
-
-only ever do:
-string basicString = "Foo"
-string mystring = "Bar"
-
 ---- BEGINNING OF CRUCIAL DESIGN CHARACTERISTICS ----
 Under NO circumstances should the order of operations of any of the following within this "CRUCIAL DESIGN CHARACTERISTICS" section be suggested modification, without explicitly stated reasoning, and listing the pros and cons of the modification.
 
