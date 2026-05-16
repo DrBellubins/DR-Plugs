@@ -487,7 +487,7 @@ void NewDelayReverb::rebuildPitchSequences()
         {
             auto randomSequence = std::make_unique<RandomOctaveSequence>();
             randomSequence->SetRange(lowerOctave, upperOctave);
-            
+
             shifter.SetSequence(std::move(randomSequence));
         }
         else // Up (0) or Down (1)
