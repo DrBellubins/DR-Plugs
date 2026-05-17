@@ -37,7 +37,7 @@ The diffusion amount knob, in accordance with Deelay's design, shouldn't have an
 
 Delay time mode controls the mode at which it plays, either free hz (ms) setting (ranging from 1 to 1000 ms), or normal (nrm) which is a tempo beat-sync (ranging from 1/1 to 1/16). triplets (trip) is the same range, but with triplet tempo synced echos. Same range with dotted (dot), but with dotted tempo sync.
 
-Delay time controls when the delay taps show up, it changes contextually based on what mode is set. If ms is set, it can be freely be move up and down. If any of the beat synced modes are set it can still be changed on the fly, or automated (with pitch warping artifacts from the smoothing of delay time), but both the internal time value, and the visual knob "snaps" to the set time sync beat. The delay time should be smoothed whether in ms, nrm, trip, or dot mode.
+Delay time controls when the delay taps show up, it changes contextually based on what mode is set. If ms is set, it can be freely be move up and down. If any of the beat synced modes are set it can still be changed on the fly, or automated (with pitch warping artifacts from the smoothing of delay time), but both the internal time value, and the visual knob "snaps" to the set time sync beat. In ms mode, the knob goes from fastest (1 ms) to slowest (1000 ms). In the other modes, it goes from slowest (1/1) to fastest (1/16). The delay time should be smoothed whether in ms, nrm, trip, or dot mode.
 
 ---- ENDING OF CRUCIAL DESIGN CHARACTERISTICS ----
 
