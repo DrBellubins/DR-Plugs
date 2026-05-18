@@ -116,6 +116,7 @@ private:
 
     std::atomic<bool> filterRebuildPending    { false };
     std::atomic<bool> diffusionRebuildPending { false };
+    std::atomic<bool> pitchSequenceRebuildPending { false };
 
     // Delay lines
     std::unique_ptr<DelayLine> mainDelayLeft;

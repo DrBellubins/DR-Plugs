@@ -501,6 +501,10 @@ public:
         if (sequence != nullptr)
             sequence->Reset();
 
+        // Discard any pending swap on a full reset
+        pendingSequence.reset();
+        hasPendingSequence = false;
+
         if (backend != nullptr)
             backend->Reset();
     }
@@ -515,9 +519,20 @@ public:
         return enabled.load(std::memory_order_acquire);
     }
 
-    // Call this when your delay produces a new echo generation.
+    // Called at each echo boundary (already gated to delay period in ProcessBlock).
+    // Commits any staged sequence BEFORE advancing, so the new mode takes effect
+    // cleanly at the start of the next echo — never mid-echo.
     void OnNewEchoBoundary()
     {
+        if (hasPendingSequence && pendingSequence != nullptr)
+        {
+            sequence = std::move(pendingSequence);
+            hasPendingSequence = false;
+            // Reset() was already called in SetSequence when the sequence was staged.
+            // Do NOT advance here — let the new sequence play from its initial position.
+            return;
+        }
+
         if (sequence != nullptr)
             sequence->AdvanceToNextEcho();
     }
@@ -534,12 +549,28 @@ public:
         return backend->ProcessSample(inputSample, pitchRatio);
     }
 
+    // Stages a new sequence for commit at the next echo boundary.
+    // Safe to call from the audio thread (which is the only caller after the
+    // pitchSequenceRebuildPending flag fix above).
     void SetSequence(std::unique_ptr<IPitchSequence> newSequence)
     {
-        sequence = std::move(newSequence);
+        pendingSequence = std::move(newSequence);
 
-        if (sequence != nullptr)
-            sequence->Reset();
+        if (pendingSequence != nullptr)
+            pendingSequence->Reset();
+
+        hasPendingSequence = true;
+    }
+
+    // Commits a pending sequence immediately, bypassing the echo boundary gate.
+    // Only safe to call when the audio thread is not running (i.e. PrepareToPlay).
+    void CommitPendingSequenceNow()
+    {
+        if (hasPendingSequence && pendingSequence != nullptr)
+        {
+            sequence = std::move(pendingSequence);
+            hasPendingSequence = false;
+        }
     }
 
     void SetBackend(std::unique_ptr<IPitchShifterBackend>&& newBackend)
@@ -577,7 +608,11 @@ private:
     double sampleRate = 48000.0;
     int maximumBlockSizeCached = 0;
 
+    bool hasPendingSequence = false;
+
     std::unique_ptr<IPitchSequence> sequence;
+    std::unique_ptr<IPitchSequence> pendingSequence;
+
     std::unique_ptr<IPitchShifterBackend> backend;
 
     std::atomic<bool> enabled { false };

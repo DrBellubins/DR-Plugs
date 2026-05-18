@@ -79,6 +79,9 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
 
     rebuildPitchSequences();
 
+    wetInputPitchShifterLeft.CommitPendingSequenceNow();
+    wetInputPitchShifterRight.CommitPendingSequenceNow();
+
     echoSampleCounterL = 0;
     echoSampleCounterR = 0;
 
@@ -107,6 +110,9 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
     if (filterRebuildPending.exchange(false, std::memory_order_acq_rel))
         updateFilters();
+
+    if (pitchSequenceRebuildPending.exchange(false, std::memory_order_acq_rel))
+        rebuildPitchSequences();
 
     float* leftData  = audioBuffer.getWritePointer(0);
     float* rightData = (numChannels > 1 ? audioBuffer.getWritePointer(1) : nullptr);
@@ -400,19 +406,19 @@ void NewDelayReverb::SetPitchShiftEnabled(float pitchShiftEnabled01)
 void NewDelayReverb::SetPitchShiftRangeLower(float pitchShiftRangeLowerSemitones)
 {
     pitchShiftRangeLower = juce::jlimit(-48.0f, 48.0f, pitchShiftRangeLowerSemitones);
-    rebuildPitchSequences();
+    pitchSequenceRebuildPending.store(true, std::memory_order_release);
 }
 
 void NewDelayReverb::SetPitchShiftRangeUpper(float pitchShiftRangeUpperSemitones)
 {
     pitchShiftRangeUpper = juce::jlimit(-48.0f, 48.0f, pitchShiftRangeUpperSemitones);
-    rebuildPitchSequences();
+    pitchSequenceRebuildPending.store(true, std::memory_order_release);
 }
 
 void NewDelayReverb::SetPitchShiftMode(int modeIndex)
 {
     pitchShiftMode = juce::jlimit(0, 2, modeIndex);
-    rebuildPitchSequences();
+    pitchSequenceRebuildPending.store(true, std::memory_order_release);
 }
 
 void NewDelayReverb::SetHostTempo(float bpm)
