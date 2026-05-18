@@ -47,8 +47,6 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     uiHelpers.CreateKnob(*this, delayTimeKnob, delayTimeAttachment, "delayTime",
         "", 100, cX + 0, cY + -25 + nonPitchYOffset);
 
-    updateDelayKnobDisplay(delayTimeModeButtons->getSelectedIndex());
-
     uiHelpers.CreateKnob(*this, feedbackTimeKnob, feedbackTimeAttachment, "feedbackTime",
         "", 80, cX + 200, cY + 50 + nonPitchYOffset);
 
@@ -133,6 +131,14 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     delayTimeModeAttachment = std::make_unique<SegmentedButton::ChoiceAttachment>(processorRef.parameters,
         "delayTimeMode", *delayTimeModeButtons);
+
+    // Safe to call now — delayTimeModeButtons is fully constructed and the
+    // attachment has already synced the selected index from the parameter.
+    {
+        const int InitialMode = delayTimeModeButtons->getSelectedIndex();
+        lastDelayModeIndex = (InitialMode >= 0 ? InitialMode : 0);
+        updateDelayKnobDisplay(lastDelayModeIndex);
+    }
 
     // Snap knob immediately when mode changes into a synced mode.
     delayTimeModeButtons->onSelectionChanged = [this](int NewIndex)
