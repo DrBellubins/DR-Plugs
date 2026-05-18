@@ -387,24 +387,22 @@ void AudioPluginAudioProcessorEditor::updateDelayKnobDisplay(int ModeIndex)
         return;
 
     static constexpr float SnapPositions[5] = { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
-    static const char* NoteNames[5] = { "1/1", "1/2", "1/4", "1/8", "1/16" };
+    static const char* BeatNames[5] = { "1/1", "1/2", "1/4", "1/8", "1/16" };
 
     if (ModeIndex == 0) // ms mode — map 0..1 -> 1..1000 ms
     {
-        delayTimeKnob->textFromValueFunction = [](double NormalizedValue) -> juce::String
+        delayTimeKnob->setValueToTextFunction([](double NormalizedValue) -> juce::String
         {
             const float Ms = 1.0f + static_cast<float>(NormalizedValue) * (1000.0f - 1.0f);
-            return juce::String(static_cast<int>(std::round(Ms)));
-        };
-
-        delayTimeKnob->setTextValueSuffix(" ms");
+            return juce::String(static_cast<int>(std::round(Ms))) + " ms";
+        });
     }
     else
     {
         const bool IsTriplet = (ModeIndex == 2);
         const bool IsDotted  = (ModeIndex == 3);
 
-        delayTimeKnob->textFromValueFunction = [IsTriplet, IsDotted](double NormalizedValue) -> juce::String
+        delayTimeKnob->setValueToTextFunction([IsTriplet, IsDotted](double NormalizedValue) -> juce::String
         {
             int StepIndex = 0;
             float SmallestDistance = std::abs(static_cast<float>(NormalizedValue) - SnapPositions[0]);
@@ -420,14 +418,14 @@ void AudioPluginAudioProcessorEditor::updateDelayKnobDisplay(int ModeIndex)
                 }
             }
 
-            juce::String NoteName(NoteNames[StepIndex]);
+            juce::String NoteName(BeatNames[StepIndex]);
 
             if (IsTriplet) return NoteName + "T";
             if (IsDotted)  return NoteName + ".";
             return NoteName;
-        };
+        });
 
-        delayTimeKnob->setTextValueSuffix(""); // suffix is baked into textFromValueFunction
+        delayTimeKnob->setTextValueSuffix("");
     }
 
     delayTimeKnob->updateText();
