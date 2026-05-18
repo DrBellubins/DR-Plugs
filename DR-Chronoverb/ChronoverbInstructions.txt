@@ -58,9 +58,14 @@ Granular - A granular delay/reverb mixed into the input of diffusion.
 -- Pitch shifting start --
 The pitch shifting is made to be modular, so that various backends and sequences can be plugged in easily. I have a range slider that controls the pitch range of the given sequence. 
 
-Currently, I have 3 pitch shifting modes: Up, Down, and Random:
+Currently, I will have 4 pitch shifting modes: Up, Down, Up-Down, and Random:
+    
 Up starts from the lower pitch range value, and goes up by octaves until the higher pitch range value.
+
 Down starts at the higher pitch range value and goes down by an octave to the lower pitch range value.
+
+Up-Down srarts from lower pitch range value, and once hitting higher pitch range value, it goes back down to lower, and repeats this ping-pong.
+
 Random randomly goes to a different octave within the pitch range, never repeating the last octave twice in a row, if possible.
 
 All of these modes should, under no circumstance, change pitch mid-echo. They should only change pitch at the alloted delay time. Pitch shifting should be audible in both the delay signal, and the reverb signal.
