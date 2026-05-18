@@ -208,31 +208,22 @@ private:
     float pitchRatio = 1.0f;
 };
 
-// ============================ Granular pitch backend ============================
-// Dual read-head delay/grain pitch shifter.
-//
-// Key tuning parameters:
-// - grainLengthMs: 20–50ms is the sweet spot for shimmer. Longer = more smear + latency.
-//   150ms (old default) was far too long.
-// - lookbackMultiplier: 3.0 is safe for ratios ≤ 2× (one octave up/down).
-//   Increase to 4.0 if using ratios > 2×.
-// - jitterPercent: 0.10–0.20 breaks up the periodic anchor pattern that causes
-//   metallic buzz artifacts.
-//
-// Latency introduced = grainLengthSamples * lookbackMultiplier samples.
-// At 35ms grain + 3× lookback + 48kHz: ~5040 samples / ~105ms latency.
-// This latency is absorbed into the reverb feedback path — not directly perceptible.
+// ============================ Granular pitch backend (echo-quantized) ============================
+// Echo-quantized design:
+// - Host calls OnEchoBoundary() exactly at each delay write boundary.
+// - Backend latches a pending ratio ONLY at boundary.
+// - ProcessSample() uses latched ratio for full echo period (no mid-echo modulation).
+// - Optional very short crossfade on boundary to reduce click when ratio jumps.
+
 class GranularPitchBackend : public IPitchShifterBackend
 {
     struct ReadHead
     {
-        float ReadIndex = 0.0f;
+        float readIndex = 0.0f;
     };
 
 public:
-    GranularPitchBackend()
-    {
-    }
+    GranularPitchBackend() = default;
 
     void Prepare(double newSampleRate, int maximumBlockSize) override
     {
@@ -240,16 +231,19 @@ public:
 
         sampleRate = newSampleRate;
 
-        // Buffer is 200ms — plenty for any lookback at our grain sizes.
-        const int bufferMilliseconds = 200;
+        // 300 ms circular buffer (safe for lookback + jitter at lower notes)
+        const int bufferMilliseconds = 300;
         const int bufferSizeSamples = std::max(
-            1024,
+            2048,
             static_cast<int>(std::ceil((bufferMilliseconds * sampleRate) / 1000.0)));
 
         buffer.assign(static_cast<size_t>(bufferSizeSamples), 0.0f);
 
-        // Default: 35ms grains. This is tunable via SetGrainLengthMilliseconds().
         SetGrainLengthMilliseconds(35.0f);
+        SetJitterPercent(0.12f);
+        SetLookbackMultiplier(3.0f);
+        SetBoundaryCrossfadeMilliseconds(3.0f);
+
         Reset();
     }
 
@@ -258,15 +252,42 @@ public:
         std::fill(buffer.begin(), buffer.end(), 0.0f);
 
         writeIndex = 0;
-        smoothedPitchRatio = 1.0f;
 
-        // Start the two grains half a grain-length apart in phase so their
-        // Hann windows sum to unity at all times: hann(t) + hann(t+0.5) = 1.0
+        // Echo-quantized ratio state
+        latchedRatio = 1.0f;
+        pendingRatio = 1.0f;
+        hasPendingRatio = false;
+
+        // Two overlapped grains (180° apart)
         grainPhaseA = 0.0f;
         grainPhaseB = 0.5f;
 
         anchorHeadToWrite(headA, 0.0f);
         anchorHeadToWrite(headB, 0.0f);
+
+        // Boundary crossfade state
+        boundaryFadeRemainingSamples = 0;
+        prevLatchedRatioForFade = 1.0f;
+    }
+
+    // IMPORTANT: quantized boundary hook.
+    // Call once per echo boundary from delay engine.
+    void OnEchoBoundary()
+    {
+        if (!hasPendingRatio)
+            return;
+
+        const float newRatio = pendingRatio;
+        hasPendingRatio = false;
+
+        if (std::abs(newRatio - latchedRatio) < 1.0e-6f)
+            return;
+
+        prevLatchedRatioForFade = latchedRatio;
+        latchedRatio = newRatio;
+
+        // Start short crossfade window to avoid discontinuity pops.
+        boundaryFadeRemainingSamples = boundaryFadeSamples;
     }
 
     float ProcessSample(float inputSample, float pitchRatio) override
@@ -274,130 +295,123 @@ public:
         if (buffer.empty())
             return inputSample;
 
-        const float clampedPitchRatio = juce::jlimit(0.25f, 4.0f, pitchRatio);
-        smoothPitchRatio(clampedPitchRatio);
+        // Stage next boundary target; DO NOT apply immediately.
+        pendingRatio = juce::jlimit(0.25f, 4.0f, pitchRatio);
+        hasPendingRatio = true;
 
-        // Write incoming sample
+        // Write input
         buffer[static_cast<size_t>(writeIndex)] = inputSample;
         writeIndex = (writeIndex + 1) % static_cast<int>(buffer.size());
 
+        // Grain phase advance
         const float phaseIncrement = 1.0f / static_cast<float>(grainLengthSamples);
 
-        // Advance grain A phase; re-anchor when it wraps
         grainPhaseA += phaseIncrement;
-
         if (grainPhaseA >= 1.0f)
         {
             grainPhaseA -= 1.0f;
-            // Jitter anchor position to break up metallic periodic artifact
-            const float jitterSamples = generateJitter();
-            anchorHeadToWrite(headA, jitterSamples);
+            anchorHeadToWrite(headA, generateJitterSamples());
         }
 
-        // Advance grain B phase; re-anchor when it wraps
         grainPhaseB += phaseIncrement;
-
         if (grainPhaseB >= 1.0f)
         {
             grainPhaseB -= 1.0f;
-            const float jitterSamples = generateJitter();
-            anchorHeadToWrite(headB, jitterSamples);
+            anchorHeadToWrite(headB, generateJitterSamples());
         }
 
-        // Read from each head using cubic interpolation
-        const float sampleA = readCubic(headA.ReadIndex);
-        const float sampleB = readCubic(headB.ReadIndex);
+        // Main output at latched ratio
+        const float outCurrent = renderAtRatio(latchedRatio);
 
-        // Advance read positions by the pitch ratio
-        headA.ReadIndex = wrapReadIndex(headA.ReadIndex + smoothedPitchRatio);
-        headB.ReadIndex = wrapReadIndex(headB.ReadIndex + smoothedPitchRatio);
+        // Optional short fade from previous ratio after boundary
+        if (boundaryFadeRemainingSamples > 0)
+        {
+            const int done = boundaryFadeSamples - boundaryFadeRemainingSamples;
+            const float t = static_cast<float>(done) / static_cast<float>(std::max(1, boundaryFadeSamples));
+            const float gOld = std::cos(t * juce::MathConstants<float>::halfPi);
+            const float gNew = std::sin(t * juce::MathConstants<float>::halfPi);
 
-        // Hann windows offset by half a period guarantee unity sum at all times
-        const float windowA = hannWindow(grainPhaseA);
-        const float windowB = hannWindow(grainPhaseB);
+            const float outPrev = renderAtRatio(prevLatchedRatioForFade);
+            --boundaryFadeRemainingSamples;
 
-        return (sampleA * windowA) + (sampleB * windowB);
+            return outPrev * gOld + outCurrent * gNew;
+        }
+
+        return outCurrent;
     }
 
-    // Grain length in milliseconds. 20–50ms recommended for shimmer.
-    // Shorter = crisper / more transient-friendly, but slightly more grainy.
-    // Longer = smoother but more smear and latency.
+    // --- tuning API ---
     void SetGrainLengthMilliseconds(float newGrainLengthMilliseconds)
     {
-        const float clamped = juce::jlimit(5.0f, 500.0f, newGrainLengthMilliseconds);
+        const float clamped = juce::jlimit(5.0f, 120.0f, newGrainLengthMilliseconds);
         grainLengthSamples = std::max(16, static_cast<int>(std::round((clamped * sampleRate) / 1000.0)));
     }
 
-    // Jitter as a fraction of grain length. 0.10–0.20 recommended.
-    // Reduces metallic/buzzing artifact from deterministic grain anchoring.
     void SetJitterPercent(float newJitterPercent)
     {
         jitterPercent = juce::jlimit(0.0f, 0.5f, newJitterPercent);
     }
 
-    // Lookback multiplier. 3.0 is safe for ratios ≤ 2×.
-    // Increase to 4.0–5.0 for ratios up to 4×.
     void SetLookbackMultiplier(float newLookbackMultiplier)
     {
         lookbackMultiplier = juce::jlimit(2.0f, 6.0f, newLookbackMultiplier);
     }
 
+    void SetBoundaryCrossfadeMilliseconds(float ms)
+    {
+        const float clamped = juce::jlimit(0.0f, 20.0f, ms);
+        boundaryFadeSamples = std::max(0, static_cast<int>(std::round((clamped * sampleRate) / 1000.0)));
+    }
+
     float GetLatencyMilliseconds() const
     {
-        const float lookbackSamples =
-            static_cast<float>(grainLengthSamples) * lookbackMultiplier;
-
-        return static_cast<float>((lookbackSamples * 1000.0) / sampleRate);
+        const float lookbackSamples = static_cast<float>(grainLengthSamples) * lookbackMultiplier;
+        return (lookbackSamples * 1000.0f) / static_cast<float>(sampleRate);
     }
 
 private:
-    // Exponential smoothing toward target pitch ratio.
-    // Coefficient of 0.05 converges in ~20 samples (~0.4ms at 48kHz) — fast enough.
-    void smoothPitchRatio(float targetPitchRatio)
+    // Render one sample using current read heads/windows at a specific ratio.
+    // NOTE: this advances heads once using the provided ratio.
+    float renderAtRatio(float ratio)
     {
-        const float smoothingCoefficient = 0.05f;
-        smoothedPitchRatio += smoothingCoefficient * (targetPitchRatio - smoothedPitchRatio);
+        const float sampleA = readCubic(headA.readIndex);
+        const float sampleB = readCubic(headB.readIndex);
+
+        headA.readIndex = wrapReadIndex(headA.readIndex + ratio);
+        headB.readIndex = wrapReadIndex(headB.readIndex + ratio);
+
+        const float windowA = hannWindow(grainPhaseA);
+        const float windowB = hannWindow(grainPhaseB);
+
+        return sampleA * windowA + sampleB * windowB;
     }
 
-    // Place the read head behind the write head by (lookbackMultiplier × grainLength) samples,
-    // optionally offset by a jitter amount to break up periodic anchor patterns.
-    void anchorHeadToWrite(ReadHead& readHead, float jitterOffsetSamples)
+    void anchorHeadToWrite(ReadHead& head, float jitterOffsetSamples)
     {
-        const float lookbackSamples =
-            static_cast<float>(grainLengthSamples) * lookbackMultiplier;
-
+        const float lookbackSamples = static_cast<float>(grainLengthSamples) * lookbackMultiplier;
         const float writeFloat = static_cast<float>(writeIndex);
-        readHead.ReadIndex = wrapReadIndex(writeFloat - lookbackSamples + jitterOffsetSamples);
+        head.readIndex = wrapReadIndex(writeFloat - lookbackSamples + jitterOffsetSamples);
     }
 
-    // Returns a random jitter offset in samples, bounded to ±(jitterPercent × grainLength).
-    float generateJitter() const
+    float generateJitterSamples() const
     {
-        // Simple uniform random in [-1, +1]
-        const float unitRandom =
-            (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * 2.0f - 1.0f;
-
-        return unitRandom * jitterPercent * static_cast<float>(grainLengthSamples);
+        const float u = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * 2.0f - 1.0f;
+        return u * jitterPercent * static_cast<float>(grainLengthSamples);
     }
 
     static float hannWindow(float phase01)
     {
-        // hann(t) = 0.5 - 0.5 * cos(2π * t)
-        // Key property: hann(t) + hann(t + 0.5) = 1.0 for all t.
         const float twoPi = 2.0f * juce::MathConstants<float>::pi;
         return 0.5f - 0.5f * std::cos(twoPi * phase01);
     }
 
-    float wrapReadIndex(float index) const
+    float wrapReadIndex(float idx) const
     {
         const float size = static_cast<float>(buffer.size());
-        float out = index;
+        float out = idx;
 
-        while (out < 0.0f)
-            out += size;
-
-        while (out >= size)
-            out -= size;
+        while (out < 0.0f) out += size;
+        while (out >= size) out -= size;
 
         return out;
     }
@@ -406,47 +420,51 @@ private:
     {
         const int size = static_cast<int>(buffer.size());
         const float wrapped = wrapReadIndex(readIndexFloat);
-        const int index1 = static_cast<int>(std::floor(wrapped));
-        const float frac  = wrapped - static_cast<float>(index1);
 
-        const int index0 = (index1 - 1 + size) % size;
-        const int index2 = (index1 + 1)         % size;
-        const int index3 = (index1 + 2)         % size;
+        const int i1 = static_cast<int>(std::floor(wrapped));
+        const float frac = wrapped - static_cast<float>(i1);
 
-        const float y0 = buffer[static_cast<size_t>(index0)];
-        const float y1 = buffer[static_cast<size_t>(index1)];
-        const float y2 = buffer[static_cast<size_t>(index2)];
-        const float y3 = buffer[static_cast<size_t>(index3)];
+        const int i0 = (i1 - 1 + size) % size;
+        const int i2 = (i1 + 1) % size;
+        const int i3 = (i1 + 2) % size;
+
+        const float y0 = buffer[static_cast<size_t>(i0)];
+        const float y1 = buffer[static_cast<size_t>(i1)];
+        const float y2 = buffer[static_cast<size_t>(i2)];
+        const float y3 = buffer[static_cast<size_t>(i3)];
 
         const float a0 = -0.5f * y0 + 1.5f * y1 - 1.5f * y2 + 0.5f * y3;
-        const float a1 =         y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
-        const float a2 = -0.5f * y0              + 0.5f * y2;
-        const float a3 =                    y1;
+        const float a1 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
+        const float a2 = -0.5f * y0 + 0.5f * y2;
+        const float a3 = y1;
 
         return ((a0 * frac + a1) * frac + a2) * frac + a3;
     }
 
+private:
     double sampleRate = 48000.0;
 
     std::vector<float> buffer;
     int writeIndex = 0;
 
-    int grainLengthSamples = 1680; // Default ~35ms at 48kHz
+    int grainLengthSamples = 1680; // ~35 ms @ 48k
+    float lookbackMultiplier = 3.0f;
+    float jitterPercent = 0.12f;
 
     ReadHead headA;
     ReadHead headB;
-
     float grainPhaseA = 0.0f;
     float grainPhaseB = 0.5f;
 
-    float smoothedPitchRatio = 1.0f;
+    // Echo-quantized ratio state
+    float latchedRatio = 1.0f;
+    float pendingRatio = 1.0f;
+    bool hasPendingRatio = false;
 
-    // 3.0 is safe for max ratio of 2× (one octave up/down).
-    // For max ratio 4×, increase to 5.0.
-    float lookbackMultiplier = 3.0f;
-
-    // Jitter fraction of grain length (0.15 = ±15% of grain length).
-    float jitterPercent = 0.15f;
+    // Boundary crossfade
+    int boundaryFadeSamples = 0;
+    int boundaryFadeRemainingSamples = 0;
+    float prevLatchedRatioForFade = 1.0f;
 };
 
 // Passthrough backend for testing/bypassing without touching architecture.
@@ -537,6 +555,9 @@ public:
 
         if (sequence != nullptr)
             sequence->AdvanceToNextEcho();
+
+        if (auto* granular = dynamic_cast<GranularPitchBackend*>(backend.get()))
+            granular->OnEchoBoundary();
     }
 
     float ProcessSample(float inputSample)
