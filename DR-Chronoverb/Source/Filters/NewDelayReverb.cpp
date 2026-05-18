@@ -232,7 +232,10 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         mainDelayRight->PushSample(writeRight);
 
         // ---- 6: Read nominal tap and early tap ----
-        const float nominalReadMilliseconds = delayMilliseconds;
+        smoothedCenteredReadDelayMilliseconds += readDelaySlewCoefficient *
+            (delayMilliseconds - smoothedCenteredReadDelayMilliseconds);
+
+        const float nominalReadMilliseconds = smoothedCenteredReadDelayMilliseconds;
 
         const float earlyReadMilliseconds =
             std::max(1.0f, delayMilliseconds - staticDiffusionCompensationMilliseconds);
@@ -303,14 +306,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         }
 
         // ---- 10: Dry/wet mix ----
-        float outputLeft = 0.0f;
-        float outputRight = 0.0f;
-
-        outputLeft = (dryLeft * dryVolume) + (spreadWetLeft * wetVolume);
-        outputRight = (dryRight * dryVolume) + (spreadWetRight * wetVolume);
-
-        //float outputLeft = PMath::EqualPowerCrossfade(dryLeft, spreadWetLeft, dryWet01);
-        //float outputRight = PMath::EqualPowerCrossfade(dryRight, spreadWetRight, dryWet01);
+        float outputLeft = (dryLeft * dryVolume) + (spreadWetLeft * wetVolume);
+        float outputRight = (dryRight * dryVolume) + (spreadWetRight * wetVolume);
 
         // ---- 11: Optional post-filtering ----
         if (hplpPrePost01 >= 0.5f)
