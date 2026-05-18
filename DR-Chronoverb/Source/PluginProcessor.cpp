@@ -419,13 +419,13 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     }
 
     // Computer Keyboard Square Synth
-    //keyboardSynth.Process(buffer);
+    keyboardSynth.Process(buffer);
 
     // Process reverb
     DelayReverb.ProcessBlock(buffer);
 
     // ---- Volume Clipper Section ----
-    /*const float ClipperThreshold = 0.9f; // or 0.9f etc.
+    const float ClipperThreshold = 0.9f; // or 0.9f etc.
     const int NumChannels = buffer.getNumChannels();
     const int NumSamples = buffer.getNumSamples();
 
@@ -445,7 +445,7 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
             ChannelData[SampleIndex] = InputSample;
         }
-    }*/
+    }
 }
 
 //==============================================================================

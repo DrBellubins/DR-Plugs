@@ -72,10 +72,10 @@ public:
     }
 
 private:
-    int stepOctaves    = 1;
-    int startOctave    = 0;
-    int lowerBound     = -2;
-    int upperBound     =  2;
+    int stepOctaves = 1;
+    int startOctave = 0;
+    int lowerBound = -2;
+    int upperBound = 2;
     int currentEchoIndex = 0;
     int currentOctaves = 0;
 };
@@ -137,11 +137,11 @@ public:
     }
 
 private:
-    int lowerBound   = -2;
-    int upperBound   =  2;
-    int startOctave  =  0;
+    int lowerBound = -2;
+    int upperBound = 2;
+    int startOctave = 0;
     int currentOctave = 0;
-    int direction    = 1;
+    int direction = 1;
 };
 
 // Random octave sequence: picks a random octave within [lowerBound, upperBound]
@@ -199,10 +199,10 @@ private:
         return candidates[static_cast<size_t>(rand()) % candidates.size()];
     }
 
-    int lowerBound    = -2;
-    int upperBound    =  2;
+    int lowerBound = -2;
+    int upperBound =  2;
     int currentOctave =  0;
-    int lastOctave    = INT_MIN;
+    int lastOctave = INT_MIN;
     std::vector<int> octaves;
 };
 
@@ -270,7 +270,7 @@ public:
         SetGrainLengthMilliseconds(35.0f);
         SetJitterPercent(0.12f);
         SetLookbackMultiplier(3.0f);
-        SetBoundaryCrossfadeMilliseconds(1.0f);
+        SetBoundaryCrossfadeMilliseconds(4.0f);
 
         Reset();
     }
@@ -291,9 +291,9 @@ public:
         anchorStateToWrite(stateB);
 
         crossfadeRemainingSamples = 0;
-        crossfadeTotalSamples     = boundaryCrossfadeSamples;
-        activeIsA                 = true;
-        pendingFlipAfterFade      = false;
+        crossfadeTotalSamples = boundaryCrossfadeSamples;
+        activeIsA = true;
+        pendingFlipAfterFade = false;
     }
 
     // ------------------------------------------------------------------
@@ -304,7 +304,7 @@ public:
     {
         const float r = juce::jlimit(0.25f, 4.0f, newRatio);
 
-        GrainState& active   = (activeIsA ? stateA : stateB);
+        GrainState& active = (activeIsA ? stateA : stateB);
         GrainState& inactive = (activeIsA ? stateB : stateA);
 
         if (std::abs(r - active.ratio) < 1.0e-6f)
@@ -312,12 +312,12 @@ public:
 
         // Clone running grain state, change only the ratio.
         // DO NOT re-anchor read heads — that causes discontinuity.
-        inactive       = active;
+        inactive = active;
         inactive.ratio = r;
 
-        crossfadeTotalSamples     = boundaryCrossfadeSamples;
+        crossfadeTotalSamples = boundaryCrossfadeSamples;
         crossfadeRemainingSamples = crossfadeTotalSamples;
-        pendingFlipAfterFade      = true;
+        pendingFlipAfterFade = true;
     }
 
     // ------------------------------------------------------------------
@@ -326,20 +326,20 @@ public:
     // ------------------------------------------------------------------
     void SetInitialRatio(float ratio)
     {
-        const float r  = juce::jlimit(0.25f, 4.0f, ratio);
-        stateA.ratio   = r;
-        stateB.ratio   = r;
-        stateA.phaseA  = 0.0f;
-        stateA.phaseB  = 0.5f;
-        stateB.phaseA  = 0.0f;
-        stateB.phaseB  = 0.5f;
+        const float r = juce::jlimit(0.25f, 4.0f, ratio);
+        stateA.ratio = r;
+        stateB.ratio = r;
+        stateA.phaseA = 0.0f;
+        stateA.phaseB = 0.5f;
+        stateB.phaseA = 0.0f;
+        stateB.phaseB = 0.5f;
 
         anchorStateToWrite(stateA);
         anchorStateToWrite(stateB);
 
         crossfadeRemainingSamples = 0;
-        pendingFlipAfterFade      = false;
-        activeIsA                 = true;
+        pendingFlipAfterFade = false;
+        activeIsA = true;
     }
 
     // pitchRatio is intentionally unused — ratio is now managed via OnEchoBoundary.
@@ -404,32 +404,33 @@ public:
     }
 
 private:
-    float processStateOneSample(GrainState& s)
+    float processStateOneSample(GrainState& grainState)
     {
-        const float sampleA = readCubic(s.headA.readIndex);
-        const float sampleB = readCubic(s.headB.readIndex);
+        const float sampleA = readCubic(grainState.headA.readIndex);
+        const float sampleB = readCubic(grainState.headB.readIndex);
 
-        s.headA.readIndex = wrapReadIndex(s.headA.readIndex + s.ratio);
-        s.headB.readIndex = wrapReadIndex(s.headB.readIndex + s.ratio);
+        grainState.headA.readIndex = wrapReadIndex(grainState.headA.readIndex + grainState.ratio);
+        grainState.headB.readIndex = wrapReadIndex(grainState.headB.readIndex + grainState.ratio);
 
         const float phaseInc = 1.0f / static_cast<float>(grainLengthSamples);
 
-        s.phaseA += phaseInc;
-        if (s.phaseA >= 1.0f)
+        grainState.phaseA += phaseInc;
+        if (grainState.phaseA >= 1.0f)
         {
-            s.phaseA -= 1.0f;
-            anchorHeadToWrite(s.headA, generateJitterSamples());
+            grainState.phaseA -= 1.0f;
+            anchorHeadToWrite(grainState.headA, generateJitterSamples());
         }
 
-        s.phaseB += phaseInc;
-        if (s.phaseB >= 1.0f)
+        grainState.phaseB += phaseInc;
+        if (grainState.phaseB >= 1.0f)
         {
-            s.phaseB -= 1.0f;
-            anchorHeadToWrite(s.headB, generateJitterSamples());
+            grainState.phaseB -= 1.0f;
+            anchorHeadToWrite(grainState.headB, generateJitterSamples());
         }
 
-        const float wA = hannWindow(s.phaseA);
-        const float wB = hannWindow(s.phaseB);
+        const float wA = hannWindow(grainState.phaseA);
+        const float wB = hannWindow(grainState.phaseB);
+
         return sampleA * wA + sampleB * wB;
     }
 
@@ -439,11 +440,11 @@ private:
         anchorHeadToWrite(s.headB, 0.0f);
     }
 
-    void anchorHeadToWrite(ReadHead& h, float jitterOffsetSamples)
+    void anchorHeadToWrite(ReadHead& readHead, float jitterOffsetSamples)
     {
         const float lookback = static_cast<float>(grainLengthSamples) * lookbackMultiplier;
-        const float w        = static_cast<float>(writeIndex);
-        h.readIndex          = wrapReadIndex(w - lookback + jitterOffsetSamples);
+        const float index = static_cast<float>(writeIndex);
+        readHead.readIndex = wrapReadIndex(index - lookback + jitterOffsetSamples);
     }
 
     float generateJitterSamples() const
@@ -468,10 +469,10 @@ private:
 
     float readCubic(float readIndexFloat) const
     {
-        const int   size    = static_cast<int>(buffer.size());
+        const int size = static_cast<int>(buffer.size());
         const float wrapped = wrapReadIndex(readIndexFloat);
-        const int   i1      = static_cast<int>(std::floor(wrapped));
-        const float frac    = wrapped - static_cast<float>(i1);
+        const int i1 = static_cast<int>(std::floor(wrapped));
+        const float frac = wrapped - static_cast<float>(i1);
 
         const int i0 = (i1 - 1 + size) % size;
         const int i2 = (i1 + 1) % size;
@@ -494,18 +495,18 @@ private:
     std::vector<float> buffer;
     int writeIndex = 0;
 
-    int   grainLengthSamples    = 1680;
-    float jitterPercent         = 0.12f;
-    float lookbackMultiplier    = 3.0f;
+    int grainLengthSamples = 1680;
+    float jitterPercent = 0.12f;
+    float lookbackMultiplier = 3.0f;
 
     GrainState stateA;
     GrainState stateB;
     bool activeIsA = true;
 
-    int  boundaryCrossfadeSamples  = 0;
-    int  crossfadeTotalSamples     = 0;
-    int  crossfadeRemainingSamples = 0;
-    bool pendingFlipAfterFade      = false;
+    int boundaryCrossfadeSamples = 0;
+    int crossfadeTotalSamples = 0;
+    int crossfadeRemainingSamples = 0;
+    bool pendingFlipAfterFade = false;
 };
 
 // Passthrough backend (testing / bypass).
