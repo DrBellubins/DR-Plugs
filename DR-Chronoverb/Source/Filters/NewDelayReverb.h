@@ -71,6 +71,8 @@ private:
     void updateStereoSpread();
     void rebuildPitchSequences();
 
+    int semitonesToOctaveIndex(float semitones);
+
     // Parameters
     double sampleRate = 48000.0;
     float hostTempoBpm = 120.0f;
@@ -98,8 +100,6 @@ private:
     float dryVolume = 1.0f;
     float wetVolume = 1.0f;
 
-    //float dryWet01 = 0.5f;
-
     float lowpass01 = 0.0f;
     float highpass01 = 0.0f;
     float stereoSpreadMinus1To1 = 0.0f;
@@ -109,7 +109,7 @@ private:
     float pitchShiftRangeLower = -12.0f;
     float pitchShiftRangeUpper = 12.0f;
     int pitchShiftMode = 0;
-    float pitchStereoEnabled01 = 1.0f;
+    float pitchStereoEnabled01 = 0.0f;
 
     float pitchShifterLatencyMs = 0.0f;
 

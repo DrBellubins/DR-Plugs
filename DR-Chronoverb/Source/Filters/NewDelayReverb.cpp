@@ -427,13 +427,32 @@ void NewDelayReverb::SetPitchShiftRangeUpper(float pitchShiftRangeUpperSemitones
 
 void NewDelayReverb::SetPitchShiftMode(int modeIndex)
 {
-    pitchShiftMode = juce::jlimit(0, 2, modeIndex);
+    pitchShiftMode = juce::jlimit(0, 3, modeIndex);
     pitchSequenceRebuildPending.store(true, std::memory_order_release);
 }
 
 void NewDelayReverb::SetPitchStereoEnabled(float enabled01)
 {
-    pitchStereoEnabled01 = clamp01(enabled01);
+    const float newValue = clamp01(enabled01);
+    const bool oldStereoEnabled = (pitchStereoEnabled01 >= 0.5f);
+    const bool newStereoEnabled = (newValue >= 0.5f);
+
+    pitchStereoEnabled01 = newValue;
+
+    if (oldStereoEnabled != newStereoEnabled)
+    {
+        echoWriteCounterL = 0;
+        echoWriteCounterR = 0;
+
+        wetInputPitchShifterLeft.ResetSequenceAndBackendToCurrentState();
+        wetInputPitchShifterRight.ResetSequenceAndBackendToCurrentState();
+
+        if (!newStereoEnabled)
+        {
+            const float leftRatio = wetInputPitchShifterLeft.GetCurrentPitchRatio();
+            wetInputPitchShifterRight.OnNewEchoBoundaryMirrored(leftRatio);
+        }
+    }
 }
 
 void NewDelayReverb::SetHostTempo(float bpm)
@@ -453,62 +472,58 @@ void NewDelayReverb::updateDelayMillisecondsFromNormalized()
 {
     if (delayMode == 0) // ms — free range 1..1000 ms
     {
-        const float BaseMs = map01ToRange(delayTimeNormalized, 1.0f, 1000.0f);
-        delayMilliseconds = std::max(1.0f, BaseMs);
-        return;
-    }
+        const float baseMs = map01ToRange(delayTimeNormalized, 1.0f, 1000.0f);
+        delayMilliseconds = std::max(1.0f, baseMs);
 
-    // Beat-synced modes. The knob snaps to 5 positions: 0, 0.25, 0.5, 0.75, 1.0
-    // mapping to: 1/1 (slowest) → 1/16 (fastest).
-    static constexpr float SnapPositions[5] = { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
-
-    // Beat multipliers in quarter notes: 1/1=4, 1/2=2, 1/4=1, 1/8=0.5, 1/16=0.25
-    static constexpr float BeatMultipliers[5] = { 4.0f, 2.0f, 1.0f, 0.5f, 0.25f };
-
-    // Find nearest snap index
-    int StepIndex = 0;
-    float SmallestDistance = std::abs(delayTimeNormalized - SnapPositions[0]);
-
-    for (int i = 1; i < 5; ++i)
-    {
-        const float Distance = std::abs(delayTimeNormalized - SnapPositions[i]);
-
-        if (Distance < SmallestDistance)
-        {
-            SmallestDistance = Distance;
-            StepIndex = i;
-        }
-    }
-
-    // Quarter-note duration in ms
-    const float QuarterNoteMs = 60000.0f / hostTempoBpm;
-    float BeatMs = BeatMultipliers[StepIndex] * QuarterNoteMs;
-
-    if (delayMode == 2)      // Triplet: 2/3 of straight value
-        BeatMs *= (2.0f / 3.0f);
-    else if (delayMode == 3) // Dotted: 3/2 of straight value
-        BeatMs *= 1.5f;
-
-    delayMilliseconds = juce::jlimit(1.0f, 1000.0f, BeatMs);
-
-    // After computing the new delayMilliseconds:
-    // In beat-sync modes, slew over ~one echo cycle so the transition
-    // sounds like a single pitched echo rather than a continuous sweep.
-    // In ms mode, slew over a fixed short time for a musical glide.
-    if (delayMode == 0)
-    {
-        // ms mode: fixed 80ms glide feels musical
-        readDelaySlewCoefficient = 1.0f / (0.08f * static_cast<float>(sampleRate));
+        // ms mode: fixed glide
+        readDelaySlewCoefficient =
+            1.0f / (0.08f * static_cast<float>(sampleRate));
     }
     else
     {
-        // Beat-sync: slew over one echo period so the pitch artifact
-        // resolves in one repeat, matching Deelay's character.
+        // Beat-synced modes. Knob snaps to:
+        // 0, 0.25, 0.5, 0.75, 1.0 => 1/1, 1/2, 1/4, 1/8, 1/16
+        static constexpr float snapPositions[5]   = { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
+        static constexpr float beatMultipliers[5] = { 4.0f, 2.0f, 1.0f, 0.5f, 0.25f };
+
+        int stepIndex = 0;
+        float smallestDistance = std::abs(delayTimeNormalized - snapPositions[0]);
+
+        for (int i = 1; i < 5; ++i)
+        {
+            const float distance = std::abs(delayTimeNormalized - snapPositions[i]);
+
+            if (distance < smallestDistance)
+            {
+                smallestDistance = distance;
+                stepIndex = i;
+            }
+        }
+
+        const float quarterNoteMs = 60000.0f / hostTempoBpm;
+        float beatMs = beatMultipliers[stepIndex] * quarterNoteMs;
+
+        if (delayMode == 2)      // triplet
+            beatMs *= (2.0f / 3.0f);
+        else if (delayMode == 3) // dotted
+            beatMs *= 1.5f;
+
+        delayMilliseconds = juce::jlimit(1.0f, 1000.0f, beatMs);
+
         const float slewSeconds = std::max(0.05f, delayMilliseconds / 1000.0f);
-        readDelaySlewCoefficient = 1.0f / (slewSeconds * static_cast<float>(sampleRate));
+        readDelaySlewCoefficient =
+            1.0f / (slewSeconds * static_cast<float>(sampleRate));
     }
 
-    writePeriodSamples = std::max(1, static_cast<int>(std::round((delayMilliseconds * sampleRate) / 1000.0f)));
+    // IMPORTANT: always update write period for all modes
+    writePeriodSamples = std::max(
+        1,
+        static_cast<int>(std::round((delayMilliseconds * static_cast<float>(sampleRate)) / 1000.0f))
+    );
+
+    // Keep counters in range after timing changes
+    echoWriteCounterL = juce::jlimit(0, writePeriodSamples - 1, echoWriteCounterL);
+    echoWriteCounterR = juce::jlimit(0, writePeriodSamples - 1, echoWriteCounterR);
 }
 
 void NewDelayReverb::rebuildDiffusionIfNeeded()
@@ -574,22 +589,29 @@ void NewDelayReverb::updateStereoSpread()
 
 void NewDelayReverb::rebuildPitchSequences()
 {
-    int lowerOctave = static_cast<int>(std::floor(pitchShiftRangeLower / 12.0f));
-    int upperOctave = static_cast<int>(std::floor(pitchShiftRangeUpper / 12.0f));
+    int lowerOctave = semitonesToOctaveIndex(pitchShiftRangeLower);
+    int upperOctave = semitonesToOctaveIndex(pitchShiftRangeUpper);
 
     if (lowerOctave > upperOctave)
         std::swap(lowerOctave, upperOctave);
 
     auto configureShifter = [&](OctaveEchoPitchShifter& shifter)
     {
-        if (pitchShiftMode == 2) // Random
+        if (pitchShiftMode == 3) // Up-Down
+        {
+            auto pingPongSequence = std::make_unique<PingPongOctaveSequence>();
+            pingPongSequence->SetRange(lowerOctave, upperOctave);
+            pingPongSequence->SetStartOctave(lowerOctave);
+            pingPongSequence->SetInitialDirection(1);
+            shifter.SetSequence(std::move(pingPongSequence));
+        }
+        else if (pitchShiftMode == 2) // Random
         {
             auto randomSequence = std::make_unique<RandomOctaveSequence>();
             randomSequence->SetRange(lowerOctave, upperOctave);
-
             shifter.SetSequence(std::move(randomSequence));
         }
-        else // Up (0) or Down (1)
+        else
         {
             auto progressiveSequence = std::make_unique<ProgressiveOctaveSequence>();
             progressiveSequence->SetRange(lowerOctave, upperOctave);
@@ -626,4 +648,9 @@ float NewDelayReverb::clamp01(float value)
 int NewDelayReverb::clampInt(int value, int minValue, int maxValue)
 {
     return std::max(minValue, std::min(maxValue, value));
+}
+
+int NewDelayReverb::semitonesToOctaveIndex(float semitones)
+{
+    return static_cast<int>(std::round(semitones / 12.0f));
 }

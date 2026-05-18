@@ -234,6 +234,14 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     uiHelpers.CreateCheckboxLabel(*pitchPage, pitchShiftTitle, *pitchShiftToggle,
         "Enabled", 14.0f, -40);
 
+    uiHelpers.CreateCheckbox(*pitchPage, pitchShiftStereoToggle,
+    pitchShiftStereoToggleAttachment,
+    "pitchShiftStereoEnabled",
+    20, 20, 430, 16);
+
+    uiHelpers.CreateCheckboxLabel(*pitchPage, pitchShiftStereoLabel, *pitchShiftStereoToggle,
+        "Stereo", 14.0f, -38);
+
     // Horizontal slider
     horizontalPitchRangeSlider = std::make_unique<HorizontalRangeSlider>(-48.0f, 48.0f);
     horizontalPitchRangeSlider->setMinimumRange(12.0f);
@@ -255,14 +263,6 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     pitchPage->addAndMakeVisible(*horizontalPitchRangeTooltipOverlay);
     horizontalPitchRangeTooltipOverlay->setBounds(pitchPage->getLocalBounds());
     horizontalPitchRangeTooltipOverlay->toFront(false);
-
-    // Pitch shift mode dropdown
-    /*pitchShiftModeLabel = std::make_unique<juce::Label>();
-    pitchShiftModeLabel->setText("Mode", juce::dontSendNotification);
-    pitchShiftModeLabel->setFont(juce::Font("Liberation Sans", 14.0f, juce::Font::bold));
-    pitchShiftModeLabel->setJustificationType(juce::Justification::centredLeft);
-    pitchPage->addAndMakeVisible(*pitchShiftModeLabel);
-    pitchShiftModeLabel->setBounds(200, 92, 160, 20);*/
 
     pitchShiftModeDropdown = std::make_unique<ThemedDropdown>();
     pitchPage->addAndMakeVisible(*pitchShiftModeDropdown);

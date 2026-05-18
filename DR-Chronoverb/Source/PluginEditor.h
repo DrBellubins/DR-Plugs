@@ -145,6 +145,10 @@ private:
     std::unique_ptr<ThemedCheckbox::Attachment> pitchShiftToggleAttachment;
     std::unique_ptr<juce::Label> pitchShiftTitle;
 
+    std::unique_ptr<ThemedCheckbox> pitchShiftStereoToggle;
+    std::unique_ptr<ThemedCheckbox::Attachment> pitchShiftStereoToggleAttachment;
+    std::unique_ptr<juce::Label> pitchShiftStereoLabel;
+
     std::unique_ptr<HorizontalRangeSlider> horizontalPitchRangeSlider;
     std::unique_ptr<HorizontalRangeSliderAttachment> horizontalPitchRangeAttachment;
     std::unique_ptr<TooltipOverlay> horizontalPitchRangeTooltipOverlay;

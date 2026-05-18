@@ -208,15 +208,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
         juce::NormalisableRange<float>(-48.0f, 48.0f, 12.0f),
         12.0f));
 
-    parameterList.push_back(
-    std::make_unique<juce::AudioParameterChoice>(
+    parameterList.push_back(std::make_unique<juce::AudioParameterChoice>(
         "pitchShiftMode",
         "Pitch Shift Mode",
         juce::StringArray
         {
             "Up",
             "Down",
-            "Random"
+            "Random",
+            "Up-Down"
         },
         0
     ));
