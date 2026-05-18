@@ -82,8 +82,9 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     wetInputPitchShifterLeft.CommitPendingSequenceNow();
     wetInputPitchShifterRight.CommitPendingSequenceNow();
 
-    echoSampleCounterL = 0;
-    echoSampleCounterR = 0;
+    echoWriteCounterL = 0;
+    echoWriteCounterR = 0;
+    writePeriodSamples = 1;
 
     lastFeedbackL = 0.0f;
     lastFeedbackR = 0.0f;
@@ -164,23 +165,38 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
         // Advance echo boundary counters (needed regardless of pitch enable state)
         {
-            const int delaySamplesInt =
-                static_cast<int>(std::round((delayMilliseconds * sampleRate) / 1000.0));
+            const bool stereoEnabled = (pitchStereoEnabled01 >= 0.5f);
 
-            ++echoSampleCounterL;
-
-            if (echoSampleCounterL >= delaySamplesInt)
+            // Advance stable write-domain counters
+            ++echoWriteCounterL;
+            if (echoWriteCounterL >= writePeriodSamples)
             {
-                echoSampleCounterL = 0;
+                echoWriteCounterL = 0;
                 wetInputPitchShifterLeft.OnNewEchoBoundary();
+
+                if (!stereoEnabled)
+                {
+                    // lock R to L ratio at boundary
+                    const float linkedRatio = wetInputPitchShifterLeft.GetCurrentPitchRatio();
+                    wetInputPitchShifterRight.SetForcedPitchRatio(linkedRatio);
+                }
             }
 
-            ++echoSampleCounterR;
-
-            if (echoSampleCounterR >= delaySamplesInt)
+            ++echoWriteCounterR;
+            if (echoWriteCounterR >= writePeriodSamples)
             {
-                echoSampleCounterR = 0;
-                wetInputPitchShifterRight.OnNewEchoBoundary();
+                echoWriteCounterR = 0;
+
+                if (stereoEnabled)
+                {
+                    wetInputPitchShifterRight.OnNewEchoBoundary();
+                }
+            }
+
+            // Ensure forced-ratio mode is disabled when unlinked
+            if (stereoEnabled)
+            {
+                wetInputPitchShifterRight.ClearForcedPitchRatio();
             }
         }
 
@@ -421,6 +437,11 @@ void NewDelayReverb::SetPitchShiftMode(int modeIndex)
     pitchSequenceRebuildPending.store(true, std::memory_order_release);
 }
 
+void NewDelayReverb::SetPitchStereoEnabled(float enabled01)
+{
+    pitchStereoEnabled01 = clamp01(enabled01);
+}
+
 void NewDelayReverb::SetHostTempo(float bpm)
 {
     if (bpm > 0.0f)
@@ -492,6 +513,8 @@ void NewDelayReverb::updateDelayMillisecondsFromNormalized()
         const float slewSeconds = std::max(0.05f, delayMilliseconds / 1000.0f);
         readDelaySlewCoefficient = 1.0f / (slewSeconds * static_cast<float>(sampleRate));
     }
+
+    writePeriodSamples = std::max(1, static_cast<int>(std::round((delayMilliseconds * sampleRate) / 1000.0f)));
 }
 
 void NewDelayReverb::rebuildDiffusionIfNeeded()
@@ -557,8 +580,11 @@ void NewDelayReverb::updateStereoSpread()
 
 void NewDelayReverb::rebuildPitchSequences()
 {
-    const int lowerOctave = static_cast<int>(std::round(pitchShiftRangeLower / 12.0f));
-    const int upperOctave = static_cast<int>(std::round(pitchShiftRangeUpper / 12.0f));
+    int lowerOctave = static_cast<int>(std::floor(pitchShiftRangeLower / 12.0f));
+    int upperOctave = static_cast<int>(std::floor(pitchShiftRangeUpper / 12.0f));
+
+    if (lowerOctave > upperOctave)
+        std::swap(lowerOctave, upperOctave);
 
     auto configureShifter = [&](OctaveEchoPitchShifter& shifter)
     {

@@ -59,6 +59,7 @@ public:
     void SetPitchShiftRangeLower(float pitchShiftRangeLowerSemitones);
     void SetPitchShiftRangeUpper(float pitchShiftRangeUpperSemitones);
     void SetPitchShiftMode(int modeIndex);                // 0=Up, 1=Down, 2=Random
+    void SetPitchStereoEnabled(float enabled01);
 
     void SetHostTempo(float bpm);
 
@@ -108,6 +109,7 @@ private:
     float pitchShiftRangeLower = -12.0f;
     float pitchShiftRangeUpper = 12.0f;
     int pitchShiftMode = 0;
+    float pitchStereoEnabled01 = 1.0f;
 
     float pitchShifterLatencyMs = 0.0f;
 
@@ -117,6 +119,11 @@ private:
     std::atomic<bool> filterRebuildPending    { false };
     std::atomic<bool> diffusionRebuildPending { false };
     std::atomic<bool> pitchSequenceRebuildPending { false };
+
+    // Stable boundary (write-domain) period
+    int writePeriodSamples = 1;
+    int echoWriteCounterL = 0;
+    int echoWriteCounterR = 0;
 
     // Delay lines
     std::unique_ptr<DelayLine> mainDelayLeft;

@@ -70,7 +70,8 @@ public:
 
     float GetCurrentPitchRatio() const override
     {
-        return std::pow(2.0f, static_cast<float>(currentOctaves));
+        const int clamped = juce::jlimit(-4, 4, currentOctaves);
+        return std::pow(2.0f, static_cast<float>(clamped));
     }
 
 private:
@@ -113,7 +114,8 @@ public:
 
     float GetCurrentPitchRatio() const override
     {
-        return std::pow(2.0f, static_cast<float>(currentOctave));
+        const int clamped = juce::jlimit(-4, 4, currentOctave);
+        return std::pow(2.0f, static_cast<float>(clamped));
     }
 
 private:
@@ -545,7 +547,10 @@ public:
         if (sequence == nullptr || backend == nullptr)
             return inputSample;
 
-        const float pitchRatio = sequence->GetCurrentPitchRatio();
+        const float pitchRatio = hasForcedPitchRatio
+           ? forcedPitchRatio
+           : sequence->GetCurrentPitchRatio();
+
         return backend->ProcessSample(inputSample, pitchRatio);
     }
 
@@ -604,11 +609,31 @@ public:
         return 0.0f;
     }
 
+    float GetCurrentPitchRatio() const
+    {
+        if (sequence == nullptr) return 1.0f;
+        return sequence->GetCurrentPitchRatio();
+    }
+
+    void SetForcedPitchRatio(float ratio)
+    {
+        forcedPitchRatio = juce::jlimit(0.25f, 4.0f, ratio);
+        hasForcedPitchRatio = true;
+    }
+
+    void ClearForcedPitchRatio()
+    {
+        hasForcedPitchRatio = false;
+    }
+
 private:
     double sampleRate = 48000.0;
     int maximumBlockSizeCached = 0;
 
     bool hasPendingSequence = false;
+    bool hasForcedPitchRatio = false;
+
+    float forcedPitchRatio = 1.0f;
 
     std::unique_ptr<IPitchSequence> sequence;
     std::unique_ptr<IPitchSequence> pendingSequence;
