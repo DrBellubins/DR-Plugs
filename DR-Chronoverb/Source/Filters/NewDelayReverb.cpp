@@ -84,7 +84,6 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
 
     echoWriteCounterL = 0;
     echoWriteCounterR = 0;
-    writePeriodSamples = 1;
 
     lastFeedbackL = 0.0f;
     lastFeedbackR = 0.0f;
