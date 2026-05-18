@@ -47,8 +47,22 @@ public:
     void AdvanceToNextEcho() override
     {
         ++currentEchoIndex;
-        const int next = currentOctaves + stepOctaves;
-        currentOctaves = std::max(lowerBound, std::min(upperBound, next));
+
+        const int rangeSize = upperBound - lowerBound + 1;
+
+        if (rangeSize <= 0)
+        {
+            currentOctaves = lowerBound;
+            return;
+        }
+
+        int wrappedIndex = (currentOctaves - lowerBound) + stepOctaves;
+        wrappedIndex %= rangeSize;
+
+        if (wrappedIndex < 0)
+            wrappedIndex += rangeSize;
+
+        currentOctaves = lowerBound + wrappedIndex;
     }
 
     float GetCurrentPitchRatio() const override
