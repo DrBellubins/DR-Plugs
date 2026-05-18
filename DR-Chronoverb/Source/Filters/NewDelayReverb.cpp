@@ -100,6 +100,11 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
 
 void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 {
+#if JUCE_DEBUG
+    int boundaryCallsLThisBlock = 0;
+    int boundaryCallsRThisBlock = 0;
+#endif
+
     const int numChannels = audioBuffer.getNumChannels();
     const int numSamples  = audioBuffer.getNumSamples();
 
@@ -174,6 +179,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
                 echoWriteCounterL = 0;
                 wetInputPitchShifterLeft.OnNewEchoBoundary();
 
+                boundaryCallsLThisBlock++;
+
                 if (!stereoEnabled)
                 {
                     // lock R to L ratio at boundary
@@ -190,6 +197,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
                 if (stereoEnabled)
                 {
                     wetInputPitchShifterRight.OnNewEchoBoundary();
+                    boundaryCallsRThisBlock++;
                 }
             }
 
@@ -345,6 +353,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         if (rightData != nullptr)
             rightData[sampleIndex] = outputRight;
     }
+
+    DBG("boundaryCallsLThisBlock: " << boundaryCallsLThisBlock << " boundaryCallsRThisBlock: " << boundaryCallsRThisBlock);
 }
 
 void NewDelayReverb::SetDelayTime(float newDelayTimeNormalized)

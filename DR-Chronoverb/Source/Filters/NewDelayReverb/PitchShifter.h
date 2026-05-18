@@ -593,6 +593,14 @@ public:
         if (sequence != nullptr)
             sequence->AdvanceToNextEcho();
 
+#if JUCE_DEBUG
+        if (sequence != nullptr)
+        {
+            DBG("BOUNDARY ratio=" << sequence->GetCurrentPitchRatio()
+                << " forced=" << (hasForcedPitchRatio ? "1" : "0"));
+        }
+#endif
+
         if (auto* granular = dynamic_cast<GranularPitchBackend*>(backend.get()))
             granular->OnEchoBoundary();
     }
@@ -608,6 +616,8 @@ public:
         const float pitchRatio = hasForcedPitchRatio
            ? forcedPitchRatio
            : sequence->GetCurrentPitchRatio();
+
+        jassert(pitchRatio >= 0.25f && pitchRatio <= 4.0f);
 
         return backend->ProcessSample(inputSample, pitchRatio);
     }
