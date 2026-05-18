@@ -45,7 +45,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     // ------ KNOBS ------
     uiHelpers.CreateKnob(*this, delayTimeKnob, delayTimeAttachment, "delayTime",
-        " ms", 100, cX + 0, cY + -25 + nonPitchYOffset);
+        "", 100, cX + 0, cY + -25 + nonPitchYOffset);
 
     uiHelpers.CreateKnob(*this, feedbackTimeKnob, feedbackTimeAttachment, "feedbackTime",
         "", 80, cX + 200, cY + 50 + nonPitchYOffset);
