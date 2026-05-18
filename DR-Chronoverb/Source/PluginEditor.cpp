@@ -378,12 +378,17 @@ void AudioPluginAudioProcessorEditor::updateDelayKnobDisplay(int ModeIndex)
     if (delayTimeKnob == nullptr)
         return;
 
-    static constexpr float SnapPositions[5]  = { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
-    static const char*     NoteNames[5]      = { "1/1", "1/2", "1/4", "1/8", "1/16" };
+    static constexpr float SnapPositions[5] = { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
+    static const char* NoteNames[5] = { "1/1", "1/2", "1/4", "1/8", "1/16" };
 
-    if (ModeIndex == 0) // ms mode — restore the default numeric display
+    if (ModeIndex == 0) // ms mode — map 0..1 -> 1..1000 ms
     {
-        delayTimeKnob->textFromValueFunction = nullptr;
+        delayTimeKnob->textFromValueFunction = [](double NormalizedValue) -> juce::String
+        {
+            const float Ms = 1.0f + static_cast<float>(NormalizedValue) * (1000.0f - 1.0f);
+            return juce::String(static_cast<int>(std::round(Ms)));
+        };
+
         delayTimeKnob->setTextValueSuffix(" ms");
     }
     else
@@ -391,7 +396,6 @@ void AudioPluginAudioProcessorEditor::updateDelayKnobDisplay(int ModeIndex)
         const bool IsTriplet = (ModeIndex == 2);
         const bool IsDotted  = (ModeIndex == 3);
 
-        // Capture by value so the lambda outlives this call.
         delayTimeKnob->textFromValueFunction = [IsTriplet, IsDotted](double NormalizedValue) -> juce::String
         {
             int StepIndex = 0;
