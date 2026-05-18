@@ -21,7 +21,9 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     parameters.addParameterListener("diffusionAmount", this);
     parameters.addParameterListener("diffusionSize", this);
     parameters.addParameterListener("diffusionQuality", this);
-    parameters.addParameterListener("dryWetMix", this);
+
+    parameters.addParameterListener("dryVolume", this);
+    parameters.addParameterListener("wetVolume", this);
 
     // Filters
     parameters.addParameterListener("stereoSpread", this);
@@ -50,7 +52,11 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     float diffusionAmount = parameters.getRawParameterValue("diffusionAmount")->load();
     float diffusionSize = parameters.getRawParameterValue("diffusionSize")->load();
     int diffusionQuality = static_cast<int>(parameters.getRawParameterValue("diffusionQuality")->load());
-    float dryWetMix = parameters.getRawParameterValue("dryWetMix")->load();
+
+    float dryVolume = parameters.getRawParameterValue("dryVolume")->load();
+    float wetVolume = parameters.getRawParameterValue("wetVolume")->load();
+
+    //float dryWetMix = parameters.getRawParameterValue("dryWetMix")->load();
 
     // Filters
     float stereoSpread = parameters.getRawParameterValue("stereoSpread")->load();
@@ -75,7 +81,10 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     DelayReverb.SetDiffusionAmount(diffusionAmount);
     DelayReverb.SetDiffusionSize(diffusionSize);
     DelayReverb.SetDiffusionQuality(diffusionQuality);
-    DelayReverb.SetDryWetMix(dryWetMix);
+
+
+    DelayReverb.SetDryVolume(dryVolume);
+    DelayReverb.SetWetVolume(wetVolume);
 
     DelayReverb.SetStereoSpread(stereoSpread);
     DelayReverb.SetLowpassCutoff(lowPassCutoff);
@@ -128,10 +137,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
     parameterList.push_back (std::make_unique<juce::AudioParameterInt>(
         "diffusionQuality", "Diffusion Quality", 1, 8, 8));
 
-    // Dry/Wet mix
+    // Dry/Wet volumes
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
-        "dryWetMix", "Dry/Wet mix",
-        juce::NormalisableRange(0.0f, 1.0f), 0.5f));
+        "dryVolume", "Dry Volume",
+        juce::NormalisableRange(0.0f, 1.0f), 1.0f));
+
+    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
+        "wetVolume", "Wet Volume",
+        juce::NormalisableRange(0.0f, 1.0f), 1.0f));
 
     // ---- Filters ----
 
@@ -326,7 +339,9 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
     if (parameterID == "diffusionAmount") DelayReverb.SetDiffusionAmount(newValue);
     if (parameterID == "diffusionSize") DelayReverb.SetDiffusionSize(newValue);
     if (parameterID == "diffusionQuality") DelayReverb.SetDiffusionQuality(static_cast<int>(std::round(newValue)));
-    if (parameterID == "dryWetMix") DelayReverb.SetDryWetMix(newValue);
+
+    if (parameterID == "dryVolume") DelayReverb.SetDryVolume(newValue);
+    if (parameterID == "wetVolume") DelayReverb.SetDryVolume(newValue);
 
     // Filters
     if (parameterID == "stereoSpread") DelayReverb.SetStereoSpread(newValue);

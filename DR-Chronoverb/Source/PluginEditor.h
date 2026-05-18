@@ -76,8 +76,11 @@ private:
     std::unique_ptr<ThemedSlider> diffusionQualitySlider;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> diffusionQualityAttachment;
 
-    std::unique_ptr<ThemedKnob> dryWetMixKnob;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> dryWetMixAttachment;
+    std::unique_ptr<ThemedKnob> dryVolumeKnob;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> dryVolumeAttachment;
+
+    std::unique_ptr<ThemedKnob> wetVolumeKnob;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> wetVolumeAttachment;
 
     // Filter knobs
     std::unique_ptr<ThemedKnob> stereoSpreadKnob;
@@ -109,7 +112,9 @@ private:
     std::unique_ptr<juce::Label> diffusionAmountLabel;
     std::unique_ptr<juce::Label> diffusionSizeLabel;
     std::unique_ptr<juce::Label> diffusionQualityLabel;
-    std::unique_ptr<juce::Label> dryWetMixLabel;
+
+    std::unique_ptr<juce::Label> dryVolumeLabel;
+    std::unique_ptr<juce::Label> wetVolumeLabel;
 
     // Filter labels
     std::unique_ptr<juce::Label> stereoSpreadLabel;

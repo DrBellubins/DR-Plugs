@@ -46,7 +46,9 @@ public:
     void SetDiffusionAmount(float newAmount01);
     void SetDiffusionSize(float newSize01);
     void SetDiffusionQuality(int newQualityStages);       // 1..8
-    void SetDryWetMix(float newDryWet01);
+
+    void SetDryVolume(float newDryVolume);
+    void SetWetVolume(float newWetVolume);
 
     void SetLowpassCutoff(float newLowpass01);            // 0..1 -> 500..9000 Hz
     void SetHighpassCutoff(float newHighpass01);          // 0..1 -> 10..2000 Hz
@@ -92,7 +94,11 @@ private:
     float centeredSwellRatio = 0.25f;
     float diffusionCompensationBias = 1.5f;
 
-    float dryWet01 = 0.5f;
+    float dryVolume = 1.0f;
+    float wetVolume = 1.0f;
+
+    //float dryWet01 = 0.5f;
+
     float lowpass01 = 0.0f;
     float highpass01 = 0.0f;
     float stereoSpreadMinus1To1 = 0.0f;

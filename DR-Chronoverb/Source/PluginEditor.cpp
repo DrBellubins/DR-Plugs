@@ -1,9 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-// TODO: Derive class from RoundedToggle to make Pre/Post toggles with labels
-// TODO: Begin creation of Matrix Menu.
-// TODO: Implement pitch features (oh fuck).
 // TODO: Implement playback direction features.
 
 class DebugPage : public juce::Component
@@ -48,7 +45,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
         "", 100, cX + 0, cY + -25 + nonPitchYOffset);
 
     uiHelpers.CreateKnob(*this, feedbackTimeKnob, feedbackTimeAttachment, "feedbackTime",
-        "", 80, cX + 200, cY + 50 + nonPitchYOffset);
+        "", 80, cX + 350, cY + -125 + nonPitchYOffset);
 
     uiHelpers.CreateKnob(*this, diffusionAmountKnob, diffusionAmountAttachment, "diffusionAmount",
         "", 80, cX + -350, cY + -125 + nonPitchYOffset);
@@ -56,7 +53,10 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     uiHelpers.CreateKnob(*this, diffusionSizeKnob, diffusionSizeAttachment, "diffusionSize",
         "", 80, cX + -200, cY + -125 + nonPitchYOffset);
 
-    uiHelpers.CreateKnob(*this, dryWetMixKnob, dryWetMixAttachment, "dryWetMix",
+    uiHelpers.CreateKnob(*this, dryVolumeKnob, dryVolumeAttachment, "dryVolume",
+        "", 80, cX + 200, cY + 50 + nonPitchYOffset);
+
+    uiHelpers.CreateKnob(*this, wetVolumeKnob, wetVolumeAttachment, "wetVolume",
         "", 80, cX + 350, cY + 50 + nonPitchYOffset);
 
     // Filters
@@ -109,7 +109,11 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     uiHelpers.CreateKnobLabel(*this, diffusionSizeLabel, *diffusionSizeKnob,
         "Diffusion Size", 15.0f, 70);
 
-    uiHelpers.CreateKnobLabel(*this, dryWetMixLabel, *dryWetMixKnob, "Dry/Wet Mix", 15.0f, 70);
+    uiHelpers.CreateKnobLabel(*this, dryVolumeLabel, *dryVolumeKnob,
+        "Dry Volume", 15.0f, 70);
+
+    uiHelpers.CreateKnobLabel(*this, wetVolumeLabel, *wetVolumeKnob,
+        "Wet Volume", 15.0f, 70);
 
     // Filters
     uiHelpers.CreateKnobLabel(*this, stereoSpreadLabel, *stereoSpreadKnob,
@@ -420,7 +424,7 @@ void AudioPluginAudioProcessorEditor::updateDelayKnobDisplay(int ModeIndex)
 
             juce::String NoteName(BeatNames[StepIndex]);
 
-            if (IsTriplet) return NoteName + "T";
+            if (IsTriplet) return NoteName + "t";
             if (IsDotted)  return NoteName + ".";
             return NoteName;
         });

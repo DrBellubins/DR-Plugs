@@ -303,8 +303,14 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         }
 
         // ---- 10: Dry/wet mix ----
-        float outputLeft = PMath::EqualPowerCrossfade(dryLeft, spreadWetLeft, dryWet01);
-        float outputRight = PMath::EqualPowerCrossfade(dryRight, spreadWetRight, dryWet01);
+        float outputLeft = 0.0f;
+        float outputRight = 0.0f;
+
+        outputLeft = (dryLeft * dryVolume) + (spreadWetLeft * wetVolume);
+        outputRight = (dryRight * dryVolume) + (spreadWetRight * wetVolume);
+
+        //float outputLeft = PMath::EqualPowerCrossfade(dryLeft, spreadWetLeft, dryWet01);
+        //float outputRight = PMath::EqualPowerCrossfade(dryRight, spreadWetRight, dryWet01);
 
         // ---- 11: Optional post-filtering ----
         if (hplpPrePost01 >= 0.5f)
@@ -356,9 +362,14 @@ void NewDelayReverb::SetDiffusionQuality(int newQualityStages)
     diffusionRebuildPending.store(true, std::memory_order_release);
 }
 
-void NewDelayReverb::SetDryWetMix(float newDryWet01)
+void NewDelayReverb::SetDryVolume(float newDry01)
 {
-    dryWet01 = clamp01(newDryWet01);
+    dryVolume = clamp01(newDry01);
+}
+
+void NewDelayReverb::SetWetVolume(float newWet01)
+{
+    wetVolume = clamp01(newWet01);
 }
 
 void NewDelayReverb::SetLowpassCutoff(float newLowpass01)
