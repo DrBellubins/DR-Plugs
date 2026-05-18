@@ -9,6 +9,8 @@ Under NO circumstances should the order of operations of any of the following wi
 
 It uses 8 carefully tuned allpass filters. The quality of which is changed with the Diffusion Quality slider, which when turned down, avoids the tail lengths from getting shorter, leading to it sounding like delay time has been reduced, by interpolating the given allpass tunings, which are as follows:
 
+It is absolutely non-negotiable that the delay diffusion should sound like there is a swell into the nominal tap, with a nice diffusion tail after the tap, which sounds like the signal is being "blurred" both before and after the nominal tap.    
+
 // Delay-mode tunings: shorter, natural-spacing delays for discrete-tap blur.
 std::vector<float> delayTunings =
 {

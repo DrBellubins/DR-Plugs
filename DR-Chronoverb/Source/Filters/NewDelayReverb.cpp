@@ -469,6 +469,23 @@ void NewDelayReverb::updateDelayMillisecondsFromNormalized()
         BeatMs *= 1.5f;
 
     delayMilliseconds = juce::jlimit(1.0f, 1000.0f, BeatMs);
+
+    // After computing the new delayMilliseconds:
+    // In beat-sync modes, slew over ~one echo cycle so the transition
+    // sounds like a single pitched echo rather than a continuous sweep.
+    // In ms mode, slew over a fixed short time for a musical glide.
+    if (delayMode == 0)
+    {
+        // ms mode: fixed 80ms glide feels musical
+        readDelaySlewCoefficient = 1.0f / (0.08f * static_cast<float>(sampleRate));
+    }
+    else
+    {
+        // Beat-sync: slew over one echo period so the pitch artifact
+        // resolves in one repeat, matching Deelay's character.
+        const float slewSeconds = std::max(0.05f, delayMilliseconds / 1000.0f);
+        readDelaySlewCoefficient = 1.0f / (slewSeconds * static_cast<float>(sampleRate));
+    }
 }
 
 void NewDelayReverb::rebuildDiffusionIfNeeded()
