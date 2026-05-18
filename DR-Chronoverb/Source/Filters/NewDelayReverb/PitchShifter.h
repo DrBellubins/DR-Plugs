@@ -214,7 +214,6 @@ private:
 // - Backend latches a pending ratio ONLY at boundary.
 // - ProcessSample() uses latched ratio for full echo period (no mid-echo modulation).
 // - Optional very short crossfade on boundary to reduce click when ratio jumps.
-
 class GranularPitchBackend : public IPitchShifterBackend
 {
     struct ReadHead
@@ -250,7 +249,7 @@ public:
         SetGrainLengthMilliseconds(35.0f);
         SetJitterPercent(0.12f);
         SetLookbackMultiplier(3.0f);
-        SetBoundaryCrossfadeMilliseconds(4.0f);
+        SetBoundaryCrossfadeMilliseconds(1.0f); // was 4ms
 
         Reset();
     }
@@ -295,18 +294,15 @@ public:
         if (std::abs(newRatio - active.ratio) < 1.0e-6f)
             return;
 
-        // Duplicate active state into inactive, then set new ratio on inactive.
+        // STRICT: clone exact running state, only change ratio
         inactive = active;
         inactive.ratio = newRatio;
 
-        // Re-anchor inactive heads at boundary to avoid long stale read trajectories.
-        // Keep phases same to reduce envelope discontinuity.
-        reanchorStateHeadsPreservePhase(inactive);
+        // DO NOT re-anchor here (causes discontinuity/noisy instability)
+        // reanchorStateHeadsPreservePhase(inactive);  <-- remove
 
         crossfadeTotalSamples = boundaryCrossfadeSamples;
         crossfadeRemainingSamples = crossfadeTotalSamples;
-
-        // After crossfade completes, inactive becomes active.
         pendingFlipAfterFade = true;
     }
 
@@ -593,14 +589,6 @@ public:
         if (sequence != nullptr)
             sequence->AdvanceToNextEcho();
 
-#if JUCE_DEBUG
-        if (sequence != nullptr)
-        {
-            DBG("BOUNDARY ratio=" << sequence->GetCurrentPitchRatio()
-                << " forced=" << (hasForcedPitchRatio ? "1" : "0"));
-        }
-#endif
-
         if (auto* granular = dynamic_cast<GranularPitchBackend*>(backend.get()))
             granular->OnEchoBoundary();
     }
@@ -616,8 +604,6 @@ public:
         const float pitchRatio = hasForcedPitchRatio
            ? forcedPitchRatio
            : sequence->GetCurrentPitchRatio();
-
-        jassert(pitchRatio >= 0.25f && pitchRatio <= 4.0f);
 
         return backend->ProcessSample(inputSample, pitchRatio);
     }
