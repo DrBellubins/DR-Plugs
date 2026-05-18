@@ -115,6 +115,11 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
     for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
     {
+        delayDiffusionLeft->UpdateSize(diffusionSize01);
+        delayDiffusionRight->UpdateSize(diffusionSize01);
+        reverbDiffusionLeft->UpdateSize(diffusionSize01);
+        reverbDiffusionRight->UpdateSize(diffusionSize01);
+
         const float dryLeft = leftData[sampleIndex];
         const float dryRight = (rightData != nullptr ? rightData[sampleIndex] : dryLeft);
 
@@ -174,12 +179,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         }
 
         // ---- 4: Pre-write diffusion (amount-controlled, dual-chain) ----
-        //
         //  0.0 .. 0.5 : only delayDiffusion chain (discrete tap blur)
         //  0.5 .. 1.0 : crossfade delayDiffusion -> reverbDiffusion (lush tail)
-        //
-        //  The whole diffused signal is then equal-power crossfaded against the
-        //  clean pitched signal so amount=0 is a pure delay.
         float writeLeft = pitchedLeft;
         float writeRight = pitchedRight;
 
@@ -327,6 +328,12 @@ void NewDelayReverb::SetDelayTime(float newDelayTimeNormalized)
     updateDelayMillisecondsFromNormalized();
 }
 
+void NewDelayReverb::SetDelayMode(int newDelayMode)
+{
+    delayMode = juce::jlimit(0, 3, newDelayMode);
+    updateDelayMillisecondsFromNormalized();
+}
+
 void NewDelayReverb::SetFeedbackTime(float newFeedbackTimeSeconds)
 {
     feedbackTimeSeconds = std::max(0.0f, newFeedbackTimeSeconds);
@@ -341,7 +348,6 @@ void NewDelayReverb::SetDiffusionAmount(float newAmount01)
 void NewDelayReverb::SetDiffusionSize(float newSize01)
 {
     diffusionSize01 = clamp01(newSize01);
-    diffusionRebuildPending.store(true, std::memory_order_release);
 }
 
 void NewDelayReverb::SetDiffusionQuality(int newQualityStages)
@@ -404,15 +410,57 @@ void NewDelayReverb::SetPitchShiftMode(int modeIndex)
 void NewDelayReverb::SetHostTempo(float bpm)
 {
     if (bpm > 0.0f)
+    {
         hostTempoBpm = bpm;
+
+        if (delayMode != 0)
+            updateDelayMillisecondsFromNormalized();
+    }
 }
 
 // ---------------- Internal helpers ----------------
 
 void NewDelayReverb::updateDelayMillisecondsFromNormalized()
 {
-    const float baseMs = map01ToRange(delayTimeNormalized, 0.0f, 1000.0f);
-    delayMilliseconds = std::max(1.0f, baseMs);
+    if (delayMode == 0) // ms — free range 1..1000 ms
+    {
+        const float BaseMs = map01ToRange(delayTimeNormalized, 1.0f, 1000.0f);
+        delayMilliseconds = std::max(1.0f, BaseMs);
+        return;
+    }
+
+    // Beat-synced modes. The knob snaps to 5 positions: 0, 0.25, 0.5, 0.75, 1.0
+    // mapping to: 1/1 (slowest) → 1/16 (fastest).
+    static constexpr float SnapPositions[5] = { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
+
+    // Beat multipliers in quarter notes: 1/1=4, 1/2=2, 1/4=1, 1/8=0.5, 1/16=0.25
+    static constexpr float BeatMultipliers[5] = { 4.0f, 2.0f, 1.0f, 0.5f, 0.25f };
+
+    // Find nearest snap index
+    int StepIndex = 0;
+    float SmallestDistance = std::abs(delayTimeNormalized - SnapPositions[0]);
+
+    for (int i = 1; i < 5; ++i)
+    {
+        const float Distance = std::abs(delayTimeNormalized - SnapPositions[i]);
+
+        if (Distance < SmallestDistance)
+        {
+            SmallestDistance = Distance;
+            StepIndex = i;
+        }
+    }
+
+    // Quarter-note duration in ms
+    const float QuarterNoteMs = 60000.0f / hostTempoBpm;
+    float BeatMs = BeatMultipliers[StepIndex] * QuarterNoteMs;
+
+    if (delayMode == 2)      // Triplet: 2/3 of straight value
+        BeatMs *= (2.0f / 3.0f);
+    else if (delayMode == 3) // Dotted: 3/2 of straight value
+        BeatMs *= 1.5f;
+
+    delayMilliseconds = juce::jlimit(1.0f, 1000.0f, BeatMs);
 }
 
 void NewDelayReverb::rebuildDiffusionIfNeeded()

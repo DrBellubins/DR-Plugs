@@ -45,6 +45,10 @@ public:
         const std::vector<float> finalDelays =
             BuildQualityDistributedStageDelays(delayTunings, cachedStageCount, cachedSize01);
 
+        // Also store full-size (size01=1.0) base delays so UpdateSize() can rescale smoothly.
+        baseStageDelayMsAtFullSize =
+            BuildQualityDistributedStageDelays(delayTunings, cachedStageCount, 1.0f);
+
         for (float stageDelayMilliseconds : finalDelays)
         {
             auto diffusionStage = std::make_unique<DiffusionAllpass>();
@@ -76,6 +80,10 @@ public:
 
         const std::vector<float> finalDelays =
             BuildQualityDistributedStageDelays(reverbTunings, cachedStageCount, cachedSize01);
+
+        // Also store full-size (size01=1.0) base delays so UpdateSize() can rescale smoothly.
+        baseStageDelayMsAtFullSize =
+            BuildQualityDistributedStageDelays(reverbTunings, cachedStageCount, 1.0f);
 
         for (float stageDelayMilliseconds : finalDelays)
         {
@@ -125,6 +133,22 @@ public:
         return sample;
     }
 
+    // No buffer clearing, no clicks. This produces the "pitch warp" when size is changed live.
+    void UpdateSize(float newSize01)
+    {
+        cachedSize01 = juce::jlimit(0.0f, 1.0f, newSize01);
+        const float Scale = 0.25f + 0.75f * cachedSize01;
+
+        for (size_t StageIndex = 0;
+             StageIndex < stages.size() && StageIndex < baseStageDelayMsAtFullSize.size();
+             ++StageIndex)
+        {
+            const float TargetMs      = baseStageDelayMsAtFullSize[StageIndex] * Scale;
+            const float TargetSamples = static_cast<float>((TargetMs * sampleRate) / 1000.0);
+            stages[StageIndex]->SetCurrentDelaySamples(TargetSamples);
+        }
+    }
+
     void SetGlobalGain(float newGain)
     {
         for (auto& stage : stages)
@@ -146,14 +170,18 @@ private:
 
     std::vector<std::unique_ptr<DiffusionAllpass>> stages;
 
-    std::vector<float>        jitterLPState;
-    std::vector<float>        jitterDepthPercent;
-    std::vector<float>        jitterRateHz;
+    std::vector<float> jitterLPState;
+    std::vector<float> jitterDepthPercent;
+    std::vector<float> jitterRateHz;
     std::vector<unsigned int> tpdfNoiseSeedA;
     std::vector<unsigned int> tpdfNoiseSeedB;
 
-    int   cachedStageCount = 6;
-    float cachedSize01     = 0.0f;
+    int cachedStageCount = 6;
+    float cachedSize01 = 0.0f;
+
+    // Stores the interpolated delay for each stage at size01 = 1.0 (unscaled).
+    // Used by UpdateSize() to recompute target samples without clearing state.
+    std::vector<float> baseStageDelayMsAtFullSize;
 
     // Distributes numberOfStages taps evenly across the full sourceTunings span.
     //

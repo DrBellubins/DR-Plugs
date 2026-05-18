@@ -43,15 +43,8 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     // Set delay initial values
     float delayTime = parameters.getRawParameterValue("delayTime")->load();
 
-    auto* DelayModeParam = parameters.getParameter("delayTimeMode");
-
-    if (DelayModeParam != nullptr)
-    {
-        float Normalised = DelayModeParam->getValue(); // 0..1
-        int InitialModeIndex = static_cast<int>(std::round(DelayModeParam->convertFrom0to1(Normalised)));
-
-        //DelayReverb.SetDelayMode(InitialModeIndex); // CHANGE: ensure DelayModeJustChanged handled once at startup
-    }
+    auto* delayModeChoice = dynamic_cast<juce::AudioParameterChoice*>(parameters.getParameter("delayTimeMode"));
+    int delayMode = delayModeChoice->getIndex();
 
     float feedbackTime = parameters.getRawParameterValue("feedbackTime")->load();
     float diffusionAmount = parameters.getRawParameterValue("diffusionAmount")->load();
@@ -76,6 +69,8 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     float pitchShiftRangeUpper = parameters.getRawParameterValue("pitchShiftRangeUpper")->load();
 
     DelayReverb.SetDelayTime(delayTime);
+    DelayReverb.SetDelayMode(delayMode);
+
     DelayReverb.SetFeedbackTime(feedbackTime);
     DelayReverb.SetDiffusionAmount(diffusionAmount);
     DelayReverb.SetDiffusionSize(diffusionSize);
@@ -321,8 +316,10 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
 
     if (parameterID == "delayTimeMode")
     {
-        //if (auto* ChoiceParameter = dynamic_cast<juce::AudioParameterChoice*>(parameters.getParameter("delayTimeMode")))
-        //    DelayReverb.SetDelayMode(ChoiceParameter->getIndex());
+        auto* delayModeChoice = dynamic_cast<juce::AudioParameterChoice*>(parameters.getParameter("delayTimeMode"));
+        int delayMode = delayModeChoice->getIndex();
+
+        DelayReverb.SetDelayMode(delayMode);
     }
 
     if (parameterID == "feedbackTime") DelayReverb.SetFeedbackTime(newValue);

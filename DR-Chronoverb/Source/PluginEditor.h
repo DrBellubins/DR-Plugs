@@ -29,6 +29,8 @@ public:
     bool keyStateChanged(bool isKeyDown, juce::Component* originatingComponent) override;
 
 private:
+    void updateDelayKnobDisplay(int modeIndex);
+
     const int nonPitchYOffset = 20;
     const int pitchYOffset = 230;
 
@@ -49,6 +51,9 @@ private:
         3.0f / 4.0f,
         1.0f
     };
+
+    float perModeLastDelayValue[4] = { 0.3f, 0.5f, 0.5f, 0.5f };
+    int lastDelayModeIndex = 0;
 
     void snapDelayKnobToNearestStep();
 

@@ -129,13 +129,47 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     addAndMakeVisible(*delayTimeModeButtons);
     delayTimeModeButtons->setBounds((getWidth() / 2) - 100, (getHeight() / 2) + 50 + nonPitchYOffset, 200, 30);
 
-    delayTimeModeAttachment = std::make_unique<SegmentedButton::ChoiceAttachment>(processorRef.parameters, "delayMode", *delayTimeModeButtons);
+    delayTimeModeAttachment = std::make_unique<SegmentedButton::ChoiceAttachment>(processorRef.parameters,
+        "delayTimeMode", *delayTimeModeButtons);
 
     // Snap knob immediately when mode changes into a synced mode.
     delayTimeModeButtons->onSelectionChanged = [this](int NewIndex)
     {
+        // Save current knob value for the mode we're leaving.
+        if (delayTimeKnob != nullptr)
+            perModeLastDelayValue[lastDelayModeIndex] = static_cast<float>(delayTimeKnob->getValue());
+
+        lastDelayModeIndex = NewIndex;
+
+        // Restore the value last used in the arriving mode.
+        float TargetValue = perModeLastDelayValue[NewIndex];
+
+        // Snap to the nearest step when entering any beat-synced mode.
         if (NewIndex != 0)
-            snapDelayKnobToNearestStep();
+        {
+            float Nearest = DelaySyncNormalizedPositions[0];
+            float SmallestDistance = std::abs(TargetValue - Nearest);
+
+            for (float StepValue : DelaySyncNormalizedPositions)
+            {
+                const float Distance = std::abs(TargetValue - StepValue);
+
+                if (Distance < SmallestDistance)
+                {
+                    SmallestDistance = Distance;
+                    Nearest = StepValue;
+                }
+            }
+
+            TargetValue = Nearest;
+        }
+
+        // Push the restored value into the parameter.
+        if (auto* DelayParam = processorRef.parameters.getParameter("delayTime"))
+            DelayParam->setValueNotifyingHost(TargetValue);
+
+        // Update the knob text display format for the new mode.
+        updateDelayKnobDisplay(NewIndex);
     };
 
     // While dragging in a sync mode, keep snapping so the knob visually “steps.”
@@ -144,7 +178,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
         delayTimeKnob->onValueChange = [this]()
         {
             // Only snap in beat-synced modes
-            auto* ModeParameter = processorRef.parameters.getParameter("delayMode");
+            auto* ModeParameter = processorRef.parameters.getParameter("delayTimeMode");
 
             if (ModeParameter != nullptr)
             {
@@ -339,12 +373,60 @@ bool AudioPluginAudioProcessorEditor::keyStateChanged(bool isKeyDown, juce::Comp
     return true; // Consume
 }
 
+void AudioPluginAudioProcessorEditor::updateDelayKnobDisplay(int ModeIndex)
+{
+    if (delayTimeKnob == nullptr)
+        return;
+
+    static constexpr float SnapPositions[5]  = { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
+    static const char*     NoteNames[5]      = { "1/1", "1/2", "1/4", "1/8", "1/16" };
+
+    if (ModeIndex == 0) // ms mode — restore the default numeric display
+    {
+        delayTimeKnob->textFromValueFunction = nullptr;
+        delayTimeKnob->setTextValueSuffix(" ms");
+    }
+    else
+    {
+        const bool IsTriplet = (ModeIndex == 2);
+        const bool IsDotted  = (ModeIndex == 3);
+
+        // Capture by value so the lambda outlives this call.
+        delayTimeKnob->textFromValueFunction = [IsTriplet, IsDotted](double NormalizedValue) -> juce::String
+        {
+            int StepIndex = 0;
+            float SmallestDistance = std::abs(static_cast<float>(NormalizedValue) - SnapPositions[0]);
+
+            for (int i = 1; i < 5; ++i)
+            {
+                const float Distance = std::abs(static_cast<float>(NormalizedValue) - SnapPositions[i]);
+
+                if (Distance < SmallestDistance)
+                {
+                    SmallestDistance = Distance;
+                    StepIndex = i;
+                }
+            }
+
+            juce::String NoteName(NoteNames[StepIndex]);
+
+            if (IsTriplet) return NoteName + "T";
+            if (IsDotted)  return NoteName + ".";
+            return NoteName;
+        };
+
+        delayTimeKnob->setTextValueSuffix(""); // suffix is baked into textFromValueFunction
+    }
+
+    delayTimeKnob->updateText();
+}
+
 void AudioPluginAudioProcessorEditor::snapDelayKnobToNearestStep()
 {
     if (delayTimeKnob == nullptr)
         return;
 
-    auto* ModeParameter = processorRef.parameters.getParameter("delayMode");
+    auto* ModeParameter = processorRef.parameters.getParameter("delayTimeMode");
 
     if (ModeParameter == nullptr)
         return;

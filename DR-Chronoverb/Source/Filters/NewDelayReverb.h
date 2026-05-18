@@ -40,6 +40,8 @@ public:
 
     // ---------------- Parameter Setters ----------------
     void SetDelayTime(float newDelayTimeNormalized);      // 0..1 -> 0..1000 ms
+    void SetDelayMode(int newDelayMode);
+
     void SetFeedbackTime(float newFeedbackTimeSeconds);   // 0..10 s
     void SetDiffusionAmount(float newAmount01);
     void SetDiffusionSize(float newSize01);
@@ -68,17 +70,18 @@ private:
 
     // Parameters
     double sampleRate = 48000.0;
-    float  hostTempoBpm = 120.0f;
+    float hostTempoBpm = 120.0f;
 
     float delayTimeNormalized = 0.3f;
     float delayMilliseconds = 300.0f;
+    int delayMode = 0;
 
     float feedbackTimeSeconds = 3.0f;
     float feedbackGain = 0.5f;
 
     float diffusionAmount01 = 0.0f;
     float diffusionSize01 = 0.0f;
-    int   diffusionQualityStages = 6;
+    int diffusionQualityStages = 6;
 
     float totalDelayDiffusionMilliseconds = 0.0f;
     float staticDiffusionCompensationMilliseconds = 0.0f;
@@ -98,7 +101,7 @@ private:
     float pitchShiftEnabled = 0.0f;
     float pitchShiftRangeLower = -12.0f;
     float pitchShiftRangeUpper = 12.0f;
-    int   pitchShiftMode = 0;
+    int pitchShiftMode = 0;
 
     float pitchShifterLatencyMs = 0.0f;
 
