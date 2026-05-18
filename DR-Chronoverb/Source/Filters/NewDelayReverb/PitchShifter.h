@@ -222,6 +222,15 @@ class GranularPitchBackend : public IPitchShifterBackend
         float readIndex = 0.0f;
     };
 
+    struct GrainState
+    {
+        ReadHead headA;
+        ReadHead headB;
+        float phaseA = 0.0f;
+        float phaseB = 0.5f;
+        float ratio = 1.0f;
+    };
+
 public:
     GranularPitchBackend() = default;
 
@@ -231,18 +240,17 @@ public:
 
         sampleRate = newSampleRate;
 
-        // 300 ms circular buffer (safe for lookback + jitter at lower notes)
-        const int bufferMilliseconds = 300;
-        const int bufferSizeSamples = std::max(
+        const int bufferMs = 300;
+        const int bufferSize = std::max(
             2048,
-            static_cast<int>(std::ceil((bufferMilliseconds * sampleRate) / 1000.0)));
+            static_cast<int>(std::ceil((bufferMs * sampleRate) / 1000.0)));
 
-        buffer.assign(static_cast<size_t>(bufferSizeSamples), 0.0f);
+        buffer.assign(static_cast<size_t>(bufferSize), 0.0f);
 
         SetGrainLengthMilliseconds(35.0f);
         SetJitterPercent(0.12f);
         SetLookbackMultiplier(3.0f);
-        SetBoundaryCrossfadeMilliseconds(3.0f);
+        SetBoundaryCrossfadeMilliseconds(4.0f);
 
         Reset();
     }
@@ -250,28 +258,29 @@ public:
     void Reset() override
     {
         std::fill(buffer.begin(), buffer.end(), 0.0f);
-
         writeIndex = 0;
 
-        // Echo-quantized ratio state
-        latchedRatio = 1.0f;
         pendingRatio = 1.0f;
         hasPendingRatio = false;
 
-        // Two overlapped grains (180° apart)
-        grainPhaseA = 0.0f;
-        grainPhaseB = 0.5f;
+        stateA = {};
+        stateB = {};
 
-        anchorHeadToWrite(headA, 0.0f);
-        anchorHeadToWrite(headB, 0.0f);
+        stateA.phaseA = 0.0f;
+        stateA.phaseB = 0.5f;
+        stateA.ratio = 1.0f;
 
-        // Boundary crossfade state
-        boundaryFadeRemainingSamples = 0;
-        prevLatchedRatioForFade = 1.0f;
+        stateB = stateA;
+
+        anchorStateToWrite(stateA);
+        anchorStateToWrite(stateB);
+
+        crossfadeRemainingSamples = 0;
+        crossfadeTotalSamples = boundaryCrossfadeSamples;
+        activeIsA = true;
     }
 
-    // IMPORTANT: quantized boundary hook.
-    // Call once per echo boundary from delay engine.
+    // Called ONLY by host at echo boundaries.
     void OnEchoBoundary()
     {
         if (!hasPendingRatio)
@@ -280,14 +289,25 @@ public:
         const float newRatio = pendingRatio;
         hasPendingRatio = false;
 
-        if (std::abs(newRatio - latchedRatio) < 1.0e-6f)
+        GrainState& active = (activeIsA ? stateA : stateB);
+        GrainState& inactive = (activeIsA ? stateB : stateA);
+
+        if (std::abs(newRatio - active.ratio) < 1.0e-6f)
             return;
 
-        prevLatchedRatioForFade = latchedRatio;
-        latchedRatio = newRatio;
+        // Duplicate active state into inactive, then set new ratio on inactive.
+        inactive = active;
+        inactive.ratio = newRatio;
 
-        // Start short crossfade window to avoid discontinuity pops.
-        boundaryFadeRemainingSamples = boundaryFadeSamples;
+        // Re-anchor inactive heads at boundary to avoid long stale read trajectories.
+        // Keep phases same to reduce envelope discontinuity.
+        reanchorStateHeadsPreservePhase(inactive);
+
+        crossfadeTotalSamples = boundaryCrossfadeSamples;
+        crossfadeRemainingSamples = crossfadeTotalSamples;
+
+        // After crossfade completes, inactive becomes active.
+        pendingFlipAfterFade = true;
     }
 
     float ProcessSample(float inputSample, float pitchRatio) override
@@ -295,7 +315,7 @@ public:
         if (buffer.empty())
             return inputSample;
 
-        // Stage next boundary target; DO NOT apply immediately.
+        // Stage ratio for NEXT boundary only.
         pendingRatio = juce::jlimit(0.25f, 4.0f, pitchRatio);
         hasPendingRatio = true;
 
@@ -303,64 +323,60 @@ public:
         buffer[static_cast<size_t>(writeIndex)] = inputSample;
         writeIndex = (writeIndex + 1) % static_cast<int>(buffer.size());
 
-        // Grain phase advance
-        const float phaseIncrement = 1.0f / static_cast<float>(grainLengthSamples);
+        GrainState& active = (activeIsA ? stateA : stateB);
+        GrainState& inactive = (activeIsA ? stateB : stateA);
 
-        grainPhaseA += phaseIncrement;
-        if (grainPhaseA >= 1.0f)
+        // Always advance active.
+        const float outActive = processStateOneSample(active);
+
+        // If crossfading, also advance inactive and blend.
+        if (crossfadeRemainingSamples > 0)
         {
-            grainPhaseA -= 1.0f;
-            anchorHeadToWrite(headA, generateJitterSamples());
-        }
+            const float outInactive = processStateOneSample(inactive);
 
-        grainPhaseB += phaseIncrement;
-        if (grainPhaseB >= 1.0f)
-        {
-            grainPhaseB -= 1.0f;
-            anchorHeadToWrite(headB, generateJitterSamples());
-        }
+            const int done = crossfadeTotalSamples - crossfadeRemainingSamples;
+            const float t = static_cast<float>(done)
+                          / static_cast<float>(std::max(1, crossfadeTotalSamples));
 
-        // Main output at latched ratio
-        const float outCurrent = renderAtRatio(latchedRatio);
-
-        // Optional short fade from previous ratio after boundary
-        if (boundaryFadeRemainingSamples > 0)
-        {
-            const int done = boundaryFadeSamples - boundaryFadeRemainingSamples;
-            const float t = static_cast<float>(done) / static_cast<float>(std::max(1, boundaryFadeSamples));
             const float gOld = std::cos(t * juce::MathConstants<float>::halfPi);
             const float gNew = std::sin(t * juce::MathConstants<float>::halfPi);
 
-            const float outPrev = renderAtRatio(prevLatchedRatioForFade);
-            --boundaryFadeRemainingSamples;
+            --crossfadeRemainingSamples;
 
-            return outPrev * gOld + outCurrent * gNew;
+            if (crossfadeRemainingSamples == 0 && pendingFlipAfterFade)
+            {
+                activeIsA = !activeIsA;
+                pendingFlipAfterFade = false;
+            }
+
+            // old=currently active, new=inactive candidate
+            return outActive * gOld + outInactive * gNew;
         }
 
-        return outCurrent;
+        return outActive;
     }
 
-    // --- tuning API ---
-    void SetGrainLengthMilliseconds(float newGrainLengthMilliseconds)
+    void SetGrainLengthMilliseconds(float ms)
     {
-        const float clamped = juce::jlimit(5.0f, 120.0f, newGrainLengthMilliseconds);
+        const float clamped = juce::jlimit(5.0f, 120.0f, ms);
         grainLengthSamples = std::max(16, static_cast<int>(std::round((clamped * sampleRate) / 1000.0)));
     }
 
-    void SetJitterPercent(float newJitterPercent)
+    void SetJitterPercent(float p)
     {
-        jitterPercent = juce::jlimit(0.0f, 0.5f, newJitterPercent);
+        jitterPercent = juce::jlimit(0.0f, 0.5f, p);
     }
 
-    void SetLookbackMultiplier(float newLookbackMultiplier)
+    void SetLookbackMultiplier(float m)
     {
-        lookbackMultiplier = juce::jlimit(2.0f, 6.0f, newLookbackMultiplier);
+        lookbackMultiplier = juce::jlimit(2.0f, 6.0f, m);
     }
 
     void SetBoundaryCrossfadeMilliseconds(float ms)
     {
-        const float clamped = juce::jlimit(0.0f, 20.0f, ms);
-        boundaryFadeSamples = std::max(0, static_cast<int>(std::round((clamped * sampleRate) / 1000.0)));
+        const float clamped = juce::jlimit(0.0f, 30.0f, ms);
+        boundaryCrossfadeSamples = std::max(
+            0, static_cast<int>(std::round((clamped * sampleRate) / 1000.0)));
     }
 
     float GetLatencyMilliseconds() const
@@ -370,27 +386,54 @@ public:
     }
 
 private:
-    // Render one sample using current read heads/windows at a specific ratio.
-    // NOTE: this advances heads once using the provided ratio.
-    float renderAtRatio(float ratio)
+    float processStateOneSample(GrainState& s)
     {
-        const float sampleA = readCubic(headA.readIndex);
-        const float sampleB = readCubic(headB.readIndex);
+        const float sampleA = readCubic(s.headA.readIndex);
+        const float sampleB = readCubic(s.headB.readIndex);
 
-        headA.readIndex = wrapReadIndex(headA.readIndex + ratio);
-        headB.readIndex = wrapReadIndex(headB.readIndex + ratio);
+        s.headA.readIndex = wrapReadIndex(s.headA.readIndex + s.ratio);
+        s.headB.readIndex = wrapReadIndex(s.headB.readIndex + s.ratio);
 
-        const float windowA = hannWindow(grainPhaseA);
-        const float windowB = hannWindow(grainPhaseB);
+        const float phaseInc = 1.0f / static_cast<float>(grainLengthSamples);
 
-        return sampleA * windowA + sampleB * windowB;
+        s.phaseA += phaseInc;
+        if (s.phaseA >= 1.0f)
+        {
+            s.phaseA -= 1.0f;
+            anchorHeadToWrite(s.headA, generateJitterSamples());
+        }
+
+        s.phaseB += phaseInc;
+        if (s.phaseB >= 1.0f)
+        {
+            s.phaseB -= 1.0f;
+            anchorHeadToWrite(s.headB, generateJitterSamples());
+        }
+
+        const float wA = hannWindow(s.phaseA);
+        const float wB = hannWindow(s.phaseB);
+
+        return sampleA * wA + sampleB * wB;
     }
 
-    void anchorHeadToWrite(ReadHead& head, float jitterOffsetSamples)
+    void anchorStateToWrite(GrainState& s)
     {
-        const float lookbackSamples = static_cast<float>(grainLengthSamples) * lookbackMultiplier;
-        const float writeFloat = static_cast<float>(writeIndex);
-        head.readIndex = wrapReadIndex(writeFloat - lookbackSamples + jitterOffsetSamples);
+        anchorHeadToWrite(s.headA, 0.0f);
+        anchorHeadToWrite(s.headB, 0.0f);
+    }
+
+    void reanchorStateHeadsPreservePhase(GrainState& s)
+    {
+        // Preserve phase for smoother envelope continuity, only move read anchors.
+        anchorHeadToWrite(s.headA, generateJitterSamples());
+        anchorHeadToWrite(s.headB, generateJitterSamples());
+    }
+
+    void anchorHeadToWrite(ReadHead& h, float jitterOffsetSamples)
+    {
+        const float lookback = static_cast<float>(grainLengthSamples) * lookbackMultiplier;
+        const float w = static_cast<float>(writeIndex);
+        h.readIndex = wrapReadIndex(w - lookback + jitterOffsetSamples);
     }
 
     float generateJitterSamples() const
@@ -409,10 +452,8 @@ private:
     {
         const float size = static_cast<float>(buffer.size());
         float out = idx;
-
         while (out < 0.0f) out += size;
         while (out >= size) out -= size;
-
         return out;
     }
 
@@ -443,28 +484,24 @@ private:
 
 private:
     double sampleRate = 48000.0;
-
     std::vector<float> buffer;
     int writeIndex = 0;
 
-    int grainLengthSamples = 1680; // ~35 ms @ 48k
-    float lookbackMultiplier = 3.0f;
+    int grainLengthSamples = 1680;
     float jitterPercent = 0.12f;
+    float lookbackMultiplier = 3.0f;
 
-    ReadHead headA;
-    ReadHead headB;
-    float grainPhaseA = 0.0f;
-    float grainPhaseB = 0.5f;
+    GrainState stateA;
+    GrainState stateB;
+    bool activeIsA = true;
 
-    // Echo-quantized ratio state
-    float latchedRatio = 1.0f;
     float pendingRatio = 1.0f;
     bool hasPendingRatio = false;
 
-    // Boundary crossfade
-    int boundaryFadeSamples = 0;
-    int boundaryFadeRemainingSamples = 0;
-    float prevLatchedRatioForFade = 1.0f;
+    int boundaryCrossfadeSamples = 0;
+    int crossfadeTotalSamples = 0;
+    int crossfadeRemainingSamples = 0;
+    bool pendingFlipAfterFade = false;
 };
 
 // Passthrough backend for testing/bypassing without touching architecture.
