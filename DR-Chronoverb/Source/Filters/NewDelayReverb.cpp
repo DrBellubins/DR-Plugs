@@ -167,39 +167,30 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         {
             const bool stereoEnabled = (pitchStereoEnabled01 >= 0.5f);
 
-            // Advance stable write-domain counters
             ++echoWriteCounterL;
             if (echoWriteCounterL >= writePeriodSamples)
             {
                 echoWriteCounterL = 0;
                 wetInputPitchShifterLeft.OnNewEchoBoundary();
 
-                boundaryCallsLThisBlock++;
-
                 if (!stereoEnabled)
                 {
-                    // lock R to L ratio at boundary
-                    const float linkedRatio = wetInputPitchShifterLeft.GetCurrentPitchRatio();
-                    wetInputPitchShifterRight.SetForcedPitchRatio(linkedRatio);
+                    // Mirror left's new ratio to right channel so both channels
+                    // cross-fade simultaneously — no extra stereo information added.
+                    const float leftNewRatio = wetInputPitchShifterLeft.GetCurrentPitchRatio();
+                    wetInputPitchShifterRight.OnNewEchoBoundaryMirrored(leftNewRatio);
+                    echoWriteCounterR = 0; // keep counters in lockstep
                 }
             }
 
-            ++echoWriteCounterR;
-            if (echoWriteCounterR >= writePeriodSamples)
-            {
-                echoWriteCounterR = 0;
-
-                if (stereoEnabled)
-                {
-                    wetInputPitchShifterRight.OnNewEchoBoundary();
-                    boundaryCallsRThisBlock++;
-                }
-            }
-
-            // Ensure forced-ratio mode is disabled when unlinked
             if (stereoEnabled)
             {
-                wetInputPitchShifterRight.ClearForcedPitchRatio();
+                ++echoWriteCounterR;
+                if (echoWriteCounterR >= writePeriodSamples)
+                {
+                    echoWriteCounterR = 0;
+                    wetInputPitchShifterRight.OnNewEchoBoundary();
+                }
             }
         }
 
