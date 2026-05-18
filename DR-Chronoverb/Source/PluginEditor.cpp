@@ -47,6 +47,8 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     uiHelpers.CreateKnob(*this, delayTimeKnob, delayTimeAttachment, "delayTime",
         "", 100, cX + 0, cY + -25 + nonPitchYOffset);
 
+    updateDelayKnobDisplay(delayTimeModeButtons->getSelectedIndex());
+
     uiHelpers.CreateKnob(*this, feedbackTimeKnob, feedbackTimeAttachment, "feedbackTime",
         "", 80, cX + 200, cY + 50 + nonPitchYOffset);
 
