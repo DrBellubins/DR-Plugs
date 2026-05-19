@@ -484,7 +484,10 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 float x = data[i];
 
                 if (!std::isfinite(x))
+                {
+                    debugInvalidSampleCount.fetch_add(1, std::memory_order_relaxed);
                     x = 0.0f;
+                }
 
                 const float ax = std::abs(x);
                 float prev = debugMaxAbsSample.load(std::memory_order_relaxed);
