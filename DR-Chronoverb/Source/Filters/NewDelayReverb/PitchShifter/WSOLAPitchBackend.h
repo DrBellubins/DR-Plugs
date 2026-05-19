@@ -482,22 +482,7 @@ private:
 
     void reclaimOldStretchData()
     {
-        const int readIndex =
-            wrapInt(static_cast<int>(std::floor(stretchReadIndexFloat)), stretchRingSize);
-
-        // Leave a safety region behind the read pointer so interpolation and
-        // recent overlap structure remain intact.
-        const int safeDistanceBehindRead = segmentLengthSamples;
-
-        const int stopIndex =
-            wrapInt(readIndex - safeDistanceBehindRead, stretchRingSize);
-
-        while (stretchClearCursor != stopIndex)
-        {
-            stretchRing[static_cast<size_t>(stretchClearCursor)] = 0.0f;
-            stretchWeightRing[static_cast<size_t>(stretchClearCursor)] = 0.0f;
-            stretchClearCursor = wrapInt(stretchClearCursor + 1, stretchRingSize);
-        }
+        
     }
 
     float getReadDistanceBehindWrite() const
