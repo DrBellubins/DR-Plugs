@@ -8,516 +8,11 @@
 #include <atomic>
 #include <climits>
 
-// ============================ Pitch ratio sequence API ============================
-
-class IPitchSequence
-{
-public:
-    virtual ~IPitchSequence() = default;
-
-    virtual void Reset() {}
-    virtual void AdvanceToNextEcho() {}
-
-    // Pitch ratio for current echo (1.0 = unison, 2.0 = +1 octave, 0.5 = -1 octave).
-    virtual float GetCurrentPitchRatio() const = 0;
-};
-
-// Progressive octaves: starts at startOctave, steps by stepOctaves per echo,
-// clamped to [lowerBound, upperBound].
-class ProgressiveOctaveSequence : public IPitchSequence
-{
-public:
-    ProgressiveOctaveSequence() {}
-
-    void SetRange(int newLowerBound, int newUpperBound)
-    {
-        lowerBound = std::min(newLowerBound, newUpperBound);
-        upperBound = std::max(newLowerBound, newUpperBound);
-    }
-
-    void SetStartOctave(int newStartOctave) { startOctave = newStartOctave; }
-    void SetStepOctaves(int newStepOctaves) { stepOctaves = newStepOctaves; }
-
-    void Reset() override
-    {
-        currentEchoIndex = 0;
-        currentOctaves = startOctave;
-    }
-
-    void AdvanceToNextEcho() override
-    {
-        ++currentEchoIndex;
-
-        const int rangeSize = upperBound - lowerBound + 1;
-
-        if (rangeSize <= 0)
-        {
-            currentOctaves = lowerBound;
-            return;
-        }
-
-        int wrappedIndex = (currentOctaves - lowerBound) + stepOctaves;
-        wrappedIndex %= rangeSize;
-
-        if (wrappedIndex < 0)
-            wrappedIndex += rangeSize;
-
-        currentOctaves = lowerBound + wrappedIndex;
-    }
-
-    float GetCurrentPitchRatio() const override
-    {
-        const int clamped = juce::jlimit(-4, 4, currentOctaves);
-        return std::pow(2.0f, static_cast<float>(clamped));
-    }
-
-private:
-    int stepOctaves = 1;
-    int startOctave = 0;
-    int lowerBound = -2;
-    int upperBound = 2;
-    int currentEchoIndex = 0;
-    int currentOctaves = 0;
-};
-
-class PingPongOctaveSequence : public IPitchSequence
-{
-public:
-    PingPongOctaveSequence() = default;
-
-    void SetRange(int newLowerBound, int newUpperBound)
-    {
-        lowerBound = std::min(newLowerBound, newUpperBound);
-        upperBound = std::max(newLowerBound, newUpperBound);
-    }
-
-    void SetStartOctave(int newStartOctave)
-    {
-        startOctave = juce::jlimit(lowerBound, upperBound, newStartOctave);
-    }
-
-    void SetInitialDirection(int newDirection)
-    {
-        direction = (newDirection >= 0 ? 1 : -1);
-    }
-
-    void Reset() override
-    {
-        currentOctave = juce::jlimit(lowerBound, upperBound, startOctave);
-
-        if (lowerBound == upperBound)
-            direction = 1;
-    }
-
-    void AdvanceToNextEcho() override
-    {
-        if (lowerBound == upperBound)
-            return;
-
-        int next = currentOctave + direction;
-
-        if (next > upperBound)
-        {
-            direction = -1;
-            next = upperBound - 1;
-        }
-        else if (next < lowerBound)
-        {
-            direction = 1;
-            next = lowerBound + 1;
-        }
-
-        currentOctave = juce::jlimit(lowerBound, upperBound, next);
-    }
-
-    float GetCurrentPitchRatio() const override
-    {
-        const int clamped = juce::jlimit(-4, 4, currentOctave);
-        return std::pow(2.0f, static_cast<float>(clamped));
-    }
-
-private:
-    int lowerBound = -2;
-    int upperBound = 2;
-    int startOctave = 0;
-    int currentOctave = 0;
-    int direction = 1;
-};
-
-// Random octave sequence: picks a random octave within [lowerBound, upperBound]
-// each echo, avoiding an immediate back-to-back repeat when more than one choice exists.
-class RandomOctaveSequence : public IPitchSequence
-{
-public:
-    RandomOctaveSequence() { BuildOctaveList(); }
-
-    void SetRange(int newLowerBound, int newUpperBound)
-    {
-        lowerBound = std::min(newLowerBound, newUpperBound);
-        upperBound = std::max(newLowerBound, newUpperBound);
-        BuildOctaveList();
-    }
-
-    void Reset() override
-    {
-        lastOctave = INT_MIN;
-        currentOctave = PickRandom(lastOctave);
-    }
-
-    void AdvanceToNextEcho() override
-    {
-        lastOctave = currentOctave;
-        currentOctave = PickRandom(lastOctave);
-    }
-
-    float GetCurrentPitchRatio() const override
-    {
-        const int clamped = juce::jlimit(-4, 4, currentOctave);
-        return std::pow(2.0f, static_cast<float>(clamped));
-    }
-
-private:
-    void BuildOctaveList()
-    {
-        octaves.clear();
-        for (int o = lowerBound; o <= upperBound; ++o)
-            octaves.push_back(o);
-    }
-
-    int PickRandom(int excludeOctave) const
-    {
-        if (octaves.empty()) return 0;
-        if (static_cast<int>(octaves.size()) == 1) return octaves[0];
-
-        std::vector<int> candidates;
-        candidates.reserve(octaves.size());
-        for (int o : octaves)
-            if (o != excludeOctave)
-                candidates.push_back(o);
-
-        if (candidates.empty()) return octaves[0];
-        return candidates[static_cast<size_t>(rand()) % candidates.size()];
-    }
-
-    int lowerBound = -2;
-    int upperBound =  2;
-    int currentOctave =  0;
-    int lastOctave = INT_MIN;
-    std::vector<int> octaves;
-};
-
-// ============================ Pitch shifter backend API ============================
-
-class IPitchShifterBackend
-{
-public:
-    virtual ~IPitchShifterBackend() = default;
-
-    virtual void Prepare(double newSampleRate, int maximumBlockSize)
-    {
-        juce::ignoreUnused(newSampleRate, maximumBlockSize);
-    }
-
-    virtual void Reset() {}
-
-    // pitchRatio is provided for non-granular backends; granular manages
-    // its own ratio via OnEchoBoundary / SetInitialRatio.
-    virtual float ProcessSample(float inputSample, float pitchRatio) = 0;
-};
-
-class ConstantRatioSequence : public IPitchSequence
-{
-public:
-    void SetPitchRatio(float r) { pitchRatio = r; }
-    float GetCurrentPitchRatio() const override { return pitchRatio; }
-
-private:
-    float pitchRatio = 1.0f;
-};
-
-// ============================ Granular pitch backend (echo-quantized) ============================
-// Ratio changes are driven externally by OnEchoBoundary(newRatio).
-// ProcessSample's pitchRatio parameter is ignored — the granular backend uses
-// only the ratio set at the last boundary call.
-class GranularPitchBackend : public IPitchShifterBackend
-{
-    struct ReadHead { float readIndex = 0.0f; };
-
-    struct GrainState
-    {
-        ReadHead headA;
-        ReadHead headB;
-        float phaseA = 0.0f;
-        float phaseB = 0.5f;
-        float ratio  = 1.0f;
-    };
-
-public:
-    GranularPitchBackend() = default;
-
-    void Prepare(double newSampleRate, int maximumBlockSize) override
-    {
-        juce::ignoreUnused(maximumBlockSize);
-        sampleRate = newSampleRate;
-
-        const int bufferMs = 300;
-        const int bufferSize = std::max(
-            2048,
-            static_cast<int>(std::ceil((bufferMs * sampleRate) / 1000.0)));
-
-        buffer.assign(static_cast<size_t>(bufferSize), 0.0f);
-
-        SetGrainLengthMilliseconds(35.0f);
-        SetJitterPercent(0.12f);
-        SetLookbackMultiplier(3.0f);
-        SetBoundaryCrossfadeMilliseconds(4.0f);
-
-        Reset();
-    }
-
-    void Reset() override
-    {
-        std::fill(buffer.begin(), buffer.end(), 0.0f);
-        writeIndex = 0;
-
-        stateA = {};
-        stateB = {};
-        stateA.phaseA = 0.0f;
-        stateA.phaseB = 0.5f;
-        stateA.ratio  = 1.0f;
-        stateB = stateA;
-
-        anchorStateToWrite(stateA);
-        anchorStateToWrite(stateB);
-
-        crossfadeRemainingSamples = 0;
-        crossfadeTotalSamples = boundaryCrossfadeSamples;
-        activeIsA = true;
-        pendingFlipAfterFade = false;
-    }
-
-    // ------------------------------------------------------------------
-    // Called by OctaveEchoPitchShifter AFTER advancing the sequence.
-    // newRatio is the ratio the next echo should play at.
-    // ------------------------------------------------------------------
-    void OnEchoBoundary(float newRatio)
-    {
-        const float r = juce::jlimit(0.25f, 4.0f, newRatio);
-
-        GrainState& active = (activeIsA ? stateA : stateB);
-        GrainState& inactive = (activeIsA ? stateB : stateA);
-
-        if (std::abs(r - active.ratio) < 1.0e-6f)
-            return; // No change needed
-
-        // Clone running grain state, change only the ratio.
-        // DO NOT re-anchor read heads — that causes discontinuity.
-        inactive = active;
-        inactive.ratio = r;
-
-        crossfadeTotalSamples = boundaryCrossfadeSamples;
-        crossfadeRemainingSamples = crossfadeTotalSamples;
-        pendingFlipAfterFade = true;
-    }
-
-    // ------------------------------------------------------------------
-    // Sets the initial ratio with no crossfade. Call once at PrepareToPlay
-    // after CommitPendingSequenceNow to avoid a silent "wrong-pitch" first echo.
-    // ------------------------------------------------------------------
-    void SetInitialRatio(float ratio)
-    {
-        const float r = juce::jlimit(0.25f, 4.0f, ratio);
-        stateA.ratio = r;
-        stateB.ratio = r;
-        stateA.phaseA = 0.0f;
-        stateA.phaseB = 0.5f;
-        stateB.phaseA = 0.0f;
-        stateB.phaseB = 0.5f;
-
-        anchorStateToWrite(stateA);
-        anchorStateToWrite(stateB);
-
-        crossfadeRemainingSamples = 0;
-        pendingFlipAfterFade = false;
-        activeIsA = true;
-    }
-
-    // pitchRatio is intentionally unused — ratio is now managed via OnEchoBoundary.
-    float ProcessSample(float inputSample, float /*pitchRatio*/) override
-    {
-        if (buffer.empty())
-            return inputSample;
-
-        buffer[static_cast<size_t>(writeIndex)] = inputSample;
-        writeIndex = (writeIndex + 1) % static_cast<int>(buffer.size());
-
-        GrainState& active   = (activeIsA ? stateA : stateB);
-        GrainState& inactive = (activeIsA ? stateB : stateA);
-
-        const float outActive = processStateOneSample(active);
-
-        if (crossfadeRemainingSamples > 0)
-        {
-            const float outInactive = processStateOneSample(inactive);
-            const int done = crossfadeTotalSamples - crossfadeRemainingSamples;
-            const float t  = static_cast<float>(done)
-                           / static_cast<float>(std::max(1, crossfadeTotalSamples));
-
-            const float gOld = std::cos(t * juce::MathConstants<float>::halfPi);
-            const float gNew = std::sin(t * juce::MathConstants<float>::halfPi);
-
-            --crossfadeRemainingSamples;
-
-            if (crossfadeRemainingSamples == 0 && pendingFlipAfterFade)
-            {
-                activeIsA            = !activeIsA;
-                pendingFlipAfterFade = false;
-            }
-
-            return outActive * gOld + outInactive * gNew;
-        }
-
-        return outActive;
-    }
-
-    void SetGrainLengthMilliseconds(float ms)
-    {
-        const float clamped = juce::jlimit(5.0f, 120.0f, ms);
-        grainLengthSamples  = std::max(16, static_cast<int>(
-            std::round((clamped * sampleRate) / 1000.0)));
-    }
-
-    void SetJitterPercent(float p)     { jitterPercent      = juce::jlimit(0.0f, 0.5f, p); }
-    void SetLookbackMultiplier(float m){ lookbackMultiplier = juce::jlimit(2.0f, 6.0f, m); }
-
-    void SetBoundaryCrossfadeMilliseconds(float ms)
-    {
-        const float clamped      = juce::jlimit(0.0f, 30.0f, ms);
-        boundaryCrossfadeSamples = std::max(0, static_cast<int>(
-            std::round((clamped * sampleRate) / 1000.0)));
-    }
-
-    float GetLatencyMilliseconds() const
-    {
-        const float lookbackSamples = static_cast<float>(grainLengthSamples) * lookbackMultiplier;
-        return (lookbackSamples * 1000.0f) / static_cast<float>(sampleRate);
-    }
-
-private:
-    float processStateOneSample(GrainState& grainState)
-    {
-        const float sampleA = readCubic(grainState.headA.readIndex);
-        const float sampleB = readCubic(grainState.headB.readIndex);
-
-        grainState.headA.readIndex = wrapReadIndex(grainState.headA.readIndex + grainState.ratio);
-        grainState.headB.readIndex = wrapReadIndex(grainState.headB.readIndex + grainState.ratio);
-
-        const float phaseInc = 1.0f / static_cast<float>(grainLengthSamples);
-
-        grainState.phaseA += phaseInc;
-        if (grainState.phaseA >= 1.0f)
-        {
-            grainState.phaseA -= 1.0f;
-            anchorHeadToWrite(grainState.headA, generateJitterSamples());
-        }
-
-        grainState.phaseB += phaseInc;
-        if (grainState.phaseB >= 1.0f)
-        {
-            grainState.phaseB -= 1.0f;
-            anchorHeadToWrite(grainState.headB, generateJitterSamples());
-        }
-
-        const float wA = hannWindow(grainState.phaseA);
-        const float wB = hannWindow(grainState.phaseB);
-
-        return sampleA * wA + sampleB * wB;
-    }
-
-    void anchorStateToWrite(GrainState& s)
-    {
-        anchorHeadToWrite(s.headA, 0.0f);
-        anchorHeadToWrite(s.headB, 0.0f);
-    }
-
-    void anchorHeadToWrite(ReadHead& readHead, float jitterOffsetSamples)
-    {
-        const float lookback = static_cast<float>(grainLengthSamples) * lookbackMultiplier;
-        const float index = static_cast<float>(writeIndex);
-        readHead.readIndex = wrapReadIndex(index - lookback + jitterOffsetSamples);
-    }
-
-    float generateJitterSamples() const
-    {
-        const float u = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * 2.0f - 1.0f;
-        return u * jitterPercent * static_cast<float>(grainLengthSamples);
-    }
-
-    static float hannWindow(float phase01)
-    {
-        return 0.5f - 0.5f * std::cos(2.0f * juce::MathConstants<float>::pi * phase01);
-    }
-
-    float wrapReadIndex(float idx) const
-    {
-        const float size = static_cast<float>(buffer.size());
-        float out = idx;
-        while (out < 0.0f)    out += size;
-        while (out >= size)   out -= size;
-        return out;
-    }
-
-    float readCubic(float readIndexFloat) const
-    {
-        const int size = static_cast<int>(buffer.size());
-        const float wrapped = wrapReadIndex(readIndexFloat);
-        const int i1 = static_cast<int>(std::floor(wrapped));
-        const float frac = wrapped - static_cast<float>(i1);
-
-        const int i0 = (i1 - 1 + size) % size;
-        const int i2 = (i1 + 1) % size;
-        const int i3 = (i1 + 2) % size;
-
-        const float y0 = buffer[static_cast<size_t>(i0)];
-        const float y1 = buffer[static_cast<size_t>(i1)];
-        const float y2 = buffer[static_cast<size_t>(i2)];
-        const float y3 = buffer[static_cast<size_t>(i3)];
-
-        const float a0 = -0.5f * y0 + 1.5f * y1 - 1.5f * y2 + 0.5f * y3;
-        const float a1 =  y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
-        const float a2 = -0.5f * y0 + 0.5f * y2;
-        const float a3 =  y1;
-
-        return ((a0 * frac + a1) * frac + a2) * frac + a3;
-    }
-
-    double sampleRate = 48000.0;
-    std::vector<float> buffer;
-    int writeIndex = 0;
-
-    int grainLengthSamples = 1680;
-    float jitterPercent = 0.12f;
-    float lookbackMultiplier = 3.0f;
-
-    GrainState stateA;
-    GrainState stateB;
-    bool activeIsA = true;
-
-    int boundaryCrossfadeSamples = 0;
-    int crossfadeTotalSamples = 0;
-    int crossfadeRemainingSamples = 0;
-    bool pendingFlipAfterFade = false;
-};
-
-// Passthrough backend (testing / bypass).
-class PassthroughPitchBackend : public IPitchShifterBackend
-{
-public:
-    float ProcessSample(float inputSample, float /*pitchRatio*/) override
-    {
-        return inputSample;
-    }
-};
+#include "PitchShifter/PitchShiftingUtils.h"
+#include "PitchShifter/ProgressiveOctaveSequence.h"
+#include "PitchShifter/PingPongOctaveSequence.h"
+#include "PitchShifter/RandomOctaveSequence.h"
+#include "PitchShifter/GranularPitchBackend.h"
 
 // ============================ Octave-per-echo pitch extension ============================
 
@@ -542,7 +37,7 @@ public:
 
     void Prepare(double newSampleRate, int maximumBlockSize)
     {
-        sampleRate             = newSampleRate;
+        sampleRate = newSampleRate;
         maximumBlockSizeCached = maximumBlockSize;
 
         if (backend != nullptr)
@@ -589,13 +84,13 @@ public:
         // Commit a staged sequence change cleanly at the echo boundary.
         if (hasPendingSequence && pendingSequence != nullptr)
         {
-            sequence           = std::move(pendingSequence);
+            sequence = std::move(pendingSequence);
             hasPendingSequence = false;
             // Reset() was already called on it inside SetSequence.
 
             // Tell the granular to cross-fade to the new sequence's start ratio.
-            if (auto* g = dynamic_cast<GranularPitchBackend*>(backend.get()))
-                g->OnEchoBoundary(sequence->GetCurrentPitchRatio());
+            if (auto* granular = dynamic_cast<GranularPitchBackend*>(backend.get()))
+                granular->OnEchoBoundary(sequence->GetCurrentPitchRatio());
 
             return; // Don't advance yet — let the new sequence start from step 0.
         }
@@ -605,8 +100,8 @@ public:
         if (sequence != nullptr)
             sequence->AdvanceToNextEcho();
 
-        if (auto* g = dynamic_cast<GranularPitchBackend*>(backend.get()))
-            g->OnEchoBoundary(sequence != nullptr ? sequence->GetCurrentPitchRatio() : 1.0f);
+        if (auto* granular = dynamic_cast<GranularPitchBackend*>(backend.get()))
+            granular->OnEchoBoundary(sequence != nullptr ? sequence->GetCurrentPitchRatio() : 1.0f);
     }
 
     // -----------------------------------------------------------------------
@@ -637,8 +132,10 @@ public:
     void SetSequence(std::unique_ptr<IPitchSequence> newSequence)
     {
         pendingSequence = std::move(newSequence);
+
         if (pendingSequence != nullptr)
             pendingSequence->Reset();
+
         hasPendingSequence = true;
     }
 
@@ -649,7 +146,7 @@ public:
     {
         if (hasPendingSequence && pendingSequence != nullptr)
         {
-            sequence           = std::move(pendingSequence);
+            sequence = std::move(pendingSequence);
             hasPendingSequence = false;
 
             // Directly initialise the granular to the correct starting ratio.
@@ -705,9 +202,9 @@ public:
 
     float GetLatencyMilliseconds() const
     {
-        auto* g = dynamic_cast<GranularPitchBackend*>(backend.get());
-        if (g != nullptr && GetEnabled())
-            return g->GetLatencyMilliseconds();
+        auto* ganular = dynamic_cast<GranularPitchBackend*>(backend.get());
+        if (ganular != nullptr && GetEnabled())
+            return ganular->GetLatencyMilliseconds();
         return 0.0f;
     }
 
@@ -718,9 +215,9 @@ public:
     }
 
 private:
-    double sampleRate             = 48000.0;
-    int    maximumBlockSizeCached = 0;
-    bool   hasPendingSequence     = false;
+    double sampleRate = 48000.0;
+    int maximumBlockSizeCached = 0;
+    bool hasPendingSequence = false;
 
     std::unique_ptr<IPitchSequence>      sequence;
     std::unique_ptr<IPitchSequence>      pendingSequence;
