@@ -80,7 +80,7 @@ public:
 
     float ProcessSample(float inputSample, float /*pitchRatio*/) override
     {
-        float currentOut = processOnePath(inputSample, currentRatio, activePath);
+        float out = processOnePath(inputSample, currentRatio, activePath);
 
         if (crossfadeRemainingSamples > 0)
         {
@@ -99,14 +99,21 @@ public:
             if (crossfadeRemainingSamples == 0)
                 commitPendingState();
 
-            return currentOut * oldGain + pendingOut * newGain;
+            out = out * oldGain + pendingOut * newGain;
         }
 
-        // Fix DC/Denormal edg cases
-        if (!std::isfinite(currentOut)) currentOut = 0.0f;
-        if (std::abs(currentOut) < 1.0e-20f) currentOut = 0.0f;
+        // --- HARD SAFETY (diagnostic + prevents host silence due to NaNs/Infs) ---
+        if (!std::isfinite(out))
+            out = 0.0f;
 
-        return currentOut;
+        // clamp insane spikes that present as crackle
+        out = juce::jlimit(-2.0f, 2.0f, out);
+
+        // optional: kill denormals
+        if (std::abs(out) < 1.0e-20f)
+            out = 0.0f;
+
+        return out;
     }
 
     void OnEchoBoundary(float newRatio) override
@@ -125,9 +132,12 @@ public:
             return;
         }
 
-        pendingPath = activePath;
+        // DO NOT copy activePath (RT-hostile and can cause discontinuities).
+        // Start a clean pending path for the new ratio and crossfade into it.
+        resetPath(pendingPath);
         pendingRatio = clampedRatio;
         hasPendingRatio = true;
+
         crossfadeTotalSamples = boundaryCrossfadeSamples;
         crossfadeRemainingSamples = crossfadeTotalSamples;
     }
