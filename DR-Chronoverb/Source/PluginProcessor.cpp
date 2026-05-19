@@ -232,7 +232,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
        juce::StringArray
        {
            "Granular (Low Quality)",
-           "Phase Vocoder (High Quality)"
+           "WSOLA (High Quality)"
        },
        0 // Default: Granular
    ));
@@ -414,7 +414,7 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
         {
             const OctaveEchoPitchShifter::BackendType backendType =
                 (algorithmParam->getIndex() == 1)
-                    ? OctaveEchoPitchShifter::BackendType::PhaseVocoder
+                    ? OctaveEchoPitchShifter::BackendType::WSOLA
                     : OctaveEchoPitchShifter::BackendType::Granular;
 
             DelayReverb.SetPitchAlgorithm(backendType);
