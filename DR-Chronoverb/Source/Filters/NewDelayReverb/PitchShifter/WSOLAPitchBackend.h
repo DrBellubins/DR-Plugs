@@ -127,13 +127,13 @@ public:
     void OnEchoBoundary(float newRatio) override
     {
         currentRatio = clampPitchRatio(newRatio);
-        stretchFactor = 1.0f / currentRatio;
+        stretchFactor = currentRatio;
     }
 
     void SetInitialRatio(float ratio) override
     {
         currentRatio = clampPitchRatio(ratio);
-        stretchFactor = 1.0f / currentRatio;
+        stretchFactor = currentRatio;
     }
 
     float GetLatencyMilliseconds() const override
