@@ -108,12 +108,15 @@ public:
 
         if (initialized)
         {
-            outputSample = readStretchRingNormalizedLinear(stretchReadIndexFloat);
+            outputSample = readStretchRingNormalizedCubic(stretchReadIndexFloat);
 
-            const float readIncrement = getControlledReadIncrement();
+            const float targetReadIncrement = getControlledReadIncrement();
+
+            // Small smoothing to reduce zipper/jitter in read-rate modulation.
+            smoothedReadIncrement += 0.02f * (targetReadIncrement - smoothedReadIncrement);
 
             stretchReadIndexFloat =
-                wrapFloat(stretchReadIndexFloat + readIncrement,
+                wrapFloat(stretchReadIndexFloat + smoothedReadIncrement,
                           static_cast<float>(stretchRingSize));
         }
         else
@@ -249,6 +252,7 @@ private:
         stretchWriteCursor = 0;
         stretchReadIndexFloat = 0.0f;
         stretchClearCursor = 0;
+        smoothedReadIncrement = stretchFactor;
 
         samplesUntilNextSegment = 0;
         initialized = false;
@@ -541,6 +545,41 @@ private:
         return stretchFactor + correction;
     }
 
+    float readStretchRingNormalizedCubic(float index) const
+    {
+        const float wrapped = wrapFloat(index, static_cast<float>(stretchRingSize));
+
+        const int i1 = static_cast<int>(std::floor(wrapped));
+        const float frac = wrapped - static_cast<float>(i1);
+
+        const int i0 = wrapInt(i1 - 1, stretchRingSize);
+        const int i2 = wrapInt(i1 + 1, stretchRingSize);
+        const int i3 = wrapInt(i1 + 2, stretchRingSize);
+
+        auto getNormalized = [&](int idx) -> float
+        {
+            const float sum = stretchRing[static_cast<size_t>(idx)];
+            const float weight = stretchWeightRing[static_cast<size_t>(idx)];
+
+            if (weight > 1.0e-6f)
+                return sum / weight;
+
+            return 0.0f;
+        };
+
+        const float y0 = getNormalized(i0);
+        const float y1 = getNormalized(i1);
+        const float y2 = getNormalized(i2);
+        const float y3 = getNormalized(i3);
+
+        const float a0 = -0.5f * y0 + 1.5f * y1 - 1.5f * y2 + 0.5f * y3;
+        const float a1 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
+        const float a2 = -0.5f * y0 + 0.5f * y2;
+        const float a3 = y1;
+
+        return ((a0 * frac + a1) * frac + a2) * frac + a3;
+    }
+
 private:
     // Runtime configuration
     double sampleRate = 48000.0;
@@ -577,6 +616,7 @@ private:
     float stretchReadIndexFloat = 0.0f;
     int stretchClearCursor = 0;
     float targetReadDistanceSamples = 0.0f;
+    float smoothedReadIncrement = 1.0f;
 
     // Segment scheduling
     int samplesUntilNextSegment = 0;
