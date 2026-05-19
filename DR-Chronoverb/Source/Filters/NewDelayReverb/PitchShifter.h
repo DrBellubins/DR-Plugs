@@ -346,6 +346,14 @@ public:
         return -1.0f;
     }
 
+    int GetLastBestMatchDelta() const
+    {
+        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
+            return wsola->GetLastBestMatchDelta();
+
+        return -1;
+    }
+
     void ResetDebugReadWeightExtrema()
     {
         if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))

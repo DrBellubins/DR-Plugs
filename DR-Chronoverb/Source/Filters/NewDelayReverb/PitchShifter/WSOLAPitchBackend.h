@@ -304,6 +304,11 @@ public:
         return targetReadDistanceSamples;
     }
 
+    int GetLastBestMatchDelta() const
+    {
+        return lastBestMatchDelta.load(std::memory_order_relaxed);
+    }
+
     void ResetDebugReadWeightExtrema()
     {
         debugMinReadWeight.store(1000000.0f, std::memory_order_relaxed);
@@ -482,7 +487,8 @@ int findBestMatchingSourceIndex(int predictedSourceIndexSamples) const
     // Compare each candidate against the tail region implied by the previously
     // chosen source segment, rather than against the stretch ring.
     const float referenceStart =
-        lastChosenSourceIndex + static_cast<float>(synthesisHopSamples);
+        lastChosenSourceIndex
+        + static_cast<float>(segmentLengthSamples - overlapSamples);
 
     for (int delta = -searchRadiusSamples; delta <= searchRadiusSamples; ++delta)
     {
@@ -525,7 +531,10 @@ int findBestMatchingSourceIndex(int predictedSourceIndexSamples) const
         {
             bestScore = score;
             bestIndex = candidateIndex;
+            lastBestMatchDelta.store(delta, std::memory_order_relaxed);
         }
+        else
+            lastBestMatchDelta.store(0, std::memory_order_relaxed);
     }
 
     if (!foundValidCandidate)
@@ -721,4 +730,5 @@ int findBestMatchingSourceIndex(int predictedSourceIndexSamples) const
     mutable std::atomic<float> lastBestMatchError { 0.0f };
     mutable std::atomic<float> debugMinReadWeight { 1000000.0f };
     mutable std::atomic<float> debugMaxReadWeight { 0.0f };
+    mutable std::atomic<int> lastBestMatchDelta { 0 };
 };

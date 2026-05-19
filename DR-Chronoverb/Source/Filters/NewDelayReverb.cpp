@@ -180,7 +180,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
                 << " hop L: " << wetInputPitchShifterLeft.GetSynthesisHopSamplesForDebug()
                 << " writeCursor L: " << wetInputPitchShifterLeft.GetStretchWriteCursorForDebug()
                 << " readIndex L: " << wetInputPitchShifterLeft.GetStretchReadIndexForDebug()
-                << " readDistanceSamples: " << wetInputPitchShifterLeft.GetTargetReadDistanceSamples());
+                << " readDistanceSamples: " << wetInputPitchShifterLeft.GetTargetReadDistanceSamples()
+                << " delta: " << wetInputPitchShifterLeft.GetLastBestMatchDelta());
 
             wetInputPitchShifterLeft.ResetDebugReadWeightExtrema();
         }
