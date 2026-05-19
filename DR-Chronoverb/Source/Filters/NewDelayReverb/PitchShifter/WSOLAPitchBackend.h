@@ -111,6 +111,8 @@ public:
             stretchReadIndexFloat =
                 wrapFloat(stretchReadIndexFloat + stretchFactor,
                           static_cast<float>(stretchRingSize));
+
+            reclaimOldStretchData();
         }
         else
         {
@@ -244,6 +246,7 @@ private:
         inputWriteIndex = 0;
         stretchWriteCursor = 0;
         stretchReadIndexFloat = 0.0f;
+        stretchClearCursor = 0;
 
         samplesUntilNextSegment = 0;
         initialized = false;
@@ -492,6 +495,26 @@ private:
         return (weightA > 0.05f || weightB > 0.05f);
     }
 
+    void reclaimOldStretchData()
+    {
+        const int readIndex =
+            wrapInt(static_cast<int>(std::floor(stretchReadIndexFloat)), stretchRingSize);
+
+        // Leave a safety region behind the read pointer so interpolation and
+        // recent overlap structure remain intact.
+        const int safeDistanceBehindRead = segmentLengthSamples;
+
+        const int stopIndex =
+            wrapInt(readIndex - safeDistanceBehindRead, stretchRingSize);
+
+        while (stretchClearCursor != stopIndex)
+        {
+            stretchRing[static_cast<size_t>(stretchClearCursor)] = 0.0f;
+            stretchWeightRing[static_cast<size_t>(stretchClearCursor)] = 0.0f;
+            stretchClearCursor = wrapInt(stretchClearCursor + 1, stretchRingSize);
+        }
+    }
+
 private:
     // Runtime configuration
     double sampleRate = 48000.0;
@@ -526,6 +549,7 @@ private:
     int inputWriteIndex = 0;
     int stretchWriteCursor = 0;
     float stretchReadIndexFloat = 0.0f;
+    int stretchClearCursor = 0;
 
     // Segment scheduling
     int samplesUntilNextSegment = 0;
