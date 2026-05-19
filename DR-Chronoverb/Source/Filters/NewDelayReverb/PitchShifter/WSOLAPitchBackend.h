@@ -476,10 +476,13 @@ int findBestMatchingSourceIndex(int predictedSourceIndexSamples) const
     int bestIndex = predictedSourceIndexSamples;
     bool foundValidCandidate = false;
 
-    const int overlapStretchStart =
-        wrapInt(stretchWriteCursor - overlapSamples, stretchRingSize);
-
+    // Optional continuity bias. Keep disabled until matching is confirmed useful.
     constexpr float distancePenaltyPerSample = 0.0f;
+
+    // Compare each candidate against the tail region implied by the previously
+    // chosen source segment, rather than against the stretch ring.
+    const float referenceStart =
+        lastChosenSourceIndex + static_cast<float>(synthesisHopSamples);
 
     for (int delta = -searchRadiusSamples; delta <= searchRadiusSamples; ++delta)
     {
@@ -495,35 +498,24 @@ int findBestMatchingSourceIndex(int predictedSourceIndexSamples) const
         foundValidCandidate = true;
 
         float dot = 0.0f;
-        float energyExisting = 0.0f;
+        float energyReference = 0.0f;
         float energyCandidate = 0.0f;
 
         for (int i = 0; i < overlapSamples; ++i)
         {
+            const float referenceSample =
+                readInputRingLinear(referenceStart + static_cast<float>(i));
+
             const float candidateSample =
                 readInputRingLinear(static_cast<float>(candidateIndex + i));
 
-            const int stretchIndex =
-                wrapInt(overlapStretchStart + i, stretchRingSize);
-
-            const float existingWeight =
-                stretchWeightRing[static_cast<size_t>(stretchIndex)];
-
-            float existingSample = 0.0f;
-
-            if (existingWeight > 1.0e-6f)
-            {
-                existingSample =
-                    stretchRing[static_cast<size_t>(stretchIndex)] / existingWeight;
-            }
-
-            dot += existingSample * candidateSample;
-            energyExisting += existingSample * existingSample;
+            dot += referenceSample * candidateSample;
+            energyReference += referenceSample * referenceSample;
             energyCandidate += candidateSample * candidateSample;
         }
 
         const float denominator =
-            std::sqrt(std::max(energyExisting * energyCandidate, 1.0e-12f));
+            std::sqrt(std::max(energyReference * energyCandidate, 1.0e-12f));
 
         float score = dot / denominator;
 
