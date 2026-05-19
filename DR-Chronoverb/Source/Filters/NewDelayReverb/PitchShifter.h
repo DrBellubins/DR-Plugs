@@ -14,7 +14,7 @@
 #include "PitchShifter/RandomOctaveSequence.h"
 #include "PitchShifter/GranularPitchBackend.h"
 #include "PitchShifter/PhaseVocoderPitchBackend.h"
-#include "PitchShifter/WSOLAPitchBackend.h"
+#include "PitchShifter/WSOLAPitchBackend_v2.h"
 
 class OctaveEchoPitchShifter
 {
@@ -22,7 +22,6 @@ public:
     enum class BackendType
     {
         Granular,
-        PhaseVocoder,
         WSOLA
     };
 
@@ -134,25 +133,18 @@ public:
 
     void SetBackendType(BackendType newBackendType)
     {
-        if (newBackendType == BackendType::PhaseVocoder)
-        {
-            auto phaseVocoder = std::make_unique<PhaseVocoderPitchBackend>();
-            phaseVocoder->Prepare(sampleRate, maximumBlockSizeCached);
-            SetBackend(std::move(phaseVocoder));
-        }
-        else if (newBackendType == BackendType::WSOLA)
-        {
-            auto wsola = std::make_unique<WSOLAPitchBackend>();
-            wsola->Prepare(sampleRate, maximumBlockSizeCached);
-            SetBackend(std::move(wsola));
-        }
-        else
+        if (newBackendType == BackendType::Granular)
         {
             auto granular = std::make_unique<GranularPitchBackend>();
             granular->SetGrainLengthMilliseconds(35.0f);
             granular->SetJitterPercent(0.15f);
             granular->SetLookbackMultiplier(3.0f);
             SetBackend(std::move(granular));
+        }
+        else
+        {
+            auto wsola = std::make_unique<WSOLAPitchBackend_v2>();
+            SetBackend(std::move(wsola));
         }
     }
 
@@ -223,173 +215,6 @@ public:
     {
         if (sequence == nullptr) return 1.0f;
         return sequence->GetCurrentPitchRatio();
-    }
-
-    // Debug functions
-    int GetBackendUnderflowCount() const
-    {
-        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
-            return wsola->GetUnderflowCount();
-
-        return -1;
-    }
-
-    int GetBackendCausalGuardRejectCount() const
-    {
-        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
-            return wsola->GetCausalGuardRejectCount();
-
-        return -1;
-    }
-
-    float GetBackendLastBestMatchError() const
-    {
-        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
-            return wsola->GetLastBestMatchError();
-
-        return -1.0f;
-    }
-
-        float GetCurrentReadWeight() const
-    {
-        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
-            return wsola->GetCurrentReadWeight();
-
-        return -1.0f;
-    }
-
-    float GetAverageReadWeightWindow() const
-    {
-        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
-            return wsola->GetAverageReadWeightWindow();
-
-        return -1.0f;
-    }
-
-    float GetReadDistanceBehindWriteForDebug() const
-    {
-        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
-            return wsola->GetReadDistanceBehindWriteForDebug();
-
-        return -1.0f;
-    }
-
-    int GetSamplesUntilNextSegmentForDebug() const
-    {
-        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
-            return wsola->GetSamplesUntilNextSegmentForDebug();
-
-        return -1;
-    }
-
-    int GetSegmentLengthSamplesForDebug() const
-    {
-        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
-            return wsola->GetSegmentLengthSamplesForDebug();
-
-        return -1;
-    }
-
-    int GetOverlapSamplesForDebug() const
-    {
-        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
-            return wsola->GetOverlapSamplesForDebug();
-
-        return -1;
-    }
-
-    int GetSynthesisHopSamplesForDebug() const
-    {
-        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
-            return wsola->GetSynthesisHopSamplesForDebug();
-
-        return -1;
-    }
-
-    int GetStretchWriteCursorForDebug() const
-    {
-        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
-            return wsola->GetStretchWriteCursorForDebug();
-
-        return -1;
-    }
-
-    float GetStretchReadIndexForDebug() const
-    {
-        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
-            return wsola->GetStretchReadIndexForDebug();
-
-        return -1.0f;
-    }
-
-    float GetDebugMinReadWeight() const
-    {
-        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
-            return wsola->GetDebugMinReadWeight();
-
-        return -1.0f;
-    }
-
-    float GetDebugMaxReadWeight() const
-    {
-        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
-            return wsola->GetDebugMaxReadWeight();
-
-        return -1.0f;
-    }
-
-    float GetTargetReadDistanceSamples() const
-    {
-        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
-            return wsola->GetTargetReadDistanceSamplesForDebug();
-
-        return -1.0f;
-    }
-
-    int GetLastBestMatchDelta() const
-    {
-        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
-            return wsola->GetLastBestMatchDelta();
-
-        return -1;
-    }
-
-    float GetPredictedSourceIndexForDebug() const
-    {
-        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
-            return wsola->GetPredictedSourceIndexForDebug();
-
-        return -1.0f;
-    }
-
-    float GetLastChosenSourceIndexForDebug() const
-    {
-        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
-            return wsola->GetLastChosenSourceIndexForDebug();
-
-        return -1.0f;
-    }
-
-    float GetAnalysisHopForDebug() const
-    {
-        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
-            return wsola->GetAnalysisHopForDebug();
-
-        return -1.0f;
-    }
-
-    float GetStretchFactorForDebug() const
-    {
-        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
-            return wsola->GetStretchFactorForDebug();
-
-        return -1.0f;
-    }
-
-    void ResetDebugReadWeightExtrema()
-    {
-        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
-            wsola->ResetDebugReadWeightExtrema();
     }
 
 private:

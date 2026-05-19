@@ -417,6 +417,8 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
                     ? OctaveEchoPitchShifter::BackendType::WSOLA
                     : OctaveEchoPitchShifter::BackendType::Granular;
 
+            //const OctaveEchoPitchShifter::BackendType backendType = OctaveEchoPitchShifter::BackendType::Granular;
+
             DelayReverb.SetPitchAlgorithm(backendType);
         }
     }

@@ -158,38 +158,6 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         if (rightData != nullptr)
             rightData[sampleIndex] = juce::jlimit(-1.0f, 1.0f, outputRight);
     }
-
-    // Temporary debug every 100 blocks
-    {
-        static int debugBlockCounter = 0;
-        ++debugBlockCounter;
-
-        if ((debugBlockCounter % 100) == 0)
-        {
-            DBG("WSOLA underflows L: " << wetInputPitchShifterLeft.GetBackendUnderflowCount()
-                << " rejects L: " << wetInputPitchShifterLeft.GetBackendCausalGuardRejectCount()
-                << " matchScore L: " << wetInputPitchShifterLeft.GetBackendLastBestMatchError()
-                << " readWeight L: " << wetInputPitchShifterLeft.GetCurrentReadWeight()
-                << " avgReadWeight L: " << wetInputPitchShifterLeft.GetAverageReadWeightWindow()
-                << " minReadWeight L: " << wetInputPitchShifterLeft.GetDebugMinReadWeight()
-                << " maxReadWeight L: " << wetInputPitchShifterLeft.GetDebugMaxReadWeight()
-                << " readDist L: " << wetInputPitchShifterLeft.GetReadDistanceBehindWriteForDebug()
-                << " untilNextSeg L: " << wetInputPitchShifterLeft.GetSamplesUntilNextSegmentForDebug()
-                << " segLen L: " << wetInputPitchShifterLeft.GetSegmentLengthSamplesForDebug()
-                << " overlap L: " << wetInputPitchShifterLeft.GetOverlapSamplesForDebug()
-                << " hop L: " << wetInputPitchShifterLeft.GetSynthesisHopSamplesForDebug()
-                << " writeCursor L: " << wetInputPitchShifterLeft.GetStretchWriteCursorForDebug()
-                << " readIndex L: " << wetInputPitchShifterLeft.GetStretchReadIndexForDebug()
-                << " readDistanceSamples: " << wetInputPitchShifterLeft.GetTargetReadDistanceSamples()
-                << " delta: " << wetInputPitchShifterLeft.GetLastBestMatchDelta()
-                << " predictedSourceIndex: " << wetInputPitchShifterLeft.GetPredictedSourceIndexForDebug()
-                << " lastChosenSourceIndex: " << wetInputPitchShifterLeft.GetLastChosenSourceIndexForDebug()
-                << " analysisHop: " << wetInputPitchShifterLeft.GetAnalysisHopForDebug()
-                << " stretchFactor: " << wetInputPitchShifterLeft.GetStretchFactorForDebug());
-
-            wetInputPitchShifterLeft.ResetDebugReadWeightExtrema();
-        }
-    }
 }
 
 /*void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
