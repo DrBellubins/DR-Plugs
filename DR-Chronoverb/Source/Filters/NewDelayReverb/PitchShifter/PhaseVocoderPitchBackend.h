@@ -107,7 +107,7 @@ public:
 
     void OnEchoBoundary(float newRatio) override
     {
-        const float clampedRatio = juce::jlimit(0.25f, 4.0f, newRatio);
+        const float clampedRatio = juce::jlimit(kMinPitchRatio, kMaxPitchRatio, newRatio);
 
         if (std::abs(clampedRatio - currentRatio) < 1.0e-6f)
             return;
@@ -130,7 +130,7 @@ public:
 
     void SetInitialRatio(float ratio) override
     {
-        currentRatio = juce::jlimit(0.25f, 4.0f, ratio);
+        currentRatio = juce::jlimit(kMinPitchRatio, kMaxPitchRatio, ratio);
         pendingRatio = currentRatio;
         hasPendingRatio = false;
         crossfadeRemainingSamples = 0;
@@ -162,8 +162,10 @@ public:
 
 private:
     static constexpr float kTwoPi = 6.28318530717958647692f;
-    static constexpr int kAccumulatorMultiplier = 8;
-    static constexpr int kResampleGuardSamples = 8;
+    static constexpr float kMinPitchRatio = 0.25f;
+    static constexpr float kMaxPitchRatio = 4.0f;
+    static constexpr int kAccumulatorMultiplier = 8; // Leaves room for 4x stretch plus overlapping OLA frames.
+    static constexpr int kResampleGuardSamples = 8;  // Keeps enough lookahead around the read point for cubic interpolation.
 
     double sampleRate = 48000.0;
 
@@ -238,7 +240,7 @@ private:
     {
         currentRatio = pendingRatio;
         hasPendingRatio = false;
-        activePath = pendingPath;
+        std::swap(activePath, pendingPath);
     }
 
     float processOnePath(float inputSample, float pitchRatio, PathState& path)
@@ -323,7 +325,7 @@ private:
 
     int getSynthesisHop(float timeStretchRatio) const
     {
-        const float clampedRatio = juce::jlimit(0.25f, 4.0f, timeStretchRatio);
+        const float clampedRatio = juce::jlimit(kMinPitchRatio, kMaxPitchRatio, timeStretchRatio);
         return std::max(1, static_cast<int>(std::round(static_cast<float>(analysisHop) * clampedRatio)));
     }
 
@@ -377,13 +379,20 @@ private:
         const float outputSample = cubicInterpolate(path.stretchedOutputFifo, readPosition);
         path.lastOutputSample = outputSample;
 
-        path.resampleReadPosition += juce::jlimit(0.25f, 4.0f, pitchRatio);
+        path.resampleReadPosition += juce::jlimit(kMinPitchRatio, kMaxPitchRatio, pitchRatio);
 
-        while (path.resampleReadPosition >= 1.0f
-               && path.stretchedOutputFifo.size() > static_cast<size_t>(kResampleGuardSamples))
+        const int samplesAvailableToTrim =
+            std::max(0, static_cast<int>(path.stretchedOutputFifo.size()) - kResampleGuardSamples);
+        const int samplesToTrim = std::min(
+            static_cast<int>(std::floor(path.resampleReadPosition)),
+            samplesAvailableToTrim);
+
+        if (samplesToTrim > 0)
         {
-            path.stretchedOutputFifo.pop_front();
-            path.resampleReadPosition -= 1.0f;
+            path.stretchedOutputFifo.erase(
+                path.stretchedOutputFifo.begin(),
+                path.stretchedOutputFifo.begin() + samplesToTrim);
+            path.resampleReadPosition -= static_cast<float>(samplesToTrim);
         }
 
         return outputSample;
