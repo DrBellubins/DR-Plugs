@@ -412,12 +412,12 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
 
         if (algorithmParam != nullptr)
         {
-            const OctaveEchoPitchShifter::BackendType backendType =
+            /*const OctaveEchoPitchShifter::BackendType backendType =
                 (algorithmParam->getIndex() == 1)
                     ? OctaveEchoPitchShifter::BackendType::WSOLA
-                    : OctaveEchoPitchShifter::BackendType::Granular;
+                    : OctaveEchoPitchShifter::BackendType::Granular;*/
 
-            //const OctaveEchoPitchShifter::BackendType backendType = OctaveEchoPitchShifter::BackendType::Granular;
+            const OctaveEchoPitchShifter::BackendType backendType = OctaveEchoPitchShifter::BackendType::Granular;
 
             DelayReverb.SetPitchAlgorithm(backendType);
         }

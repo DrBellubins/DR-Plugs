@@ -13,16 +13,13 @@
 #include "PitchShifter/PingPongOctaveSequence.h"
 #include "PitchShifter/RandomOctaveSequence.h"
 #include "PitchShifter/GranularPitchBackend.h"
-#include "PitchShifter/PhaseVocoderPitchBackend.h"
-#include "PitchShifter/WSOLAPitchBackend_v2.h"
 
 class OctaveEchoPitchShifter
 {
 public:
     enum class BackendType
     {
-        Granular,
-        WSOLA
+        Granular
     };
 
     OctaveEchoPitchShifter()
@@ -140,11 +137,6 @@ public:
             granular->SetJitterPercent(0.15f);
             granular->SetLookbackMultiplier(3.0f);
             SetBackend(std::move(granular));
-        }
-        else
-        {
-            auto wsola = std::make_unique<WSOLAPitchBackend_v2>();
-            SetBackend(std::move(wsola));
         }
     }
 
