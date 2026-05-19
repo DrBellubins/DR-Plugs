@@ -338,6 +338,14 @@ public:
         return -1.0f;
     }
 
+    float GetTargetReadDistanceSamples() const
+    {
+        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
+            return wsola->GetTargetReadDistanceSamplesForDebug();
+
+        return -1.0f;
+    }
+
     void ResetDebugReadWeightExtrema()
     {
         if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))

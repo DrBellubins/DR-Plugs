@@ -100,23 +100,32 @@ public:
             }
         }
 
-        // 4) Read normalized stretched output
+        // Read from the anchored position
+        const float ringSizeF = static_cast<float>(stretchRingSize);
+
         float outputSample = 0.0f;
 
         if (initialized)
         {
             outputSample = readStretchRingNormalizedCubic(stretchReadIndexFloat);
 
-            const float targetReadIncrement = getControlledReadIncrement();
+            stretchReadIndexFloat =
+                wrapFloat(stretchReadIndexFloat + stretchFactor, ringSizeF);
 
-            // Small smoothing to reduce zipper/jitter in read-rate modulation.
-            smoothedReadIncrement += 0.0001f * (targetReadIncrement - smoothedReadIncrement);
+            const float desiredReadIndex =
+                wrapFloat(static_cast<float>(stretchWriteCursor) - targetReadDistanceSamples,
+                          ringSizeF);
+
+            float delta = desiredReadIndex - stretchReadIndexFloat;
+
+            while (delta < -0.5f * ringSizeF)
+                delta += ringSizeF;
+
+            while (delta > 0.5f * ringSizeF)
+                delta -= ringSizeF;
 
             stretchReadIndexFloat =
-                wrapFloat(stretchReadIndexFloat + smoothedReadIncrement,
-                          static_cast<float>(stretchRingSize));
-
-            reclaimOldStretchData();
+                wrapFloat(stretchReadIndexFloat + (0.02f * delta), ringSizeF);
         }
         else
         {
@@ -124,6 +133,7 @@ public:
             outputSample = 0.0f;
         }
 
+        // Debugging stuff
         const float currentReadWeight = GetCurrentReadWeight();
 
         float previousMin = debugMinReadWeight.load(std::memory_order_relaxed);
@@ -287,6 +297,11 @@ public:
     float GetDebugMaxReadWeight() const
     {
         return debugMaxReadWeight.load(std::memory_order_relaxed);
+    }
+
+    float GetTargetReadDistanceSamplesForDebug() const
+    {
+        return targetReadDistanceSamples;
     }
 
     void ResetDebugReadWeightExtrema()
