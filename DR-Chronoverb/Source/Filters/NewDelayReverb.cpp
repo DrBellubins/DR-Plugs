@@ -664,6 +664,25 @@ void NewDelayReverb::updateStereoSpread()
 
 void NewDelayReverb::rebuildPitchSequences()
 {
+    auto configureShifter = [&](OctaveEchoPitchShifter& shifter)
+    {
+        auto constantSequence = std::make_unique<ConstantRatioSequence>();
+
+        // Debug fixed-ratio test:
+        // 2.0f  = +1 octave
+        // 0.5f  = -1 octave
+        // 1.0f  = unison
+        constantSequence->SetPitchRatio(2.0f);
+
+        shifter.SetSequence(std::move(constantSequence));
+    };
+
+    configureShifter(wetInputPitchShifterLeft);
+    configureShifter(wetInputPitchShifterRight);
+}
+
+/*void NewDelayReverb::rebuildPitchSequences()
+{
     int lowerOctave = semitonesToOctaveIndex(pitchShiftRangeLower);
     int upperOctave = semitonesToOctaveIndex(pitchShiftRangeUpper);
 
@@ -708,7 +727,7 @@ void NewDelayReverb::rebuildPitchSequences()
 
     configureShifter(wetInputPitchShifterLeft);
     configureShifter(wetInputPitchShifterRight);
-}
+}*/
 
 float NewDelayReverb::map01ToRange(float value01, float minValue, float maxValue)
 {
