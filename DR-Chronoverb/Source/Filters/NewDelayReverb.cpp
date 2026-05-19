@@ -105,6 +105,69 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
     if (numChannels < 1 || numSamples <= 0)
         return;
 
+    float* leftData  = audioBuffer.getWritePointer(0);
+    float* rightData = (numChannels > 1 ? audioBuffer.getWritePointer(1) : nullptr);
+
+    for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
+    {
+        const float inputLeft = leftData[sampleIndex];
+        const float inputRight = (rightData != nullptr ? rightData[sampleIndex] : inputLeft);
+
+        float outputLeft = inputLeft;
+        float outputRight = inputRight;
+
+        if (pitchShiftEnabled >= 0.5f)
+        {
+            outputLeft = wetInputPitchShifterLeft.ProcessSample(inputLeft);
+            outputRight = wetInputPitchShifterRight.ProcessSample(inputRight);
+
+            ++echoWriteCounterL;
+            if (echoWriteCounterL >= writePeriodSamples)
+            {
+                echoWriteCounterL = 0;
+                wetInputPitchShifterLeft.OnNewEchoBoundary();
+
+                const bool stereoEnabled = (pitchStereoEnabled01 >= 0.5f);
+
+                if (stereoEnabled)
+                {
+                    ++echoWriteCounterR;
+                    if (echoWriteCounterR >= writePeriodSamples)
+                    {
+                        echoWriteCounterR = 0;
+                        wetInputPitchShifterRight.OnNewEchoBoundary();
+                    }
+                }
+                else
+                {
+                    const float leftNewRatio = wetInputPitchShifterLeft.GetCurrentPitchRatio();
+                    wetInputPitchShifterRight.OnNewEchoBoundaryMirrored(leftNewRatio);
+                    echoWriteCounterR = 0;
+                }
+            }
+        }
+
+        if (!std::isfinite(outputLeft))
+            outputLeft = 0.0f;
+
+        if (!std::isfinite(outputRight))
+            outputRight = 0.0f;
+
+        leftData[sampleIndex] = juce::jlimit(-1.0f, 1.0f, outputLeft);
+
+        if (rightData != nullptr)
+            rightData[sampleIndex] = juce::jlimit(-1.0f, 1.0f, outputRight);
+    }
+}
+
+/*void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
+{
+    const int numChannels = audioBuffer.getNumChannels();
+    const int numSamples  = audioBuffer.getNumSamples();
+
+    if (numChannels < 1 || numSamples <= 0)
+        return;
+
     if (diffusionRebuildPending.exchange(false, std::memory_order_acq_rel))
         rebuildDiffusionIfNeeded();
 
@@ -338,7 +401,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         if (rightData != nullptr)
             rightData[sampleIndex] = outputRight;
     }
-}
+}*/
 
 void NewDelayReverb::SetDelayTime(float newDelayTimeNormalized)
 {
