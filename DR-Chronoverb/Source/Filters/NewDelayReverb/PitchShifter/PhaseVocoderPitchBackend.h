@@ -383,8 +383,18 @@ private:
             const float windowSum = path.stretchedOutputWindowSumAccumulator[static_cast<size_t>(readIndex)];
             const float rawSample = path.stretchedOutputAccumulator[static_cast<size_t>(readIndex)];
 
-            const float normalizedSample =
-                (windowSum > 1.0e-6f) ? (rawSample / windowSum) : 0.0f;
+            float normalizedSample = 0.0f;
+
+            if (windowSum > 1.0e-3f)
+                normalizedSample = rawSample / windowSum;
+            else
+                normalizedSample = 0.0f; // If window sum is too small, treat as silence to avoid huge normalization spikes.
+
+            if (!std::isfinite(normalizedSample))
+                normalizedSample = 0.0f;
+
+            // keep output bounded to avoid insane impulses entering the resampler FIFO
+            normalizedSample = juce::jlimit(-2.0f, 2.0f, normalizedSample);
 
             path.stretchedOutputAccumulator[static_cast<size_t>(readIndex)] = 0.0f;
             path.stretchedOutputWindowSumAccumulator[static_cast<size_t>(readIndex)] = 0.0f;
@@ -423,9 +433,12 @@ private:
 
         if (fullyReadSamples > 0)
         {
+            const int maxErasePerSample = 64;
+            const int eraseCount = std::min(fullyReadSamples, maxErasePerSample);
+
             path.stretchedOutputFifo.erase(
                 path.stretchedOutputFifo.begin(),
-                path.stretchedOutputFifo.begin() + fullyReadSamples);
+                path.stretchedOutputFifo.begin() + eraseCount);
 
             path.resampleReadPosition -= static_cast<float>(fullyReadSamples);
         }

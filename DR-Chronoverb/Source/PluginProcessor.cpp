@@ -469,6 +469,34 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             ChannelData[SampleIndex] = InputSample;
         }
     }
+
+    // --- Output safety sanitize: prevent DAW engine mute (NaN/Inf) ---
+    {
+        const int numChannels = buffer.getNumChannels();
+        const int numSamples = buffer.getNumSamples();
+
+        for (int ch = 0; ch < numChannels; ++ch)
+        {
+            float* data = buffer.getWritePointer(ch);
+
+            for (int i = 0; i < numSamples; ++i)
+            {
+                float x = data[i];
+
+                if (!std::isfinite(x))
+                    x = 0.0f;
+
+                // Prevent absurd spikes (can trigger host safety mute)
+                x = juce::jlimit(-4.0f, 4.0f, x);
+
+                // Kill denormals
+                if (std::abs(x) < 1.0e-20f)
+                    x = 0.0f;
+
+                data[i] = x;
+            }
+        }
+    }
 }
 
 //==============================================================================
