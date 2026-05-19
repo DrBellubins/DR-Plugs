@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "Filters/NewDelayReverb.h"
@@ -9,6 +10,9 @@
 class AudioPluginAudioProcessor  : public juce::AudioProcessor, public juce::AudioProcessorValueTreeState::Listener
 {
 public:
+    std::atomic<uint64_t> debugInvalidSampleCount { 0 };
+    std::atomic<float> debugMaxAbsSample { 0.0f };
+
     //==============================================================================
     AudioPluginAudioProcessor();
     ~AudioPluginAudioProcessor() override;

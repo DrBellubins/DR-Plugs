@@ -486,6 +486,12 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 if (!std::isfinite(x))
                     x = 0.0f;
 
+                const float ax = std::abs(x);
+                float prev = debugMaxAbsSample.load(std::memory_order_relaxed);
+
+                if (ax > prev)
+                    debugMaxAbsSample.store(ax, std::memory_order_relaxed);
+
                 // Prevent absurd spikes (can trigger host safety mute)
                 x = juce::jlimit(-4.0f, 4.0f, x);
 
