@@ -1,28 +1,31 @@
 #pragma once
 
+#include <vector>
+#include <atomic>
+#include <limits>
+#include <cmath>
+#include <algorithm>
+
+#include <juce_core/juce_core.h>
+
+#include "PitchShiftingUtils.h"
+
 // =====================================================================================
 // WSOLAPitchBackend
 //
-// Minimal real-time WSOLA-style pitch shifter for Chronoverb.
+// Refactored realtime WSOLA-style pitch shifter for isolated backend testing.
 //
-// Design goals:
-// - Fits IPitchShifterBackend.
-// - Real-time safe: no allocations or locks in ProcessSample().
-// - Pitch changes occur only at echo boundaries via OnEchoBoundary().
-// - Optimized for preserving sharper delay taps better than a classic phase vocoder.
-// - Uses bounded waveform-similarity search with overlap-add synthesis.
+// Key design changes vs earlier prototype:
+// - Stable intermediate "stretch" reservoir.
+// - Explicit read-distance control with smoothed increment.
+// - Proper delayed reclamation of old stretch data.
+// - Cubic readout from normalized stretch ring.
+// - Fixed-rate WSOLA synthesis into stretch domain.
+// - Ratio changes only at echo boundaries.
 //
-// Algorithm sketch:
-// - Input is written into a circular history buffer.
-// - Output is synthesized in segment-sized chunks into an output ring.
-// - For each new segment, we predict the next source location based on pitch ratio.
-// - We search a small region around that prediction for the segment whose overlap
-//   best matches the already-synthesized output tail.
-// - We window the chosen segment into the output ring and normalize by accumulated
-//   window weights during readout.
-//
-// This is intentionally a minimal, practical WSOLA backend rather than a full
-// commercial-grade timestretcher.
+// Notes:
+// - This is still a minimal practical backend, not a commercial timestretcher.
+// - Keep this isolated outside Chronoverb's feedback loop until it is acceptable.
 // =====================================================================================
 class WSOLAPitchBackend : public IPitchShifterBackend
 {
@@ -40,21 +43,15 @@ public:
         SetSearchRadiusMilliseconds(2.0f);
         SetLookbackMilliseconds(60.0f);
 
-        targetReadDistanceSamples = static_cast<float>(segmentLengthSamples * 3);
-
         rebuildParametersFromTimeSettings();
 
-        // Input history needs enough room for:
-        // - configured lookback
-        // - full segment
-        // - search radius on both sides
-        // - extra safety margin
+        // Input history ring
         inputRingSize = std::max(
             8192,
             lookbackSamples + segmentLengthSamples + (searchRadiusSamples * 2) + 2048
         );
 
-        // Stretch ring must hold several synthesized segments plus safe read/write separation
+        // Stretch ring: intentionally generous so we can maintain a stable reservoir.
         stretchRingSize = std::max(
             32768,
             segmentLengthSamples * 24
@@ -73,14 +70,12 @@ public:
         clearBuffersAndState();
     }
 
-    // pitchRatio is ignored during sample processing. Ratio changes are quantized
-    // externally and committed via OnEchoBoundary() / SetInitialRatio().
     float ProcessSample(float inputSample, float /*pitchRatio*/) override
     {
         if (inputRing.empty() || stretchRing.empty() || stretchWeightRing.empty())
             return inputSample;
 
-        // 1) Write input into source history ring
+        // 1) Write input history
         inputRing[static_cast<size_t>(inputWriteIndex)] = inputSample;
         inputWriteIndex = wrapInt(inputWriteIndex + 1, inputRingSize);
 
@@ -91,7 +86,7 @@ public:
         if (!initialized)
             tryInitializeIfReady();
 
-        // 3) Continuously synthesize time-stretched segments
+        // 3) Synthesize WSOLA segments at fixed synthesis cadence
         if (initialized)
         {
             --samplesUntilNextSegment;
@@ -103,7 +98,7 @@ public:
             }
         }
 
-        // 4) Resample stretched intermediate back to real-time output
+        // 4) Read normalized stretched output
         float outputSample = 0.0f;
 
         if (initialized)
@@ -118,6 +113,8 @@ public:
             stretchReadIndexFloat =
                 wrapFloat(stretchReadIndexFloat + smoothedReadIncrement,
                           static_cast<float>(stretchRingSize));
+
+            reclaimOldStretchData();
         }
         else
         {
@@ -146,6 +143,7 @@ public:
     {
         currentRatio = clampPitchRatio(ratio);
         stretchFactor = currentRatio;
+        smoothedReadIncrement = stretchFactor;
     }
 
     float GetLatencyMilliseconds() const override
@@ -154,7 +152,6 @@ public:
             / static_cast<float>(sampleRate);
     }
 
-    // Optional tuning API
     void SetSegmentLengthMilliseconds(float ms)
     {
         segmentLengthMs = std::clamp(ms, 8.0f, 60.0f);
@@ -181,7 +178,6 @@ public:
         rebuildParametersFromTimeSettings();
     }
 
-    // Debug counters
     int GetUnderflowCount() const
     {
         return underflowCount.load(std::memory_order_relaxed);
@@ -267,6 +263,8 @@ private:
         underflowCount.store(0, std::memory_order_relaxed);
         causalGuardRejectCount.store(0, std::memory_order_relaxed);
         lastBestMatchError.store(0.0f, std::memory_order_relaxed);
+
+        targetReadDistanceSamples = static_cast<float>(segmentLengthSamples * 3);
     }
 
     void tryInitializeIfReady()
@@ -370,7 +368,6 @@ private:
                 }
 
                 const float diff = existingSample - candidateSample;
-
                 error += diff * diff;
             }
 
@@ -390,12 +387,8 @@ private:
 
     bool isCandidateCausallySafe(int candidateIndex) const
     {
-        // Candidate segment must fully exist in past input history.
-        // We reject any segment whose end is too close to / ahead of the input write pointer.
         const int candidateEnd = wrapInt(candidateIndex + segmentLengthSamples - 1, inputRingSize);
 
-        // Distance forward from candidateEnd to inputWriteIndex tells us how far "behind"
-        // the write head the candidate is. Need at least a small guard margin.
         const int distanceToWrite =
             positiveDistanceForward(candidateEnd, inputWriteIndex, inputRingSize);
 
@@ -417,87 +410,39 @@ private:
         return a + frac * (b - a);
     }
 
-    static float clampPitchRatio(float ratio)
-    {
-        return std::clamp(ratio, 0.25f, 4.0f);
-    }
-
-    static int wrapInt(int value, int size)
-    {
-        while (value < 0)
-            value += size;
-
-        while (value >= size)
-            value -= size;
-
-        return value;
-    }
-
-    static float wrapFloat(float value, float size)
-    {
-        while (value < 0.0f)
-            value += size;
-
-        while (value >= size)
-            value -= size;
-
-        return value;
-    }
-
-    static int positiveDistanceForward(int fromIndex, int toIndex, int size)
-    {
-        int distance = toIndex - fromIndex;
-
-        while (distance < 0)
-            distance += size;
-
-        return distance;
-    }
-
-    float readStretchRingNormalizedLinear(float index) const
+    float readStretchRingNormalizedCubic(float index) const
     {
         const float wrapped = wrapFloat(index, static_cast<float>(stretchRingSize));
 
-        const int indexA = static_cast<int>(std::floor(wrapped));
-        const int indexB = wrapInt(indexA + 1, stretchRingSize);
-        const float frac = wrapped - static_cast<float>(indexA);
+        const int i1 = static_cast<int>(std::floor(wrapped));
+        const float frac = wrapped - static_cast<float>(i1);
 
-        const float sumA = stretchRing[static_cast<size_t>(indexA)];
-        const float sumB = stretchRing[static_cast<size_t>(indexB)];
+        const int i0 = wrapInt(i1 - 1, stretchRingSize);
+        const int i2 = wrapInt(i1 + 1, stretchRingSize);
+        const int i3 = wrapInt(i1 + 2, stretchRingSize);
 
-        const float weightA = stretchWeightRing[static_cast<size_t>(indexA)];
-        const float weightB = stretchWeightRing[static_cast<size_t>(indexB)];
+        auto getNormalized = [&](int idx) -> float
+        {
+            const float sum = stretchRing[static_cast<size_t>(idx)];
+            const float weight = stretchWeightRing[static_cast<size_t>(idx)];
 
-        float sampleA = 0.0f;
-        float sampleB = 0.0f;
+            if (weight > 1.0e-6f)
+                return sum / weight;
 
-        if (weightA > 1.0e-6f)
-            sampleA = sumA / weightA;
+            return 0.0f;
+        };
 
-        if (weightB > 1.0e-6f)
-            sampleB = sumB / weightB;
+        const float y0 = getNormalized(i0);
+        const float y1 = getNormalized(i1);
+        const float y2 = getNormalized(i2);
+        const float y3 = getNormalized(i3);
 
-        return sampleA + frac * (sampleB - sampleA);
-    }
+        const float a0 = -0.5f * y0 + 1.5f * y1 - 1.5f * y2 + 0.5f * y3;
+        const float a1 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
+        const float a2 = -0.5f * y0 + 0.5f * y2;
+        const float a3 = y1;
 
-    void clearConsumedStretchSample(int index)
-    {
-        stretchRing[static_cast<size_t>(index)] = 0.0f;
-        stretchWeightRing[static_cast<size_t>(index)] = 0.0f;
-    }
-
-    bool hasEnoughStretchEnergyNear(float readIndex) const
-    {
-        const int indexA =
-            wrapInt(static_cast<int>(std::floor(readIndex)), stretchRingSize);
-
-        const int indexB =
-            wrapInt(indexA + 1, stretchRingSize);
-
-        const float weightA = stretchWeightRing[static_cast<size_t>(indexA)];
-        const float weightB = stretchWeightRing[static_cast<size_t>(indexB)];
-
-        return (weightA > 0.05f || weightB > 0.05f);
+        return ((a0 * frac + a1) * frac + a2) * frac + a3;
     }
 
     void reclaimOldStretchData()
@@ -545,39 +490,41 @@ private:
         return stretchFactor + correction;
     }
 
-    float readStretchRingNormalizedCubic(float index) const
+    static float clampPitchRatio(float ratio)
     {
-        const float wrapped = wrapFloat(index, static_cast<float>(stretchRingSize));
+        return std::clamp(ratio, 0.25f, 4.0f);
+    }
 
-        const int i1 = static_cast<int>(std::floor(wrapped));
-        const float frac = wrapped - static_cast<float>(i1);
+    static int wrapInt(int value, int size)
+    {
+        while (value < 0)
+            value += size;
 
-        const int i0 = wrapInt(i1 - 1, stretchRingSize);
-        const int i2 = wrapInt(i1 + 1, stretchRingSize);
-        const int i3 = wrapInt(i1 + 2, stretchRingSize);
+        while (value >= size)
+            value -= size;
 
-        auto getNormalized = [&](int idx) -> float
-        {
-            const float sum = stretchRing[static_cast<size_t>(idx)];
-            const float weight = stretchWeightRing[static_cast<size_t>(idx)];
+        return value;
+    }
 
-            if (weight > 1.0e-6f)
-                return sum / weight;
+    static float wrapFloat(float value, float size)
+    {
+        while (value < 0.0f)
+            value += size;
 
-            return 0.0f;
-        };
+        while (value >= size)
+            value -= size;
 
-        const float y0 = getNormalized(i0);
-        const float y1 = getNormalized(i1);
-        const float y2 = getNormalized(i2);
-        const float y3 = getNormalized(i3);
+        return value;
+    }
 
-        const float a0 = -0.5f * y0 + 1.5f * y1 - 1.5f * y2 + 0.5f * y3;
-        const float a1 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
-        const float a2 = -0.5f * y0 + 0.5f * y2;
-        const float a3 = y1;
+    static int positiveDistanceForward(int fromIndex, int toIndex, int size)
+    {
+        int distance = toIndex - fromIndex;
 
-        return ((a0 * frac + a1) * frac + a2) * frac + a3;
+        while (distance < 0)
+            distance += size;
+
+        return distance;
     }
 
 private:
@@ -585,18 +532,18 @@ private:
     double sampleRate = 48000.0;
     int maximumBlockSizeCached = 0;
 
-    // User-tunable timing settings (stored in milliseconds/percent)
-    float segmentLengthMs = 20.0f;
-    float overlapPercent = 0.5f;
-    float searchRadiusMs = 3.0f;
-    float lookbackMs = 80.0f;
+    // User-tunable timing settings
+    float segmentLengthMs = 18.0f;
+    float overlapPercent = 0.60f;
+    float searchRadiusMs = 2.0f;
+    float lookbackMs = 60.0f;
 
     // Derived sample counts
     int segmentLengthSamples = 960;
-    int overlapSamples = 480;
-    int synthesisHopSamples = 480;
-    int searchRadiusSamples = 144;
-    int lookbackSamples = 3840;
+    int overlapSamples = 576;
+    int synthesisHopSamples = 384;
+    int searchRadiusSamples = 96;
+    int lookbackSamples = 2880;
 
     // Buffers
     std::vector<float> inputRing;
