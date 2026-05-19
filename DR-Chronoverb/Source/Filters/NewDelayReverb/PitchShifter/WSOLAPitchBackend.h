@@ -36,7 +36,7 @@ public:
         maximumBlockSizeCached = maximumBlockSize;
 
         SetSegmentLengthMilliseconds(18.0f);
-        SetOverlapPercent(0.70f);
+        SetOverlapPercent(0.60f);
         SetSearchRadiusMilliseconds(2.0f);
         SetLookbackMilliseconds(60.0f);
 
@@ -106,23 +106,16 @@ public:
 
         if (initialized)
         {
-            if (hasEnoughStretchEnergyNear(stretchReadIndexFloat))
-            {
-                outputSample = readStretchRingNormalizedLinear(stretchReadIndexFloat);
+            outputSample = readStretchRingNormalizedLinear(stretchReadIndexFloat);
 
-                stretchReadIndexFloat =
-                    wrapFloat(stretchReadIndexFloat + stretchFactor,
-                              static_cast<float>(stretchRingSize));
-            }
-            else
-            {
-                underflowCount.fetch_add(1, std::memory_order_relaxed);
-                outputSample = 0.0f;
-            }
+            stretchReadIndexFloat =
+                wrapFloat(stretchReadIndexFloat + stretchFactor,
+                          static_cast<float>(stretchRingSize));
         }
         else
         {
             underflowCount.fetch_add(1, std::memory_order_relaxed);
+            outputSample = 0.0f;
         }
 
         if (!std::isfinite(outputSample))
@@ -285,7 +278,7 @@ private:
         samplesUntilNextSegment = synthesisHopSamples;
 
         // Start reading from the beginning of the synthesized stretch ring.
-        stretchReadIndexFloat = 0.0f;
+        stretchReadIndexFloat = static_cast<float>(overlapSamples / 2);
 
         initialized = true;
     }
