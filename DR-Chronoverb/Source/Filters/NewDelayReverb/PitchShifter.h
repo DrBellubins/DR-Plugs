@@ -199,6 +199,7 @@ public:
         {
             backend->Prepare(sampleRate, maximumBlockSizeCached);
             backend->Reset();
+            backend->SetInitialRatio(sequence != nullptr ? sequence->GetCurrentPitchRatio() : 1.0f);
         }
     }
 
