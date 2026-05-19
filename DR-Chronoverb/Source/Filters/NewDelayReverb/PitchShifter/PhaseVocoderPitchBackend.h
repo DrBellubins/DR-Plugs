@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <deque>
 #include <complex>
 #include <cmath>
 #include <algorithm>
@@ -10,28 +11,42 @@
 // =====================================================================================
 // PhaseVocoderPitchBackend
 //
-// Simple single-channel phase-vocoder pitch shifter for octave-per-echo use.
-// Designed to fit Chronoverb's modular backend architecture.
+// Single-channel phase-vocoder backend for Chronoverb's echo-quantized pitch shifts.
+// The backend performs classic phase-vocoder time stretching, then resamples the
+// stretched stream back to the original timebase so pitch is shifted without trying
+// to retune individual FFT bins directly.
 //
 // Important behavioral characteristics:
 // - Pitch ratio changes are quantized externally via OnEchoBoundary(newRatio).
 // - The active ratio remains stable between boundaries.
 // - ProcessSample() is sample-by-sample and outputs one sample per call.
-// - Internally performs block FFT analysis/resynthesis with overlap-add.
-// - This is intentionally simple rather than ultra-optimized.
-//
-// Quality / latency balance:
-// - Defaults to 2048 FFT, 256 analysis hop.
-// - Good quality for wet echo/reverb path.
-// - Latency roughly tied to frame size and overlap buffering.
-//
-// Notes:
-// - The backend ignores the ProcessSample pitchRatio argument, just like the granular
-//   backend ignores it, because Chronoverb's pitch should not jump mid-echo.
-// - Ratio changes are applied only at echo boundaries using a short output crossfade.
+// - Boundary changes crossfade between fully stateful time-stretch/resample paths.
 // =====================================================================================
 class PhaseVocoderPitchBackend : public IPitchShifterBackend
 {
+    struct PathState
+    {
+        std::vector<float> inputFifo;
+        int inputFifoWriteIndex = 0;
+        int inputWriteCount = 0;
+
+        std::vector<float> frameInput;
+        std::vector<std::complex<float>> fftBuffer;
+        std::vector<std::complex<float>> ifftBuffer;
+
+        std::vector<float> previousAnalysisPhase;
+        std::vector<float> synthesisPhase;
+
+        std::vector<float> stretchedOutputAccumulator;
+        std::vector<float> stretchedOutputWindowSumAccumulator;
+        int stretchedOutputReadIndex = 0;
+        int stretchedOutputWriteBase = 0;
+
+        std::deque<float> stretchedOutputFifo;
+        float resampleReadPosition = 0.0f;
+        float lastOutputSample = 0.0f;
+    };
+
 public:
     PhaseVocoderPitchBackend() = default;
 
@@ -41,101 +56,37 @@ public:
 
         sampleRate = newSampleRate;
 
-        SetFFTSize(2048);
-        SetAnalysisHop(256);
-        SetBoundaryCrossfadeMilliseconds(8.0f);
+        SetFFTSize(1024);
+        SetAnalysisHop(128);
+        SetBoundaryCrossfadeMilliseconds(10.0f);
 
         Reset();
     }
 
     void Reset() override
     {
-        inputFifo.assign(static_cast<size_t>(fftSize), 0.0f);
-        inputWriteCount = 0;
+        buildWindow();
+        buildExpectedPhaseAdvance();
 
-        const int accSize = fftSize * 4;
-
-        outputAccumulator.assign(static_cast<size_t>(accSize), 0.0f);
-        outputWindowSumAccumulator.assign(static_cast<size_t>(accSize), 0.0f); // NEW
-
-        // FIX: write pointer starts fftSize ahead of read pointer so the
-        // overlap-add region is fully populated before we drain it (Fix 4).
-        outputReadIndex  = 0;
-        outputWriteBase  = fftSize;
-
-        pendingOutputAccumulator.assign(static_cast<size_t>(accSize), 0.0f);
-        pendingOutputWindowSumAccumulator.assign(static_cast<size_t>(accSize), 0.0f); // NEW
-
-        pendingOutputReadIndex  = 0;
-        pendingOutputWriteBase  = fftSize;
-
-        // --- rest of Reset() unchanged below ---
-        frameInput.assign(static_cast<size_t>(fftSize), 0.0f);
-        fftBuffer.assign(static_cast<size_t>(fftSize), {});
-        ifftBuffer.assign(static_cast<size_t>(fftSize), {});
-
-        previousAnalysisPhase.assign(static_cast<size_t>(numBins), 0.0f);
-        synthesisPhase.assign(static_cast<size_t>(numBins), 0.0f);
-
-        pendingPreviousAnalysisPhase.assign(static_cast<size_t>(numBins), 0.0f);
-        pendingSynthesisPhase.assign(static_cast<size_t>(numBins), 0.0f);
-
-        inputFifoWriteIndex = 0;
-        pendingInputFifoWriteIndex = 0;
-
-        outputFifo.clear();
-
-        pendingOutputFifo.clear();
+        resetPath(activePath);
+        resetPath(pendingPath);
 
         currentRatio = 1.0f;
         pendingRatio = 1.0f;
         hasPendingRatio = false;
-
         crossfadeRemainingSamples = 0;
         crossfadeTotalSamples = boundaryCrossfadeSamples;
-
-        pendingInputFifo.assign(static_cast<size_t>(fftSize), 0.0f);
-        pendingInputWriteCount = 0;
-
-        buildWindow();
-        buildExpectedPhaseAdvance();
     }
 
     float ProcessSample(float inputSample, float /*pitchRatio*/) override
     {
-        const float currentOut = processOnePath(
-            inputSample,
-            currentRatio,
-            inputFifo,
-            inputFifoWriteIndex,
-            inputWriteCount,
-            previousAnalysisPhase,
-            synthesisPhase,
-            outputAccumulator,
-            outputWindowSumAccumulator,
-            outputReadIndex,
-            outputWriteBase,
-            outputFifo);
+        const float currentOut = processOnePath(inputSample, currentRatio, activePath);
 
         if (crossfadeRemainingSamples > 0)
         {
-            const float pendingOut = processOnePath(
-                inputSample,
-                pendingRatio,
-                pendingInputFifo,
-                pendingInputFifoWriteIndex,
-                pendingInputWriteCount,
-                pendingPreviousAnalysisPhase,
-                pendingSynthesisPhase,
-                pendingOutputAccumulator,
-                pendingOutputWindowSumAccumulator,
-                pendingOutputReadIndex,
-                pendingOutputWriteBase,
-                pendingOutputFifo);
+            const float pendingOut = processOnePath(inputSample, pendingRatio, pendingPath);
 
-            const int samplesDone =
-                crossfadeTotalSamples - crossfadeRemainingSamples;
-
+            const int samplesDone = crossfadeTotalSamples - crossfadeRemainingSamples;
             const float t =
                 static_cast<float>(samplesDone)
                 / static_cast<float>(std::max(1, crossfadeTotalSamples));
@@ -146,9 +97,7 @@ public:
             --crossfadeRemainingSamples;
 
             if (crossfadeRemainingSamples == 0)
-            {
                 commitPendingState();
-            }
 
             return currentOut * oldGain + pendingOut * newGain;
         }
@@ -156,25 +105,32 @@ public:
         return currentOut;
     }
 
-    void OnEchoBoundary(float newRatio)
+    void OnEchoBoundary(float newRatio) override
     {
-        const float clampedRatio = juce::jlimit(0.25f, 4.0f, newRatio);
+        const float clampedRatio = juce::jlimit(kMinPitchRatio, kMaxPitchRatio, newRatio);
 
         if (std::abs(clampedRatio - currentRatio) < 1.0e-6f)
+            return;
+
+        if (boundaryCrossfadeSamples <= 0)
         {
+            currentRatio = clampedRatio;
+            pendingRatio = clampedRatio;
+            hasPendingRatio = false;
+            crossfadeRemainingSamples = 0;
             return;
         }
 
-        startPendingPathFromCurrentState(clampedRatio);
-
+        pendingPath = activePath;
+        pendingRatio = clampedRatio;
+        hasPendingRatio = true;
         crossfadeTotalSamples = boundaryCrossfadeSamples;
         crossfadeRemainingSamples = crossfadeTotalSamples;
-        hasPendingRatio = true;
     }
 
-    void SetInitialRatio(float ratio)
+    void SetInitialRatio(float ratio) override
     {
-        currentRatio = juce::jlimit(0.25f, 4.0f, ratio);
+        currentRatio = juce::jlimit(kMinPitchRatio, kMaxPitchRatio, ratio);
         pendingRatio = currentRatio;
         hasPendingRatio = false;
         crossfadeRemainingSamples = 0;
@@ -199,19 +155,24 @@ public:
             static_cast<int>(std::round((clampedMs * sampleRate) / 1000.0)));
     }
 
-    float GetLatencyMilliseconds() const
+    float GetLatencyMilliseconds() const override
     {
         return (static_cast<float>(fftSize) * 1000.0f) / static_cast<float>(sampleRate);
     }
 
 private:
     static constexpr float kTwoPi = 6.28318530717958647692f;
+    static constexpr float kMinPitchRatio = 0.25f;
+    static constexpr float kMaxPitchRatio = 4.0f;
+    static constexpr int kCubicInterpolationSampleCount = 4;
+    static constexpr int kAccumulatorMultiplier = 8; // Leaves room for 4x stretch plus overlapping OLA frames.
+    static constexpr int kResampleGuardSamples = kCubicInterpolationSampleCount * 2; // Leaves two cubic kernels of safety ahead of the read point between bursty frame writes.
 
     double sampleRate = 48000.0;
 
-    int fftSize = 2048;
-    int numBins = 1025;
-    int analysisHop = 256;
+    int fftSize = 1024;
+    int numBins = 513;
+    int analysisHop = 128;
     int boundaryCrossfadeSamples = 0;
 
     float currentRatio = 1.0f;
@@ -224,43 +185,8 @@ private:
     std::vector<float> window;
     std::vector<float> expectedPhaseAdvance;
 
-    // Active path
-    std::vector<float> inputFifo;
-    int inputWriteCount = 0;
-
-    std::vector<float> outputAccumulator;
-    int outputReadIndex = 0;
-    int outputWriteBase = 0;
-
-    std::vector<float> frameInput;
-    std::vector<std::complex<float>> fftBuffer;
-    std::vector<std::complex<float>> ifftBuffer;
-
-    std::vector<float> previousAnalysisPhase;
-    std::vector<float> synthesisPhase;
-
-    std::deque<float> outputFifo;
-    std::deque<float> pendingOutputFifo;
-
-    // Pending path for boundary crossfade
-    std::vector<float> pendingInputFifo;
-    int pendingInputWriteCount = 0;
-
-    std::vector<float> pendingOutputAccumulator;
-    int pendingOutputReadIndex = 0;
-    int pendingOutputWriteBase = 0;
-
-    int inputFifoWriteIndex = 0;
-    int pendingInputFifoWriteIndex = 0;
-
-    std::vector<float> pendingPreviousAnalysisPhase;
-    std::vector<float> pendingSynthesisPhase;
-
-    // Active path OLA window-sum accumulators
-    std::vector<float> outputWindowSumAccumulator;
-
-    // Pending path OLA window-sum accumulators
-    std::vector<float> pendingOutputWindowSumAccumulator;
+    PathState activePath;
+    PathState pendingPath;
 
     void buildWindow()
     {
@@ -287,135 +213,84 @@ private:
         }
     }
 
-    void startPendingPathFromCurrentState(float newRatio)
+    void resetPath(PathState& path)
     {
-        pendingRatio = newRatio;
+        path.inputFifo.assign(static_cast<size_t>(fftSize), 0.0f);
+        path.inputFifoWriteIndex = 0;
+        path.inputWriteCount = 0;
 
-        pendingInputFifo = inputFifo;
-        pendingInputWriteCount = inputWriteCount;
-        pendingInputFifoWriteIndex = inputFifoWriteIndex;
+        path.frameInput.assign(static_cast<size_t>(fftSize), 0.0f);
+        path.fftBuffer.assign(static_cast<size_t>(fftSize), {});
+        path.ifftBuffer.assign(static_cast<size_t>(fftSize), {});
 
-        pendingOutputAccumulator = outputAccumulator;
-        pendingOutputWindowSumAccumulator = outputWindowSumAccumulator;
-        pendingOutputReadIndex = outputReadIndex;
-        pendingOutputWriteBase = outputWriteBase;
+        path.previousAnalysisPhase.assign(static_cast<size_t>(numBins), 0.0f);
+        path.synthesisPhase.assign(static_cast<size_t>(numBins), 0.0f);
 
-        pendingPreviousAnalysisPhase = previousAnalysisPhase;
-        pendingSynthesisPhase = synthesisPhase;
+        const int accumulatorSize = fftSize * kAccumulatorMultiplier;
+        path.stretchedOutputAccumulator.assign(static_cast<size_t>(accumulatorSize), 0.0f);
+        path.stretchedOutputWindowSumAccumulator.assign(static_cast<size_t>(accumulatorSize), 0.0f);
+        path.stretchedOutputReadIndex = 0;
+        path.stretchedOutputWriteBase = fftSize;
 
-        pendingOutputFifo = outputFifo;
+        path.stretchedOutputFifo.clear();
+        path.resampleReadPosition = 0.0f;
+        path.lastOutputSample = 0.0f;
     }
 
     void commitPendingState()
     {
         currentRatio = pendingRatio;
         hasPendingRatio = false;
-
-        inputFifo.swap(pendingInputFifo);
-        inputWriteCount = pendingInputWriteCount;
-        std::swap(inputFifoWriteIndex, pendingInputFifoWriteIndex);
-
-        outputAccumulator.swap(pendingOutputAccumulator);
-        outputWindowSumAccumulator.swap(pendingOutputWindowSumAccumulator);
-
-        outputReadIndex = pendingOutputReadIndex;
-        outputWriteBase = pendingOutputWriteBase;
-
-        previousAnalysisPhase.swap(pendingPreviousAnalysisPhase);
-        synthesisPhase.swap(pendingSynthesisPhase);
-
-        outputFifo.swap(pendingOutputFifo);
+        std::swap(activePath, pendingPath);
     }
 
-    float processOnePath(
-        float inputSample,
-        float pitchRatio,
-        std::vector<float>& pathInputFifo,
-        int& pathInputFifoWriteIdx,
-        int& pathInputWriteCount,
-        std::vector<float>& pathPreviousAnalysisPhase,
-        std::vector<float>& pathSynthesisPhase,
-        std::vector<float>& pathOutputAccumulator,
-        std::vector<float>& pathWindowSumAccumulator,
-        int& pathOutputReadIndex,
-        int& pathOutputWriteBase,
-        std::deque<float>& pathOutputFifo)
+    float processOnePath(float inputSample, float pitchRatio, PathState& path)
     {
-        pushInputSample(pathInputFifo, pathInputFifoWriteIdx, inputSample);
+        pushInputSample(path, inputSample);
 
-        ++pathInputWriteCount;
+        ++path.inputWriteCount;
 
-        if (pathInputWriteCount >= analysisHop)
+        if (path.inputWriteCount >= analysisHop)
         {
-            pathInputWriteCount = 0;
-            processFrame(
-                pitchRatio,
-                pathInputFifo,
-                pathInputFifoWriteIdx,
-                pathPreviousAnalysisPhase,
-                pathSynthesisPhase,
-                pathOutputAccumulator,
-                pathWindowSumAccumulator,
-                pathOutputReadIndex,
-                pathOutputWriteBase,
-                pathOutputFifo);
+            path.inputWriteCount = 0;
+            processFrame(path, pitchRatio);
         }
 
-        float outputSample = 0.0f;
-
-        if (!pathOutputFifo.empty())
-        {
-            outputSample = pathOutputFifo.front();
-            pathOutputFifo.pop_front();   // O(1) on deque
-        }
-
-        return outputSample;
+        return readResampledOutput(path, pitchRatio);
     }
 
-    // O(1) circular write — no more std::rotate
-    void pushInputSample(std::vector<float>& fifo, int& writeIdx, float sample)
+    void pushInputSample(PathState& path, float sample)
     {
-        fifo[static_cast<size_t>(writeIdx)] = sample;
-        writeIdx = (writeIdx + 1) % static_cast<int>(fifo.size());
+        path.inputFifo[static_cast<size_t>(path.inputFifoWriteIndex)] = sample;
+        path.inputFifoWriteIndex = (path.inputFifoWriteIndex + 1) % static_cast<int>(path.inputFifo.size());
     }
 
-    void processFrame(
-        float pitchRatio,
-        std::vector<float>& pathInputFifo,
-        int pathInputFifoWriteIdx,
-        std::vector<float>& pathPreviousAnalysisPhase,
-        std::vector<float>& pathSynthesisPhase,
-        std::vector<float>& pathOutputAccumulator,
-        std::vector<float>& pathWindowSumAccumulator,
-        int& pathOutputReadIndex,
-        int& pathOutputWriteBase,
-        std::deque<float>& pathOutputFifo)
+    void processFrame(PathState& path, float timeStretchRatio)
     {
         for (int i = 0; i < fftSize; ++i)
         {
-            // pathInputFifoWriteIdx points one past the newest sample = oldest slot
-            const int readIdx = (pathInputFifoWriteIdx + i) % fftSize;
-
-            frameInput[static_cast<size_t>(i)] =
-                pathInputFifo[static_cast<size_t>(readIdx)] * window[static_cast<size_t>(i)];
-            fftBuffer[static_cast<size_t>(i)] =
-                std::complex<float>(frameInput[static_cast<size_t>(i)], 0.0f);
+            const int readIndex = (path.inputFifoWriteIndex + i) % fftSize;
+            path.frameInput[static_cast<size_t>(i)] =
+                path.inputFifo[static_cast<size_t>(readIndex)] * window[static_cast<size_t>(i)];
+            path.fftBuffer[static_cast<size_t>(i)] =
+                std::complex<float>(path.frameInput[static_cast<size_t>(i)], 0.0f);
         }
 
-        fft(fftBuffer, false);
+        fft(path.fftBuffer, false);
+        std::fill(path.ifftBuffer.begin(), path.ifftBuffer.end(), std::complex<float>(0.0f, 0.0f));
 
-        std::fill(ifftBuffer.begin(), ifftBuffer.end(), std::complex<float>(0.0f, 0.0f));
+        const int synthesisHop = getSynthesisHop(timeStretchRatio);
 
         for (int binIndex = 0; binIndex < numBins; ++binIndex)
         {
-            const std::complex<float> binValue = fftBuffer[static_cast<size_t>(binIndex)];
+            const std::complex<float> binValue = path.fftBuffer[static_cast<size_t>(binIndex)];
 
             const float magnitude = std::abs(binValue);
             const float phase = std::atan2(binValue.imag(), binValue.real());
 
             float deltaPhase =
                 phase
-                - pathPreviousAnalysisPhase[static_cast<size_t>(binIndex)]
+                - path.previousAnalysisPhase[static_cast<size_t>(binIndex)]
                 - expectedPhaseAdvance[static_cast<size_t>(binIndex)];
 
             deltaPhase = wrapPhase(deltaPhase);
@@ -424,82 +299,128 @@ private:
                 (expectedPhaseAdvance[static_cast<size_t>(binIndex)] + deltaPhase)
                 / static_cast<float>(analysisHop);
 
-            pathSynthesisPhase[static_cast<size_t>(binIndex)] +=
-                trueFrequency * static_cast<float>(analysisHop) * pitchRatio;
+            path.synthesisPhase[static_cast<size_t>(binIndex)] +=
+                trueFrequency * static_cast<float>(synthesisHop);
 
-            pathPreviousAnalysisPhase[static_cast<size_t>(binIndex)] = phase;
+            path.previousAnalysisPhase[static_cast<size_t>(binIndex)] = phase;
 
             const std::complex<float> rebuiltBin =
-                std::polar(magnitude, pathSynthesisPhase[static_cast<size_t>(binIndex)]);
+                std::polar(magnitude, path.synthesisPhase[static_cast<size_t>(binIndex)]);
 
-            ifftBuffer[static_cast<size_t>(binIndex)] = rebuiltBin;
+            path.ifftBuffer[static_cast<size_t>(binIndex)] = rebuiltBin;
 
             if (binIndex > 0 && binIndex < fftSize / 2)
             {
-                ifftBuffer[static_cast<size_t>(fftSize - binIndex)] =
+                path.ifftBuffer[static_cast<size_t>(fftSize - binIndex)] =
                     std::conj(rebuiltBin);
             }
         }
 
-        fft(ifftBuffer, true);
+        fft(path.ifftBuffer, true);
+        overlapAddFrame(path);
+        drainStretchedOutput(path, synthesisHop);
 
-        const int accSize = static_cast<int>(pathOutputAccumulator.size());
+        const int accumulatorSize = static_cast<int>(path.stretchedOutputAccumulator.size());
+        path.stretchedOutputWriteBase = (path.stretchedOutputWriteBase + synthesisHop) % accumulatorSize;
+    }
+
+    int getSynthesisHop(float timeStretchRatio) const
+    {
+        const float clampedRatio = juce::jlimit(kMinPitchRatio, kMaxPitchRatio, timeStretchRatio);
+        return std::max(1, static_cast<int>(std::round(static_cast<float>(analysisHop) * clampedRatio)));
+    }
+
+    void overlapAddFrame(PathState& path)
+    {
+        const int accumulatorSize = static_cast<int>(path.stretchedOutputAccumulator.size());
 
         for (int i = 0; i < fftSize; ++i)
         {
             const float sample =
-                (ifftBuffer[static_cast<size_t>(i)].real() / static_cast<float>(fftSize))
+                (path.ifftBuffer[static_cast<size_t>(i)].real() / static_cast<float>(fftSize))
                 * window[static_cast<size_t>(i)];
 
-            const int accIdx = (pathOutputWriteBase + i) % accSize;
+            const int accumulatorIndex = (path.stretchedOutputWriteBase + i) % accumulatorSize;
 
-            pathOutputAccumulator[static_cast<size_t>(accIdx)] += sample;
-
-            pathWindowSumAccumulator[static_cast<size_t>(accIdx)] +=
+            path.stretchedOutputAccumulator[static_cast<size_t>(accumulatorIndex)] += sample;
+            path.stretchedOutputWindowSumAccumulator[static_cast<size_t>(accumulatorIndex)] +=
                 window[static_cast<size_t>(i)] * window[static_cast<size_t>(i)];
         }
+    }
 
-        for (int i = 0; i < analysisHop; ++i)
+    void drainStretchedOutput(PathState& path, int synthesisHop)
+    {
+        const int accumulatorSize = static_cast<int>(path.stretchedOutputAccumulator.size());
+
+        for (int i = 0; i < synthesisHop; ++i)
         {
-            const int readIdx = pathOutputReadIndex % accSize;
+            const int readIndex = path.stretchedOutputReadIndex % accumulatorSize;
+            const float windowSum = path.stretchedOutputWindowSumAccumulator[static_cast<size_t>(readIndex)];
+            const float rawSample = path.stretchedOutputAccumulator[static_cast<size_t>(readIndex)];
 
-            const float winSum = pathWindowSumAccumulator[static_cast<size_t>(readIdx)];
-            const float raw = pathOutputAccumulator[static_cast<size_t>(readIdx)];
+            const float normalizedSample =
+                (windowSum > 1.0e-6f) ? (rawSample / windowSum) : 0.0f;
 
-            // Fix 3: divide by accumulated window² to normalise OLA amplitude.
-            const float normalized = (winSum > 1.0e-6f) ? (raw / winSum) : 0.0f;
+            path.stretchedOutputAccumulator[static_cast<size_t>(readIndex)] = 0.0f;
+            path.stretchedOutputWindowSumAccumulator[static_cast<size_t>(readIndex)] = 0.0f;
 
-            pathOutputAccumulator[static_cast<size_t>(readIdx)]    = 0.0f;
-            pathWindowSumAccumulator[static_cast<size_t>(readIdx)] = 0.0f;
+            path.stretchedOutputFifo.push_back(normalizedSample);
+            path.stretchedOutputReadIndex = (path.stretchedOutputReadIndex + 1) % accumulatorSize;
+        }
+    }
 
-            pathOutputFifo.push_back(normalized);
-            pathOutputReadIndex = (pathOutputReadIndex + 1) % accSize;
+    float readResampledOutput(PathState& path, float pitchRatio)
+    {
+        if (path.stretchedOutputFifo.size() < static_cast<size_t>(kCubicInterpolationSampleCount))
+            return 0.0f;
+
+        const float maxReadablePosition = static_cast<float>(path.stretchedOutputFifo.size() - 1);
+        const float readPosition = juce::jlimit(0.0f, maxReadablePosition, path.resampleReadPosition);
+
+        const float outputSample = cubicInterpolate(path.stretchedOutputFifo, readPosition);
+        path.lastOutputSample = outputSample;
+
+        path.resampleReadPosition += juce::jlimit(kMinPitchRatio, kMaxPitchRatio, pitchRatio);
+
+        const int samplesAvailableToTrim =
+            std::max(0, static_cast<int>(path.stretchedOutputFifo.size()) - kResampleGuardSamples);
+        const int fullyReadSamples = std::min(
+            static_cast<int>(std::floor(path.resampleReadPosition)),
+            samplesAvailableToTrim);
+
+        if (fullyReadSamples > 0)
+        {
+            path.stretchedOutputFifo.erase(
+                path.stretchedOutputFifo.begin(),
+                path.stretchedOutputFifo.begin() + fullyReadSamples);
+            path.resampleReadPosition -= static_cast<float>(fullyReadSamples);
         }
 
-        pathOutputWriteBase = (pathOutputWriteBase + analysisHop)
-                      % static_cast<int>(pathOutputAccumulator.size());
+        return outputSample;
     }
 
-    int pathOutputReadIndexPlaceholder(int pathOutputWriteBase, int sampleOffset) const
+    static float cubicInterpolate(const std::deque<float>& samples, float position)
     {
-        return pathOutputWriteBase + sampleOffset;
+        const int sampleCount = static_cast<int>(samples.size());
+        const int index1 = static_cast<int>(std::floor(position));
+        const float fraction = position - static_cast<float>(index1);
+
+        const float sample0 = samples[static_cast<size_t>(clampIndex(index1 - 1, sampleCount))];
+        const float sample1 = samples[static_cast<size_t>(clampIndex(index1, sampleCount))];
+        const float sample2 = samples[static_cast<size_t>(clampIndex(index1 + 1, sampleCount))];
+        const float sample3 = samples[static_cast<size_t>(clampIndex(index1 + 2, sampleCount))];
+
+        const float a0 = -0.5f * sample0 + 1.5f * sample1 - 1.5f * sample2 + 0.5f * sample3;
+        const float a1 = sample0 - 2.5f * sample1 + 2.0f * sample2 - 0.5f * sample3;
+        const float a2 = -0.5f * sample0 + 0.5f * sample2;
+        const float a3 = sample1;
+
+        return ((a0 * fraction + a1) * fraction + a2) * fraction + a3;
     }
 
-    void wrapAccumulatorIndices(
-        std::vector<float>& accumulator,
-        int& readIndex,
-        int& writeBase)
+    static int clampIndex(int index, int size)
     {
-        const int size = static_cast<int>(accumulator.size());
-
-        if (size <= 0)
-            return;
-
-        while (readIndex >= size)
-            readIndex -= size;
-
-        while (writeBase >= size)
-            writeBase -= size;
+        return juce::jlimit(0, std::max(0, size - 1), index);
     }
 
     static float wrapPhase(float phase)
@@ -523,9 +444,6 @@ private:
         return power;
     }
 
-    // -----------------------------------------------------------------------------
-    // Simple radix-2 Cooley-Tukey FFT
-    // -----------------------------------------------------------------------------
     static void fft(std::vector<std::complex<float>>& data, bool inverse)
     {
         const int n = static_cast<int>(data.size());
