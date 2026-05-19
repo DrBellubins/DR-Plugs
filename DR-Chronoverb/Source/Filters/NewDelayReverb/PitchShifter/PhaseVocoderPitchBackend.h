@@ -164,8 +164,9 @@ private:
     static constexpr float kTwoPi = 6.28318530717958647692f;
     static constexpr float kMinPitchRatio = 0.25f;
     static constexpr float kMaxPitchRatio = 4.0f;
+    static constexpr int kCubicInterpolationSampleCount = 4;
     static constexpr int kAccumulatorMultiplier = 8; // Leaves room for 4x stretch plus overlapping OLA frames.
-    static constexpr int kResampleGuardSamples = 8;  // Keeps enough lookahead around the read point for cubic interpolation.
+    static constexpr int kResampleGuardSamples = kCubicInterpolationSampleCount * 2; // Leaves one cubic kernel of safety ahead of the read point between bursty frame writes.
 
     double sampleRate = 48000.0;
 
@@ -370,7 +371,7 @@ private:
 
     float readResampledOutput(PathState& path, float pitchRatio)
     {
-        if (path.stretchedOutputFifo.size() < 4)
+        if (path.stretchedOutputFifo.size() < static_cast<size_t>(kCubicInterpolationSampleCount))
             return 0.0f;
 
         const float maxReadablePosition = static_cast<float>(path.stretchedOutputFifo.size() - 1);
