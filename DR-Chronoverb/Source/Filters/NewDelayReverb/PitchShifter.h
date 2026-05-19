@@ -354,6 +354,22 @@ public:
         return -1;
     }
 
+    float GetPredictedSourceIndexForDebug() const
+    {
+        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
+            return wsola->GetPredictedSourceIndexForDebug();
+
+        return -1.0f;
+    }
+
+    float GetLastChosenSourceIndexForDebug() const
+    {
+        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
+            return wsola->GetLastChosenSourceIndexForDebug();
+
+        return -1.0f;
+    }
+
     void ResetDebugReadWeightExtrema()
     {
         if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))

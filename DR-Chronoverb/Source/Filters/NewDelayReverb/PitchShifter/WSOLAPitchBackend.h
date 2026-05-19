@@ -309,6 +309,16 @@ public:
         return lastBestMatchDelta.load(std::memory_order_relaxed);
     }
 
+    float GetPredictedSourceIndexForDebug() const
+    {
+        return predictedSourceIndex;
+    }
+
+    float GetLastChosenSourceIndexForDebug() const
+    {
+        return lastChosenSourceIndex;
+    }
+
     void ResetDebugReadWeightExtrema()
     {
         debugMinReadWeight.store(1000000.0f, std::memory_order_relaxed);
