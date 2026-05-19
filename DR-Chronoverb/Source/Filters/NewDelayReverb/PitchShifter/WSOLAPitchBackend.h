@@ -36,7 +36,7 @@ public:
         maximumBlockSizeCached = maximumBlockSize;
 
         SetSegmentLengthMilliseconds(18.0f);
-        SetOverlapPercent(0.60f);
+        SetOverlapPercent(0.70f);
         SetSearchRadiusMilliseconds(2.0f);
         SetLookbackMilliseconds(60.0f);
 
@@ -133,7 +133,12 @@ public:
 
     void OnEchoBoundary(float newRatio) override
     {
-        currentRatio = clampPitchRatio(newRatio);
+        const float clamped = clampPitchRatio(newRatio);
+
+        if (std::abs(clamped - currentRatio) < 1.0e-6f)
+            return;
+
+        currentRatio = clamped;
         stretchFactor = currentRatio;
     }
 

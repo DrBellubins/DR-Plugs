@@ -225,6 +225,31 @@ public:
         return sequence->GetCurrentPitchRatio();
     }
 
+    // Debug functions
+    int GetBackendUnderflowCount() const
+    {
+        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
+            return wsola->GetUnderflowCount();
+
+        return -1;
+    }
+
+    int GetBackendCausalGuardRejectCount() const
+    {
+        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
+            return wsola->GetCausalGuardRejectCount();
+
+        return -1;
+    }
+
+    float GetBackendLastBestMatchError() const
+    {
+        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
+            return wsola->GetLastBestMatchError();
+
+        return -1.0f;
+    }
+
 private:
     double sampleRate = 48000.0;
     int maximumBlockSizeCached = 0;

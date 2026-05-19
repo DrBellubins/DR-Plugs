@@ -158,6 +158,19 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         if (rightData != nullptr)
             rightData[sampleIndex] = juce::jlimit(-1.0f, 1.0f, outputRight);
     }
+
+    // Temporary debug every 100 blocks
+    {
+        static int debugBlockCounter = 0;
+        ++debugBlockCounter;
+
+        if ((debugBlockCounter % 100) == 0)
+        {
+            DBG("WSOLA underflows L: " << wetInputPitchShifterLeft.GetBackendUnderflowCount()
+                << " rejects L: " << wetInputPitchShifterLeft.GetBackendCausalGuardRejectCount()
+                << " matchErr L: " << wetInputPitchShifterLeft.GetBackendLastBestMatchError());
+        }
+    }
 }
 
 /*void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
