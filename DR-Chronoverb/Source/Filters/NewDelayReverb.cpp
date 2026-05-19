@@ -471,6 +471,13 @@ void NewDelayReverb::SetHostTempo(float bpm)
     }
 }
 
+float NewDelayReverb::GetPitchShifterLatencyMilliseconds() const
+{
+    if (pitchShiftEnabled < 0.5f)
+        return 0.0f;
+
+    return wetInputPitchShifterLeft.GetLatencyMilliseconds();
+}
 // ---------------- Internal helpers ----------------
 
 void NewDelayReverb::updateDelayMillisecondsFromNormalized()

@@ -87,26 +87,6 @@ public:
     {
         float out = processOnePath(inputSample, currentRatio, activePath);
 
-        if (crossfadeRemainingSamples > 0)
-        {
-            const float pendingOut = processOnePath(inputSample, pendingRatio, pendingPath);
-
-            const int samplesDone = crossfadeTotalSamples - crossfadeRemainingSamples;
-            const float t =
-                static_cast<float>(samplesDone)
-                / static_cast<float>(std::max(1, crossfadeTotalSamples));
-
-            const float oldGain = std::cos(t * juce::MathConstants<float>::halfPi);
-            const float newGain = std::sin(t * juce::MathConstants<float>::halfPi);
-
-            --crossfadeRemainingSamples;
-
-            if (crossfadeRemainingSamples == 0)
-                commitPendingState();
-
-            out = out * oldGain + pendingOut * newGain;
-        }
-
         if (!std::isfinite(out))
             out = 0.0f;
 
@@ -125,21 +105,13 @@ public:
         if (std::abs(clampedRatio - currentRatio) < 1.0e-6f)
             return;
 
-        if (boundaryCrossfadeSamples <= 0)
-        {
-            currentRatio = clampedRatio;
-            pendingRatio = clampedRatio;
-            hasPendingRatio = false;
-            crossfadeRemainingSamples = 0;
-            return;
-        }
-
-        resetPath(pendingPath);
+        // Ratio changes are already echo-quantized by the caller (OctaveEchoPitchShifter),
+        // so no sample-level crossfade is needed here — and a cold-reset would inject
+        // a discontinuity. Simply update the active ratio; the running path state is preserved.
+        currentRatio = clampedRatio;
         pendingRatio = clampedRatio;
-        hasPendingRatio = true;
-
-        crossfadeTotalSamples = boundaryCrossfadeSamples;
-        crossfadeRemainingSamples = crossfadeTotalSamples;
+        hasPendingRatio = false;
+        crossfadeRemainingSamples = 0;
     }
 
     void SetInitialRatio(float ratio) override
@@ -268,9 +240,10 @@ private:
 
             const float clampedPitch = juce::jlimit(kMinPitchRatio, kMaxPitchRatio, pitchRatio);
 
-            // Phase vocoder does time-stretch, then we resample back to the original timebase.
-            // Pitch up (> 1.0) should time-stretch DOWN (< 1.0), pitch down (< 1.0) time-stretch UP (> 1.0).
-            const float timeStretchRatio = 1.0f / clampedPitch;
+            // Correct: to pitch UP by P, time-stretch by P (Hs = Ha*P),
+            // then resample at P speed back to original duration.
+            // P=2: produces 256 stretched per 128 input, consumes 128*2=256. Balanced.
+            const float timeStretchRatio = clampedPitch;
 
             processFrame(path, timeStretchRatio);
         }
@@ -346,9 +319,9 @@ private:
 
     int getSynthesisHop(float timeStretchRatio) const
     {
-        // timeStretchRatio range should be [1/maxPitch, 1/minPitch]
+        // timeStretchRatio == clampedPitch, range [kMinPitchRatio, kMaxPitchRatio]
         const float clamped =
-            juce::jlimit(1.0f / kMaxPitchRatio, 1.0f / kMinPitchRatio, timeStretchRatio);
+            juce::jlimit(kMinPitchRatio, kMaxPitchRatio, timeStretchRatio);
 
         return std::max(1,
             static_cast<int>(std::round(static_cast<float>(analysisHop) * clamped)));
@@ -404,9 +377,12 @@ private:
 
     float readResampledOutput(PathState& path, float pitchRatio)
     {
-        // Need 4 samples for cubic.
+        // Need 4 samples for cubic — fade to zero on underflow instead of holding stale.
         if (path.stretchedRingCount < kCubicInterpolationSampleCount)
+        {
+            path.lastOutputSample *= 0.9995f; // gentle fade, not hard hold
             return path.lastOutputSample;
+        }
 
         const float clampedPitch = juce::jlimit(kMinPitchRatio, kMaxPitchRatio, pitchRatio);
 
