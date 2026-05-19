@@ -80,7 +80,7 @@ public:
 
     float ProcessSample(float inputSample, float /*pitchRatio*/) override
     {
-        const float currentOut = processOnePath(inputSample, currentRatio, activePath);
+        float currentOut = processOnePath(inputSample, currentRatio, activePath);
 
         if (crossfadeRemainingSamples > 0)
         {
@@ -101,6 +101,10 @@ public:
 
             return currentOut * oldGain + pendingOut * newGain;
         }
+
+        // Fix DC/Denormal edg cases
+        if (!std::isfinite(currentOut)) currentOut = 0.0f;
+        if (std::abs(currentOut) < 1.0e-20f) currentOut = 0.0f;
 
         return currentOut;
     }
@@ -253,7 +257,14 @@ private:
         if (path.inputWriteCount >= analysisHop)
         {
             path.inputWriteCount = 0;
-            processFrame(path, pitchRatio);
+
+            const float clampedPitch = juce::jlimit(kMinPitchRatio, kMaxPitchRatio, pitchRatio);
+
+            // PV does time-stretch, then we resample.
+            // For pitch up (>1), we want to time-stretch DOWN (<1) then resample up.
+            const float timeStretchRatio = 1.0f / clampedPitch;
+
+            processFrame(path, timeStretchRatio);
         }
 
         return readResampledOutput(path, pitchRatio);
@@ -326,8 +337,8 @@ private:
 
     int getSynthesisHop(float timeStretchRatio) const
     {
-        const float clampedRatio = juce::jlimit(kMinPitchRatio, kMaxPitchRatio, timeStretchRatio);
-        return std::max(1, static_cast<int>(std::round(static_cast<float>(analysisHop) * clampedRatio)));
+        const float clamped = juce::jlimit(1.0f / kMaxPitchRatio, 1.0f / kMinPitchRatio, timeStretchRatio);
+        return std::max(1, static_cast<int>(std::round(static_cast<float>(analysisHop) * clamped)));
     }
 
     void overlapAddFrame(PathState& path)
@@ -371,8 +382,10 @@ private:
 
     float readResampledOutput(PathState& path, float pitchRatio)
     {
+        // If we don't have enough samples for cubic interpolation yet,
+        // do NOT return hard zero (this causes clicks/crackle and can lead to silence).
         if (path.stretchedOutputFifo.size() < static_cast<size_t>(kCubicInterpolationSampleCount))
-            return 0.0f;
+            return path.lastOutputSample;
 
         const float maxReadablePosition = static_cast<float>(path.stretchedOutputFifo.size() - 1);
         const float readPosition = juce::jlimit(0.0f, maxReadablePosition, path.resampleReadPosition);
@@ -380,10 +393,16 @@ private:
         const float outputSample = cubicInterpolate(path.stretchedOutputFifo, readPosition);
         path.lastOutputSample = outputSample;
 
-        path.resampleReadPosition += juce::jlimit(kMinPitchRatio, kMaxPitchRatio, pitchRatio);
+        // Resampling: consume from stretched stream.
+        // IMPORTANT: if the internal time-stretch ratio is 1/pitchRatio, then
+        // the resample increment should be pitchRatio.
+        const float clampedPitch = juce::jlimit(kMinPitchRatio, kMaxPitchRatio, pitchRatio);
+        path.resampleReadPosition += clampedPitch;
 
+        // Trim fully-read samples but keep guard samples.
         const int samplesAvailableToTrim =
             std::max(0, static_cast<int>(path.stretchedOutputFifo.size()) - kResampleGuardSamples);
+
         const int fullyReadSamples = std::min(
             static_cast<int>(std::floor(path.resampleReadPosition)),
             samplesAvailableToTrim);
@@ -393,6 +412,7 @@ private:
             path.stretchedOutputFifo.erase(
                 path.stretchedOutputFifo.begin(),
                 path.stretchedOutputFifo.begin() + fullyReadSamples);
+
             path.resampleReadPosition -= static_cast<float>(fullyReadSamples);
         }
 
@@ -468,7 +488,7 @@ private:
         for (int len = 2; len <= n; len <<= 1)
         {
             const float angle =
-                static_cast<float>((inverse ? 2.0 : -2.0) * juce::MathConstants<float>::pi / len);
+                static_cast<float>((inverse ? 2.0 : -2.0) * juce::MathConstants<float>::pi / static_cast<double>(len));
 
             const std::complex<float> wLen(std::cos(angle), std::sin(angle));
 
@@ -487,6 +507,14 @@ private:
                     w *= wLen;
                 }
             }
+        }
+
+        // IMPORTANT: normalize inverse FFT
+        if (inverse)
+        {
+            const float invN = 1.0f / static_cast<float>(n);
+            for (int i = 0; i < n; ++i)
+                data[static_cast<size_t>(i)] *= invN;
         }
     }
 };
