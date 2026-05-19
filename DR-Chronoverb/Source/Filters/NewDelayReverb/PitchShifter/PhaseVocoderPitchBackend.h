@@ -80,14 +80,15 @@ public:
         pendingPreviousAnalysisPhase.assign(static_cast<size_t>(numBins), 0.0f);
         pendingSynthesisPhase.assign(static_cast<size_t>(numBins), 0.0f);
 
+        inputFifoWriteIndex = 0;
+        pendingInputFifoWriteIndex = 0;
+
         outputFifo.clear();
-        outputFifo.reserve(static_cast<size_t>(fftSize * 2));
 
         pendingOutputFifo.clear();
-        pendingOutputFifo.reserve(static_cast<size_t>(fftSize * 2));
 
-        currentRatio  = 1.0f;
-        pendingRatio  = 1.0f;
+        currentRatio = 1.0f;
+        pendingRatio = 1.0f;
         hasPendingRatio = false;
 
         crossfadeRemainingSamples = 0;
@@ -106,6 +107,7 @@ public:
             inputSample,
             currentRatio,
             inputFifo,
+            inputFifoWriteIndex,
             inputWriteCount,
             previousAnalysisPhase,
             synthesisPhase,
@@ -121,6 +123,7 @@ public:
                 inputSample,
                 pendingRatio,
                 pendingInputFifo,
+                pendingInputFifoWriteIndex,
                 pendingInputWriteCount,
                 pendingPreviousAnalysisPhase,
                 pendingSynthesisPhase,
@@ -236,7 +239,8 @@ private:
     std::vector<float> previousAnalysisPhase;
     std::vector<float> synthesisPhase;
 
-    std::vector<float> outputFifo;
+    std::deque<float> outputFifo;
+    std::deque<float> pendingOutputFifo;
 
     // Pending path for boundary crossfade
     std::vector<float> pendingInputFifo;
@@ -246,6 +250,9 @@ private:
     int pendingOutputReadIndex = 0;
     int pendingOutputWriteBase = 0;
 
+    int inputFifoWriteIndex = 0;
+    int pendingInputFifoWriteIndex = 0;
+
     std::vector<float> pendingPreviousAnalysisPhase;
     std::vector<float> pendingSynthesisPhase;
 
@@ -254,8 +261,6 @@ private:
 
     // Pending path OLA window-sum accumulators
     std::vector<float> pendingOutputWindowSumAccumulator;
-
-    std::vector<float> pendingOutputFifo;
 
     void buildWindow()
     {
@@ -288,6 +293,7 @@ private:
 
         pendingInputFifo = inputFifo;
         pendingInputWriteCount = inputWriteCount;
+        pendingInputFifoWriteIndex = inputFifoWriteIndex;
 
         pendingOutputAccumulator = outputAccumulator;
         pendingOutputWindowSumAccumulator = outputWindowSumAccumulator;
@@ -307,6 +313,7 @@ private:
 
         inputFifo.swap(pendingInputFifo);
         inputWriteCount = pendingInputWriteCount;
+        std::swap(inputFifoWriteIndex, pendingInputFifoWriteIndex);
 
         outputAccumulator.swap(pendingOutputAccumulator);
         outputWindowSumAccumulator.swap(pendingOutputWindowSumAccumulator);
@@ -324,6 +331,7 @@ private:
         float inputSample,
         float pitchRatio,
         std::vector<float>& pathInputFifo,
+        int& pathInputFifoWriteIdx,
         int& pathInputWriteCount,
         std::vector<float>& pathPreviousAnalysisPhase,
         std::vector<float>& pathSynthesisPhase,
@@ -331,9 +339,9 @@ private:
         std::vector<float>& pathWindowSumAccumulator,
         int& pathOutputReadIndex,
         int& pathOutputWriteBase,
-        std::vector<float>& pathOutputFifo)
+        std::deque<float>& pathOutputFifo)
     {
-        pushInputSample(pathInputFifo, inputSample);
+        pushInputSample(pathInputFifo, pathInputFifoWriteIdx, inputSample);
 
         ++pathInputWriteCount;
 
@@ -343,6 +351,7 @@ private:
             processFrame(
                 pitchRatio,
                 pathInputFifo,
+                pathInputFifoWriteIdx,
                 pathPreviousAnalysisPhase,
                 pathSynthesisPhase,
                 pathOutputAccumulator,
@@ -357,37 +366,38 @@ private:
         if (!pathOutputFifo.empty())
         {
             outputSample = pathOutputFifo.front();
-            pathOutputFifo.erase(pathOutputFifo.begin());
+            pathOutputFifo.pop_front();   // O(1) on deque
         }
 
         return outputSample;
     }
 
-    void pushInputSample(std::vector<float>& fifo, float sample)
+    // O(1) circular write — no more std::rotate
+    void pushInputSample(std::vector<float>& fifo, int& writeIdx, float sample)
     {
-        if (fifo.empty())
-            return;
-
-        std::rotate(fifo.begin(), fifo.begin() + 1, fifo.end());
-        fifo.back() = sample;
+        fifo[static_cast<size_t>(writeIdx)] = sample;
+        writeIdx = (writeIdx + 1) % static_cast<int>(fifo.size());
     }
 
     void processFrame(
         float pitchRatio,
         std::vector<float>& pathInputFifo,
+        int pathInputFifoWriteIdx,
         std::vector<float>& pathPreviousAnalysisPhase,
         std::vector<float>& pathSynthesisPhase,
         std::vector<float>& pathOutputAccumulator,
         std::vector<float>& pathWindowSumAccumulator,
         int& pathOutputReadIndex,
         int& pathOutputWriteBase,
-        std::vector<float>& pathOutputFifo)
+        std::deque<float>& pathOutputFifo)
     {
         for (int i = 0; i < fftSize; ++i)
         {
-            frameInput[static_cast<size_t>(i)] =
-                pathInputFifo[static_cast<size_t>(i)] * window[static_cast<size_t>(i)];
+            // pathInputFifoWriteIdx points one past the newest sample = oldest slot
+            const int readIdx = (pathInputFifoWriteIdx + i) % fftSize;
 
+            frameInput[static_cast<size_t>(i)] =
+                pathInputFifo[static_cast<size_t>(readIdx)] * window[static_cast<size_t>(i)];
             fftBuffer[static_cast<size_t>(i)] =
                 std::complex<float>(frameInput[static_cast<size_t>(i)], 0.0f);
         }

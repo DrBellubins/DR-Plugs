@@ -413,10 +413,6 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
             DelayReverb.SetPitchAlgorithm(backendType);
         }
     }
-
-    #if DEBUG
-    //DBG("Changed: " << parameterID << " to " << newValue);
-    #endif
 }
 
 void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
