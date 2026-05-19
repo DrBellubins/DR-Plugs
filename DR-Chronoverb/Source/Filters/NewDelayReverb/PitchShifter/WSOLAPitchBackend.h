@@ -47,17 +47,15 @@ public:
             lookbackSamples + segmentLengthSamples + (searchRadiusSamples * 2) + 2048
         );
 
-        // Output ring needs enough room for:
-        // - several overlapping segments
-        // - worst-case scheduling jitter between synthesis and sample consumption
-        outputRingSize = std::max(
-            16384,
-            segmentLengthSamples * 12
+        // Stretch ring must hold several synthesized segments plus safe read/write separation
+        stretchRingSize = std::max(
+            32768,
+            segmentLengthSamples * 24
         );
 
         inputRing.assign(static_cast<size_t>(inputRingSize), 0.0f);
-        outputRing.assign(static_cast<size_t>(outputRingSize), 0.0f);
-        outputWeightRing.assign(static_cast<size_t>(outputRingSize), 0.0f);
+        stretchRing.assign(static_cast<size_t>(stretchRingSize), 0.0f);
+        stretchWeightRing.assign(static_cast<size_t>(stretchRingSize), 0.0f);
 
         rebuildWindow();
         clearBuffersAndState();
@@ -72,21 +70,21 @@ public:
     // externally and committed via OnEchoBoundary() / SetInitialRatio().
     float ProcessSample(float inputSample, float /*pitchRatio*/) override
     {
-        if (inputRing.empty() || outputRing.empty() || outputWeightRing.empty())
+        if (inputRing.empty() || stretchRing.empty() || stretchWeightRing.empty())
             return inputSample;
 
-        // 1) Write input sample to history ring.
+        // 1) Write input into source history ring
         inputRing[static_cast<size_t>(inputWriteIndex)] = inputSample;
         inputWriteIndex = wrapInt(inputWriteIndex + 1, inputRingSize);
 
         if (startupSamplesReceived < std::numeric_limits<int>::max())
             ++startupSamplesReceived;
 
-        // 2) Initialize once we have enough lookback history.
+        // 2) Initialize once enough history exists
         if (!initialized)
             tryInitializeIfReady();
 
-        // 3) Schedule new synthesized segments at fixed synthesis hop spacing.
+        // 3) Continuously synthesize time-stretched segments
         if (initialized)
         {
             --samplesUntilNextSegment;
@@ -98,21 +96,44 @@ public:
             }
         }
 
-        // 4) Emit one sample from normalized output ring.
-        const float outputSample = readOutputNormalizedAndClear(outputReadIndex);
-        outputReadIndex = wrapInt(outputReadIndex + 1, outputRingSize);
+        // 4) Resample stretched intermediate back to real-time output
+        float outputSample = 0.0f;
 
-        return outputSample;
+        if (initialized)
+        {
+            outputSample = readStretchRingNormalizedLinear(stretchReadIndexFloat);
+
+            const int clearIndex = wrapInt(
+                static_cast<int>(std::floor(stretchReadIndexFloat)),
+                stretchRingSize);
+
+            clearConsumedStretchSample(clearIndex);
+
+            stretchReadIndexFloat =
+                wrapFloat(stretchReadIndexFloat + stretchFactor,
+                          static_cast<float>(stretchRingSize));
+        }
+        else
+        {
+            underflowCount.fetch_add(1, std::memory_order_relaxed);
+        }
+
+        if (!std::isfinite(outputSample))
+            outputSample = 0.0f;
+
+        return juce::jlimit(-2.0f, 2.0f, outputSample);
     }
 
     void OnEchoBoundary(float newRatio) override
     {
         currentRatio = clampPitchRatio(newRatio);
+        stretchFactor = 1.0f / currentRatio;
     }
 
     void SetInitialRatio(float ratio) override
     {
         currentRatio = clampPitchRatio(ratio);
+        stretchFactor = 1.0f / currentRatio;
     }
 
     float GetLatencyMilliseconds() const override
@@ -212,16 +233,18 @@ private:
     void clearBuffersAndState()
     {
         std::fill(inputRing.begin(), inputRing.end(), 0.0f);
-        std::fill(outputRing.begin(), outputRing.end(), 0.0f);
-        std::fill(outputWeightRing.begin(), outputWeightRing.end(), 0.0f);
+        std::fill(stretchRing.begin(), stretchRing.end(), 0.0f);
+        std::fill(stretchWeightRing.begin(), stretchWeightRing.end(), 0.0f);
 
         inputWriteIndex = 0;
-        outputReadIndex = 0;
-        outputWriteCursor = 0;
+        stretchWriteCursor = 0;
+        stretchReadIndexFloat = 0.0f;
 
         samplesUntilNextSegment = 0;
         initialized = false;
 
+        currentRatio = 1.0f;
+        stretchFactor = 1.0f;
         predictedSourceIndex = 0.0f;
         lastChosenSourceIndex = 0.0f;
 
@@ -234,22 +257,24 @@ private:
 
     void tryInitializeIfReady()
     {
-        // Need enough history before we can safely synthesize a segment.
-        const int requiredHistory = lookbackSamples + segmentLengthSamples + searchRadiusSamples;
+        const int requiredHistory =
+            lookbackSamples + segmentLengthSamples + searchRadiusSamples;
 
         if (startupSamplesReceived < requiredHistory)
             return;
 
-        // Seed first source position safely behind the write pointer.
         const int seedIndex =
             wrapInt(inputWriteIndex - lookbackSamples, inputRingSize);
 
         predictedSourceIndex = static_cast<float>(seedIndex);
         lastChosenSourceIndex = predictedSourceIndex;
 
-        // Seed an initial segment immediately so output starts from valid material.
         synthesizeNextSegment();
         samplesUntilNextSegment = synthesisHopSamples;
+
+        // Start reading from the beginning of the synthesized stretch ring.
+        stretchReadIndexFloat = 0.0f;
+
         initialized = true;
     }
 
@@ -258,17 +283,18 @@ private:
         if (segmentLengthSamples <= 0 || synthesisHopSamples <= 0)
             return;
 
-        // Predicted source advance:
-        // fixed synthesis hop, variable source hop by inverse ratio.
+        // WSOLA time-stretch stage:
+        // synthesis hop is fixed in stretched domain
+        // analysis hop depends on stretch factor
         const float analysisHop =
-            static_cast<float>(synthesisHopSamples) / currentRatio;
+            static_cast<float>(synthesisHopSamples) * stretchFactor;
 
         const int predictedIndexInt =
             wrapInt(static_cast<int>(std::round(predictedSourceIndex)), inputRingSize);
 
-        const int bestSourceIndex = findBestMatchingSourceIndex(predictedIndexInt);
+        const int bestSourceIndex =
+            findBestMatchingSourceIndex(predictedIndexInt);
 
-        // Window + overlap-add into output ring
         for (int i = 0; i < segmentLengthSamples; ++i)
         {
             const float sourceIndex =
@@ -278,11 +304,15 @@ private:
             const float weight = window[static_cast<size_t>(i)];
             const float weightedSample = sample * weight;
 
-            const int outIndex = wrapInt(outputWriteCursor + i, outputRingSize);
-            addToOutputRing(outIndex, weightedSample, weight);
+            const int stretchIndex =
+                wrapInt(stretchWriteCursor + i, stretchRingSize);
+
+            stretchRing[static_cast<size_t>(stretchIndex)] += weightedSample;
+            stretchWeightRing[static_cast<size_t>(stretchIndex)] += weight;
         }
 
-        outputWriteCursor = wrapInt(outputWriteCursor + synthesisHopSamples, outputRingSize);
+        stretchWriteCursor =
+            wrapInt(stretchWriteCursor + synthesisHopSamples, stretchRingSize);
 
         lastChosenSourceIndex = static_cast<float>(bestSourceIndex);
         predictedSourceIndex = lastChosenSourceIndex + analysisHop;
@@ -293,9 +323,7 @@ private:
         float bestError = std::numeric_limits<float>::max();
         int bestIndex = predictedSourceIndexSamples;
 
-        // Compare candidate overlap against already-synthesized output beginning
-        // at the current write cursor.
-        const int overlapOutputStart = outputWriteCursor;
+        const int overlapStretchStart = stretchWriteCursor;
 
         for (int delta = -searchRadiusSamples; delta <= searchRadiusSamples; ++delta)
         {
@@ -315,19 +343,23 @@ private:
                 const float candidateSample =
                     readInputRingLinear(static_cast<float>(candidateIndex + i));
 
-                const int outIndex = wrapInt(overlapOutputStart + i, outputRingSize);
+                const int stretchIndex =
+                    wrapInt(overlapStretchStart + i, stretchRingSize);
 
-                // Compare against normalized existing output tail.
-                const float existingWeight = outputWeightRing[static_cast<size_t>(outIndex)];
-                float existingOutput = 0.0f;
+                const float existingWeight =
+                    stretchWeightRing[static_cast<size_t>(stretchIndex)];
 
+                float existingSample = 0.0f;
                 if (existingWeight > 1.0e-6f)
-                    existingOutput = outputRing[static_cast<size_t>(outIndex)] / existingWeight;
+                {
+                    existingSample =
+                        stretchRing[static_cast<size_t>(stretchIndex)] / existingWeight;
+                }
 
                 const float weightedCandidate =
                     candidateSample * window[static_cast<size_t>(i)];
 
-                const float diff = existingOutput - weightedCandidate;
+                const float diff = existingSample - weightedCandidate;
                 error += diff * diff;
             }
 
@@ -374,40 +406,6 @@ private:
         return a + frac * (b - a);
     }
 
-    float readOutputNormalizedAndClear(int index)
-    {
-        const float sum = outputRing[static_cast<size_t>(index)];
-        const float weight = outputWeightRing[static_cast<size_t>(index)];
-
-        float out = 0.0f;
-
-        if (weight > 1.0e-6f)
-        {
-            out = sum / weight;
-        }
-        else
-        {
-            underflowCount.fetch_add(1, std::memory_order_relaxed);
-            out = 0.0f;
-        }
-
-        if (!std::isfinite(out))
-            out = 0.0f;
-
-        out = juce::jlimit(-2.0f, 2.0f, out);
-
-        outputRing[static_cast<size_t>(index)] = 0.0f;
-        outputWeightRing[static_cast<size_t>(index)] = 0.0f;
-
-        return out;
-    }
-
-    void addToOutputRing(int index, float sample, float weight)
-    {
-        outputRing[static_cast<size_t>(index)] += sample;
-        outputWeightRing[static_cast<size_t>(index)] += weight;
-    }
-
     static float clampPitchRatio(float ratio)
     {
         return std::clamp(ratio, 0.25f, 4.0f);
@@ -445,6 +443,38 @@ private:
         return distance;
     }
 
+    float readStretchRingNormalizedLinear(float index) const
+    {
+        const float wrapped = wrapFloat(index, static_cast<float>(stretchRingSize));
+
+        const int indexA = static_cast<int>(std::floor(wrapped));
+        const int indexB = wrapInt(indexA + 1, stretchRingSize);
+        const float frac = wrapped - static_cast<float>(indexA);
+
+        const float sumA = stretchRing[static_cast<size_t>(indexA)];
+        const float sumB = stretchRing[static_cast<size_t>(indexB)];
+
+        const float weightA = stretchWeightRing[static_cast<size_t>(indexA)];
+        const float weightB = stretchWeightRing[static_cast<size_t>(indexB)];
+
+        float sampleA = 0.0f;
+        float sampleB = 0.0f;
+
+        if (weightA > 1.0e-6f)
+            sampleA = sumA / weightA;
+
+        if (weightB > 1.0e-6f)
+            sampleB = sumB / weightB;
+
+        return sampleA + frac * (sampleB - sampleA);
+    }
+
+    void clearConsumedStretchSample(int index)
+    {
+        stretchRing[static_cast<size_t>(index)] = 0.0f;
+        stretchWeightRing[static_cast<size_t>(index)] = 0.0f;
+    }
+
 private:
     // Runtime configuration
     double sampleRate = 48000.0;
@@ -465,17 +495,20 @@ private:
 
     // Buffers
     std::vector<float> inputRing;
-    std::vector<float> outputRing;
-    std::vector<float> outputWeightRing;
+
+    // Intermediate WSOLA time-stretch output
+    std::vector<float> stretchRing;
+    std::vector<float> stretchWeightRing;
+
     std::vector<float> window;
 
     int inputRingSize = 0;
-    int outputRingSize = 0;
+    int stretchRingSize = 0;
 
-    // Input/output cursors
+    // Input / stretch cursors
     int inputWriteIndex = 0;
-    int outputReadIndex = 0;
-    int outputWriteCursor = 0;
+    int stretchWriteCursor = 0;
+    float stretchReadIndexFloat = 0.0f;
 
     // Segment scheduling
     int samplesUntilNextSegment = 0;
@@ -483,6 +516,7 @@ private:
 
     // Ratio / source tracking
     float currentRatio = 1.0f;
+    float stretchFactor = 1.0f;
     float predictedSourceIndex = 0.0f;
     float lastChosenSourceIndex = 0.0f;
 
