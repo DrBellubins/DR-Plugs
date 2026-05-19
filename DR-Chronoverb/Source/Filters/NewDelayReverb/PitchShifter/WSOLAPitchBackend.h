@@ -94,7 +94,9 @@ public:
             if (samplesUntilNextSegment <= 0)
             {
                 synthesizeNextSegment();
-                samplesUntilNextSegment = synthesisHopSamples;
+
+                samplesUntilNextSegment = static_cast<int>(
+                    std::round(static_cast<float>(synthesisHopSamples) / stretchFactor));
             }
         }
 
@@ -108,7 +110,7 @@ public:
             const float targetReadIncrement = getControlledReadIncrement();
 
             // Small smoothing to reduce zipper/jitter in read-rate modulation.
-            smoothedReadIncrement += 0.02f * (targetReadIncrement - smoothedReadIncrement);
+            smoothedReadIncrement += 0.0005f * (targetReadIncrement - smoothedReadIncrement);
 
             stretchReadIndexFloat =
                 wrapFloat(stretchReadIndexFloat + smoothedReadIncrement,
@@ -297,8 +299,7 @@ private:
         // WSOLA time-stretch stage:
         // synthesis hop is fixed in stretched domain
         // analysis hop depends on stretch factor
-        const float analysisHop =
-            static_cast<float>(synthesisHopSamples) * stretchFactor;
+        const float analysisHop = static_cast<float>(synthesisHopSamples) / stretchFactor;
 
         const int predictedIndexInt =
             wrapInt(static_cast<int>(std::round(predictedSourceIndex)), inputRingSize);
@@ -326,7 +327,7 @@ private:
             wrapInt(stretchWriteCursor + synthesisHopSamples, stretchRingSize);
 
         lastChosenSourceIndex = static_cast<float>(bestSourceIndex);
-        predictedSourceIndex = lastChosenSourceIndex + analysisHop;
+        predictedSourceIndex = wrapFloat(lastChosenSourceIndex + analysisHop, static_cast<float>(inputRingSize));
     }
 
     int findBestMatchingSourceIndex(int predictedSourceIndexSamples) const
