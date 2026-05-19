@@ -168,7 +168,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         {
             DBG("WSOLA underflows L: " << wetInputPitchShifterLeft.GetBackendUnderflowCount()
                 << " rejects L: " << wetInputPitchShifterLeft.GetBackendCausalGuardRejectCount()
-                << " matchErr L: " << wetInputPitchShifterLeft.GetBackendLastBestMatchError()
+                << " matchScore L: " << wetInputPitchShifterLeft.GetBackendLastBestMatchError()
                 << " readWeight L: " << wetInputPitchShifterLeft.GetCurrentReadWeight()
                 << " avgReadWeight L: " << wetInputPitchShifterLeft.GetAverageReadWeightWindow()
                 << " minReadWeight L: " << wetInputPitchShifterLeft.GetDebugMinReadWeight()

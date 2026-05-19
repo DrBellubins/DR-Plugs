@@ -472,11 +472,16 @@ private:
 
     int findBestMatchingSourceIndex(int predictedSourceIndexSamples) const
     {
-        float bestError = std::numeric_limits<float>::max();
+        float bestScore = -std::numeric_limits<float>::max();
         int bestIndex = predictedSourceIndexSamples;
         bool foundValidCandidate = false;
 
         const int overlapStretchStart = stretchWriteCursor;
+
+        // Optional continuity bias:
+        // Higher values keep matches closer to predictedSourceIndexSamples.
+        // Start small so the correlation quality still dominates.
+        constexpr float distancePenaltyPerSample = 0.0005f;
 
         for (int delta = -searchRadiusSamples; delta <= searchRadiusSamples; ++delta)
         {
@@ -491,7 +496,8 @@ private:
 
             foundValidCandidate = true;
 
-            float error = 0.0f;
+            float existingMean = 0.0f;
+            float candidateMean = 0.0f;
 
             for (int i = 0; i < overlapSamples; ++i)
             {
@@ -505,16 +511,62 @@ private:
                     stretchWeightRing[static_cast<size_t>(stretchIndex)];
 
                 float existingSample = 0.0f;
-                if (existingWeight > 1.0e-6f)
-                    existingSample = stretchRing[static_cast<size_t>(stretchIndex)] / existingWeight;
 
-                const float diff = existingSample - candidateSample;
-                error += diff * diff;
+                if (existingWeight > 1.0e-6f)
+                {
+                    existingSample =
+                        stretchRing[static_cast<size_t>(stretchIndex)] / existingWeight;
+                }
+
+                existingMean += existingSample;
+                candidateMean += candidateSample;
             }
 
-            if (error < bestError)
+            existingMean /= static_cast<float>(overlapSamples);
+            candidateMean /= static_cast<float>(overlapSamples);
+
+            float dot = 0.0f;
+            float energyExisting = 0.0f;
+            float energyCandidate = 0.0f;
+
+            for (int i = 0; i < overlapSamples; ++i)
             {
-                bestError = error;
+                const float candidateSample =
+                    readInputRingLinear(static_cast<float>(candidateIndex + i));
+
+                const int stretchIndex =
+                    wrapInt(overlapStretchStart + i, stretchRingSize);
+
+                const float existingWeight =
+                    stretchWeightRing[static_cast<size_t>(stretchIndex)];
+
+                float existingSample = 0.0f;
+
+                if (existingWeight > 1.0e-6f)
+                {
+                    existingSample =
+                        stretchRing[static_cast<size_t>(stretchIndex)] / existingWeight;
+                }
+
+                const float existingZeroMean = existingSample - existingMean;
+                const float candidateZeroMean = candidateSample - candidateMean;
+
+                dot += existingZeroMean * candidateZeroMean;
+                energyExisting += existingZeroMean * existingZeroMean;
+                energyCandidate += candidateZeroMean * candidateZeroMean;
+            }
+
+            const float denominator =
+                std::sqrt(std::max(energyExisting * energyCandidate, 1.0e-12f));
+
+            float score = dot / denominator;
+
+            // Optional predictor-distance penalty to reduce wandering.
+            score -= distancePenaltyPerSample * std::abs(static_cast<float>(delta));
+
+            if (score > bestScore)
+            {
+                bestScore = score;
                 bestIndex = candidateIndex;
             }
         }
@@ -525,10 +577,13 @@ private:
             return predictedSourceIndexSamples;
         }
 
-        if (!std::isfinite(bestError))
-            bestError = 0.0f;
+        if (!std::isfinite(bestScore))
+            bestScore = -1.0f;
 
-        lastBestMatchError.store(bestError, std::memory_order_relaxed);
+        // Reuse existing debug field for now.
+        // Note: this is now a correlation score, not an error.
+        lastBestMatchError.store(bestScore, std::memory_order_relaxed);
+
         return bestIndex;
     }
 
