@@ -4,11 +4,18 @@
 # Finally, we supply a list of source files that will be built into the target.
 
 # Gather all .cpp and .h files in Utils
-file(GLOB UTILS_SOURCES "Utils/*.cpp" "Utils/*.h")
-file(GLOB FILTERS_SOURCES "Filters/*.cpp" "Filters/*.h")
+file(GLOB_RECURSE UTILS_SOURCES
+        "Utils/*.cpp"
+        "Utils/*.h"
+)
+
+file(GLOB_RECURSE FILTERS_SOURCES
+        "Filters/*.cpp"
+        "Filters/*.h"
+)
 
 target_sources("${PROJECT_NAME}"
-    PRIVATE
+        PRIVATE
         PluginEditor.h
         PluginEditor.cpp
         PluginProcessor.h
