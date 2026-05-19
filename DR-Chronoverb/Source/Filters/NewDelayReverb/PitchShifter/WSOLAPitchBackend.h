@@ -319,6 +319,16 @@ public:
         return lastChosenSourceIndex;
     }
 
+    float GetAnalysisHopForDebug() const
+    {
+        return static_cast<float>(synthesisHopSamples) / stretchFactor;
+    }
+
+    float GetStretchFactorForDebug() const
+    {
+        return stretchFactor;
+    }
+
     void ResetDebugReadWeightExtrema()
     {
         debugMinReadWeight.store(1000000.0f, std::memory_order_relaxed);

@@ -370,6 +370,22 @@ public:
         return -1.0f;
     }
 
+    float GetAnalysisHopForDebug() const
+    {
+        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
+            return wsola->GetAnalysisHopForDebug();
+
+        return -1.0f;
+    }
+
+    float GetStretchFactorForDebug() const
+    {
+        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
+            return wsola->GetStretchFactorForDebug();
+
+        return -1.0f;
+    }
+
     void ResetDebugReadWeightExtrema()
     {
         if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
