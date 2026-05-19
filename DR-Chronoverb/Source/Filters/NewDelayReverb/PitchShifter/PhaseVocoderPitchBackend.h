@@ -310,7 +310,7 @@ private:
 
         outputAccumulator.swap(pendingOutputAccumulator);
         outputWindowSumAccumulator.swap(pendingOutputWindowSumAccumulator);
-        
+
         outputReadIndex = pendingOutputReadIndex;
         outputWriteBase = pendingOutputWriteBase;
 
@@ -347,6 +347,7 @@ private:
                 pathSynthesisPhase,
                 pathOutputAccumulator,
                 pathWindowSumAccumulator,
+                pathOutputReadIndex,
                 pathOutputWriteBase,
                 pathOutputFifo);
         }
@@ -378,7 +379,8 @@ private:
         std::vector<float>& pathSynthesisPhase,
         std::vector<float>& pathOutputAccumulator,
         std::vector<float>& pathWindowSumAccumulator,
-        int pathOutputWriteBase,
+        int& pathOutputReadIndex,
+        int& pathOutputWriteBase,
         std::vector<float>& pathOutputFifo)
     {
         for (int i = 0; i < fftSize; ++i)
@@ -452,7 +454,7 @@ private:
             const int readIdx = pathOutputReadIndex % accSize;
 
             const float winSum = pathWindowSumAccumulator[static_cast<size_t>(readIdx)];
-            const float raw    = pathOutputAccumulator[static_cast<size_t>(readIdx)];
+            const float raw = pathOutputAccumulator[static_cast<size_t>(readIdx)];
 
             // Fix 3: divide by accumulated window² to normalise OLA amplitude.
             const float normalized = (winSum > 1.0e-6f) ? (raw / winSum) : 0.0f;
