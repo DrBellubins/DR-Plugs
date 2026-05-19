@@ -40,8 +40,8 @@ public:
 
         SetSegmentLengthMilliseconds(18.0f);
         SetOverlapPercent(0.60f);
-        SetSearchRadiusMilliseconds(2.0f);
-        SetLookbackMilliseconds(60.0f);
+        SetSearchRadiusMilliseconds(4.0f);
+        SetLookbackMilliseconds(70.0f);
 
         rebuildParametersFromTimeSettings();
 
@@ -139,6 +139,13 @@ public:
 
         currentRatio = clamped;
         stretchFactor = currentRatio;
+
+        // Re-phase scheduler so the next segment is synthesized on the new cadence.
+        samplesUntilNextSegment = std::max(
+            1,
+            static_cast<int>(std::round(
+                static_cast<float>(synthesisHopSamples) / stretchFactor))
+        );
     }
 
     void SetInitialRatio(float ratio) override
@@ -327,13 +334,37 @@ private:
             wrapInt(stretchWriteCursor + synthesisHopSamples, stretchRingSize);
 
         lastChosenSourceIndex = static_cast<float>(bestSourceIndex);
-        predictedSourceIndex = wrapFloat(lastChosenSourceIndex + analysisHop, static_cast<float>(inputRingSize));
+
+        const float freeRunningPrediction =
+            wrapFloat(lastChosenSourceIndex + analysisHop,
+                      static_cast<float>(inputRingSize));
+
+        const float nominalLookbackPrediction =
+            wrapFloat(static_cast<float>(inputWriteIndex - lookbackSamples),
+                      static_cast<float>(inputRingSize));
+
+        // Gently pull predictor back toward the nominal causally-safe region.
+        const float pull = 0.1f;
+
+        // Compute shortest wrapped difference
+        float delta = nominalLookbackPrediction - freeRunningPrediction;
+        const float ringSizeF = static_cast<float>(inputRingSize);
+
+        while (delta < -0.5f * ringSizeF)
+            delta += ringSizeF;
+
+        while (delta > 0.5f * ringSizeF)
+            delta -= ringSizeF;
+
+        predictedSourceIndex =
+            wrapFloat(freeRunningPrediction + (pull * delta), ringSizeF);
     }
 
     int findBestMatchingSourceIndex(int predictedSourceIndexSamples) const
     {
         float bestError = std::numeric_limits<float>::max();
         int bestIndex = predictedSourceIndexSamples;
+        bool foundValidCandidate = false;
 
         const int overlapStretchStart = stretchWriteCursor;
 
@@ -347,6 +378,8 @@ private:
                 causalGuardRejectCount.fetch_add(1, std::memory_order_relaxed);
                 continue;
             }
+
+            foundValidCandidate = true;
 
             float error = 0.0f;
 
@@ -363,10 +396,7 @@ private:
 
                 float existingSample = 0.0f;
                 if (existingWeight > 1.0e-6f)
-                {
-                    existingSample =
-                        stretchRing[static_cast<size_t>(stretchIndex)] / existingWeight;
-                }
+                    existingSample = stretchRing[static_cast<size_t>(stretchIndex)] / existingWeight;
 
                 const float diff = existingSample - candidateSample;
                 error += diff * diff;
@@ -377,6 +407,12 @@ private:
                 bestError = error;
                 bestIndex = candidateIndex;
             }
+        }
+
+        if (!foundValidCandidate)
+        {
+            lastBestMatchError.store(0.0f, std::memory_order_relaxed);
+            return predictedSourceIndexSamples;
         }
 
         if (!std::isfinite(bestError))
