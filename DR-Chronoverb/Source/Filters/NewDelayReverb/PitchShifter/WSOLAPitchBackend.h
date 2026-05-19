@@ -35,10 +35,12 @@ public:
         sampleRate = newSampleRate;
         maximumBlockSizeCached = maximumBlockSize;
 
-        SetSegmentLengthMilliseconds(14.0f);
+        SetSegmentLengthMilliseconds(18.0f);
         SetOverlapPercent(0.60f);
         SetSearchRadiusMilliseconds(2.0f);
         SetLookbackMilliseconds(60.0f);
+
+        targetReadDistanceSamples = static_cast<float>(segmentLengthSamples * 3);
 
         rebuildParametersFromTimeSettings();
 
@@ -108,11 +110,11 @@ public:
         {
             outputSample = readStretchRingNormalizedLinear(stretchReadIndexFloat);
 
-            stretchReadIndexFloat =
-                wrapFloat(stretchReadIndexFloat + stretchFactor,
-                          static_cast<float>(stretchRingSize));
+            const float readIncrement = getControlledReadIncrement();
 
-            reclaimOldStretchData();
+            stretchReadIndexFloat =
+                wrapFloat(stretchReadIndexFloat + readIncrement,
+                          static_cast<float>(stretchRingSize));
         }
         else
         {
@@ -514,6 +516,31 @@ private:
         }
     }
 
+    float getReadDistanceBehindWrite() const
+    {
+        const float writePos = static_cast<float>(stretchWriteCursor);
+        float distance = writePos - stretchReadIndexFloat;
+
+        while (distance < 0.0f)
+            distance += static_cast<float>(stretchRingSize);
+
+        while (distance >= static_cast<float>(stretchRingSize))
+            distance -= static_cast<float>(stretchRingSize);
+
+        return distance;
+    }
+
+    float getControlledReadIncrement() const
+    {
+        const float distance = getReadDistanceBehindWrite();
+        const float error = distance - targetReadDistanceSamples;
+
+        // Small proportional correction only.
+        const float correction = juce::jlimit(-0.02f, 0.02f, error * 0.0005f);
+
+        return stretchFactor + correction;
+    }
+
 private:
     // Runtime configuration
     double sampleRate = 48000.0;
@@ -549,6 +576,7 @@ private:
     int stretchWriteCursor = 0;
     float stretchReadIndexFloat = 0.0f;
     int stretchClearCursor = 0;
+    float targetReadDistanceSamples = 0.0f;
 
     // Segment scheduling
     int samplesUntilNextSegment = 0;
