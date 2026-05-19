@@ -672,7 +672,7 @@ void NewDelayReverb::rebuildPitchSequences()
         // 2.0f  = +1 octave
         // 0.5f  = -1 octave
         // 1.0f  = unison
-        constantSequence->SetPitchRatio(0.5f);
+        constantSequence->SetPitchRatio(2.0f);
 
         shifter.SetSequence(std::move(constantSequence));
     };

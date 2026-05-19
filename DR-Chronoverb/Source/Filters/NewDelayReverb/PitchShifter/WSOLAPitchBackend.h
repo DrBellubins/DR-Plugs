@@ -35,6 +35,11 @@ public:
         sampleRate = newSampleRate;
         maximumBlockSizeCached = maximumBlockSize;
 
+        SetSegmentLengthMilliseconds(18.0f);
+        SetOverlapPercent(0.60f);
+        SetSearchRadiusMilliseconds(2.0f);
+        SetLookbackMilliseconds(60.0f);
+
         rebuildParametersFromTimeSettings();
 
         // Input history needs enough room for:
@@ -101,17 +106,19 @@ public:
 
         if (initialized)
         {
-            outputSample = readStretchRingNormalizedLinear(stretchReadIndexFloat);
+            if (hasEnoughStretchEnergyNear(stretchReadIndexFloat))
+            {
+                outputSample = readStretchRingNormalizedLinear(stretchReadIndexFloat);
 
-            const int clearIndex = wrapInt(
-                static_cast<int>(std::floor(stretchReadIndexFloat)),
-                stretchRingSize);
-
-            clearConsumedStretchSample(clearIndex);
-
-            stretchReadIndexFloat =
-                wrapFloat(stretchReadIndexFloat + stretchFactor,
-                          static_cast<float>(stretchRingSize));
+                stretchReadIndexFloat =
+                    wrapFloat(stretchReadIndexFloat + stretchFactor,
+                              static_cast<float>(stretchRingSize));
+            }
+            else
+            {
+                underflowCount.fetch_add(1, std::memory_order_relaxed);
+                outputSample = 0.0f;
+            }
         }
         else
         {
@@ -356,10 +363,8 @@ private:
                         stretchRing[static_cast<size_t>(stretchIndex)] / existingWeight;
                 }
 
-                const float weightedCandidate =
-                    candidateSample * window[static_cast<size_t>(i)];
+                const float diff = existingSample - candidateSample;
 
-                const float diff = existingSample - weightedCandidate;
                 error += diff * diff;
             }
 
@@ -473,6 +478,20 @@ private:
     {
         stretchRing[static_cast<size_t>(index)] = 0.0f;
         stretchWeightRing[static_cast<size_t>(index)] = 0.0f;
+    }
+
+    bool hasEnoughStretchEnergyNear(float readIndex) const
+    {
+        const int indexA =
+            wrapInt(static_cast<int>(std::floor(readIndex)), stretchRingSize);
+
+        const int indexB =
+            wrapInt(indexA + 1, stretchRingSize);
+
+        const float weightA = stretchWeightRing[static_cast<size_t>(indexA)];
+        const float weightB = stretchWeightRing[static_cast<size_t>(indexB)];
+
+        return (weightA > 0.05f || weightB > 0.05f);
     }
 
 private:
