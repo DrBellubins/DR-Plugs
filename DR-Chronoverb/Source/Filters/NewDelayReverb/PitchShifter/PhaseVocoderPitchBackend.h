@@ -42,8 +42,13 @@ class PhaseVocoderPitchBackend : public IPitchShifterBackend
         int stretchedOutputReadIndex = 0;
         int stretchedOutputWriteBase = 0;
 
-        std::deque<float> stretchedOutputFifo;
-        float resampleReadPosition = 0.0f;
+        // RT-safe ring buffer for stretched-domain samples (no allocations, no erases).
+        std::vector<float> stretchedRing;
+        int stretchedRingWrite = 0;
+        int stretchedRingRead = 0;
+        int stretchedRingCount = 0;
+
+        float resampleReadPosition = 0.0f; // fractional index into the readable region
         float lastOutputSample = 0.0f;
     };
 
@@ -102,14 +107,11 @@ public:
             out = out * oldGain + pendingOut * newGain;
         }
 
-        // --- HARD SAFETY (diagnostic + prevents host silence due to NaNs/Infs) ---
         if (!std::isfinite(out))
             out = 0.0f;
 
-        // clamp insane spikes that present as crackle
         out = juce::jlimit(-2.0f, 2.0f, out);
 
-        // optional: kill denormals
         if (std::abs(out) < 1.0e-20f)
             out = 0.0f;
 
@@ -132,8 +134,6 @@ public:
             return;
         }
 
-        // DO NOT copy activePath (RT-hostile and can cause discontinuities).
-        // Start a clean pending path for the new ratio and crossfade into it.
         resetPath(pendingPath);
         pendingRatio = clampedRatio;
         hasPendingRatio = true;
@@ -246,9 +246,7 @@ private:
         path.stretchedOutputReadIndex = 0;
         path.stretchedOutputWriteBase = fftSize;
 
-        path.stretchedOutputFifo.clear();
-        path.resampleReadPosition = 0.0f;
-        path.lastOutputSample = 0.0f;
+        initRing(path);
     }
 
     void commitPendingState()
@@ -270,13 +268,14 @@ private:
 
             const float clampedPitch = juce::jlimit(kMinPitchRatio, kMaxPitchRatio, pitchRatio);
 
-            // Phase vocoder does time-stretch, then we resample back to original rate.
-            // Pitch up (>1) => time-stretch DOWN (<1).
+            // Phase vocoder does time-stretch, then we resample back to the original timebase.
+            // Pitch up (> 1.0) should time-stretch DOWN (< 1.0), pitch down (< 1.0) time-stretch UP (> 1.0).
             const float timeStretchRatio = 1.0f / clampedPitch;
 
             processFrame(path, timeStretchRatio);
         }
 
+        // Resampler consumes stretched-domain samples using pitchRatio (not timeStretchRatio).
         return readResampledOutput(path, pitchRatio);
     }
 
@@ -385,65 +384,73 @@ private:
 
             float normalizedSample = 0.0f;
 
+            // Stronger guard: avoid dividing by tiny sums (spike generator).
             if (windowSum > 1.0e-3f)
                 normalizedSample = rawSample / windowSum;
-            else
-                normalizedSample = 0.0f; // If window sum is too small, treat as silence to avoid huge normalization spikes.
 
             if (!std::isfinite(normalizedSample))
                 normalizedSample = 0.0f;
 
-            // keep output bounded to avoid insane impulses entering the resampler FIFO
             normalizedSample = juce::jlimit(-2.0f, 2.0f, normalizedSample);
 
             path.stretchedOutputAccumulator[static_cast<size_t>(readIndex)] = 0.0f;
             path.stretchedOutputWindowSumAccumulator[static_cast<size_t>(readIndex)] = 0.0f;
 
-            path.stretchedOutputFifo.push_back(normalizedSample);
+            ringPush(path, normalizedSample);
+
             path.stretchedOutputReadIndex = (path.stretchedOutputReadIndex + 1) % accumulatorSize;
         }
     }
 
     float readResampledOutput(PathState& path, float pitchRatio)
     {
-        // If we don't have enough samples for cubic interpolation yet,
-        // don't output hard zero (causes crackle / silence in some hosts).
-        if (path.stretchedOutputFifo.size() < static_cast<size_t>(kCubicInterpolationSampleCount))
+        // Need 4 samples for cubic.
+        if (path.stretchedRingCount < kCubicInterpolationSampleCount)
             return path.lastOutputSample;
 
-        const float maxReadablePosition = static_cast<float>(path.stretchedOutputFifo.size() - 1);
-        const float readPosition = juce::jlimit(0.0f, maxReadablePosition, path.resampleReadPosition);
-
-        float outputSample = cubicInterpolate(path.stretchedOutputFifo, readPosition);
-
-        if (!std::isfinite(outputSample))
-            outputSample = 0.0f;
-
-        path.lastOutputSample = outputSample;
-
         const float clampedPitch = juce::jlimit(kMinPitchRatio, kMaxPitchRatio, pitchRatio);
+
+        // Clamp read position to available region.
+        const float maxReadable = static_cast<float>(path.stretchedRingCount - 1);
+        const float readPos = juce::jlimit(0.0f, maxReadable, path.resampleReadPosition);
+
+        const int index1 = static_cast<int>(std::floor(readPos));
+        const float frac = readPos - static_cast<float>(index1);
+
+        const float s0 = ringPeek(path, juce::jlimit(0, path.stretchedRingCount - 1, index1 - 1));
+        const float s1 = ringPeek(path, juce::jlimit(0, path.stretchedRingCount - 1, index1));
+        const float s2 = ringPeek(path, juce::jlimit(0, path.stretchedRingCount - 1, index1 + 1));
+        const float s3 = ringPeek(path, juce::jlimit(0, path.stretchedRingCount - 1, index1 + 2));
+
+        const float a0 = -0.5f * s0 + 1.5f * s1 - 1.5f * s2 + 0.5f * s3;
+        const float a1 = s0 - 2.5f * s1 + 2.0f * s2 - 0.5f * s3;
+        const float a2 = -0.5f * s0 + 0.5f * s2;
+        const float a3 = s1;
+
+        float out = ((a0 * frac + a1) * frac + a2) * frac + a3;
+
+        if (!std::isfinite(out))
+            out = 0.0f;
+
+        out = juce::jlimit(-2.0f, 2.0f, out);
+
+        path.lastOutputSample = out;
+
+        // Advance fractional read head.
         path.resampleReadPosition += clampedPitch;
 
-        const int samplesAvailableToTrim =
-            std::max(0, static_cast<int>(path.stretchedOutputFifo.size()) - kResampleGuardSamples);
+        // Consume integer part, leaving guard samples in ring.
+        const int guard = kResampleGuardSamples;
+        const int availableToConsume = std::max(0, path.stretchedRingCount - guard);
+        const int consume = std::min(static_cast<int>(std::floor(path.resampleReadPosition)), availableToConsume);
 
-        const int fullyReadSamples = std::min(
-            static_cast<int>(std::floor(path.resampleReadPosition)),
-            samplesAvailableToTrim);
-
-        if (fullyReadSamples > 0)
+        if (consume > 0)
         {
-            const int maxErasePerSample = 64;
-            const int eraseCount = std::min(fullyReadSamples, maxErasePerSample);
-
-            path.stretchedOutputFifo.erase(
-                path.stretchedOutputFifo.begin(),
-                path.stretchedOutputFifo.begin() + eraseCount);
-
-            path.resampleReadPosition -= static_cast<float>(fullyReadSamples);
+            ringConsume(path, consume);
+            path.resampleReadPosition -= static_cast<float>(consume);
         }
 
-        return outputSample;
+        return out;
     }
 
     static float cubicInterpolate(const std::deque<float>& samples, float position)
@@ -543,5 +550,62 @@ private:
             for (int i = 0; i < n; ++i)
                 data[static_cast<size_t>(i)] *= invN;
         }
+    }
+
+    // Ring buffer helpers
+    static int wrapRingIndex(int i, int size)
+    {
+        while (i < 0) i += size;
+        while (i >= size) i -= size;
+        return i;
+    }
+
+    void initRing(PathState& path)
+    {
+        // Needs to comfortably absorb OLA bursts.
+        // FFT 1024, accumulator multiplier 8 => plenty, but ring should be larger than one frame.
+        const int minSize = fftSize * 16;
+        path.stretchedRing.assign(static_cast<size_t>(minSize), 0.0f);
+        path.stretchedRingWrite = 0;
+        path.stretchedRingRead = 0;
+        path.stretchedRingCount = 0;
+        path.resampleReadPosition = 0.0f;
+        path.lastOutputSample = 0.0f;
+    }
+
+    bool ringPush(PathState& path, float x)
+    {
+        const int size = static_cast<int>(path.stretchedRing.size());
+        if (size <= 0) return false;
+
+        // If full, drop oldest (keeps RT running; avoids overwrite bugs).
+        if (path.stretchedRingCount >= size)
+        {
+            path.stretchedRingRead = wrapRingIndex(path.stretchedRingRead + 1, size);
+            path.stretchedRingCount = size - 1;
+            // Also shift fractional read position back if it pointed into dropped area.
+            path.resampleReadPosition = juce::jmax(0.0f, path.resampleReadPosition - 1.0f);
+        }
+
+        path.stretchedRing[static_cast<size_t>(path.stretchedRingWrite)] = x;
+        path.stretchedRingWrite = wrapRingIndex(path.stretchedRingWrite + 1, size);
+        ++path.stretchedRingCount;
+        return true;
+    }
+
+    float ringPeek(const PathState& path, int offsetFromRead) const
+    {
+        const int size = static_cast<int>(path.stretchedRing.size());
+        const int idx = wrapRingIndex(path.stretchedRingRead + offsetFromRead, size);
+        return path.stretchedRing[static_cast<size_t>(idx)];
+    }
+
+    void ringConsume(PathState& path, int n)
+    {
+        const int size = static_cast<int>(path.stretchedRing.size());
+        const int consume = juce::jlimit(0, path.stretchedRingCount, n);
+
+        path.stretchedRingRead = wrapRingIndex(path.stretchedRingRead + consume, size);
+        path.stretchedRingCount -= consume;
     }
 };
