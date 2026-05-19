@@ -35,7 +35,7 @@ public:
         sampleRate = newSampleRate;
         maximumBlockSizeCached = maximumBlockSize;
 
-        SetSegmentLengthMilliseconds(18.0f);
+        SetSegmentLengthMilliseconds(14.0f);
         SetOverlapPercent(0.60f);
         SetSearchRadiusMilliseconds(2.0f);
         SetLookbackMilliseconds(60.0f);
@@ -277,12 +277,11 @@ private:
         predictedSourceIndex = static_cast<float>(seedIndex);
         lastChosenSourceIndex = predictedSourceIndex;
 
-        synthesizeNextSegment();
+        for (int i = 0; i < 3; ++i)
+            synthesizeNextSegment();
+
         samplesUntilNextSegment = synthesisHopSamples;
-
-        // Start reading from the beginning of the synthesized stretch ring.
         stretchReadIndexFloat = static_cast<float>(overlapSamples / 2);
-
         initialized = true;
     }
 
