@@ -152,8 +152,8 @@ public:
             std::round((clamped * sampleRate) / 1000.0)));
     }
 
-    void SetJitterPercent(float p)     { jitterPercent      = juce::jlimit(0.0f, 0.5f, p); }
-    void SetLookbackMultiplier(float m){ lookbackMultiplier = juce::jlimit(2.0f, 6.0f, m); }
+    void SetJitterPercent(float percent) { jitterPercent = juce::jlimit(0.0f, 0.5f, percent); }
+    void SetLookbackMultiplier(float multiplier){ lookbackMultiplier = juce::jlimit(2.0f, 6.0f, multiplier); }
 
     void SetBoundaryCrossfadeMilliseconds(float ms)
     {

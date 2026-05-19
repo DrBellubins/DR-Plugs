@@ -18,6 +18,12 @@
 class OctaveEchoPitchShifter
 {
 public:
+    enum class BackendType
+    {
+        Granular,
+        PhaseVocoder
+    };
+
     OctaveEchoPitchShifter()
     {
         auto granular = std::make_unique<GranularPitchBackend>();
@@ -112,8 +118,8 @@ public:
     {
         CommitPendingSequenceIfAny();
 
-        if (auto* g = dynamic_cast<GranularPitchBackend*>(backend.get()))
-            g->OnEchoBoundary(mirroredRatio);
+        if (auto* ganular = dynamic_cast<GranularPitchBackend*>(backend.get()))
+            ganular->OnEchoBoundary(mirroredRatio);
     }
 
     float ProcessSample(float inputSample)
@@ -136,6 +142,24 @@ public:
             pendingSequence->Reset();
 
         hasPendingSequence = true;
+    }
+
+    void SetBackendType(BackendType newBackendType)
+    {
+        if (newBackendType == BackendType::PhaseVocoder)
+        {
+            auto phaseVocoder = std::make_unique<PhaseVocoderPitchBackend>();
+            phaseVocoder->Prepare(sampleRate, maximumBlockSizeCached);
+            SetBackend(std::move(phaseVocoder));
+        }
+        else
+        {
+            auto granular = std::make_unique<GranularPitchBackend>();
+            granular->SetGrainLengthMilliseconds(35.0f);
+            granular->SetJitterPercent(0.15f);
+            granular->SetLookbackMultiplier(3.0f);
+            SetBackend(std::move(granular));
+        }
     }
 
     // Commits a pending sequence immediately — only safe outside the audio thread
@@ -201,9 +225,15 @@ public:
 
     float GetLatencyMilliseconds() const
     {
-        auto* ganular = dynamic_cast<GranularPitchBackend*>(backend.get());
-        if (ganular != nullptr && GetEnabled())
-            return ganular->GetLatencyMilliseconds();
+        if (!GetEnabled() || backend == nullptr)
+            return 0.0f;
+
+        if (auto* granular = dynamic_cast<GranularPitchBackend*>(backend.get()))
+            return granular->GetLatencyMilliseconds();
+
+        if (auto* phaseVocoder = dynamic_cast<PhaseVocoderPitchBackend*>(backend.get()))
+            return phaseVocoder->GetLatencyMilliseconds();
+
         return 0.0f;
     }
 

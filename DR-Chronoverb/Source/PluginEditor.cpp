@@ -26,7 +26,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     // Make sure that before the constructor has finished, you've set the
     // editor's size to whatever you need it to be.
-    setSize(880, 580);
+    setSize(900, 650);
 
     const int cX = getWidth() / 2;
     const int cY = getHeight() / 2;
@@ -85,19 +85,6 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     uiHelpers.CreateSliderLabel(*this, diffusionQualityLabel, *diffusionQualitySlider,
         "Diffusion Quality", 15.0f, 170);
-
-    /*if (diffusionQualitySlider != nullptr)
-    {
-        diffusionQualitySlider->onValueChange = [this]()
-        {
-            auto* qualityParam = processorRef.parameters.getParameter("diffusionQuality");
-
-            if (qualityParam != nullptr)
-            {
-                int qualityRounded = static_cast<int>(std::round(ModeParameter->convertFrom0to1(ModeParameter->getValue())));
-            }
-        };
-    }*/
 
     // ------ Knob Labels ------
     uiHelpers.CreateKnobLabel(*this, delayTimeLabel, *delayTimeKnob, "Delay Time", 20.0f, 80);
@@ -213,7 +200,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     // ------ TABBED PAGE BOX ------
     bottomTabbedPageBox = std::make_unique<TabbedPageBox>();
     addAndMakeVisible(*bottomTabbedPageBox);
-    bottomTabbedPageBox->setBounds(25, 430, 830, 140);
+    bottomTabbedPageBox->setBounds(25, 450, 850, 180);
 
     pitchPage = std::make_unique<Component>();
     distortionPage = std::make_unique<Component>();
@@ -237,25 +224,10 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     uiHelpers.CreateCheckbox(*pitchPage, pitchShiftStereoToggle,
     pitchShiftStereoToggleAttachment,
     "pitchShiftStereoEnabled",
-    20, 20, 430, 16);
+    20, 20, 30, 60);
 
     uiHelpers.CreateCheckboxLabel(*pitchPage, pitchShiftStereoLabel, *pitchShiftStereoToggle,
         "Stereo", 14.0f, -38);
-
-    // Algorithm dropdown (Granular / Phase Vocoder)
-    pitchShiftAlgorithmDropdown = std::make_unique<ThemedDropdown>();
-    pitchPage->addAndMakeVisible(*pitchShiftAlgorithmDropdown);
-    pitchShiftAlgorithmDropdown->setBounds(390, 0, 220, 32);
-
-    pitchShiftAlgorithmAttachment = std::make_unique<ThemedDropdown::Attachment>(
-        processorRef.parameters,
-        "pitchShiftAlgorithm",
-        *pitchShiftAlgorithmDropdown
-    );
-
-    // Label sits to the left of the dropdown
-    uiHelpers.CreateLabel(*pitchPage, pitchShiftAlgorithmLabel,
-        "Algorithm", 12.0f, 480, -8);
 
     // Horizontal slider
     horizontalPitchRangeSlider = std::make_unique<HorizontalRangeSlider>(-48.0f, 48.0f);
@@ -265,7 +237,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     horizontalPitchRangeSlider->setRoundness(7.0f);
 
     pitchPage->addAndMakeVisible(*horizontalPitchRangeSlider);
-    horizontalPitchRangeSlider->setBounds(40, 60, 730, 25);
+    horizontalPitchRangeSlider->setBounds(40, 100, 730, 25);
 
     horizontalPitchRangeAttachment = std::make_unique<HorizontalRangeSliderAttachment>(
         processorRef.parameters,
@@ -279,15 +251,37 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     horizontalPitchRangeTooltipOverlay->setBounds(pitchPage->getLocalBounds());
     horizontalPitchRangeTooltipOverlay->toFront(false);
 
+    // Pitch mode (sequence)
     pitchShiftModeDropdown = std::make_unique<ThemedDropdown>();
     pitchPage->addAndMakeVisible(*pitchShiftModeDropdown);
-    pitchShiftModeDropdown->setBounds(200, 0, 180, 32);
+    pitchShiftModeDropdown->setBounds(500, 0, 180, 32);
 
     pitchShiftModeAttachment = std::make_unique<ThemedDropdown::Attachment>(
         processorRef.parameters,
         "pitchShiftMode",
         *pitchShiftModeDropdown
     );
+
+    uiHelpers.CreateLabel(*pitchPage, pitchShiftModeLabel,
+        "Sequence:", 12.0f, 0, 0);
+
+    pitchShiftModeLabel->setBounds(340, 0, 220, 32);
+
+    // Algorithm dropdown (Granular / Phase Vocoder)
+    pitchShiftAlgorithmDropdown = std::make_unique<ThemedDropdown>();
+    pitchPage->addAndMakeVisible(*pitchShiftAlgorithmDropdown);
+    pitchShiftAlgorithmDropdown->setBounds(500, 50, 220, 32);
+
+    pitchShiftAlgorithmAttachment = std::make_unique<ThemedDropdown::Attachment>(
+        processorRef.parameters,
+        "pitchShiftAlgorithm",
+        *pitchShiftAlgorithmDropdown
+    );
+
+    uiHelpers.CreateLabel(*pitchPage, pitchShiftAlgorithmLabel,
+        "Algorithm:", 12.0f, 0, 0);
+
+    pitchShiftAlgorithmLabel->setBounds(340, 50, 220, 32);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
