@@ -53,10 +53,23 @@ public:
         inputFifo.assign(static_cast<size_t>(fftSize), 0.0f);
         inputWriteCount = 0;
 
-        outputAccumulator.assign(static_cast<size_t>(fftSize * 4), 0.0f);
-        outputReadIndex = 0;
-        outputWriteBase = 0;
+        const int accSize = fftSize * 4;
 
+        outputAccumulator.assign(static_cast<size_t>(accSize), 0.0f);
+        outputWindowSumAccumulator.assign(static_cast<size_t>(accSize), 0.0f); // NEW
+
+        // FIX: write pointer starts fftSize ahead of read pointer so the
+        // overlap-add region is fully populated before we drain it (Fix 4).
+        outputReadIndex  = 0;
+        outputWriteBase  = fftSize;
+
+        pendingOutputAccumulator.assign(static_cast<size_t>(accSize), 0.0f);
+        pendingOutputWindowSumAccumulator.assign(static_cast<size_t>(accSize), 0.0f); // NEW
+
+        pendingOutputReadIndex  = 0;
+        pendingOutputWriteBase  = fftSize;
+
+        // --- rest of Reset() unchanged below ---
         frameInput.assign(static_cast<size_t>(fftSize), 0.0f);
         fftBuffer.assign(static_cast<size_t>(fftSize), {});
         ifftBuffer.assign(static_cast<size_t>(fftSize), {});
@@ -70,20 +83,15 @@ public:
         outputFifo.clear();
         outputFifo.reserve(static_cast<size_t>(fftSize * 2));
 
-        currentRatio = 1.0f;
-        pendingRatio = 1.0f;
+        pendingOutputFifo.clear();
+        pendingOutputFifo.reserve(static_cast<size_t>(fftSize * 2));
 
+        currentRatio  = 1.0f;
+        pendingRatio  = 1.0f;
         hasPendingRatio = false;
 
         crossfadeRemainingSamples = 0;
         crossfadeTotalSamples = boundaryCrossfadeSamples;
-
-        pendingOutputFifo.clear();
-        pendingOutputFifo.reserve(static_cast<size_t>(fftSize * 2));
-
-        pendingOutputAccumulator.assign(static_cast<size_t>(fftSize * 4), 0.0f);
-        pendingOutputReadIndex = 0;
-        pendingOutputWriteBase = 0;
 
         pendingInputFifo.assign(static_cast<size_t>(fftSize), 0.0f);
         pendingInputWriteCount = 0;
@@ -102,6 +110,7 @@ public:
             previousAnalysisPhase,
             synthesisPhase,
             outputAccumulator,
+            outputWindowSumAccumulator,
             outputReadIndex,
             outputWriteBase,
             outputFifo);
@@ -116,6 +125,7 @@ public:
                 pendingPreviousAnalysisPhase,
                 pendingSynthesisPhase,
                 pendingOutputAccumulator,
+                pendingOutputWindowSumAccumulator,
                 pendingOutputReadIndex,
                 pendingOutputWriteBase,
                 pendingOutputFifo);
@@ -239,6 +249,12 @@ private:
     std::vector<float> pendingPreviousAnalysisPhase;
     std::vector<float> pendingSynthesisPhase;
 
+    // Active path OLA window-sum accumulators
+    std::vector<float> outputWindowSumAccumulator;
+
+    // Pending path OLA window-sum accumulators
+    std::vector<float> pendingOutputWindowSumAccumulator;
+
     std::vector<float> pendingOutputFifo;
 
     void buildWindow()
@@ -274,6 +290,7 @@ private:
         pendingInputWriteCount = inputWriteCount;
 
         pendingOutputAccumulator = outputAccumulator;
+        pendingOutputWindowSumAccumulator = outputWindowSumAccumulator;
         pendingOutputReadIndex = outputReadIndex;
         pendingOutputWriteBase = outputWriteBase;
 
@@ -292,6 +309,8 @@ private:
         inputWriteCount = pendingInputWriteCount;
 
         outputAccumulator.swap(pendingOutputAccumulator);
+        outputWindowSumAccumulator.swap(pendingOutputWindowSumAccumulator);
+        
         outputReadIndex = pendingOutputReadIndex;
         outputWriteBase = pendingOutputWriteBase;
 
@@ -309,6 +328,7 @@ private:
         std::vector<float>& pathPreviousAnalysisPhase,
         std::vector<float>& pathSynthesisPhase,
         std::vector<float>& pathOutputAccumulator,
+        std::vector<float>& pathWindowSumAccumulator,
         int& pathOutputReadIndex,
         int& pathOutputWriteBase,
         std::vector<float>& pathOutputFifo)
@@ -326,6 +346,7 @@ private:
                 pathPreviousAnalysisPhase,
                 pathSynthesisPhase,
                 pathOutputAccumulator,
+                pathWindowSumAccumulator,
                 pathOutputWriteBase,
                 pathOutputFifo);
         }
@@ -337,11 +358,6 @@ private:
             outputSample = pathOutputFifo.front();
             pathOutputFifo.erase(pathOutputFifo.begin());
         }
-
-        ++pathOutputReadIndex;
-        ++pathOutputWriteBase;
-
-        wrapAccumulatorIndices(pathOutputAccumulator, pathOutputReadIndex, pathOutputWriteBase);
 
         return outputSample;
     }
@@ -361,6 +377,7 @@ private:
         std::vector<float>& pathPreviousAnalysisPhase,
         std::vector<float>& pathSynthesisPhase,
         std::vector<float>& pathOutputAccumulator,
+        std::vector<float>& pathWindowSumAccumulator,
         int pathOutputWriteBase,
         std::vector<float>& pathOutputFifo)
     {
@@ -376,8 +393,6 @@ private:
         fft(fftBuffer, false);
 
         std::fill(ifftBuffer.begin(), ifftBuffer.end(), std::complex<float>(0.0f, 0.0f));
-
-        const float synthesisHop = static_cast<float>(analysisHop) / pitchRatio;
 
         for (int binIndex = 0; binIndex < numBins; ++binIndex)
         {
@@ -398,7 +413,7 @@ private:
                 / static_cast<float>(analysisHop);
 
             pathSynthesisPhase[static_cast<size_t>(binIndex)] +=
-                trueFrequency * synthesisHop;
+                trueFrequency * static_cast<float>(analysisHop) * pitchRatio;
 
             pathPreviousAnalysisPhase[static_cast<size_t>(binIndex)] = phase;
 
@@ -416,27 +431,41 @@ private:
 
         fft(ifftBuffer, true);
 
+        const int accSize = static_cast<int>(pathOutputAccumulator.size());
+
         for (int i = 0; i < fftSize; ++i)
         {
             const float sample =
                 (ifftBuffer[static_cast<size_t>(i)].real() / static_cast<float>(fftSize))
                 * window[static_cast<size_t>(i)];
 
-            const int accumulatorIndex =
-                (pathOutputWriteBase + i) % static_cast<int>(pathOutputAccumulator.size());
+            const int accIdx = (pathOutputWriteBase + i) % accSize;
 
-            pathOutputAccumulator[static_cast<size_t>(accumulatorIndex)] += sample;
+            pathOutputAccumulator[static_cast<size_t>(accIdx)] += sample;
+
+            pathWindowSumAccumulator[static_cast<size_t>(accIdx)] +=
+                window[static_cast<size_t>(i)] * window[static_cast<size_t>(i)];
         }
 
         for (int i = 0; i < analysisHop; ++i)
         {
-            const int readIndex =
-                (pathOutputReadIndexPlaceholder(pathOutputWriteBase, i)) % static_cast<int>(pathOutputAccumulator.size());
+            const int readIdx = pathOutputReadIndex % accSize;
 
-            const float out = pathOutputAccumulator[static_cast<size_t>(readIndex)];
-            pathOutputAccumulator[static_cast<size_t>(readIndex)] = 0.0f;
-            pathOutputFifo.push_back(out);
+            const float winSum = pathWindowSumAccumulator[static_cast<size_t>(readIdx)];
+            const float raw    = pathOutputAccumulator[static_cast<size_t>(readIdx)];
+
+            // Fix 3: divide by accumulated window² to normalise OLA amplitude.
+            const float normalized = (winSum > 1.0e-6f) ? (raw / winSum) : 0.0f;
+
+            pathOutputAccumulator[static_cast<size_t>(readIdx)]    = 0.0f;
+            pathWindowSumAccumulator[static_cast<size_t>(readIdx)] = 0.0f;
+
+            pathOutputFifo.push_back(normalized);
+            pathOutputReadIndex = (pathOutputReadIndex + 1) % accSize;
         }
+
+        pathOutputWriteBase = (pathOutputWriteBase + analysisHop)
+                      % static_cast<int>(pathOutputAccumulator.size());
     }
 
     int pathOutputReadIndexPlaceholder(int pathOutputWriteBase, int sampleOffset) const
