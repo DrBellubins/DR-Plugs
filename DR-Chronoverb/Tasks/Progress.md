@@ -16,7 +16,7 @@
 
 ## Pitch shifting
 - ### UI
-- [ ] Backend quality dropdown
+- [x] Backend quality dropdown
 - ### DSP
 - [x] Up/Down/Random sequence modes
 - [x] Octave-only pitch change (no mid-echo pitch change)
