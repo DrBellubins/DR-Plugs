@@ -168,7 +168,20 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         {
             DBG("WSOLA underflows L: " << wetInputPitchShifterLeft.GetBackendUnderflowCount()
                 << " rejects L: " << wetInputPitchShifterLeft.GetBackendCausalGuardRejectCount()
-                << " matchErr L: " << wetInputPitchShifterLeft.GetBackendLastBestMatchError());
+                << " matchErr L: " << wetInputPitchShifterLeft.GetBackendLastBestMatchError()
+                << " readWeight L: " << wetInputPitchShifterLeft.GetCurrentReadWeight()
+                << " avgReadWeight L: " << wetInputPitchShifterLeft.GetAverageReadWeightWindow()
+                << " minReadWeight L: " << wetInputPitchShifterLeft.GetDebugMinReadWeight()
+                << " maxReadWeight L: " << wetInputPitchShifterLeft.GetDebugMaxReadWeight()
+                << " readDist L: " << wetInputPitchShifterLeft.GetReadDistanceBehindWriteForDebug()
+                << " untilNextSeg L: " << wetInputPitchShifterLeft.GetSamplesUntilNextSegmentForDebug()
+                << " segLen L: " << wetInputPitchShifterLeft.GetSegmentLengthSamplesForDebug()
+                << " overlap L: " << wetInputPitchShifterLeft.GetOverlapSamplesForDebug()
+                << " hop L: " << wetInputPitchShifterLeft.GetSynthesisHopSamplesForDebug()
+                << " writeCursor L: " << wetInputPitchShifterLeft.GetStretchWriteCursorForDebug()
+                << " readIndex L: " << wetInputPitchShifterLeft.GetStretchReadIndexForDebug());
+
+            wetInputPitchShifterLeft.ResetDebugReadWeightExtrema();
         }
     }
 }

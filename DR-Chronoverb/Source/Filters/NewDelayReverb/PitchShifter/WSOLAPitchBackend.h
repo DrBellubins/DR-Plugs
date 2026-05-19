@@ -124,6 +124,16 @@ public:
             outputSample = 0.0f;
         }
 
+        const float currentReadWeight = GetCurrentReadWeight();
+
+        float previousMin = debugMinReadWeight.load(std::memory_order_relaxed);
+        if (currentReadWeight < previousMin)
+            debugMinReadWeight.store(currentReadWeight, std::memory_order_relaxed);
+
+        float previousMax = debugMaxReadWeight.load(std::memory_order_relaxed);
+        if (currentReadWeight > previousMax)
+            debugMaxReadWeight.store(currentReadWeight, std::memory_order_relaxed);
+
         if (!std::isfinite(outputSample))
             outputSample = 0.0f;
 
@@ -203,6 +213,88 @@ public:
         return lastBestMatchError.load(std::memory_order_relaxed);
     }
 
+    float GetCurrentReadWeight() const
+    {
+        if (stretchWeightRing.empty() || stretchRingSize <= 0)
+            return 0.0f;
+
+        const int index =
+            wrapInt(static_cast<int>(std::floor(stretchReadIndexFloat)), stretchRingSize);
+
+        return stretchWeightRing[static_cast<size_t>(index)];
+    }
+
+    float GetAverageReadWeightWindow() const
+    {
+        if (stretchWeightRing.empty() || stretchRingSize <= 0)
+            return 0.0f;
+
+        const int center =
+            wrapInt(static_cast<int>(std::floor(stretchReadIndexFloat)), stretchRingSize);
+
+        float sum = 0.0f;
+        constexpr int radius = 16;
+
+        for (int offset = -radius; offset <= radius; ++offset)
+        {
+            const int idx = wrapInt(center + offset, stretchRingSize);
+            sum += stretchWeightRing[static_cast<size_t>(idx)];
+        }
+
+        return sum / static_cast<float>((radius * 2) + 1);
+    }
+
+    float GetReadDistanceBehindWriteForDebug() const
+    {
+        return getReadDistanceBehindWrite();
+    }
+
+    int GetSamplesUntilNextSegmentForDebug() const
+    {
+        return samplesUntilNextSegment;
+    }
+
+    int GetSegmentLengthSamplesForDebug() const
+    {
+        return segmentLengthSamples;
+    }
+
+    int GetOverlapSamplesForDebug() const
+    {
+        return overlapSamples;
+    }
+
+    int GetSynthesisHopSamplesForDebug() const
+    {
+        return synthesisHopSamples;
+    }
+
+    int GetStretchWriteCursorForDebug() const
+    {
+        return stretchWriteCursor;
+    }
+
+    float GetStretchReadIndexForDebug() const
+    {
+        return stretchReadIndexFloat;
+    }
+
+    float GetDebugMinReadWeight() const
+    {
+        return debugMinReadWeight.load(std::memory_order_relaxed);
+    }
+
+    float GetDebugMaxReadWeight() const
+    {
+        return debugMaxReadWeight.load(std::memory_order_relaxed);
+    }
+
+    void ResetDebugReadWeightExtrema()
+    {
+        debugMinReadWeight.store(1000000.0f, std::memory_order_relaxed);
+        debugMaxReadWeight.store(0.0f, std::memory_order_relaxed);
+    }
+
 private:
     void rebuildParametersFromTimeSettings()
     {
@@ -273,6 +365,8 @@ private:
         underflowCount.store(0, std::memory_order_relaxed);
         causalGuardRejectCount.store(0, std::memory_order_relaxed);
         lastBestMatchError.store(0.0f, std::memory_order_relaxed);
+        debugMinReadWeight.store(1000000.0f, std::memory_order_relaxed);
+        debugMaxReadWeight.store(0.0f, std::memory_order_relaxed);
 
         targetReadDistanceSamples = static_cast<float>(segmentLengthSamples * 3);
     }
@@ -482,7 +576,6 @@ private:
 
     void reclaimOldStretchData()
     {
-        
     }
 
     float getReadDistanceBehindWrite() const
@@ -547,7 +640,6 @@ private:
         return distance;
     }
 
-private:
     // Runtime configuration
     double sampleRate = 48000.0;
     int maximumBlockSizeCached = 0;
@@ -602,4 +694,6 @@ private:
     mutable std::atomic<int> underflowCount { 0 };
     mutable std::atomic<int> causalGuardRejectCount { 0 };
     mutable std::atomic<float> lastBestMatchError { 0.0f };
+    mutable std::atomic<float> debugMinReadWeight { 1000000.0f };
+    mutable std::atomic<float> debugMaxReadWeight { 0.0f };
 };

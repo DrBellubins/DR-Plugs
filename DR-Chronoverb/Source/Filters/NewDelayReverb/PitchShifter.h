@@ -250,6 +250,100 @@ public:
         return -1.0f;
     }
 
+        float GetCurrentReadWeight() const
+    {
+        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
+            return wsola->GetCurrentReadWeight();
+
+        return -1.0f;
+    }
+
+    float GetAverageReadWeightWindow() const
+    {
+        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
+            return wsola->GetAverageReadWeightWindow();
+
+        return -1.0f;
+    }
+
+    float GetReadDistanceBehindWriteForDebug() const
+    {
+        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
+            return wsola->GetReadDistanceBehindWriteForDebug();
+
+        return -1.0f;
+    }
+
+    int GetSamplesUntilNextSegmentForDebug() const
+    {
+        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
+            return wsola->GetSamplesUntilNextSegmentForDebug();
+
+        return -1;
+    }
+
+    int GetSegmentLengthSamplesForDebug() const
+    {
+        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
+            return wsola->GetSegmentLengthSamplesForDebug();
+
+        return -1;
+    }
+
+    int GetOverlapSamplesForDebug() const
+    {
+        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
+            return wsola->GetOverlapSamplesForDebug();
+
+        return -1;
+    }
+
+    int GetSynthesisHopSamplesForDebug() const
+    {
+        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
+            return wsola->GetSynthesisHopSamplesForDebug();
+
+        return -1;
+    }
+
+    int GetStretchWriteCursorForDebug() const
+    {
+        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
+            return wsola->GetStretchWriteCursorForDebug();
+
+        return -1;
+    }
+
+    float GetStretchReadIndexForDebug() const
+    {
+        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
+            return wsola->GetStretchReadIndexForDebug();
+
+        return -1.0f;
+    }
+
+    float GetDebugMinReadWeight() const
+    {
+        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
+            return wsola->GetDebugMinReadWeight();
+
+        return -1.0f;
+    }
+
+    float GetDebugMaxReadWeight() const
+    {
+        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
+            return wsola->GetDebugMaxReadWeight();
+
+        return -1.0f;
+    }
+
+    void ResetDebugReadWeightExtrema()
+    {
+        if (auto* wsola = dynamic_cast<WSOLAPitchBackend*>(backend.get()))
+            wsola->ResetDebugReadWeightExtrema();
+    }
+
 private:
     double sampleRate = 48000.0;
     int maximumBlockSizeCached = 0;
