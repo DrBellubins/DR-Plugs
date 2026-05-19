@@ -14,6 +14,7 @@
 #include "PitchShifter/RandomOctaveSequence.h"
 #include "PitchShifter/GranularPitchBackend.h"
 #include "PitchShifter/PhaseVocoderPitchBackend.h"
+#include "PitchShifter/WSOLAPitchBackend.h"
 
 class OctaveEchoPitchShifter
 {
@@ -21,7 +22,8 @@ public:
     enum class BackendType
     {
         Granular,
-        PhaseVocoder
+        PhaseVocoder,
+        WSOLA
     };
 
     OctaveEchoPitchShifter()
@@ -137,6 +139,12 @@ public:
             auto phaseVocoder = std::make_unique<PhaseVocoderPitchBackend>();
             phaseVocoder->Prepare(sampleRate, maximumBlockSizeCached);
             SetBackend(std::move(phaseVocoder));
+        }
+        else if (newBackendType == BackendType::WSOLA)
+        {
+            auto wsola = std::make_unique<WSOLAPitchBackend>();
+            wsola->Prepare(sampleRate, maximumBlockSizeCached);
+            SetBackend(std::move(wsola));
         }
         else
         {
