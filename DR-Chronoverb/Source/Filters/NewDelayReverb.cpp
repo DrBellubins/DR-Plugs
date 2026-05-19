@@ -454,6 +454,12 @@ void NewDelayReverb::SetPitchStereoEnabled(float enabled01)
     }
 }
 
+void NewDelayReverb::SetPitchAlgorithm(OctaveEchoPitchShifter::BackendType backendType)
+{
+    wetInputPitchShifterLeft.SetBackendType(backendType);
+    wetInputPitchShifterRight.SetBackendType(backendType);
+}
+
 void NewDelayReverb::SetHostTempo(float bpm)
 {
     if (bpm > 0.0f)

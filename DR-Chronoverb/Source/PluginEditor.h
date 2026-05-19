@@ -157,5 +157,9 @@ private:
     std::unique_ptr<ThemedDropdown::Attachment> pitchShiftModeAttachment;
     std::unique_ptr<juce::Label> pitchShiftModeLabel;
 
+    std::unique_ptr<ThemedDropdown> pitchShiftAlgorithmDropdown;
+    std::unique_ptr<ThemedDropdown::Attachment> pitchShiftAlgorithmAttachment;
+    std::unique_ptr<juce::Label> pitchShiftAlgorithmLabel;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };

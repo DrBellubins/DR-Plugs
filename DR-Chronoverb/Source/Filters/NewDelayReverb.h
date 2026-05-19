@@ -60,6 +60,7 @@ public:
     void SetPitchShiftRangeUpper(float pitchShiftRangeUpperSemitones);
     void SetPitchShiftMode(int modeIndex);                // 0=Up, 1=Down, 2=Random
     void SetPitchStereoEnabled(float enabled01);
+    void SetPitchAlgorithm(OctaveEchoPitchShifter::BackendType backendType);
 
     void SetHostTempo(float bpm);
 

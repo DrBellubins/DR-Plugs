@@ -242,6 +242,21 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     uiHelpers.CreateCheckboxLabel(*pitchPage, pitchShiftStereoLabel, *pitchShiftStereoToggle,
         "Stereo", 14.0f, -38);
 
+    // Algorithm dropdown (Granular / Phase Vocoder)
+    pitchShiftAlgorithmDropdown = std::make_unique<ThemedDropdown>();
+    pitchPage->addAndMakeVisible(*pitchShiftAlgorithmDropdown);
+    pitchShiftAlgorithmDropdown->setBounds(390, 0, 220, 32);
+
+    pitchShiftAlgorithmAttachment = std::make_unique<ThemedDropdown::Attachment>(
+        processorRef.parameters,
+        "pitchShiftAlgorithm",
+        *pitchShiftAlgorithmDropdown
+    );
+
+    // Label sits to the left of the dropdown
+    uiHelpers.CreateLabel(*pitchPage, pitchShiftAlgorithmLabel,
+        "Algorithm", 12.0f, 480, -8);
+
     // Horizontal slider
     horizontalPitchRangeSlider = std::make_unique<HorizontalRangeSlider>(-48.0f, 48.0f);
     horizontalPitchRangeSlider->setMinimumRange(12.0f);

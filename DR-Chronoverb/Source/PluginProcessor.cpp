@@ -42,6 +42,7 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     parameters.addParameterListener("pitchShiftRangeUpper", this);
     parameters.addParameterListener("pitchShiftMode", this);
     parameters.addParameterListener("pitchShiftStereoEnabled", this);
+    parameters.addParameterListener("pitchShiftAlgorithm", this);
 
     // Set delay initial values
     float delayTime = parameters.getRawParameterValue("delayTime")->load();
@@ -56,8 +57,6 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
 
     float dryVolume = parameters.getRawParameterValue("dryVolume")->load();
     float wetVolume = parameters.getRawParameterValue("wetVolume")->load();
-
-    //float dryWetMix = parameters.getRawParameterValue("dryWetMix")->load();
 
     // Filters
     float stereoSpread = parameters.getRawParameterValue("stereoSpread")->load();
@@ -227,6 +226,17 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
         false
     ));
 
+    parameterList.push_back(std::make_unique<juce::AudioParameterChoice>(
+       "pitchShiftAlgorithm",
+       "Pitch Shift Algorithm",
+       juce::StringArray
+       {
+           "Granular (Low Quality)",
+           "Phase Vocoder (High Quality)"
+       },
+       0 // Default: Granular
+   ));
+
     return { parameterList.begin(), parameterList.end() };
 }
 
@@ -386,6 +396,23 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
     }
 
     if (parameterID == "pitchShiftStereoEnabled") DelayReverb.SetPitchStereoEnabled(newValue);
+
+    if (parameterID == "pitchShiftAlgorithm")
+    {
+        auto* algorithmParam =
+            dynamic_cast<juce::AudioParameterChoice*>(
+                parameters.getParameter("pitchShiftAlgorithm"));
+
+        if (algorithmParam != nullptr)
+        {
+            const OctaveEchoPitchShifter::BackendType backendType =
+                (algorithmParam->getIndex() == 1)
+                    ? OctaveEchoPitchShifter::BackendType::PhaseVocoder
+                    : OctaveEchoPitchShifter::BackendType::Granular;
+
+            DelayReverb.SetPitchAlgorithm(backendType);
+        }
+    }
 
     #if DEBUG
     //DBG("Changed: " << parameterID << " to " << newValue);

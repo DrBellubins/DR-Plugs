@@ -13,8 +13,7 @@
 #include "PitchShifter/PingPongOctaveSequence.h"
 #include "PitchShifter/RandomOctaveSequence.h"
 #include "PitchShifter/GranularPitchBackend.h"
-
-// ============================ Octave-per-echo pitch extension ============================
+#include "PitchShifter/PhaseVocoderPitchBackend.h"
 
 class OctaveEchoPitchShifter
 {
