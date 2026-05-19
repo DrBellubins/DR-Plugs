@@ -38,8 +38,8 @@ public:
         sampleRate = newSampleRate;
         maximumBlockSizeCached = maximumBlockSize;
 
-        SetSegmentLengthMilliseconds(18.0f);
-        SetOverlapPercent(0.60f);
+        SetSegmentLengthMilliseconds(24.0f);
+        SetOverlapPercent(0.75f);
         SetSearchRadiusMilliseconds(4.0f);
         SetLookbackMilliseconds(70.0f);
 
@@ -110,7 +110,7 @@ public:
             const float targetReadIncrement = getControlledReadIncrement();
 
             // Small smoothing to reduce zipper/jitter in read-rate modulation.
-            smoothedReadIncrement += 0.0005f * (targetReadIncrement - smoothedReadIncrement);
+            smoothedReadIncrement += 0.0001f * (targetReadIncrement - smoothedReadIncrement);
 
             stretchReadIndexFloat =
                 wrapFloat(stretchReadIndexFloat + smoothedReadIncrement,
@@ -140,7 +140,8 @@ public:
         currentRatio = clamped;
         stretchFactor = currentRatio;
 
-        // Re-phase scheduler so the next segment is synthesized on the new cadence.
+        smoothedReadIncrement = stretchFactor;
+
         samplesUntilNextSegment = std::max(
             1,
             static_cast<int>(std::round(
@@ -462,11 +463,8 @@ private:
         {
             const float sum = stretchRing[static_cast<size_t>(idx)];
             const float weight = stretchWeightRing[static_cast<size_t>(idx)];
-
-            if (weight > 1.0e-6f)
-                return sum / weight;
-
-            return 0.0f;
+            const float safeWeight = std::max(weight, 1.0e-3f);
+            return sum / safeWeight;
         };
 
         const float y0 = getNormalized(i0);
@@ -522,7 +520,7 @@ private:
         const float error = distance - targetReadDistanceSamples;
 
         // Small proportional correction only.
-        const float correction = juce::jlimit(-0.02f, 0.02f, error * 0.0005f);
+        const float correction = juce::jlimit(-0.005f, 0.005f, error * 0.0001f);
 
         return stretchFactor + correction;
     }
