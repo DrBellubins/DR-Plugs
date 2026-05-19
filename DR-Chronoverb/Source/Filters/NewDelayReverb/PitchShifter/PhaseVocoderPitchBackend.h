@@ -82,7 +82,7 @@ public:
     {
         const float currentOut = processOnePath(inputSample, currentRatio, activePath);
 
-        if (crossfadeRemainingSamples > 0 && hasPendingRatio)
+        if (crossfadeRemainingSamples > 0)
         {
             const float pendingOut = processOnePath(inputSample, pendingRatio, pendingPath);
 
@@ -166,7 +166,7 @@ private:
     static constexpr float kMaxPitchRatio = 4.0f;
     static constexpr int kCubicInterpolationSampleCount = 4;
     static constexpr int kAccumulatorMultiplier = 8; // Leaves room for 4x stretch plus overlapping OLA frames.
-    static constexpr int kResampleGuardSamples = kCubicInterpolationSampleCount * 2; // Leaves one cubic kernel of safety ahead of the read point between bursty frame writes.
+    static constexpr int kResampleGuardSamples = kCubicInterpolationSampleCount * 2; // Leaves two cubic kernels of safety ahead of the read point between bursty frame writes.
 
     double sampleRate = 48000.0;
 
@@ -384,16 +384,16 @@ private:
 
         const int samplesAvailableToTrim =
             std::max(0, static_cast<int>(path.stretchedOutputFifo.size()) - kResampleGuardSamples);
-        const int samplesToTrim = std::min(
+        const int fullyReadSamples = std::min(
             static_cast<int>(std::floor(path.resampleReadPosition)),
             samplesAvailableToTrim);
 
-        if (samplesToTrim > 0)
+        if (fullyReadSamples > 0)
         {
             path.stretchedOutputFifo.erase(
                 path.stretchedOutputFifo.begin(),
-                path.stretchedOutputFifo.begin() + samplesToTrim);
-            path.resampleReadPosition -= static_cast<float>(samplesToTrim);
+                path.stretchedOutputFifo.begin() + fullyReadSamples);
+            path.resampleReadPosition -= static_cast<float>(fullyReadSamples);
         }
 
         return outputSample;
