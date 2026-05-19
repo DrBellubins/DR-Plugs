@@ -37,6 +37,15 @@ public:
     // pitchRatio is provided for non-granular backends; granular manages
     // its own ratio via OnEchoBoundary / SetInitialRatio.
     virtual float ProcessSample(float inputSample, float pitchRatio) = 0;
+
+    // Called at each echo boundary — the only place ratio changes are permitted.
+    // Both granular and phase vocoder backends must implement this.
+    virtual void OnEchoBoundary(float newRatio) { juce::ignoreUnused(newRatio); }
+
+    // Sets the initial ratio with no crossfade. Safe to call outside the audio thread.
+    virtual void SetInitialRatio(float ratio) { juce::ignoreUnused(ratio); }
+
+    virtual float GetLatencyMilliseconds() const { return 0.0f; }
 };
 
 // Passthrough backend (testing / bypass).

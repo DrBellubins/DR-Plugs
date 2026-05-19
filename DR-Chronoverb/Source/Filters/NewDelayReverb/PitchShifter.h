@@ -74,15 +74,8 @@ public:
     }
 
     // -----------------------------------------------------------------------
-    // Called at each echo boundary (left channel, or right when stereo is on).
-    //
-    // Order of operations:
-    //   1. If a new sequence is pending, commit it and immediately tell the
-    //      granular to cross-fade to the new sequence's starting ratio. Return.
-    //   2. Otherwise advance the current sequence, then tell the granular to
-    //      cross-fade to the NOW-CURRENT ratio.
-    //
-    // This fixes the one-echo delay that existed when pendingRatio was used.
+    // Called at each echo boundary. This is the ONLY place pitch is allowed
+    // to change — never mid-echo.
     // -----------------------------------------------------------------------
     void OnNewEchoBoundary()
     {
@@ -91,35 +84,28 @@ public:
         {
             sequence = std::move(pendingSequence);
             hasPendingSequence = false;
-            // Reset() was already called on it inside SetSequence.
 
-            // Tell the granular to cross-fade to the new sequence's start ratio.
-            if (auto* granular = dynamic_cast<GranularPitchBackend*>(backend.get()))
-                granular->OnEchoBoundary(sequence->GetCurrentPitchRatio());
+            if (backend != nullptr)
+                backend->OnEchoBoundary(sequence->GetCurrentPitchRatio());
 
             return; // Don't advance yet — let the new sequence start from step 0.
         }
 
-        // Normal boundary: advance the sequence first, then inform the granular
-        // of the ratio it should play for the NEXT echo.
+        // Normal boundary: advance sequence first, then tell the backend.
         if (sequence != nullptr)
             sequence->AdvanceToNextEcho();
 
-        if (auto* granular = dynamic_cast<GranularPitchBackend*>(backend.get()))
-            granular->OnEchoBoundary(sequence != nullptr ? sequence->GetCurrentPitchRatio() : 1.0f);
+        if (backend != nullptr)
+            backend->OnEchoBoundary(sequence != nullptr ? sequence->GetCurrentPitchRatio() : 1.0f);
     }
 
-    // -----------------------------------------------------------------------
-    // Mono-linked mode: right channel mirrors the left channel's new ratio
-    // without advancing its own independent sequence.
-    // Called from ProcessBlock instead of OnNewEchoBoundary when stereo is off.
-    // -----------------------------------------------------------------------
+    // Mono-linked mode: right channel mirrors the left channel's ratio.
     void OnNewEchoBoundaryMirrored(float mirroredRatio)
     {
         CommitPendingSequenceIfAny();
 
-        if (auto* ganular = dynamic_cast<GranularPitchBackend*>(backend.get()))
-            ganular->OnEchoBoundary(mirroredRatio);
+        if (backend != nullptr)
+            backend->OnEchoBoundary(mirroredRatio);
     }
 
     float ProcessSample(float inputSample)
@@ -162,9 +148,7 @@ public:
         }
     }
 
-    // Commits a pending sequence immediately — only safe outside the audio thread
-    // (i.e. in PrepareToPlay). Also syncs the granular to the sequence's starting
-    // ratio with no crossfade so the first echo plays at the correct pitch.
+    // Commits a pending sequence immediately — only safe outside the audio thread.
     void CommitPendingSequenceNow()
     {
         if (hasPendingSequence && pendingSequence != nullptr)
@@ -172,9 +156,8 @@ public:
             sequence = std::move(pendingSequence);
             hasPendingSequence = false;
 
-            // Directly initialise the granular to the correct starting ratio.
-            if (auto* g = dynamic_cast<GranularPitchBackend*>(backend.get()))
-                g->SetInitialRatio(sequence->GetCurrentPitchRatio());
+            if (backend != nullptr)
+                backend->SetInitialRatio(sequence->GetCurrentPitchRatio());
         }
     }
 
@@ -191,8 +174,8 @@ public:
             if (sequence != nullptr)
                 sequence->Reset();
 
-            if (auto* g = dynamic_cast<GranularPitchBackend*>(backend.get()))
-                g->SetInitialRatio(sequence != nullptr ? sequence->GetCurrentPitchRatio() : 1.0f);
+            if (backend != nullptr)
+                backend->SetInitialRatio(sequence != nullptr ? sequence->GetCurrentPitchRatio() : 1.0f);
         }
     }
 
@@ -204,13 +187,14 @@ public:
         if (backend != nullptr)
             backend->Reset();
 
-        if (auto* g = dynamic_cast<GranularPitchBackend*>(backend.get()))
-            g->SetInitialRatio(sequence != nullptr ? sequence->GetCurrentPitchRatio() : 1.0f);
+        if (backend != nullptr)
+            backend->SetInitialRatio(sequence != nullptr ? sequence->GetCurrentPitchRatio() : 1.0f);
     }
 
     void SetBackend(std::unique_ptr<IPitchShifterBackend>&& newBackend)
     {
         backend = std::move(newBackend);
+
         if (backend != nullptr)
         {
             backend->Prepare(sampleRate, maximumBlockSizeCached);
@@ -218,23 +202,12 @@ public:
         }
     }
 
-    GranularPitchBackend* GetGranularBackend()
-    {
-        return dynamic_cast<GranularPitchBackend*>(backend.get());
-    }
-
     float GetLatencyMilliseconds() const
     {
         if (!GetEnabled() || backend == nullptr)
             return 0.0f;
 
-        if (auto* granular = dynamic_cast<GranularPitchBackend*>(backend.get()))
-            return granular->GetLatencyMilliseconds();
-
-        if (auto* phaseVocoder = dynamic_cast<PhaseVocoderPitchBackend*>(backend.get()))
-            return phaseVocoder->GetLatencyMilliseconds();
-
-        return 0.0f;
+        return backend->GetLatencyMilliseconds();
     }
 
     float GetCurrentPitchRatio() const
