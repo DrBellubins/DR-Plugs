@@ -97,7 +97,7 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     mainDelayRight->Clear();
 }
 
-void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
+/*void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 {
     const int numChannels = audioBuffer.getNumChannels();
     const int numSamples  = audioBuffer.getNumSamples();
@@ -158,9 +158,9 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         if (rightData != nullptr)
             rightData[sampleIndex] = juce::jlimit(-1.0f, 1.0f, outputRight);
     }
-}
+}*/
 
-/*void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
+void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 {
     const int numChannels = audioBuffer.getNumChannels();
     const int numSamples  = audioBuffer.getNumSamples();
@@ -401,7 +401,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         if (rightData != nullptr)
             rightData[sampleIndex] = outputRight;
     }
-}*/
+}
 
 void NewDelayReverb::SetDelayTime(float newDelayTimeNormalized)
 {

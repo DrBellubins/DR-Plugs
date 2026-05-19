@@ -268,7 +268,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     pitchShiftModeLabel->setBounds(340, 0, 220, 32);
 
     // Algorithm dropdown (Granular / Phase Vocoder)
-    pitchShiftAlgorithmDropdown = std::make_unique<ThemedDropdown>();
+    /*pitchShiftAlgorithmDropdown = std::make_unique<ThemedDropdown>();
     pitchPage->addAndMakeVisible(*pitchShiftAlgorithmDropdown);
     pitchShiftAlgorithmDropdown->setBounds(500, 50, 220, 32);
 
@@ -281,7 +281,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     uiHelpers.CreateLabel(*pitchPage, pitchShiftAlgorithmLabel,
         "Algorithm:", 12.0f, 0, 0);
 
-    pitchShiftAlgorithmLabel->setBounds(340, 50, 220, 32);
+    pitchShiftAlgorithmLabel->setBounds(340, 50, 220, 32);*/
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
