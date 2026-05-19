@@ -260,8 +260,8 @@ private:
 
             const float clampedPitch = juce::jlimit(kMinPitchRatio, kMaxPitchRatio, pitchRatio);
 
-            // PV does time-stretch, then we resample.
-            // For pitch up (>1), we want to time-stretch DOWN (<1) then resample up.
+            // Phase vocoder does time-stretch, then we resample back to original rate.
+            // Pitch up (>1) => time-stretch DOWN (<1).
             const float timeStretchRatio = 1.0f / clampedPitch;
 
             processFrame(path, timeStretchRatio);
@@ -337,8 +337,12 @@ private:
 
     int getSynthesisHop(float timeStretchRatio) const
     {
-        const float clamped = juce::jlimit(1.0f / kMaxPitchRatio, 1.0f / kMinPitchRatio, timeStretchRatio);
-        return std::max(1, static_cast<int>(std::round(static_cast<float>(analysisHop) * clamped)));
+        // timeStretchRatio range should be [1/maxPitch, 1/minPitch]
+        const float clamped =
+            juce::jlimit(1.0f / kMaxPitchRatio, 1.0f / kMinPitchRatio, timeStretchRatio);
+
+        return std::max(1,
+            static_cast<int>(std::round(static_cast<float>(analysisHop) * clamped)));
     }
 
     void overlapAddFrame(PathState& path)
@@ -383,23 +387,23 @@ private:
     float readResampledOutput(PathState& path, float pitchRatio)
     {
         // If we don't have enough samples for cubic interpolation yet,
-        // do NOT return hard zero (this causes clicks/crackle and can lead to silence).
+        // don't output hard zero (causes crackle / silence in some hosts).
         if (path.stretchedOutputFifo.size() < static_cast<size_t>(kCubicInterpolationSampleCount))
             return path.lastOutputSample;
 
         const float maxReadablePosition = static_cast<float>(path.stretchedOutputFifo.size() - 1);
         const float readPosition = juce::jlimit(0.0f, maxReadablePosition, path.resampleReadPosition);
 
-        const float outputSample = cubicInterpolate(path.stretchedOutputFifo, readPosition);
+        float outputSample = cubicInterpolate(path.stretchedOutputFifo, readPosition);
+
+        if (!std::isfinite(outputSample))
+            outputSample = 0.0f;
+
         path.lastOutputSample = outputSample;
 
-        // Resampling: consume from stretched stream.
-        // IMPORTANT: if the internal time-stretch ratio is 1/pitchRatio, then
-        // the resample increment should be pitchRatio.
         const float clampedPitch = juce::jlimit(kMinPitchRatio, kMaxPitchRatio, pitchRatio);
         path.resampleReadPosition += clampedPitch;
 
-        // Trim fully-read samples but keep guard samples.
         const int samplesAvailableToTrim =
             std::max(0, static_cast<int>(path.stretchedOutputFifo.size()) - kResampleGuardSamples);
 
@@ -488,7 +492,7 @@ private:
         for (int len = 2; len <= n; len <<= 1)
         {
             const float angle =
-                static_cast<float>((inverse ? 2.0 : -2.0) * juce::MathConstants<float>::pi / static_cast<double>(len));
+                static_cast<float>((inverse ? 2.0 : -2.0) * juce::MathConstants<float>::pi / len);
 
             const std::complex<float> wLen(std::cos(angle), std::sin(angle));
 
@@ -509,7 +513,7 @@ private:
             }
         }
 
-        // IMPORTANT: normalize inverse FFT
+        // Normalize inverse FFT (required).
         if (inverse)
         {
             const float invN = 1.0f / static_cast<float>(n);
