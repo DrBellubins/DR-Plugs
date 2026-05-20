@@ -220,18 +220,15 @@ private:
 
     static float hannWindow(float phase01)
     {
-        const float hann = 0.5f - 0.5f * std::cos(2.0f * juce::MathConstants<float>::pi * phase01);
-        return std::sqrt(std::max(0.0f, hann)); // sqrt-Hann; safe guard against float noise below 0
+        return 0.5f - 0.5f * std::cos(2.0f * juce::MathConstants<float>::pi * phase01);
     }
 
     float wrapReadIndex(float idx) const
     {
         const float size = static_cast<float>(buffer.size());
         float out = idx;
-
-        while (out < 0.0f) out += size;
-        while (out >= size) out -= size;
-
+        while (out < 0.0f)    out += size;
+        while (out >= size)   out -= size;
         return out;
     }
 
