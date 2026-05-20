@@ -212,7 +212,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         }
 
         // ---- 2: Sum input + feedback ----
-        const float preLeft = filteredDryLeft  + lastFeedbackL;
+        const float preLeft = filteredDryLeft + lastFeedbackL;
         const float preRight = filteredDryRight + lastFeedbackR;
 
         // ---- 3: Optional pitch shift ----
@@ -663,7 +663,7 @@ void NewDelayReverb::updateStereoSpread()
     // Applied inline during ProcessBlock
 }
 
-void NewDelayReverb::rebuildPitchSequences()
+/*void NewDelayReverb::rebuildPitchSequences()
 {
     auto configureShifter = [&](OctaveEchoPitchShifter& shifter)
     {
@@ -680,9 +680,9 @@ void NewDelayReverb::rebuildPitchSequences()
 
     configureShifter(wetInputPitchShifterLeft);
     configureShifter(wetInputPitchShifterRight);
-}
+}*/
 
-/*void NewDelayReverb::rebuildPitchSequences()
+void NewDelayReverb::rebuildPitchSequences()
 {
     int lowerOctave = semitonesToOctaveIndex(pitchShiftRangeLower);
     int upperOctave = semitonesToOctaveIndex(pitchShiftRangeUpper);
@@ -728,7 +728,7 @@ void NewDelayReverb::rebuildPitchSequences()
 
     configureShifter(wetInputPitchShifterLeft);
     configureShifter(wetInputPitchShifterRight);
-}*/
+}
 
 float NewDelayReverb::map01ToRange(float value01, float minValue, float maxValue)
 {
