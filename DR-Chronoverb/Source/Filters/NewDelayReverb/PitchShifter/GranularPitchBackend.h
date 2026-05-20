@@ -39,7 +39,7 @@ public:
         SetGrainLengthMilliseconds(35.0f);
         SetJitterPercent(0.12f);
         SetLookbackMultiplier(3.0f);
-        SetBoundaryCrossfadeMilliseconds(0.0f);
+        SetBoundaryCrossfadeMilliseconds(4.0f);
 
         Reset();
     }
@@ -96,7 +96,7 @@ public:
     // Sets the initial ratio with no crossfade. Call once at PrepareToPlay
     // after CommitPendingSequenceNow to avoid a silent "wrong-pitch" first echo.
     // ------------------------------------------------------------------
-    void SetInitialRatio(float ratio) override
+    void SetInitialRatio(float ratio)
     {
         const float m_ratio = juce::jlimit(0.25f, 4.0f, ratio);
         stateA.ratio = m_ratio;
@@ -147,7 +147,7 @@ public:
 
             if (crossfadeRemainingSamples == 0 && pendingFlipAfterFade)
             {
-                activeIsA = !activeIsA;
+                activeIsA            = !activeIsA;
                 pendingFlipAfterFade = false;
             }
 
@@ -174,7 +174,7 @@ public:
             std::round((clamped * sampleRate) / 1000.0)));
     }
 
-    float GetLatencyMilliseconds() const override
+    float GetLatencyMilliseconds() const
     {
         const float lookbackSamples = static_cast<float>(grainLengthSamples) * lookbackMultiplier;
         return (lookbackSamples * 1000.0f) / static_cast<float>(sampleRate);

@@ -215,11 +215,52 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float preLeft = filteredDryLeft  + lastFeedbackL;
         const float preRight = filteredDryRight + lastFeedbackR;
 
+        // ---- 3: Optional pitch shift ----
+        float pitchedLeft = preLeft;
+        float pitchedRight = preRight;
+
+        if (pitchShiftEnabled >= 0.5f)
+        {
+            pitchedLeft = wetInputPitchShifterLeft.ProcessSample(preLeft);
+            pitchedRight = wetInputPitchShifterRight.ProcessSample(preRight);
+        }
+
+        // Advance echo boundary counters (needed regardless of pitch enable state)
+        {
+            const bool stereoEnabled = (pitchStereoEnabled01 >= 0.5f);
+
+            ++echoWriteCounterL;
+            if (echoWriteCounterL >= writePeriodSamples)
+            {
+                echoWriteCounterL = 0;
+                wetInputPitchShifterLeft.OnNewEchoBoundary();
+
+                if (!stereoEnabled)
+                {
+                    // Mirror left's new ratio to right channel so both channels
+                    // cross-fade simultaneously — no extra stereo information added.
+                    const float leftNewRatio = wetInputPitchShifterLeft.GetCurrentPitchRatio();
+                    wetInputPitchShifterRight.OnNewEchoBoundaryMirrored(leftNewRatio);
+                    echoWriteCounterR = 0; // keep counters in lockstep
+                }
+            }
+
+            if (stereoEnabled)
+            {
+                ++echoWriteCounterR;
+                if (echoWriteCounterR >= writePeriodSamples)
+                {
+                    echoWriteCounterR = 0;
+                    wetInputPitchShifterRight.OnNewEchoBoundary();
+                }
+            }
+        }
+
         // ---- 4: Pre-write diffusion (amount-controlled, dual-chain) ----
         //  0.0 .. 0.5 : only delayDiffusion chain (discrete tap blur)
         //  0.5 .. 1.0 : crossfade delayDiffusion -> reverbDiffusion (lush tail)
-        float writeLeft = preLeft;
-        float writeRight = preRight;
+        float writeLeft = pitchedLeft;
+        float writeRight = pitchedRight;
 
         if (diffusionAmountSmoothed > 0.001f)
         {
@@ -229,8 +270,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             if (diffusionAmountSmoothed <= 0.5f)
             {
                 // Lower half: delay-quality diffusion only
-                diffLeft = delayDiffusionLeft->ProcessSample(preLeft);
-                diffRight = delayDiffusionRight->ProcessSample(preRight);
+                diffLeft = delayDiffusionLeft->ProcessSample(pitchedLeft);
+                diffRight = delayDiffusionRight->ProcessSample(pitchedRight);
             }
             else
             {
@@ -238,11 +279,10 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
                 const float reverbBlend =
                     (diffusionAmountSmoothed - 0.5f) * 2.0f; // 0..1
 
-                const float delayDiffLeft = delayDiffusionLeft->ProcessSample(preLeft);
-                const float delayDiffRight = delayDiffusionRight->ProcessSample(preRight);
-
-                const float reverbDiffLeft = reverbDiffusionLeft->ProcessSample(preLeft);
-                const float reverbDiffRight = reverbDiffusionRight->ProcessSample(preRight);
+                const float delayDiffLeft = delayDiffusionLeft->ProcessSample(pitchedLeft);
+                const float delayDiffRight = delayDiffusionRight->ProcessSample(pitchedRight);
+                const float reverbDiffLeft = reverbDiffusionLeft->ProcessSample(pitchedLeft);
+                const float reverbDiffRight = reverbDiffusionRight->ProcessSample(pitchedRight);
 
                 const float delayGain =
                     std::cos(reverbBlend * juce::MathConstants<float>::halfPi);
@@ -261,8 +301,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             const float diffusedGain =
                 std::sin(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
 
-            writeLeft = preLeft * cleanGain + diffLeft  * diffusedGain;
-            writeRight = preRight * cleanGain + diffRight * diffusedGain;
+            writeLeft = pitchedLeft  * cleanGain + diffLeft  * diffusedGain;
+            writeRight = pitchedRight * cleanGain + diffRight * diffusedGain;
         }
 
         // ---- 5: Write to delay line ----
@@ -313,49 +353,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float dampedLeft = dampingLeft->ProcessSample(wetLeft,  lowpass01);
         const float dampedRight = dampingRight->ProcessSample(wetRight, lowpass01);
 
-        // ---- 3: Optional pitch shift ----
-        float pitchedLeft = dampedLeft;
-        float pitchedRight = dampedRight;
-
-        if (pitchShiftEnabled >= 0.5f)
-        {
-            pitchedLeft = wetInputPitchShifterLeft.ProcessSample(dampedLeft);
-            pitchedRight = wetInputPitchShifterRight.ProcessSample(dampedRight);
-        }
-
-        // Advance echo boundary counters (needed regardless of pitch enable state)
-        {
-            const bool stereoEnabled = (pitchStereoEnabled01 >= 0.5f);
-
-            ++echoWriteCounterL;
-            if (echoWriteCounterL >= writePeriodSamples)
-            {
-                echoWriteCounterL = 0;
-                wetInputPitchShifterLeft.OnNewEchoBoundary();
-
-                if (!stereoEnabled)
-                {
-                    // Mirror left's new ratio to right channel so both channels
-                    // cross-fade simultaneously — no extra stereo information added.
-                    const float leftNewRatio = wetInputPitchShifterLeft.GetCurrentPitchRatio();
-                    wetInputPitchShifterRight.OnNewEchoBoundaryMirrored(leftNewRatio);
-                    echoWriteCounterR = 0; // keep counters in lockstep
-                }
-            }
-
-            if (stereoEnabled)
-            {
-                ++echoWriteCounterR;
-                if (echoWriteCounterR >= writePeriodSamples)
-                {
-                    echoWriteCounterR = 0;
-                    wetInputPitchShifterRight.OnNewEchoBoundary();
-                }
-            }
-        }
-
-        lastFeedbackL = pitchedLeft * feedbackGain;
-        lastFeedbackR = pitchedRight * feedbackGain;
+        lastFeedbackL = dampedLeft * feedbackGain;
+        lastFeedbackR = dampedRight * feedbackGain;
 
         // ---- 9: Stereo spread ----
         float spreadWetLeft = wetLeft;
