@@ -267,6 +267,9 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     pitchModeLabel->setBounds(340, 0, 220, 32);
 
+    uiHelpers.CreateKnob(*pitchPage, pitchWetVolumeKnob, pitchWetVolumeAttachment, "pitchWetVolume",
+        "", 80, 750, 50);
+
     // Algorithm dropdown (Granular / Phase Vocoder)
     /*pitchAlgorithmDropdown = std::make_unique<ThemedDropdown>();
     pitchPage->addAndMakeVisible(*pitchAlgorithmDropdown);

@@ -161,5 +161,9 @@ private:
     std::unique_ptr<ThemedDropdown::Attachment> pitchAlgorithmAttachment;
     std::unique_ptr<juce::Label> pitchAlgorithmLabel;
 
+    std::unique_ptr<ThemedKnob> pitchWetVolumeKnob;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> pitchWetVolumeAttachment;
+    std::unique_ptr<juce::Label> pitchWetVolumeLabel;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };
