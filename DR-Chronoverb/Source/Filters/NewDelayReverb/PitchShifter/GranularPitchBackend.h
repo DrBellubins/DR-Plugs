@@ -36,10 +36,10 @@ public:
 
         buffer.assign(static_cast<size_t>(bufferSize), 0.0f);
 
-        SetGrainLengthMilliseconds(35.0f);
+        SetGrainLengthMilliseconds(50.0f);
         SetJitterPercent(0.12f);
         SetLookbackMultiplier(3.0f);
-        SetBoundaryCrossfadeMilliseconds(0.0f);
+        SetBoundaryCrossfadeMilliseconds(4.0f);
 
         Reset();
     }

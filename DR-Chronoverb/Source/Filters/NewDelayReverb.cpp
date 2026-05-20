@@ -663,7 +663,7 @@ void NewDelayReverb::updateStereoSpread()
     // Applied inline during ProcessBlock
 }
 
-/*void NewDelayReverb::rebuildPitchSequences()
+void NewDelayReverb::rebuildPitchSequences()
 {
     auto configureShifter = [&](OctaveEchoPitchShifter& shifter)
     {
@@ -680,9 +680,9 @@ void NewDelayReverb::updateStereoSpread()
 
     configureShifter(wetInputPitchShifterLeft);
     configureShifter(wetInputPitchShifterRight);
-}*/
+}
 
-void NewDelayReverb::rebuildPitchSequences()
+/*void NewDelayReverb::rebuildPitchSequences()
 {
     int lowerOctave = semitonesToOctaveIndex(pitchShiftRangeLower);
     int upperOctave = semitonesToOctaveIndex(pitchShiftRangeUpper);
@@ -728,7 +728,7 @@ void NewDelayReverb::rebuildPitchSequences()
 
     configureShifter(wetInputPitchShifterLeft);
     configureShifter(wetInputPitchShifterRight);
-}
+}*/
 
 float NewDelayReverb::map01ToRange(float value01, float minValue, float maxValue)
 {
