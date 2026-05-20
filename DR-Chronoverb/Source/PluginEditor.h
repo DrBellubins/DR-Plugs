@@ -141,9 +141,9 @@ private:
     std::unique_ptr<juce::Component> granularPage;
 
     // Pitch shift
-    std::unique_ptr<ThemedCheckbox> pitchShiftToggle;
-    std::unique_ptr<ThemedCheckbox::Attachment> pitchShiftToggleAttachment;
-    std::unique_ptr<juce::Label> pitchShiftTitle;
+    //std::unique_ptr<ThemedCheckbox> pitchShiftToggle;
+    //std::unique_ptr<ThemedCheckbox::Attachment> pitchShiftToggleAttachment;
+    //std::unique_ptr<juce::Label> pitchShiftTitle;
 
     std::unique_ptr<ThemedCheckbox> pitchShiftStereoToggle;
     std::unique_ptr<ThemedCheckbox::Attachment> pitchShiftStereoToggleAttachment;
@@ -161,9 +161,9 @@ private:
     std::unique_ptr<ThemedDropdown::Attachment> pitchAlgorithmAttachment;
     std::unique_ptr<juce::Label> pitchAlgorithmLabel;
 
-    std::unique_ptr<ThemedKnob> pitchWetVolumeKnob;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> pitchWetVolumeAttachment;
-    std::unique_ptr<juce::Label> pitchWetVolumeLabel;
+    std::unique_ptr<ThemedKnob> pitchWetMixKnob;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> pitchWetMixAttachment;
+    std::unique_ptr<juce::Label> pitchWetMixLabel;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };

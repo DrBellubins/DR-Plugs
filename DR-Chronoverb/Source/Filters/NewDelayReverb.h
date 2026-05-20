@@ -56,13 +56,13 @@ public:
     void SetStereoSpread(float newSpreadMinus1To1);       // -1..1
     void SetHPLPPrePost(float prePost01);                 // 0 = Pre, 1 = Post
 
-    void SetPitchEnabled(float pitchEnabled01);
+    //void SetPitchEnabled(float pitchEnabled01);
     void SetPitchRangeLower(float pitchRangeLowerSemitones);
     void SetPitchRangeUpper(float pitchRangeUpperSemitones);
     void SetPitchMode(int modeIndex);                // 0=Up, 1=Down, 2=Random
     void SetPitchStereoEnabled(float enabled01);
     void SetPitchAlgorithm(OctaveEchoPitchShifter::BackendType backendType);
-    void SetPitchWetVolume(float wetVolume);
+    void SetpitchWetMix(float wetVolume);
 
     void SetHostTempo(float bpm);
 
@@ -111,16 +111,16 @@ private:
     float stereoSpreadMinus1To1 = 0.0f;
     float hplpPrePost01 = 1.0f;
 
-    float pitchEnabled = 0.0f;
+    //float pitchEnabled = 0.0f;
     float pitchRangeLower = -12.0f;
     float pitchRangeUpper = 12.0f;
     int pitchMode = 0;
     float pitchStereoEnabled01 = 0.0f;
-    float pitchShifterLatencyMs = 0.0f;
-    float pitchShiftWetVolume = 0.0f;
+    float pitchWetMix = 0.0f;
 
     const float pitchShiftAllpassDelay = 15.0f;
 
+    float pitchShifterLatencyMs = 0.0f;
     int echoSampleCounterL = 0;
     int echoSampleCounterR = 0;
 

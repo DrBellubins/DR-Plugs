@@ -213,13 +213,13 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     bottomTabbedPageBox->AddTab("Granular", granularPage.get());
 
     // Pitch shifting
-    uiHelpers.CreateCheckbox(*pitchPage, pitchShiftToggle,
+    /*uiHelpers.CreateCheckbox(*pitchPage, pitchShiftToggle,
         pitchShiftToggleAttachment,
         "pitchEnabled",
         20, 20, 30, 30);
 
     uiHelpers.CreateCheckboxLabel(*pitchPage, pitchShiftTitle, *pitchShiftToggle,
-        "Enabled", 14.0f, -40);
+        "Enabled", 14.0f, -40);*/
 
     uiHelpers.CreateCheckbox(*pitchPage, pitchShiftStereoToggle,
     pitchShiftStereoToggleAttachment,
@@ -267,7 +267,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     pitchModeLabel->setBounds(340, 0, 220, 32);
 
-    uiHelpers.CreateKnob(*pitchPage, pitchWetVolumeKnob, pitchWetVolumeAttachment, "pitchWetVolume",
+    uiHelpers.CreateKnob(*pitchPage, pitchWetMixKnob, pitchWetMixAttachment, "pitchWetMix",
         "", 80, 750, 50);
 
     // Algorithm dropdown (Granular / Phase Vocoder)

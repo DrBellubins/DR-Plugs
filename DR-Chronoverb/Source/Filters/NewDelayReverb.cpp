@@ -326,7 +326,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         float pitchedLeft = wetLeft;
         float pitchedRight = wetRight;
 
-        if (pitchEnabled >= 0.5f)
+        if (pitchWetMix > 0.0001f)
         {
             pitchedLeft = wetInputPitchShifterLeft.ProcessSample(wetLeft);
             pitchedRight = wetInputPitchShifterRight.ProcessSample(wetRight);
@@ -369,6 +369,9 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
                 }
             }
         }
+
+        pitchedLeft = PMath::EqualPowerCrossfade(dampedLeft, pitchedLeft, pitchWetMix);
+        pitchedRight = PMath::EqualPowerCrossfade(dampedRight, pitchedRight, pitchWetMix);
 
         // ---- 10: Stereo spread ----
         float spreadWetLeft = pitchedLeft;
@@ -484,10 +487,10 @@ void NewDelayReverb::SetHPLPPrePost(float prePost01)
     hplpPrePost01 = clamp01(prePost01);
 }
 
-void NewDelayReverb::SetPitchEnabled(float pitchEnabled01)
-{
-    pitchEnabled = clamp01(pitchEnabled01);
-}
+//void NewDelayReverb::SetPitchEnabled(float pitchEnabled01)
+//{
+//    pitchEnabled = clamp01(pitchEnabled01);
+//}
 
 void NewDelayReverb::SetPitchRangeLower(float pitchRangeLowerSemitones)
 {
@@ -507,9 +510,9 @@ void NewDelayReverb::SetPitchMode(int modeIndex)
     pitchSequenceRebuildPending.store(true, std::memory_order_release);
 }
 
-void NewDelayReverb::SetPitchWetVolume(float newPitchShiftWetVolume)
+void NewDelayReverb::SetpitchWetMix(float newPitchWetMix)
 {
-    pitchShiftWetVolume = clamp01(newPitchShiftWetVolume);
+    pitchWetMix = clamp01(newPitchWetMix);
 }
 
 void NewDelayReverb::SetPitchStereoEnabled(float enabled01)
@@ -555,7 +558,7 @@ void NewDelayReverb::SetHostTempo(float bpm)
 
 float NewDelayReverb::GetPitchShifterLatencyMilliseconds() const
 {
-    if (pitchEnabled < 0.5f)
+    if (pitchWetMix <= 0.0001f)
         return 0.0f;
 
     return wetInputPitchShifterLeft.GetLatencyMilliseconds();
