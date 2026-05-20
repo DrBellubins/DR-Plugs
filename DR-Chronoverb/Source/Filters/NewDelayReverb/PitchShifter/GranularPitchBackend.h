@@ -12,12 +12,8 @@ class GranularPitchBackend : public IPitchShifterBackend
     {
         ReadHead headA;
         ReadHead headB;
-        ReadHead headC;
-        ReadHead headD;
         float phaseA = 0.0f;
-        float phaseB = 0.25f;
-        float phaseC = 0.5f;
-        float phaseD = 0.75f;
+        float phaseB = 0.5f;
         float ratio  = 1.0f;
     };
 
@@ -51,11 +47,8 @@ public:
 
         stateA = {};
         stateB = {};
-
         stateA.phaseA = 0.0f;
-        stateA.phaseB = 0.25f;
-        stateA.phaseC = 0.5f;
-        stateA.phaseD = 0.75f;
+        stateA.phaseB = 0.5f;
         stateA.ratio  = 1.0f;
         stateB = stateA;
 
@@ -98,18 +91,13 @@ public:
     // ------------------------------------------------------------------
     void SetInitialRatio(float ratio)
     {
-        const float m_ratio = juce::jlimit(0.25f, 4.0f, ratio);
-        stateA.ratio = m_ratio;
-        stateB.ratio = m_ratio;
-
+        const float r = juce::jlimit(0.25f, 4.0f, ratio);
+        stateA.ratio = r;
+        stateB.ratio = r;
         stateA.phaseA = 0.0f;
-        stateA.phaseB = 0.25f;
-        stateA.phaseC = 0.5f;
-        stateA.phaseD = 0.75f;
+        stateA.phaseB = 0.5f;
         stateB.phaseA = 0.0f;
-        stateB.phaseB = 0.25f;
-        stateB.phaseC = 0.5f;
-        stateB.phaseD = 0.75f;
+        stateB.phaseB = 0.5f;
 
         anchorStateToWrite(stateA);
         anchorStateToWrite(stateB);
@@ -185,13 +173,9 @@ private:
     {
         const float sampleA = readCubic(grainState.headA.readIndex);
         const float sampleB = readCubic(grainState.headB.readIndex);
-        const float sampleC = readCubic(grainState.headC.readIndex);
-        const float sampleD = readCubic(grainState.headD.readIndex);
 
         grainState.headA.readIndex = wrapReadIndex(grainState.headA.readIndex + grainState.ratio);
         grainState.headB.readIndex = wrapReadIndex(grainState.headB.readIndex + grainState.ratio);
-        grainState.headC.readIndex = wrapReadIndex(grainState.headC.readIndex + grainState.ratio);
-        grainState.headD.readIndex = wrapReadIndex(grainState.headD.readIndex + grainState.ratio);
 
         const float phaseInc = 1.0f / static_cast<float>(grainLengthSamples);
 
@@ -209,35 +193,16 @@ private:
             anchorHeadToWrite(grainState.headB, generateJitterSamples());
         }
 
-        grainState.phaseC += phaseInc;
-        if (grainState.phaseC >= 1.0f)
-        {
-            grainState.phaseC -= 1.0f;
-            anchorHeadToWrite(grainState.headC, generateJitterSamples());
-        }
-
-        grainState.phaseD += phaseInc;
-        if (grainState.phaseD >= 1.0f)
-        {
-            grainState.phaseD -= 1.0f;
-            anchorHeadToWrite(grainState.headD, generateJitterSamples());
-        }
-
         const float wA = hannWindow(grainState.phaseA);
         const float wB = hannWindow(grainState.phaseB);
-        const float wC = hannWindow(grainState.phaseC);
-        const float wD = hannWindow(grainState.phaseD);
 
-        // Divide by 2 to compensate: 4 sqrt-Hann heads summing to ~2.0 at any point.
-        return (sampleA * wA + sampleB * wB + sampleC * wC + sampleD * wD) * 0.5f;
+        return sampleA * wA + sampleB * wB;
     }
 
     void anchorStateToWrite(GrainState& s)
     {
         anchorHeadToWrite(s.headA, 0.0f);
         anchorHeadToWrite(s.headB, 0.0f);
-        anchorHeadToWrite(s.headC, 0.0f);
-        anchorHeadToWrite(s.headD, 0.0f);
     }
 
     void anchorHeadToWrite(ReadHead& readHead, float jitterOffsetSamples)
@@ -253,12 +218,9 @@ private:
         return u * jitterPercent * static_cast<float>(grainLengthSamples);
     }
 
-    // Two heads at 0.0/0.5 offset: sqrtHann(t) + sqrtHann(t+0.5T) = constant.
-    // Four heads at 0.0/0.25/0.5/0.75 offset: same property holds.
     static float hannWindow(float phase01)
     {
-        const float hann = 0.5f - 0.5f * std::cos(2.0f * juce::MathConstants<float>::pi * phase01);
-        return std::sqrt(std::max(0.0f, hann)); // sqrt-Hann; safe guard against float noise below 0
+        return 0.5f - 0.5f * std::cos(2.0f * juce::MathConstants<float>::pi * phase01);
     }
 
     float wrapReadIndex(float idx) const
