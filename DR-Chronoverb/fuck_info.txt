@@ -1,0 +1,42 @@
+I am trying to cross-build a windows version of my JUCE vst3 from Linux.
+
+The log when building Windows Debug:
+====================[ Build | Chronoverb_VST3 | Windows Debug ]=================
+/home/esther/.local/share/JetBrains/Toolbox/apps/clion/bin/cmake/linux/x64/bin/cmake --build /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/cmake-build-windows-debug --target Chronoverb_VST3 -j 14
+[0/2] Re-checking globbed directories...
+[2/3] Linking CXX shared module "Chronoverb_artefacts/Debug/VST3/Dr Chronoverb.vst3/Contents/x86_64-win/Dr Chronoverb.vst3"
+FAILED: Chronoverb_artefacts/Debug/VST3/Dr Chronoverb.vst3/Contents/x86_64-win/Dr Chronoverb.vst3
+: && /usr/bin/x86_64-w64-mingw32-g++ -g  -static -static-libgcc -static-libstdc++ -Wl,--subsystem,windows -shared -o "Chronoverb_artefacts/Debug/VST3/Dr Chronoverb.vst3/Contents/x86_64-win/Dr Chronoverb.vst3" -Wl,--major-image-version,0,--minor-image-version,0 CMakeFiles/Chronoverb_rc_lib.dir/Chronoverb_artefacts/JuceLibraryCode/Chronoverb_resources.rc.res CMakeFiles/Chronoverb_VST3.dir/Libs/JUCE/modules/juce_audio_plugin_client/juce_audio_plugin_client_AAX.cpp.obj CMakeFiles/Chronoverb_VST3.dir/Libs/JUCE/modules/juce_audio_plugin_client/juce_audio_plugin_client_AAX_utils.cpp.obj CMakeFiles/Chronoverb_VST3.dir/Libs/JUCE/modules/juce_audio_plugin_client/juce_audio_plugin_client_ARA.cpp.obj CMakeFiles/Chronoverb_VST3.dir/Libs/JUCE/modules/juce_audio_plugin_client/juce_audio_plugin_client_LV2.cpp.obj CMakeFiles/Chronoverb_VST3.dir/Libs/JUCE/modules/juce_audio_plugin_client/juce_audio_plugin_client_Standalone.cpp.obj CMakeFiles/Chronoverb_VST3.dir/Libs/JUCE/modules/juce_audio_plugin_client/juce_audio_plugin_client_Unity.cpp.obj CMakeFiles/Chronoverb_VST3.dir/Libs/JUCE/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST2.cpp.obj CMakeFiles/Chronoverb_VST3.dir/Libs/JUCE/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST3.cpp.obj  "Chronoverb_artefacts/Debug/libDr Chronoverb_SharedCode.a"  libAssets.a  -ldxgi  -luuid  -lwsock32  -lwininet  -lversion  -lole32  -lws2_32  -loleaut32  -limm32  -lcomdlg32  -lshlwapi  -lrpcrt4  -lwinmm  -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32 && cd /home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/cmake-build-windows-debug && /home/esther/.local/share/JetBrains/Toolbox/apps/clion/bin/cmake/linux/x64/bin/cmake -E remove -f "/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/cmake-build-windows-debug/Chronoverb_artefacts/Debug/VST3/Dr Chronoverb.vst3/Contents/moduleinfo.json" && /home/esther/.local/share/JetBrains/Toolbox/apps/clion/bin/cmake/linux/x64/bin/cmake -E make_directory "/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/cmake-build-windows-debug/Chronoverb_artefacts/Debug/VST3/Dr Chronoverb.vst3/Contents/Resources" && juce_vst3_helper -create -version 0.0.1 -path "/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/cmake-build-windows-debug/Chronoverb_artefacts/Debug/VST3/Dr Chronoverb.vst3" -output "/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/cmake-build-windows-debug/Chronoverb_artefacts/Debug/VST3/Dr Chronoverb.vst3/Contents/Resources/moduleinfo.json"
+/home/esther/Documents/GitHub/DR-Plugs/DR-Chronoverb/cmake-build-windows-debug/Chronoverb_artefacts/Debug/VST3/Dr Chronoverb.vst3 is not a module directory.
+ninja: build stopped: subcommand failed.
+
+My Windows Debug cmake profile info:
+Toolchain: MinGW
+CMake options: -DCMAKE_TOOLCHAIN_FILE=$CMakeProjectDir$/Toolchain-x86_64-w64-mingw32.cmake -DCMAKE_BUILD_TYPE=Debug
+
+Toolchain-x86_64-w64-mingw32.cmake:
+# Toolchain-x86_64-w64-mingw32.cmake
+set(CMAKE_SYSTEM_NAME Windows)
+set(CMAKE_SYSTEM_PROCESSOR AMD64)
+
+set(triple x86_64-w64-mingw32)
+
+set(CMAKE_C_COMPILER   ${triple}-gcc)
+set(CMAKE_CXX_COMPILER ${triple}-g++)
+set(CMAKE_RC_COMPILER  ${triple}-windres)
+
+set(CMAKE_FIND_ROOT_PATH /usr/${triple})
+
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
+
+# Recommended for JUCE plugins
+add_compile_options(-static-libgcc -static-libstdc++)
+add_link_options(
+    -static
+    -static-libgcc
+    -static-libstdc++
+    -Wl,--subsystem,windows   # removes console window for Standalone
+)
