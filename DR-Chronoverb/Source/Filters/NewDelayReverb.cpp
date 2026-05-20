@@ -88,6 +88,12 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     lastFeedbackL = 0.0f;
     lastFeedbackR = 0.0f;
 
+    postPitchAllpassLeft.Prepare(sampleRate);
+    postPitchAllpassLeft.Configure(pitchShiftAllpassDelay, 0.6f); // 15 ms delay, gain 0.6
+
+    postPitchAllpassRight.Prepare(sampleRate);
+    postPitchAllpassRight.Configure(pitchShiftAllpassDelay, 0.6f);
+
     kBlendSlewCoeff = 1.0f / (0.01f * static_cast<float>(sampleRate));
 
     smoothedCenteredReadDelayMilliseconds = delayMilliseconds;
@@ -116,7 +122,7 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
         float outputLeft = inputLeft;
         float outputRight = inputRight;
 
-        if (pitchShiftEnabled >= 0.5f)
+        if (pitchEnabled >= 0.5f)
         {
             outputLeft = wetInputPitchShifterLeft.ProcessSample(inputLeft);
             outputRight = wetInputPitchShifterRight.ProcessSample(inputRight);
@@ -320,10 +326,17 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         float pitchedLeft = wetLeft;
         float pitchedRight = wetRight;
 
-        if (pitchShiftEnabled >= 0.5f)
+        if (pitchEnabled >= 0.5f)
         {
             pitchedLeft = wetInputPitchShifterLeft.ProcessSample(wetLeft);
             pitchedRight = wetInputPitchShifterRight.ProcessSample(wetRight);
+
+            // ---- 9b: Post-pitch allpass smoothing (only when pitch and diffusion are active) ----
+            if (diffusionAmountSmoothed > 0.001f)
+            {
+                pitchedLeft  = postPitchAllpassLeft.ProcessSample(pitchedLeft);
+                pitchedRight = postPitchAllpassRight.ProcessSample(pitchedRight);
+            }
         }
 
         // Advance echo boundary counters (needed regardless of pitch enable state)
@@ -471,27 +484,32 @@ void NewDelayReverb::SetHPLPPrePost(float prePost01)
     hplpPrePost01 = clamp01(prePost01);
 }
 
-void NewDelayReverb::SetPitchShiftEnabled(float pitchShiftEnabled01)
+void NewDelayReverb::SetPitchEnabled(float pitchEnabled01)
 {
-    pitchShiftEnabled = clamp01(pitchShiftEnabled01);
+    pitchEnabled = clamp01(pitchEnabled01);
 }
 
-void NewDelayReverb::SetPitchShiftRangeLower(float pitchShiftRangeLowerSemitones)
+void NewDelayReverb::SetPitchRangeLower(float pitchRangeLowerSemitones)
 {
-    pitchShiftRangeLower = juce::jlimit(-48.0f, 48.0f, pitchShiftRangeLowerSemitones);
+    pitchRangeLower = juce::jlimit(-48.0f, 48.0f, pitchRangeLowerSemitones);
     pitchSequenceRebuildPending.store(true, std::memory_order_release);
 }
 
-void NewDelayReverb::SetPitchShiftRangeUpper(float pitchShiftRangeUpperSemitones)
+void NewDelayReverb::SetPitchRangeUpper(float pitchRangeUpperSemitones)
 {
-    pitchShiftRangeUpper = juce::jlimit(-48.0f, 48.0f, pitchShiftRangeUpperSemitones);
+    pitchRangeUpper = juce::jlimit(-48.0f, 48.0f, pitchRangeUpperSemitones);
     pitchSequenceRebuildPending.store(true, std::memory_order_release);
 }
 
-void NewDelayReverb::SetPitchShiftMode(int modeIndex)
+void NewDelayReverb::SetPitchMode(int modeIndex)
 {
-    pitchShiftMode = juce::jlimit(0, 3, modeIndex);
+    pitchMode = juce::jlimit(0, 3, modeIndex);
     pitchSequenceRebuildPending.store(true, std::memory_order_release);
+}
+
+void NewDelayReverb::SetPitchWetVolume(float newPitchShiftWetVolume)
+{
+    pitchShiftWetVolume = clamp01(newPitchShiftWetVolume);
 }
 
 void NewDelayReverb::SetPitchStereoEnabled(float enabled01)
@@ -537,7 +555,7 @@ void NewDelayReverb::SetHostTempo(float bpm)
 
 float NewDelayReverb::GetPitchShifterLatencyMilliseconds() const
 {
-    if (pitchShiftEnabled < 0.5f)
+    if (pitchEnabled < 0.5f)
         return 0.0f;
 
     return wetInputPitchShifterLeft.GetLatencyMilliseconds();
@@ -684,15 +702,15 @@ void NewDelayReverb::updateStereoSpread()
 
 void NewDelayReverb::rebuildPitchSequences()
 {
-    int lowerOctave = semitonesToOctaveIndex(pitchShiftRangeLower);
-    int upperOctave = semitonesToOctaveIndex(pitchShiftRangeUpper);
+    int lowerOctave = semitonesToOctaveIndex(pitchRangeLower);
+    int upperOctave = semitonesToOctaveIndex(pitchRangeUpper);
 
     if (lowerOctave > upperOctave)
         std::swap(lowerOctave, upperOctave);
 
     auto configureShifter = [&](OctaveEchoPitchShifter& shifter)
     {
-        if (pitchShiftMode == 3) // Up-Down
+        if (pitchMode == 3) // Up-Down
         {
             auto pingPongSequence = std::make_unique<PingPongOctaveSequence>();
             pingPongSequence->SetRange(lowerOctave, upperOctave);
@@ -700,7 +718,7 @@ void NewDelayReverb::rebuildPitchSequences()
             pingPongSequence->SetInitialDirection(1);
             shifter.SetSequence(std::move(pingPongSequence));
         }
-        else if (pitchShiftMode == 2) // Random
+        else if (pitchMode == 2) // Random
         {
             auto randomSequence = std::make_unique<RandomOctaveSequence>();
             randomSequence->SetRange(lowerOctave, upperOctave);
@@ -711,7 +729,7 @@ void NewDelayReverb::rebuildPitchSequences()
             auto progressiveSequence = std::make_unique<ProgressiveOctaveSequence>();
             progressiveSequence->SetRange(lowerOctave, upperOctave);
 
-            if (pitchShiftMode == 0) // Up
+            if (pitchMode == 0) // Up
             {
                 progressiveSequence->SetStartOctave(lowerOctave);
                 progressiveSequence->SetStepOctaves(1);

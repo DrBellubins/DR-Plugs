@@ -215,7 +215,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     // Pitch shifting
     uiHelpers.CreateCheckbox(*pitchPage, pitchShiftToggle,
         pitchShiftToggleAttachment,
-        "pitchShiftEnabled",
+        "pitchEnabled",
         20, 20, 30, 30);
 
     uiHelpers.CreateCheckboxLabel(*pitchPage, pitchShiftTitle, *pitchShiftToggle,
@@ -223,7 +223,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     uiHelpers.CreateCheckbox(*pitchPage, pitchShiftStereoToggle,
     pitchShiftStereoToggleAttachment,
-    "pitchShiftStereoEnabled",
+    "pitchStereoEnabled",
     20, 20, 30, 60);
 
     uiHelpers.CreateCheckboxLabel(*pitchPage, pitchShiftStereoLabel, *pitchShiftStereoToggle,
@@ -241,8 +241,8 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     horizontalPitchRangeAttachment = std::make_unique<HorizontalRangeSliderAttachment>(
         processorRef.parameters,
-        "pitchShiftRangeLower",
-        "pitchShiftRangeUpper",
+        "pitchRangeLower",
+        "pitchRangeUpper",
         *horizontalPitchRangeSlider
     );
 
@@ -252,36 +252,36 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     horizontalPitchRangeTooltipOverlay->toFront(false);
 
     // Pitch mode (sequence)
-    pitchShiftModeDropdown = std::make_unique<ThemedDropdown>();
-    pitchPage->addAndMakeVisible(*pitchShiftModeDropdown);
-    pitchShiftModeDropdown->setBounds(500, 0, 180, 32);
+    pitchModeDropdown = std::make_unique<ThemedDropdown>();
+    pitchPage->addAndMakeVisible(*pitchModeDropdown);
+    pitchModeDropdown->setBounds(500, 0, 180, 32);
 
-    pitchShiftModeAttachment = std::make_unique<ThemedDropdown::Attachment>(
+    pitchModeAttachment = std::make_unique<ThemedDropdown::Attachment>(
         processorRef.parameters,
-        "pitchShiftMode",
-        *pitchShiftModeDropdown
+        "pitchMode",
+        *pitchModeDropdown
     );
 
-    uiHelpers.CreateLabel(*pitchPage, pitchShiftModeLabel,
+    uiHelpers.CreateLabel(*pitchPage, pitchModeLabel,
         "Sequence:", 12.0f, 0, 0);
 
-    pitchShiftModeLabel->setBounds(340, 0, 220, 32);
+    pitchModeLabel->setBounds(340, 0, 220, 32);
 
     // Algorithm dropdown (Granular / Phase Vocoder)
-    /*pitchShiftAlgorithmDropdown = std::make_unique<ThemedDropdown>();
-    pitchPage->addAndMakeVisible(*pitchShiftAlgorithmDropdown);
-    pitchShiftAlgorithmDropdown->setBounds(500, 50, 220, 32);
+    /*pitchAlgorithmDropdown = std::make_unique<ThemedDropdown>();
+    pitchPage->addAndMakeVisible(*pitchAlgorithmDropdown);
+    pitchAlgorithmDropdown->setBounds(500, 50, 220, 32);
 
-    pitchShiftAlgorithmAttachment = std::make_unique<ThemedDropdown::Attachment>(
+    pitchAlgorithmAttachment = std::make_unique<ThemedDropdown::Attachment>(
         processorRef.parameters,
-        "pitchShiftAlgorithm",
-        *pitchShiftAlgorithmDropdown
+        "pitchAlgorithm",
+        *pitchAlgorithmDropdown
     );
 
-    uiHelpers.CreateLabel(*pitchPage, pitchShiftAlgorithmLabel,
+    uiHelpers.CreateLabel(*pitchPage, pitchAlgorithmLabel,
         "Algorithm:", 12.0f, 0, 0);
 
-    pitchShiftAlgorithmLabel->setBounds(340, 50, 220, 32);*/
+    pitchAlgorithmLabel->setBounds(340, 50, 220, 32);*/
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()

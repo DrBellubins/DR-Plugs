@@ -9,6 +9,7 @@
 #include "NewDelayReverb/DampingFilter.h"
 #include "NewDelayReverb/DiffusionChain.h"
 #include "NewDelayReverb/PitchShifter.h"
+#include "NewDelayReverb/DiffusionAllpass.h"
 
 class DelayLine;
 class DampingFilter;
@@ -55,12 +56,13 @@ public:
     void SetStereoSpread(float newSpreadMinus1To1);       // -1..1
     void SetHPLPPrePost(float prePost01);                 // 0 = Pre, 1 = Post
 
-    void SetPitchShiftEnabled(float pitchShiftEnabled01);
-    void SetPitchShiftRangeLower(float pitchShiftRangeLowerSemitones);
-    void SetPitchShiftRangeUpper(float pitchShiftRangeUpperSemitones);
-    void SetPitchShiftMode(int modeIndex);                // 0=Up, 1=Down, 2=Random
+    void SetPitchEnabled(float pitchEnabled01);
+    void SetPitchRangeLower(float pitchRangeLowerSemitones);
+    void SetPitchRangeUpper(float pitchRangeUpperSemitones);
+    void SetPitchMode(int modeIndex);                // 0=Up, 1=Down, 2=Random
     void SetPitchStereoEnabled(float enabled01);
     void SetPitchAlgorithm(OctaveEchoPitchShifter::BackendType backendType);
+    void SetPitchWetVolume(float wetVolume);
 
     void SetHostTempo(float bpm);
 
@@ -109,18 +111,20 @@ private:
     float stereoSpreadMinus1To1 = 0.0f;
     float hplpPrePost01 = 1.0f;
 
-    float pitchShiftEnabled = 0.0f;
-    float pitchShiftRangeLower = -12.0f;
-    float pitchShiftRangeUpper = 12.0f;
-    int pitchShiftMode = 0;
+    float pitchEnabled = 0.0f;
+    float pitchRangeLower = -12.0f;
+    float pitchRangeUpper = 12.0f;
+    int pitchMode = 0;
     float pitchStereoEnabled01 = 0.0f;
-
     float pitchShifterLatencyMs = 0.0f;
+    float pitchShiftWetVolume = 0.0f;
+
+    const float pitchShiftAllpassDelay = 15.0f;
 
     int echoSampleCounterL = 0;
     int echoSampleCounterR = 0;
 
-    std::atomic<bool> filterRebuildPending    { false };
+    std::atomic<bool> filterRebuildPending { false };
     std::atomic<bool> diffusionRebuildPending { false };
     std::atomic<bool> pitchSequenceRebuildPending { false };
 
@@ -147,6 +151,9 @@ private:
 
     OctaveEchoPitchShifter wetInputPitchShifterLeft;
     OctaveEchoPitchShifter wetInputPitchShifterRight;
+
+    DiffusionAllpass postPitchAllpassLeft;
+    DiffusionAllpass postPitchAllpassRight;
 
     juce::dsp::IIR::Filter<float> lowpassL;
     juce::dsp::IIR::Filter<float> lowpassR;

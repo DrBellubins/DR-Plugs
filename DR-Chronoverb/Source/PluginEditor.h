@@ -153,13 +153,13 @@ private:
     std::unique_ptr<HorizontalRangeSliderAttachment> horizontalPitchRangeAttachment;
     std::unique_ptr<TooltipOverlay> horizontalPitchRangeTooltipOverlay;
 
-    std::unique_ptr<ThemedDropdown> pitchShiftModeDropdown;
-    std::unique_ptr<ThemedDropdown::Attachment> pitchShiftModeAttachment;
-    std::unique_ptr<juce::Label> pitchShiftModeLabel;
+    std::unique_ptr<ThemedDropdown> pitchModeDropdown;
+    std::unique_ptr<ThemedDropdown::Attachment> pitchModeAttachment;
+    std::unique_ptr<juce::Label> pitchModeLabel;
 
-    std::unique_ptr<ThemedDropdown> pitchShiftAlgorithmDropdown;
-    std::unique_ptr<ThemedDropdown::Attachment> pitchShiftAlgorithmAttachment;
-    std::unique_ptr<juce::Label> pitchShiftAlgorithmLabel;
+    std::unique_ptr<ThemedDropdown> pitchAlgorithmDropdown;
+    std::unique_ptr<ThemedDropdown::Attachment> pitchAlgorithmAttachment;
+    std::unique_ptr<juce::Label> pitchAlgorithmLabel;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };

@@ -37,12 +37,13 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     parameters.addParameterListener("duckRelease", this);
 
     // Pitch shifting
-    parameters.addParameterListener("pitchShiftEnabled", this);
-    parameters.addParameterListener("pitchShiftRangeLower", this);
-    parameters.addParameterListener("pitchShiftRangeUpper", this);
-    parameters.addParameterListener("pitchShiftMode", this);
-    parameters.addParameterListener("pitchShiftStereoEnabled", this);
-    parameters.addParameterListener("pitchShiftAlgorithm", this);
+    parameters.addParameterListener("pitchEnabled", this);
+    parameters.addParameterListener("pitchRangeLower", this);
+    parameters.addParameterListener("pitchRangeUpper", this);
+    parameters.addParameterListener("pitchMode", this);
+    parameters.addParameterListener("pitchStereoEnabled", this);
+    parameters.addParameterListener("pitchAlgorithm", this);
+    parameters.addParameterListener("pitchWetVolume", this);
 
     // Set delay initial values
     float delayTime = parameters.getRawParameterValue("delayTime")->load();
@@ -70,16 +71,18 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     float duckRelease = parameters.getRawParameterValue("duckRelease")->load();
 
     // Pitch shifting
-    float pitchShiftEnabled = parameters.getRawParameterValue("pitchShiftEnabled")->load();
-    float pitchShiftRangeLower = parameters.getRawParameterValue("pitchShiftRangeLower")->load();
-    float pitchShiftRangeUpper = parameters.getRawParameterValue("pitchShiftRangeUpper")->load();
+    float pitchEnabled = parameters.getRawParameterValue("pitchEnabled")->load();
+    float pitchRangeLower = parameters.getRawParameterValue("pitchRangeLower")->load();
+    float pitchRangeUpper = parameters.getRawParameterValue("pitchRangeUpper")->load();
 
-    auto* pitchShiftModeParameter =
-                dynamic_cast<juce::AudioParameterChoice*>(parameters.getParameter("pitchShiftMode"));
+    auto* pitchModeParameter =
+                dynamic_cast<juce::AudioParameterChoice*>(parameters.getParameter("pitchMode"));
 
-    int pitchShiftMode = pitchShiftModeParameter->getIndex();
+    int pitchMode = pitchModeParameter->getIndex();
 
-    float pitchShiftStereoEnabled = parameters.getRawParameterValue("pitchShiftStereoEnabled")->load();
+    float pitchStereoEnabled = parameters.getRawParameterValue("pitchStereoEnabled")->load();
+
+    float pitchWetVolume = parameters.getRawParameterValue("pitchWetVolume")->load();
 
     DelayReverb.SetDelayTime(delayTime);
     DelayReverb.SetDelayMode(delayMode);
@@ -97,11 +100,12 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     DelayReverb.SetHighpassCutoff(highPassCutoff);
     DelayReverb.SetHPLPPrePost(hpLPPrePost);
 
-    DelayReverb.SetPitchShiftEnabled(pitchShiftEnabled);
-    DelayReverb.SetPitchShiftRangeLower(pitchShiftRangeLower);
-    DelayReverb.SetPitchShiftRangeUpper(pitchShiftRangeUpper);
-    DelayReverb.SetPitchShiftMode(pitchShiftMode);
-    DelayReverb.SetPitchStereoEnabled(pitchShiftStereoEnabled);
+    DelayReverb.SetPitchEnabled(pitchEnabled);
+    DelayReverb.SetPitchRangeLower(pitchRangeLower);
+    DelayReverb.SetPitchRangeUpper(pitchRangeUpper);
+    DelayReverb.SetPitchMode(pitchMode);
+    DelayReverb.SetPitchStereoEnabled(pitchStereoEnabled);
+    DelayReverb.SetPitchWetVolume(pitchWetVolume);
 
     //DelayReverb.SetDuckAmount(duckAmount);
     //DelayReverb.SetDuckAttack(duckAttack);
@@ -193,22 +197,22 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
 
     // ---- Pitch shifting ----
     parameterList.push_back(std::make_unique<juce::AudioParameterBool>(
-        "pitchShiftEnabled", "Pitch Shift Enabled", false));
+        "pitchEnabled", "Pitch Shift Enabled", false));
 
     parameterList.push_back(std::make_unique<juce::AudioParameterFloat>(
-        "pitchShiftRangeLower",
+        "pitchRangeLower",
         "Pitch Shift Range Lower",
         juce::NormalisableRange<float>(-48.0f, 48.0f, 12.0f),
         -12.0f));
 
     parameterList.push_back(std::make_unique<juce::AudioParameterFloat>(
-        "pitchShiftRangeUpper",
+        "pitchRangeUpper",
         "Pitch Shift Range Upper",
         juce::NormalisableRange<float>(-48.0f, 48.0f, 12.0f),
         12.0f));
 
     parameterList.push_back(std::make_unique<juce::AudioParameterChoice>(
-        "pitchShiftMode",
+        "pitchMode",
         "Pitch Shift Mode",
         juce::StringArray
         {
@@ -221,13 +225,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
     ));
 
     parameterList.push_back(std::make_unique<juce::AudioParameterBool>(
-        "pitchShiftStereoEnabled",
+        "pitchStereoEnabled",
         "Pitch Shift Stereo Enabled",
         false
     ));
 
     parameterList.push_back(std::make_unique<juce::AudioParameterChoice>(
-       "pitchShiftAlgorithm",
+       "pitchAlgorithm",
        "Pitch Shift Algorithm",
        juce::StringArray
        {
@@ -236,6 +240,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
        },
        0 // Default: Granular
    ));
+
+    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
+        "pitchWetVolume", "Pitch Shift Wet Volume",
+        juce::NormalisableRange(0.0f, 1.0f), 0.3f)); // Default 300 ms
 
     return { parameterList.begin(), parameterList.end() };
 }
@@ -386,29 +394,29 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
     //if (parameterID == "duckRelease") DelayReverb.SetDuckRelease(newValue);
 
     // Pitch shifting
-    if (parameterID == "pitchShiftEnabled") DelayReverb.SetPitchShiftEnabled(newValue);
-    if (parameterID == "pitchShiftRangeLower") DelayReverb.SetPitchShiftRangeLower(newValue);
-    if (parameterID == "pitchShiftRangeUpper") DelayReverb.SetPitchShiftRangeUpper(newValue);
+    if (parameterID == "pitchEnabled") DelayReverb.SetPitchEnabled(newValue);
+    if (parameterID == "pitchRangeLower") DelayReverb.SetPitchRangeLower(newValue);
+    if (parameterID == "pitchRangeUpper") DelayReverb.SetPitchRangeUpper(newValue);
 
-    if (parameterID == "pitchShiftMode")
+    if (parameterID == "pitchMode")
     {
-        auto* pitchShiftModeParameter =
-                dynamic_cast<juce::AudioParameterChoice*>(parameters.getParameter("pitchShiftMode"));
+        auto* pitchModeParameter =
+                dynamic_cast<juce::AudioParameterChoice*>(parameters.getParameter("pitchMode"));
 
-        if (pitchShiftModeParameter != nullptr)
+        if (pitchModeParameter != nullptr)
         {
-            const int selectedModeIndex = pitchShiftModeParameter->getIndex();
-            DelayReverb.SetPitchShiftMode(selectedModeIndex);
+            const int selectedModeIndex = pitchModeParameter->getIndex();
+            DelayReverb.SetPitchMode(selectedModeIndex);
         }
     }
 
-    if (parameterID == "pitchShiftStereoEnabled") DelayReverb.SetPitchStereoEnabled(newValue);
+    if (parameterID == "pitchStereoEnabled") DelayReverb.SetPitchStereoEnabled(newValue);
 
-    if (parameterID == "pitchShiftAlgorithm")
+    if (parameterID == "pitchAlgorithm")
     {
         auto* algorithmParam =
             dynamic_cast<juce::AudioParameterChoice*>(
-                parameters.getParameter("pitchShiftAlgorithm"));
+                parameters.getParameter("pitchAlgorithm"));
 
         if (algorithmParam != nullptr)
         {
@@ -422,6 +430,8 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
             DelayReverb.SetPitchAlgorithm(backendType);
         }
     }
+
+    if (parameterID == "pitchWetVolume") DelayReverb.SetPitchWetVolume(newValue);
 }
 
 void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
