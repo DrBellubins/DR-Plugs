@@ -76,20 +76,31 @@ public:
     {
         const float r = juce::jlimit(0.25f, 4.0f, newRatio);
 
-        GrainState& active = (activeIsA ? stateA : stateB);
+        GrainState& active   = (activeIsA ? stateA : stateB);
         GrainState& inactive = (activeIsA ? stateB : stateA);
 
         if (std::abs(r - active.ratio) < 1.0e-6f)
-            return; // No change needed
+            return;
 
-        // Clone running grain state, change only the ratio.
-        // DO NOT re-anchor read heads — that causes discontinuity.
         inactive = active;
         inactive.ratio = r;
 
-        crossfadeTotalSamples = boundaryCrossfadeSamples;
-        crossfadeRemainingSamples = crossfadeTotalSamples;
-        pendingFlipAfterFade = true;
+        if (boundaryCrossfadeSamples <= 0)
+        {
+            // No crossfade configured — swap instantly.
+            // Grain phases and read heads are identical to the old state;
+            // only the advancement rate changes from here, which is smooth.
+            activeIsA = !activeIsA;
+            pendingFlipAfterFade = false;
+            crossfadeRemainingSamples = 0;
+            crossfadeTotalSamples = 0;
+        }
+        else
+        {
+            crossfadeTotalSamples = boundaryCrossfadeSamples;
+            crossfadeRemainingSamples = crossfadeTotalSamples;
+            pendingFlipAfterFade = true;
+        }
     }
 
     // ------------------------------------------------------------------
@@ -253,12 +264,9 @@ private:
         return u * jitterPercent * static_cast<float>(grainLengthSamples);
     }
 
-    // Two heads at 0.0/0.5 offset: sqrtHann(t) + sqrtHann(t+0.5T) = constant.
-    // Four heads at 0.0/0.25/0.5/0.75 offset: same property holds.
     static float hannWindow(float phase01)
     {
-        const float hann = 0.5f - 0.5f * std::cos(2.0f * juce::MathConstants<float>::pi * phase01);
-        return std::sqrt(std::max(0.0f, hann)); // sqrt-Hann; safe guard against float noise below 0
+        return 0.5f - 0.5f * std::cos(2.0f * juce::MathConstants<float>::pi * phase01);
     }
 
     float wrapReadIndex(float idx) const
