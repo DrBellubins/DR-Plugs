@@ -68,9 +68,11 @@ Up-Down srarts from lower pitch range value, and once hitting higher pitch range
 
 Random randomly goes to a different octave within the pitch range, never repeating the last octave twice in a row, if possible.
 
-An optional stereo toggle that allows for pitch shifting to happen independently on L/R signals. If disabled, pitch shifting should sound uniform between left and right channels, and shouldn't introduce any stereo information on top of the input signal.
+An optional stereo toggle that allows for pitch shifting to happen independently on L/R signals. If disabled, pitch shifting should sound uniform between left and right channels, and shouldn't introduce any stereo information on top of the input signal (even in granular mode).
 
 All of these modes should, under no circumstance, change pitch mid-echo. They should only change pitch at the alloted delay time. Pitch shifting should be audible in both the delay signal, and the reverb signal.
+
+Pitch shifting also has two algorithms, one lower quality, but faster with CPU Usage. The other is higher quality, but slower with CPU usage. The two algorithms are Granular (low quality), and Phase Vocoder (high quality).
 
 -- Pitch shifting end --
 --------------------------------------------
