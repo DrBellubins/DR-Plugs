@@ -339,6 +339,14 @@ bool AudioPluginAudioProcessorEditor::keyPressed(const juce::KeyPress& key, juce
 {
     juce::ignoreUnused(originatingComponent);
 
+    // Impulse click
+    if (key.getKeyCode() == juce::KeyPress::tabKey)
+    {
+        processorRef.ImpulseClick.Trigger();
+        return true;
+    }
+
+    // Keyboard synth
     int KeyCode = 0;
 
     // Prefer text character when available (letters), fallback to key code.
@@ -347,10 +355,10 @@ bool AudioPluginAudioProcessorEditor::keyPressed(const juce::KeyPress& key, juce
     else
         KeyCode = key.getKeyCode();
 
-    processorRef.keyboardSynth.HandleKeyChange(KeyCode, true);
+    processorRef.KeyboardSynth.HandleKeyChange(KeyCode, true);
     lastHeldKeyCodes.insert(KeyCode);
 
-    return true; // Consume
+    return true;
 }
 
 bool AudioPluginAudioProcessorEditor::keyStateChanged(bool isKeyDown, juce::Component* originatingComponent)
@@ -360,7 +368,7 @@ bool AudioPluginAudioProcessorEditor::keyStateChanged(bool isKeyDown, juce::Comp
     // Poll the mapped key set and compare against lastHeldKeyCodes to detect releases/presses.
     std::unordered_set<int> currentHeld;
 
-    for (int KeyCode : processorRef.keyboardSynth.GetMappedKeyCodes())
+    for (int KeyCode : processorRef.KeyboardSynth.GetMappedKeyCodes())
     {
         // Check lower-case and upper-case variants
         int LowerKey = KeyCode;
@@ -383,14 +391,14 @@ bool AudioPluginAudioProcessorEditor::keyStateChanged(bool isKeyDown, juce::Comp
     for (int KeyCode : currentHeld)
     {
         if (lastHeldKeyCodes.find(KeyCode) == lastHeldKeyCodes.end())
-            processorRef.keyboardSynth.HandleKeyChange(KeyCode, true);
+            processorRef.KeyboardSynth.HandleKeyChange(KeyCode, true);
     }
 
     // Released
     for (int KeyCode : lastHeldKeyCodes)
     {
         if (currentHeld.find(KeyCode) == currentHeld.end())
-            processorRef.keyboardSynth.HandleKeyChange(KeyCode, false);
+            processorRef.KeyboardSynth.HandleKeyChange(KeyCode, false);
     }
 
     lastHeldKeyCodes.swap(currentHeld);

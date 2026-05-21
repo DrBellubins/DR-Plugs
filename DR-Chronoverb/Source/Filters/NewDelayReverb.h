@@ -21,11 +21,11 @@ public:
     // Delay-mode tunings: shorter, natural-spacing delays for discrete-tap blur.
     std::vector<float> DelayTunings =
     {
-        10.0f, 15.0f, 22.0f, 33.0f, 50.0f, 75.0f, 113.0f, 170.0f    // Natural
-        //7.0f, 13.0f, 19.0f, 29.0f, 53.0f, 79.0f, 113.0f, 149.0f   // Generated primes
-        //10.0f, 20.0f, 25.0f, 29.0f, 53.0f, 79.0f, 113.0f, 149.0f  // Primes modified
-        //5.0f, 11.0f, 17.0f, 19.0f, 23.0f, 29.0f, 31.0f, 37.0f     // Bad Deelay approx.
-        //5.0f, 11.0f, 17.0f, 23.0f, 47.0f, 67.0f, 71.0f, 73.0f     // Also bad.
+        //10.0, 15.0, 22.0, 33.0, 50.0, 75.0, 113.0, 170.0  // Natural
+        7.0, 13.0, 19.0, 29.0, 53.0, 79.0, 113.0, 149.0     // Generated primes
+        //10.0, 20.0, 25.0, 29.0, 53.0, 79.0, 113.0, 149.0  // Primes modified
+        //5.0, 11.0, 17.0, 19.0, 23.0, 29.0, 31.0, 37.0     // Bad Deelay approx.
+        //5.0, 11.0, 17.0, 23.0, 47.0, 67.0, 71.0, 73.0     // Also bad.
     };
 
     // Reverb-mode tunings: longer, prime-spaced delays for lush modal density.
@@ -77,6 +77,38 @@ private:
 
     int semitonesToOctaveIndex(float semitones);
 
+    // Runtime Values
+    float lastFeedbackL = 0.0f;
+    float lastFeedbackR = 0.0f;
+
+    int echoSampleCounterL = 0;
+    int echoSampleCounterR = 0;
+
+    int writePeriodSamples = 1;
+    int echoWriteCounterL = 0;
+    int echoWriteCounterR = 0;
+
+    float smoothedDelayReverbDiffBlend = 0.0f;
+    float kBlendSlewCoeff = 0.0f;
+
+    int lastBuiltQualityStages = -1;
+    float lastBuiltSize01 = -1.0f;
+
+    float totalDelayDiffusionMilliseconds = 0.0f;
+    float staticDiffusionCompensationMilliseconds = 0.0f;
+
+    float smoothedCenteredReadDelayMilliseconds = 1.0f;
+    float readDelaySlewCoefficient = 0.0f;
+
+    // Latency
+    float cachedPitchCompensationMs = 0.0f;
+    float pitchShifterLatencyMs = 0.0f;
+
+    // Settings
+    const float pitchAllpassTuningMultiplier = 1.5f; // For secondary allpass filter tuning
+    const float pitchDelayAllpassTuning = 170.0f;
+    const float pitchReverbAllpassTuning = 50.0f;
+
     // Parameters
     double sampleRate = 48000.0;
     float hostTempoBpm = 120.0f;
@@ -91,12 +123,6 @@ private:
     float diffusionAmount01 = 0.0f;
     float diffusionSize01 = 0.0f;
     int diffusionQualityStages = 6;
-
-    float totalDelayDiffusionMilliseconds = 0.0f;
-    float staticDiffusionCompensationMilliseconds = 0.0f;
-
-    float smoothedCenteredReadDelayMilliseconds = 1.0f;
-    float readDelaySlewCoefficient = 0.0f;
 
     float centeredSwellRatio = 0.25f;
     float diffusionCompensationBias = 1.5f;
@@ -116,23 +142,9 @@ private:
     float pitchStereoEnabled01 = 0.0f;
     float pitchWetMix = 0.0f;
 
-    const float pitchAllpassTuningMultiplier = 1.5f; // For secondary allpass filter tuning
-    const float pitchDelayAllpassTuning = 170.0f;
-    const float pitchReverbAllpassTuning = 50.0f;
-
-    float cachedPitchCompensationMs = 0.0f;
-    float pitchShifterLatencyMs = 0.0f;
-    int echoSampleCounterL = 0;
-    int echoSampleCounterR = 0;
-
     std::atomic<bool> filterRebuildPending { false };
     std::atomic<bool> diffusionRebuildPending { false };
     std::atomic<bool> pitchSequenceRebuildPending { false };
-
-    // Stable boundary (write-domain) period
-    int writePeriodSamples = 1;
-    int echoWriteCounterL = 0;
-    int echoWriteCounterR = 0;
 
     // Delay lines
     std::unique_ptr<DelayLine> mainDelayLeft;
@@ -168,15 +180,6 @@ private:
     juce::dsp::IIR::Filter<float> lowpassR;
     juce::dsp::IIR::Filter<float> highpassL;
     juce::dsp::IIR::Filter<float> highpassR;
-
-    float smoothedDelayReverbDiffBlend = 0.0f;
-    float kBlendSlewCoeff = 0.0f;
-
-    float lastFeedbackL = 0.0f;
-    float lastFeedbackR = 0.0f;
-
-    int lastBuiltQualityStages = -1;
-    float lastBuiltSize01 = -1.0f;
 
     static float map01ToRange(float value01, float minValue, float maxValue);
     static float clamp01(float value);

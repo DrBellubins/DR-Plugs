@@ -5,6 +5,7 @@
 
 #include "Filters/NewDelayReverb.h"
 #include "Filters/ComputerKeyboardSquareSynth.h"
+#include "Filters/ImpulseClickSynth.h"
 
 //==============================================================================
 class AudioPluginAudioProcessor  : public juce::AudioProcessor, public juce::AudioProcessorValueTreeState::Listener
@@ -22,7 +23,8 @@ public:
 
     NewDelayReverb DelayReverb;
 
-    ComputerKeyboardSquareSynth keyboardSynth;
+    ComputerKeyboardSquareSynth KeyboardSynth;
+    ImpulseClickSynth ImpulseClick;
 
     //==============================================================================
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;

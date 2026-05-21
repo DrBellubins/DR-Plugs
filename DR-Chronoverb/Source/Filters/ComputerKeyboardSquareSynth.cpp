@@ -37,9 +37,7 @@ void ComputerKeyboardSquareSynth::Process(juce::AudioBuffer<float>& AudioBuffer)
     const int NumSamples = AudioBuffer.getNumSamples();
 
     if (NumChannels <= 0 || NumSamples <= 0)
-    {
         return;
-    }
 
     for (int SampleIndex = 0; SampleIndex < NumSamples; ++SampleIndex)
     {
@@ -58,6 +56,7 @@ void ComputerKeyboardSquareSynth::Process(juce::AudioBuffer<float>& AudioBuffer)
                 VoiceRef.Amplitude = 0.0f;
                 VoiceRef.Phase = 0.0;
                 VoiceRef.PhaseIncrement = 0.0;
+
                 continue;
             }
 
@@ -73,9 +72,7 @@ void ComputerKeyboardSquareSynth::Process(juce::AudioBuffer<float>& AudioBuffer)
                 VoiceRef.Phase += VoiceRef.PhaseIncrement;
 
                 if (VoiceRef.Phase >= 1.0)
-                {
                     VoiceRef.Phase -= 1.0;
-                }
             }
         }
 
@@ -92,32 +89,24 @@ void ComputerKeyboardSquareSynth::HandleKeyChange(int KeyCode, bool IsKeyDown)
 {
     // Normalize letter case (support both upper and lower)
     if (KeyCode >= 'A' && KeyCode <= 'Z')
-    {
         KeyCode = static_cast<int>(KeyCode - 'A' + 'a');
-    }
 
     auto MapIt = KeyToMidi.find(KeyCode);
 
     if (MapIt == KeyToMidi.end())
-    {
         return; // Not a mapped key
-    }
 
     const int MidiNote = MapIt->second;
 
     if (IsKeyDown)
     {
         if (HeldKeys.insert(KeyCode).second)
-        {
             NoteOn(MidiNote);
-        }
     }
     else
     {
         if (HeldKeys.erase(KeyCode) > 0)
-        {
             NoteOff(MidiNote);
-        }
     }
 }
 
@@ -132,9 +121,7 @@ std::vector<int> ComputerKeyboardSquareSynth::GetMappedKeyCodes() const
     Keys.reserve(KeyToMidi.size());
 
     for (const auto& Pair : KeyToMidi)
-    {
         Keys.push_back(Pair.first);
-    }
 
     return Keys;
 }
@@ -188,9 +175,7 @@ int ComputerKeyboardSquareSynth::FindExistingVoiceForNote(int MidiNote) const
     for (int Index = 0; Index < static_cast<int>(Voices.size()); ++Index)
     {
         if (Voices[static_cast<size_t>(Index)].MidiNote == MidiNote)
-        {
             return Index;
-        }
     }
 
     return -1;
@@ -203,9 +188,7 @@ int ComputerKeyboardSquareSynth::FindFreeVoiceIndex() const
         const Voice& VoiceRef = Voices[static_cast<size_t>(Index)];
 
         if (!VoiceRef.IsActive && VoiceRef.TargetAmplitude <= 0.0f && std::abs(VoiceRef.Amplitude) < 1.0e-5f)
-        {
             return Index;
-        }
     }
 
     return -1;

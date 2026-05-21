@@ -320,7 +320,8 @@ void AudioPluginAudioProcessor::prepareToPlay(double sampleRate, int samplesPerB
     // initialisation that you need.
     juce::ignoreUnused (sampleRate, samplesPerBlock);
 
-    keyboardSynth.PrepareToPlay(sampleRate);
+    KeyboardSynth.PrepareToPlay(sampleRate);
+    ImpulseClick.PrepareToPlay(sampleRate);
 
     DelayReverb.PrepareToPlay(sampleRate, 1.0f);
 }
@@ -453,8 +454,11 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         }
     }
 
+    // Impulse response click
+    ImpulseClick.Process(buffer);
+
     // Computer Keyboard Square Synth
-    keyboardSynth.Process(buffer);
+    KeyboardSynth.Process(buffer);
 
     // Process reverb
     DelayReverb.ProcessBlock(buffer);
