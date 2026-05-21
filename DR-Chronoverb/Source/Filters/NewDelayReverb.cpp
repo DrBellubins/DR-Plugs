@@ -71,7 +71,7 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     updateFeedbackGainFromFeedbackTime();
     updateStereoSpread();
 
-    // Pitch shifters
+    // End Pitch Shift
     wetInputPitchShifterLeft.Prepare(sampleRate, 512);
     wetInputPitchShifterRight.Prepare(sampleRate, 512);
     wetInputPitchShifterLeft.SetEnabled(true);
@@ -93,6 +93,20 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
 
     postPitchAllpassRight.Prepare(sampleRate);
     postPitchAllpassRight.Configure(pitchShiftAllpassDelay, 0.6f);
+
+    // ---- Pitch latency compensation delay lines ----
+    // Must be sized after the backend is prepared so GetLatencyMilliseconds() is valid.
+    cachedPitchCompensationMs = wetInputPitchShifterLeft.GetLatencyMilliseconds();
+
+    // Allocate for up to 300 ms (well above any granular lookback we'd ever use).
+    const int maxCompSamples = std::max(
+        1,
+        static_cast<int>(std::ceil((300.0 * sampleRate) / 1000.0)));
+
+    pitchCompDelayLeft  = std::make_unique<DelayLine>(maxCompSamples);
+    pitchCompDelayRight = std::make_unique<DelayLine>(maxCompSamples);
+
+    // End Pitch Shift
 
     kBlendSlewCoeff = 1.0f / (0.01f * static_cast<float>(sampleRate));
 
@@ -316,11 +330,25 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         float wetRight = nominalWetRight * cleanTapGain + diffusedEarlyRight * diffusedTapGain;
 
         // ---- 8: Damping + feedback recirculation ----
-        const float dampedLeft = dampingLeft->ProcessSample(wetLeft,  lowpass01);
+        const float dampedLeft  = dampingLeft->ProcessSample(wetLeft,  lowpass01);
         const float dampedRight = dampingRight->ProcessSample(wetRight, lowpass01);
 
-        lastFeedbackL = dampedLeft * feedbackGain;
+        lastFeedbackL = dampedLeft  * feedbackGain;
         lastFeedbackR = dampedRight * feedbackGain;
+
+        // ---- 8b: Pitch latency compensation ----
+        // Delay the non-pitched wet path to match the granular lookback latency,
+        // so both sides of the EqualPowerCrossfade below are time-aligned.
+        pitchCompDelayLeft->PushSample(dampedLeft);
+        pitchCompDelayRight->PushSample(dampedRight);
+
+        const float compDampedLeft  = (cachedPitchCompensationMs > 0.0f)
+            ? pitchCompDelayLeft->ReadDelayMilliseconds(cachedPitchCompensationMs, sampleRate)
+            : dampedLeft;
+
+        const float compDampedRight = (cachedPitchCompensationMs > 0.0f)
+            ? pitchCompDelayRight->ReadDelayMilliseconds(cachedPitchCompensationMs, sampleRate)
+            : dampedRight;
 
         // ---- 9: Optional pitch shift ----
         float pitchedLeft = wetLeft;
@@ -370,8 +398,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             }
         }
 
-        pitchedLeft = PMath::EqualPowerCrossfade(dampedLeft, pitchedLeft, pitchWetMix);
-        pitchedRight = PMath::EqualPowerCrossfade(dampedRight, pitchedRight, pitchWetMix);
+        pitchedLeft = PMath::EqualPowerCrossfade(compDampedLeft, pitchedLeft, pitchWetMix);
+        pitchedRight = PMath::EqualPowerCrossfade(compDampedRight, pitchedRight, pitchWetMix);
 
         // ---- 10: Stereo spread ----
         float spreadWetLeft = pitchedLeft;

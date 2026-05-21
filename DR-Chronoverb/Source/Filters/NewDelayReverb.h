@@ -120,6 +120,7 @@ private:
 
     const float pitchShiftAllpassDelay = 15.0f;
 
+    float cachedPitchCompensationMs = 0.0f;
     float pitchShifterLatencyMs = 0.0f;
     int echoSampleCounterL = 0;
     int echoSampleCounterR = 0;
@@ -151,6 +152,11 @@ private:
 
     OctaveEchoPitchShifter wetInputPitchShifterLeft;
     OctaveEchoPitchShifter wetInputPitchShifterRight;
+
+    // Pitch latency compensation delay lines.
+    // Delays the non-pitched wet path to match the granular backend lookback.
+    std::unique_ptr<DelayLine> pitchCompDelayLeft;
+    std::unique_ptr<DelayLine> pitchCompDelayRight;
 
     DiffusionAllpass postPitchAllpassLeft;
     DiffusionAllpass postPitchAllpassRight;
