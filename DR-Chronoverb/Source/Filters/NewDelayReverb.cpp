@@ -99,12 +99,12 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     cachedPitchCompensationMs = wetInputPitchShifterLeft.GetLatencyMilliseconds();
 
     // Allocate for up to 300 ms (well above any granular lookback we'd ever use).
-    const int maxCompSamples = std::max(
+    /*const int maxCompSamples = std::max(
         1,
         static_cast<int>(std::ceil((300.0 * sampleRate) / 1000.0)));
 
-    pitchCompDelayLeft  = std::make_unique<DelayLine>(maxCompSamples);
-    pitchCompDelayRight = std::make_unique<DelayLine>(maxCompSamples);
+    pitchCompDelayLeft = std::make_unique<DelayLine>(maxCompSamples);
+    pitchCompDelayRight = std::make_unique<DelayLine>(maxCompSamples);*/
 
     // End Pitch Shift
 
@@ -201,8 +201,6 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
     float* rightData = (numChannels > 1 ? audioBuffer.getWritePointer(1) : nullptr);
 
     pitchShifterLatencyMs = wetInputPitchShifterLeft.GetLatencyMilliseconds();
-
-    smoothedCenteredReadDelayMilliseconds = delayMilliseconds;
 
     for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
     {
@@ -341,7 +339,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         // ---- 8b: Pitch latency compensation ----
         // Delay the non-pitched wet path to match the granular lookback latency,
         // so both sides of the EqualPowerCrossfade below are time-aligned.
-        pitchCompDelayLeft->PushSample(dampedLeft);
+        /*pitchCompDelayLeft->PushSample(dampedLeft);
         pitchCompDelayRight->PushSample(dampedRight);
 
         const float compDampedLeft  = (cachedPitchCompensationMs > 0.0f)
@@ -350,7 +348,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
         const float compDampedRight = (cachedPitchCompensationMs > 0.0f)
             ? pitchCompDelayRight->ReadDelayMilliseconds(cachedPitchCompensationMs, sampleRate)
-            : dampedRight;
+            : dampedRight;*/
 
         // ---- 9: Optional pitch shift ----
         float pitchedLeft = wetLeft;
@@ -403,8 +401,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             }
         }
 
-        pitchedLeft = PMath::EqualPowerCrossfade(compDampedLeft, pitchedLeft, pitchWetMix);
-        pitchedRight = PMath::EqualPowerCrossfade(compDampedRight, pitchedRight, pitchWetMix);
+        pitchedLeft = PMath::EqualPowerCrossfade(dampedLeft, pitchedLeft, pitchWetMix);
+        pitchedRight = PMath::EqualPowerCrossfade(dampedRight, pitchedRight, pitchWetMix);
 
         // ---- 10: Stereo spread ----
         float spreadWetLeft = pitchedLeft;
