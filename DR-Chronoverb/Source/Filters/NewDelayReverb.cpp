@@ -202,6 +202,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
     pitchShifterLatencyMs = wetInputPitchShifterLeft.GetLatencyMilliseconds();
 
+    smoothedCenteredReadDelayMilliseconds = delayMilliseconds;
+
     for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
     {
         delayDiffusionLeft->UpdateSize(diffusionSize01);
