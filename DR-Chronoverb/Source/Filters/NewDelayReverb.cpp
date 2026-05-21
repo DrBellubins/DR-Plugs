@@ -2,13 +2,20 @@
 
 #include <cmath>
 #include <algorithm>
+#include <memory>
 
-NewDelayReverb::NewDelayReverb()
-{
-}
+NewDelayReverb::NewDelayReverb() = default;
+NewDelayReverb::~NewDelayReverb() = default;
 
-NewDelayReverb::~NewDelayReverb()
+void NewDelayReverb::SetHostTempo(float bpm)
 {
+    if (bpm > 0.0f)
+    {
+        hostTempoBpm = bpm;
+
+        if (delayMode != 0)
+            updateDelayMillisecondsFromNormalized();
+    }
 }
 
 void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoBpm)
@@ -17,7 +24,7 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     hostTempoBpm  = initialHostTempoBpm;
 
     // Prepare IIR filters
-    juce::dsp::ProcessSpec filterSpec;
+    juce::dsp::ProcessSpec filterSpec {};
     filterSpec.sampleRate = sampleRate;
     filterSpec.maximumBlockSize = 4096;
     filterSpec.numChannels = 1;
@@ -33,18 +40,18 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
 
     // Main delay lines (1000 ms max)
     const int maxDelaySamples = static_cast<int>(std::ceil(1.0 * sampleRate));
-    mainDelayLeft.reset(new DelayLine(maxDelaySamples));
-    mainDelayRight.reset(new DelayLine(maxDelaySamples));
+    mainDelayLeft = std::make_unique<DelayLine>(maxDelaySamples);
+    mainDelayRight = std::make_unique<DelayLine>(maxDelaySamples);
 
     // Delay-quality diffusion chains
-    delayDiffusionLeft.reset(new DiffusionChain());
-    delayDiffusionRight.reset(new DiffusionChain());
+    delayDiffusionLeft = std::make_unique<DiffusionChain>();
+    delayDiffusionRight = std::make_unique<DiffusionChain>();
     delayDiffusionLeft->Prepare(sampleRate);
     delayDiffusionRight->Prepare(sampleRate);
 
     // Reverb-quality diffusion chains
-    reverbDiffusionLeft.reset(new DiffusionChain());
-    reverbDiffusionRight.reset(new DiffusionChain());
+    reverbDiffusionLeft = std::make_unique<DiffusionChain>();
+    reverbDiffusionRight = std::make_unique<DiffusionChain>();
     reverbDiffusionLeft->Prepare(sampleRate);
     reverbDiffusionRight->Prepare(sampleRate);
 
@@ -62,16 +69,15 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     diffusionRebuildPending.store(false, std::memory_order_release);
 
     // Damping filters
-    dampingLeft.reset(new DampingFilter());
-    dampingRight.reset(new DampingFilter());
+    dampingLeft = std::make_unique<DampingFilter>();
+    dampingRight = std::make_unique<DampingFilter>();
     dampingLeft->Prepare(sampleRate);
     dampingRight->Prepare(sampleRate);
 
     updateDelayMillisecondsFromNormalized();
     updateFeedbackGainFromFeedbackTime();
-    updateStereoSpread();
 
-    // End Pitch Shift
+    // Start Pitch Shift
     pitchShifterLeft.Prepare(sampleRate, 512);
     pitchShifterRight.Prepare(sampleRate, 512);
     pitchShifterLeft.SetEnabled(true);
@@ -118,69 +124,6 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     mainDelayLeft->Clear();
     mainDelayRight->Clear();
 }
-
-/*void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
-{
-    const int numChannels = audioBuffer.getNumChannels();
-    const int numSamples  = audioBuffer.getNumSamples();
-
-    if (numChannels < 1 || numSamples <= 0)
-        return;
-
-    float* leftData  = audioBuffer.getWritePointer(0);
-    float* rightData = (numChannels > 1 ? audioBuffer.getWritePointer(1) : nullptr);
-
-    for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
-    {
-        const float inputLeft = leftData[sampleIndex];
-        const float inputRight = (rightData != nullptr ? rightData[sampleIndex] : inputLeft);
-
-        float outputLeft = inputLeft;
-        float outputRight = inputRight;
-
-        if (pitchEnabled >= 0.5f)
-        {
-            outputLeft = wetInputPitchShifterLeft.ProcessSample(inputLeft);
-            outputRight = wetInputPitchShifterRight.ProcessSample(inputRight);
-
-            ++echoWriteCounterL;
-            if (echoWriteCounterL >= writePeriodSamples)
-            {
-                echoWriteCounterL = 0;
-                wetInputPitchShifterLeft.OnNewEchoBoundary();
-
-                const bool stereoEnabled = (pitchStereoEnabled01 >= 0.5f);
-
-                if (stereoEnabled)
-                {
-                    ++echoWriteCounterR;
-                    if (echoWriteCounterR >= writePeriodSamples)
-                    {
-                        echoWriteCounterR = 0;
-                        wetInputPitchShifterRight.OnNewEchoBoundary();
-                    }
-                }
-                else
-                {
-                    const float leftNewRatio = wetInputPitchShifterLeft.GetCurrentPitchRatio();
-                    wetInputPitchShifterRight.OnNewEchoBoundaryMirrored(leftNewRatio);
-                    echoWriteCounterR = 0;
-                }
-            }
-        }
-
-        if (!std::isfinite(outputLeft))
-            outputLeft = 0.0f;
-
-        if (!std::isfinite(outputRight))
-            outputRight = 0.0f;
-
-        leftData[sampleIndex] = juce::jlimit(-1.0f, 1.0f, outputLeft);
-
-        if (rightData != nullptr)
-            rightData[sampleIndex] = juce::jlimit(-1.0f, 1.0f, outputRight);
-    }
-}*/
 
 void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 {
@@ -252,8 +195,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
         if (diffusionAmountSmoothed > 0.001f)
         {
-            float diffLeft = writeLeft;
-            float diffRight = writeRight;
+            float diffLeft = 0.0f;
+            float diffRight = 0.0f;
 
             if (diffusionAmountSmoothed <= 0.5f)
             {
@@ -509,7 +452,6 @@ void NewDelayReverb::SetHighpassCutoff(float newHighpass01)
 void NewDelayReverb::SetStereoSpread(float newSpreadMinus1To1)
 {
     stereoSpreadMinus1To1 = juce::jlimit(-1.0f, 1.0f, newSpreadMinus1To1);
-    updateStereoSpread();
 }
 
 void NewDelayReverb::SetHPLPPrePost(float prePost01)
@@ -561,17 +503,6 @@ void NewDelayReverb::SetPitchStereoEnabled(float enabled01)
             const float leftRatio = pitchShifterLeft.GetCurrentPitchRatio();
             pitchShifterRight.OnNewEchoBoundaryMirrored(leftRatio);
         }
-    }
-}
-
-void NewDelayReverb::SetHostTempo(float bpm)
-{
-    if (bpm > 0.0f)
-    {
-        hostTempoBpm = bpm;
-
-        if (delayMode != 0)
-            updateDelayMillisecondsFromNormalized();
     }
 }
 
@@ -677,7 +608,7 @@ void NewDelayReverb::updateFeedbackGainFromFeedbackTime()
     feedbackGain = std::max(0.0f, std::min(0.85f * curved, 0.95f));
 }
 
-void NewDelayReverb::updateFilters()
+void NewDelayReverb::updateFilters() const
 {
     const float lpHz = map01ToRange(lowpass01,  500.0f, 9000.0f);
     const float hpHz = map01ToRange(highpass01,  10.0f, 2000.0f);
@@ -690,30 +621,6 @@ void NewDelayReverb::updateFilters()
     *highpassL.coefficients = *hpCoeffs;
     *highpassR.coefficients = *hpCoeffs;
 }
-
-void NewDelayReverb::updateStereoSpread()
-{
-    // Applied inline during ProcessBlock
-}
-
-/*void NewDelayReverb::rebuildPitchSequences()
-{
-    auto configureShifter = [&](OctaveEchoPitchShifter& shifter)
-    {
-        auto constantSequence = std::make_unique<ConstantRatioSequence>();
-
-        // Debug fixed-ratio test:
-        // 2.0f  = +1 octave
-        // 0.5f  = -1 octave
-        // 1.0f  = unison
-        constantSequence->SetPitchRatio(2.0f);
-
-        shifter.SetSequence(std::move(constantSequence));
-    };
-
-    configureShifter(wetInputPitchShifterLeft);
-    configureShifter(wetInputPitchShifterRight);
-}*/
 
 void NewDelayReverb::rebuildPitchSequences()
 {

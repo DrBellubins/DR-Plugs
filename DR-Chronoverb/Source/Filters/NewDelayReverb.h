@@ -37,6 +37,7 @@ public:
     NewDelayReverb();
     ~NewDelayReverb();
 
+    void SetHostTempo(float bpm);
     void PrepareToPlay(double sampleRate, float initialHostTempoBpm);
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
 
@@ -57,25 +58,24 @@ public:
     void SetStereoSpread(float newSpreadMinus1To1);       // -1..1
     void SetHPLPPrePost(float prePost01);                 // 0 = Pre, 1 = Post
 
-    //void SetPitchEnabled(float pitchEnabled01);
     void SetPitchRangeLower(float pitchRangeLowerSemitones);
     void SetPitchRangeUpper(float pitchRangeUpperSemitones);
     void SetPitchMode(int modeIndex);                // 0=Up, 1=Down, 2=Random
     void SetPitchStereoEnabled(float enabled01);
-    void SetPitchAlgorithm(OctaveEchoPitchShifter::BackendType backendType);
     void SetpitchWetMix(float wetVolume);
-
-    void SetHostTempo(float bpm);
 
 private:
     void updateDelayMillisecondsFromNormalized();
     void rebuildDiffusionIfNeeded();
     void updateFeedbackGainFromFeedbackTime();
-    void updateFilters();
-    void updateStereoSpread();
+    void updateFilters() const;
     void rebuildPitchSequences();
 
     int semitonesToOctaveIndex(float semitones);
+
+    static float map01ToRange(float value01, float minValue, float maxValue);
+    static float clamp01(float value);
+    static int clampInt(int value, int minValue, int maxValue);
 
     // Runtime Values
     float lastFeedbackL = 0.0f;
@@ -180,8 +180,4 @@ private:
     juce::dsp::IIR::Filter<float> lowpassR;
     juce::dsp::IIR::Filter<float> highpassL;
     juce::dsp::IIR::Filter<float> highpassR;
-
-    static float map01ToRange(float value01, float minValue, float maxValue);
-    static float clamp01(float value);
-    static int clampInt(int value, int minValue, int maxValue);
 };
