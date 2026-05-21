@@ -57,10 +57,12 @@ public:
     void SetStereoSpread(float newSpreadMinus1To1);       // -1..1
     void SetHPLPPrePost(float prePost01);                 // 0 = Pre, 1 = Post
 
+    //void SetPitchEnabled(float pitchEnabled01);
     void SetPitchRangeLower(float pitchRangeLowerSemitones);
     void SetPitchRangeUpper(float pitchRangeUpperSemitones);
     void SetPitchMode(int modeIndex);                // 0=Up, 1=Down, 2=Random
     void SetPitchStereoEnabled(float enabled01);
+    void SetPitchAlgorithm(OctaveEchoPitchShifter::BackendType backendType);
     void SetpitchWetMix(float wetVolume);
 
     void SetHostTempo(float bpm);
@@ -104,10 +106,8 @@ private:
 
     // Settings
     const float pitchAllpassTuningMultiplier = 1.5f; // For secondary allpass filter tuning
-    const float pitchDelayAllpassTuning = 149.0f;
+    const float pitchDelayAllpassTuning = 170.0f;
     const float pitchReverbAllpassTuning = 50.0f;
-    const float centeredSwellRatio = 0.25f;
-    const float diffusionCompensationBias = 3.0f; // Centers the swell into the nominal tap! (higher = sooner)
 
     // Parameters
     double sampleRate = 48000.0;
@@ -122,7 +122,10 @@ private:
 
     float diffusionAmount01 = 0.0f;
     float diffusionSize01 = 0.0f;
-    int diffusionQualityStages = 8;
+    int diffusionQualityStages = 6;
+
+    float centeredSwellRatio = 0.25f;
+    float diffusionCompensationBias = 1.5f;
 
     float dryVolume = 1.0f;
     float wetVolume = 1.0f;
@@ -132,6 +135,7 @@ private:
     float stereoSpreadMinus1To1 = 0.0f;
     float hplpPrePost01 = 1.0f;
 
+    //float pitchEnabled = 0.0f;
     float pitchRangeLower = -12.0f;
     float pitchRangeUpper = 12.0f;
     int pitchMode = 0;
@@ -158,7 +162,8 @@ private:
     std::unique_ptr<DampingFilter> dampingLeft;
     std::unique_ptr<DampingFilter> dampingRight;
 
-    OctaveEchoPitchShifter pitchShifter; // Handles both left and right channels
+    OctaveEchoPitchShifter wetInputPitchShifterLeft;
+    OctaveEchoPitchShifter wetInputPitchShifterRight;
 
     // Pitch delay allpass
     DiffusionAllpass pitchDelayAllpassOneLeft;
