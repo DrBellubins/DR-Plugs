@@ -241,6 +241,13 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         float writeLeft = preLeft;
         float writeRight = preRight;
 
+        // Equal-power blend between clean gainOne and gainTwo
+        const float diffusionGainOne =
+            std::cos(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
+
+        const float diffusionGainTwo =
+            std::sin(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
+
         if (diffusionAmountSmoothed > 0.001f)
         {
             float diffLeft;
@@ -274,15 +281,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
                 diffRight = delayDiffRight * delayGain + reverbDiffRight * reverbGain;
             }
 
-            // Equal-power blend between clean pitched and diffused
-            const float cleanGain =
-                std::cos(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
-
-            const float diffusedGain =
-                std::sin(diffusionAmountSmoothed * juce::MathConstants<float>::halfPi);
-
-            writeLeft = preLeft * cleanGain + diffLeft  * diffusedGain;
-            writeRight = preRight * cleanGain + diffRight * diffusedGain;
+            writeLeft = (preLeft * diffusionGainOne) + (diffLeft  * diffusionGainTwo);
+            writeRight = (preRight * diffusionGainOne) + (diffRight * diffusionGainTwo);
         }
 
         // ---- 5: Write to delay line ----
@@ -397,6 +397,9 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
                 }
             }
         }
+
+        pitchedLeft = (pitchedLeft * diffusionGainOne) + (compDampedLeft * diffusionGainTwo);
+        pitchedRight = (pitchedRight * diffusionGainOne) + (compDampedRight * diffusionGainTwo);
 
         pitchedLeft = PMath::EqualPowerCrossfade(compDampedLeft, pitchedLeft, pitchWetMix);
         pitchedRight = PMath::EqualPowerCrossfade(compDampedRight, pitchedRight, pitchWetMix);
