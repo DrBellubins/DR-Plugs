@@ -3,36 +3,24 @@
 #include <vector>
 #include <memory>
 #include <cmath>
-#include <algorithm>
+#include <cassert>
 #include <limits>
 
-#include <juce_core/juce_core.h>
+#include <juce_audio_basics/juce_audio_basics.h>
 
 #include "DiffusionAllpass.h"
 
 class DiffusionChain
 {
 public:
-    DiffusionChain()
-    {
-    }
-
-    ~DiffusionChain()
-    {
-    }
+    DiffusionChain() {}
+    ~DiffusionChain() {}
 
     void Prepare(double newSampleRate)
     {
         sampleRate = newSampleRate;
     }
 
-    // Delay-quality configuration.
-    // numberOfStages: 1..8
-    // size01: 0..1 scales per-stage delay lengths.
-    //
-    // Stage delays are distributed across the FULL tuning list regardless of
-    // numberOfStages, so reducing quality makes the diffusion sparser (fewer
-    // taps spread across the same time span) rather than shorter.
     void Configure(int numberOfStages, float size01, const std::vector<float>& delayTunings)
     {
         cachedStageCount = std::max(1, numberOfStages);
@@ -45,7 +33,6 @@ public:
         const std::vector<float> finalDelays =
             BuildQualityDistributedStageDelays(delayTunings, cachedStageCount, cachedSize01);
 
-        // Also store full-size (size01=1.0) base delays so UpdateSize() can rescale smoothly.
         baseStageDelayMsAtFullSize =
             BuildQualityDistributedStageDelays(delayTunings, cachedStageCount, 1.0f);
 
@@ -58,6 +45,9 @@ public:
             perStageDelayMs.push_back(stageDelayMilliseconds);
         }
 
+        // Initialize the live scaled delay — starts equal to the configured delay.
+        currentScaledDelayMs = perStageDelayMs;
+
         const int effectiveStages = static_cast<int>(perStageDelayMs.size());
 
         jitterLPState.assign(effectiveStages, 0.0f);
@@ -67,8 +57,6 @@ public:
         tpdfNoiseSeedB.assign(effectiveStages, static_cast<unsigned int>(rand()));
     }
 
-    // Reverb-quality configuration.
-    // Same distributed-resampling logic, using the longer reverb tunings.
     void ConfigureAsReverb(int numberOfStages, float size01, const std::vector<float>& reverbTunings)
     {
         cachedStageCount = std::max(1, numberOfStages);
@@ -81,7 +69,6 @@ public:
         const std::vector<float> finalDelays =
             BuildQualityDistributedStageDelays(reverbTunings, cachedStageCount, cachedSize01);
 
-        // Also store full-size (size01=1.0) base delays so UpdateSize() can rescale smoothly.
         baseStageDelayMsAtFullSize =
             BuildQualityDistributedStageDelays(reverbTunings, cachedStageCount, 1.0f);
 
@@ -93,6 +80,9 @@ public:
             stages.push_back(std::move(diffusionStage));
             perStageDelayMs.push_back(stageDelayMilliseconds);
         }
+
+        // Initialize the live scaled delay — starts equal to the configured delay.
+        currentScaledDelayMs = perStageDelayMs;
 
         const int effectiveStages = static_cast<int>(perStageDelayMs.size());
 
@@ -112,7 +102,10 @@ public:
 
         for (size_t stageIndex = 0; stageIndex < stages.size(); ++stageIndex)
         {
-            const float baseDelayMs = perStageDelayMs[stageIndex];
+            // Use the live scaled delay (slewed by UpdateSize) as the base for jitter.
+            // This is the fix: previously perStageDelayMs was used here, which never
+            // changed and overwrote whatever UpdateSize had set.
+            const float liveBaseDelayMs = currentScaledDelayMs[stageIndex];
 
             const float tpdf  = generateTPDF(stageIndex);
             const float alpha = computeNoiseAlpha(jitterRateHz[stageIndex]);
@@ -121,10 +114,10 @@ public:
                 alpha * (tpdf - jitterLPState[stageIndex]);
 
             const float depthPercent = jitterDepthPercent[stageIndex];
-            const float jitterMs     = baseDelayMs * depthPercent * jitterLPState[stageIndex];
+            const float jitterMs     = liveBaseDelayMs * depthPercent * jitterLPState[stageIndex];
 
             const float jitterSamples =
-                static_cast<float>(((baseDelayMs + jitterMs) * sampleRate) / 1000.0);
+                static_cast<float>(((liveBaseDelayMs + jitterMs) * sampleRate) / 1000.0);
 
             stages[stageIndex]->SetCurrentDelaySamples(jitterSamples);
             sample = stages[stageIndex]->ProcessSample(sample);
@@ -133,7 +126,8 @@ public:
         return sample;
     }
 
-    // No buffer clearing, no clicks. This produces the "pitch warp" when size is changed live.
+    // Smoothly slews currentScaledDelayMs toward the target defined by newSize01.
+    // ProcessSample reads currentScaledDelayMs, so this now has real effect.
     void UpdateSize(float newSize01)
     {
         cachedSize01 = juce::jlimit(0.0f, 1.0f, newSize01);
@@ -143,9 +137,14 @@ public:
              StageIndex < stages.size() && StageIndex < baseStageDelayMsAtFullSize.size();
              ++StageIndex)
         {
-            const float TargetMs      = baseStageDelayMsAtFullSize[StageIndex] * Scale;
-            const float TargetSamples = static_cast<float>((TargetMs * sampleRate) / 1000.0);
-            stages[StageIndex]->SetCurrentDelaySamples(TargetSamples);
+            const float TargetMs = baseStageDelayMsAtFullSize[StageIndex] * Scale;
+
+            // Slew currentScaledDelayMs in ms-space so the jitter base tracks smoothly.
+            // This produces the intended "pitch warp" on size changes.
+            constexpr float kMaxDeltaMs = 0.05f * 1000.0f / 48000.0f; // ~1ms/sec at 48kHz
+            const float delta = juce::jlimit(-kMaxDeltaMs, kMaxDeltaMs,
+                                             TargetMs - currentScaledDelayMs[StageIndex]);
+            currentScaledDelayMs[StageIndex] += delta;
         }
     }
 
@@ -170,6 +169,10 @@ private:
 
     std::vector<std::unique_ptr<DiffusionAllpass>> stages;
 
+    // Live, slewed delay values used as the base in ProcessSample.
+    // Initialized from perStageDelayMs and slewed toward target by UpdateSize.
+    std::vector<float> currentScaledDelayMs;
+
     std::vector<float> jitterLPState;
     std::vector<float> jitterDepthPercent;
     std::vector<float> jitterRateHz;
@@ -179,19 +182,8 @@ private:
     int cachedStageCount = 6;
     float cachedSize01 = 0.0f;
 
-    // Stores the interpolated delay for each stage at size01 = 1.0 (unscaled).
-    // Used by UpdateSize() to recompute target samples without clearing state.
     std::vector<float> baseStageDelayMsAtFullSize;
 
-    // Distributes numberOfStages taps evenly across the full sourceTunings span.
-    //
-    // Q1  -> one tap near the centre of the tuning list
-    // Q2  -> one tap at each end
-    // Q4  -> four taps spread across the full list
-    // Q8  -> all eight tunings (at full quality)
-    //
-    // This means lowering quality never shortens the overall diffusion time —
-    // it only reduces tap density, giving a sparser, more echoy character.
     std::vector<float> BuildQualityDistributedStageDelays(
         const std::vector<float>& sourceTunings,
         int numberOfStages,
