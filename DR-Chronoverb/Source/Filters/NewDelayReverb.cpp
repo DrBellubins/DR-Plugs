@@ -72,15 +72,16 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     updateStereoSpread();
 
     // End Pitch Shift
-    wetInputPitchShifterLeft.Prepare(sampleRate, 512);
-    wetInputPitchShifterRight.Prepare(sampleRate, 512);
-    wetInputPitchShifterLeft.SetEnabled(true);
-    wetInputPitchShifterRight.SetEnabled(true);
+    pitchShifterLeft.Prepare(sampleRate, 512);
+    pitchShifterRight.Prepare(sampleRate, 512);
+    asdaf
+    pitchShifterLeft.SetEnabled(true);
+    pitchShifterRight.SetEnabled(true);
 
     rebuildPitchSequences();
 
-    wetInputPitchShifterLeft.CommitPendingSequenceNow();
-    wetInputPitchShifterRight.CommitPendingSequenceNow();
+    pitchShifterLeft.CommitPendingSequenceNow();
+    pitchShifterRight.CommitPendingSequenceNow();
 
     echoWriteCounterL = 0;
     echoWriteCounterR = 0;
@@ -202,7 +203,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
     float* leftData  = audioBuffer.getWritePointer(0);
     float* rightData = (numChannels > 1 ? audioBuffer.getWritePointer(1) : nullptr);
 
-    pitchShifterLatencyMs = wetInputPitchShifterLeft.GetLatencyMilliseconds();
+    pitchShifterLatencyMs = pitchShifterLeft.GetLatencyMilliseconds();
 
     for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
     {
@@ -352,8 +353,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         {
             // Feed the pre-read tap (not the nominal tap) into the pitcher.
             // The output will be time-aligned with dampedLeft/dampedRight.
-            pitchedLeft = wetInputPitchShifterLeft.ProcessSample(preReadWetLeft);
-            pitchedRight = wetInputPitchShifterRight.ProcessSample(preReadWetRight);
+            pitchedLeft = pitchShifterLeft.ProcessSample(preReadWetLeft);
+            pitchedRight = pitchShifterRight.ProcessSample(preReadWetRight);
 
             // ---- 9b: Post-pitch allpass smoothing (only when pitch and diffusion are active) ----
             if (diffusionAmountSmoothed > 0.001f)
@@ -377,14 +378,14 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             if (echoWriteCounterL >= writePeriodSamples)
             {
                 echoWriteCounterL = 0;
-                wetInputPitchShifterLeft.OnNewEchoBoundary();
+                pitchShifterLeft.OnNewEchoBoundary();
 
                 if (!stereoEnabled)
                 {
                     // Mirror left's new ratio to right channel so both channels
                     // cross-fade simultaneously — no extra stereo information added.
-                    const float leftNewRatio = wetInputPitchShifterLeft.GetCurrentPitchRatio();
-                    wetInputPitchShifterRight.OnNewEchoBoundaryMirrored(leftNewRatio);
+                    const float leftNewRatio = pitchShifterLeft.GetCurrentPitchRatio();
+                    pitchShifterRight.OnNewEchoBoundaryMirrored(leftNewRatio);
                     echoWriteCounterR = 0; // keep counters in lockstep
                 }
             }
@@ -395,7 +396,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
                 if (echoWriteCounterR >= writePeriodSamples)
                 {
                     echoWriteCounterR = 0;
-                    wetInputPitchShifterRight.OnNewEchoBoundary();
+                    pitchShifterRight.OnNewEchoBoundary();
                 }
             }
         }
@@ -553,13 +554,13 @@ void NewDelayReverb::SetPitchStereoEnabled(float enabled01)
         echoWriteCounterL = 0;
         echoWriteCounterR = 0;
 
-        wetInputPitchShifterLeft.ResetSequenceAndBackendToCurrentState();
-        wetInputPitchShifterRight.ResetSequenceAndBackendToCurrentState();
+        pitchShifterLeft.ResetSequenceAndBackendToCurrentState();
+        pitchShifterRight.ResetSequenceAndBackendToCurrentState();
 
         if (!newStereoEnabled)
         {
-            const float leftRatio = wetInputPitchShifterLeft.GetCurrentPitchRatio();
-            wetInputPitchShifterRight.OnNewEchoBoundaryMirrored(leftRatio);
+            const float leftRatio = pitchShifterLeft.GetCurrentPitchRatio();
+            pitchShifterRight.OnNewEchoBoundaryMirrored(leftRatio);
         }
     }
 }
@@ -759,8 +760,8 @@ void NewDelayReverb::rebuildPitchSequences()
         }
     };
 
-    configureShifter(wetInputPitchShifterLeft);
-    configureShifter(wetInputPitchShifterRight);
+    configureShifter(pitchShifterLeft);
+    configureShifter(pitchShifterRight);
 }
 
 float NewDelayReverb::map01ToRange(float value01, float minValue, float maxValue)
