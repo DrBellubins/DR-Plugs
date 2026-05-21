@@ -187,8 +187,18 @@ public:
 
     float GetLatencyMilliseconds() const override
     {
-        const float lookbackSamples = static_cast<float>(grainLengthSamples) * lookbackMultiplier;
-        return (lookbackSamples * 1000.0f) / static_cast<float>(sampleRate);
+        const GrainState& active = (activeIsA ? stateA : stateB);
+        const float grainMs = static_cast<float>(grainLengthSamples) * 1000.0f
+                              / static_cast<float>(sampleRate);
+
+        // Effective latency varies with ratio. At phase 0.5 (steady-state average
+        // across 4 interleaved heads), the read head has consumed:
+        //   0.5 * grainLength * (ratio - 1)
+        // samples of the lookback, reducing the effective age of the output.
+        const float effectiveLatencyMs = grainMs
+            * (lookbackMultiplier + 0.5f * (1.0f - active.ratio));
+
+        return std::max(1.0f, effectiveLatencyMs);
     }
 
 private:
