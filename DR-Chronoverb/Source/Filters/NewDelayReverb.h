@@ -162,8 +162,8 @@ private:
     std::unique_ptr<DampingFilter> dampingLeft;
     std::unique_ptr<DampingFilter> dampingRight;
 
-    OctaveEchoPitchShifter wetInputPitchShifterLeft;
-    OctaveEchoPitchShifter wetInputPitchShifterRight;
+    OctaveEchoPitchShifter pitchShifterLeft;
+    OctaveEchoPitchShifter pitchShifterRight;
 
     // Pitch delay allpass
     DiffusionAllpass pitchDelayAllpassOneLeft;
