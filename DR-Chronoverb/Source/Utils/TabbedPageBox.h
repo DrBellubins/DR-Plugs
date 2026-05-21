@@ -48,9 +48,7 @@ public:
         for (Tab& tab : tabs)
         {
             if (tab.PageComponent != nullptr)
-            {
                 removeChildComponent(tab.PageComponent);
-            }
         }
 
         tabs.clear();
@@ -69,9 +67,7 @@ public:
         const int clampedIndex = juce::jlimit(0, static_cast<int>(tabs.size()) - 1, newSelectedTabIndex);
 
         if (clampedIndex == selectedTabIndex || tabs.empty())
-        {
             return;
-        }
 
         selectedTabIndex = clampedIndex;
         updatePageVisibility();
@@ -80,18 +76,14 @@ public:
         if (notificationType == juce::sendNotification || notificationType == juce::sendNotificationAsync)
         {
             if (onTabChanged != nullptr)
-            {
                 onTabChanged(selectedTabIndex);
-            }
         }
     }
 
     juce::String GetSelectedTabTitle() const
     {
         if (selectedTabIndex >= 0 && selectedTabIndex < static_cast<int>(tabs.size()))
-        {
             return tabs[static_cast<size_t>(selectedTabIndex)].Title;
-        }
 
         return {};
     }
@@ -144,9 +136,7 @@ public:
         graphics.fillRoundedRectangle(panelBounds.toFloat(), cornerRadius);
 
         if (tabs.empty())
-        {
             return;
-        }
 
         juce::Font tabFont("Liberation Sans", 14.0f, juce::Font::bold);
         tabFont.setExtraKerningFactor(0.05f);
@@ -180,9 +170,7 @@ public:
         for (int tabIndex = 0; tabIndex < static_cast<int>(tabs.size()); ++tabIndex)
         {
             if (tabs[static_cast<size_t>(tabIndex)].PageComponent != nullptr)
-            {
                 tabs[static_cast<size_t>(tabIndex)].PageComponent->setBounds(contentBounds);
-            }
         }
     }
 
@@ -251,9 +239,7 @@ private:
         for (int tabIndex = 0; tabIndex < static_cast<int>(tabs.size()); ++tabIndex)
         {
             if (tabs[static_cast<size_t>(tabIndex)].PageComponent != nullptr)
-            {
                 tabs[static_cast<size_t>(tabIndex)].PageComponent->setVisible(tabIndex == selectedTabIndex);
-            }
         }
     }
 };

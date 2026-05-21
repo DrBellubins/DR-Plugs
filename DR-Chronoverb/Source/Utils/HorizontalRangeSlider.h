@@ -5,6 +5,7 @@
 #include <functional>
 
 #include "Theme.h"
+#include "ThemeContext.h"
 #include "TooltipOverlay.h"
 
 class HorizontalRangeSlider : public juce::Component,

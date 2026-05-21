@@ -72,17 +72,34 @@ public:
         return ValueBox;
     }
 
-    void drawTextEditorOutline(juce::Graphics& Graphics,
-                               int Width,
-                               int Height,
-                               juce::TextEditor& TextEditor) override
+    void fillTextEditorBackground(juce::Graphics& graphics,
+                              int width,
+                              int height,
+                              juce::TextEditor& textEditor) override
     {
-        juce::ignoreUnused(TextEditor);
+        const juce::Colour adjustedAccent =
+            ThemeContext::GetAdjustedColour(AccentGray, textEditor);
 
-        // Flat editor outline (if we ever allow focus border)
-        Graphics.setColour(ThemeContext::GetAdjustedColour(AccentGray.darker(0.1), TextEditor));
-        //Graphics.setColour(AccentGray.brighter(0.1));
+        graphics.setColour(adjustedAccent);
+        graphics.fillRoundedRectangle(juce::Rectangle<float>(0.0f, 0.0f,
+                                                      static_cast<float>(width),
+                                                      static_cast<float>(height)),
+                               4.0f);
+    }
 
-        Graphics.drawRect(0, 0, Width, Height, 2);
+    void drawTextEditorOutline(juce::Graphics& graphics,
+                               int width,
+                               int height,
+                               juce::TextEditor& textEditor) override
+    {
+        const juce::Colour adjustedOutline =
+            ThemeContext::GetAdjustedColour(UnfocusedGray, textEditor).brighter(0.1f);
+
+        graphics.setColour(adjustedOutline);
+        graphics.drawRoundedRectangle(juce::Rectangle<float>(0.5f, 0.5f,
+                                                      static_cast<float>(width) - 1.0f,
+                                                      static_cast<float>(height) - 1.0f),
+                               4.0f,
+                               1.0f);
     }
 };

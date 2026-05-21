@@ -16,16 +16,12 @@ void HorizontalRangeSlider::setLowerValue(float NewValue)
     const float clampedValue = juce::jlimit(minValue, maximumLowerValue, snappedValue);
 
     if (std::abs(lowerValue - clampedValue) < 0.000001f)
-    {
         return;
-    }
 
     lowerValue = clampedValue;
 
     if (OnLowerValueChanged)
-    {
         OnLowerValueChanged(lowerValue);
-    }
 
     repaint();
     notifyTooltipStateChanged();
@@ -38,16 +34,12 @@ void HorizontalRangeSlider::setUpperValue(float NewValue)
     const float clampedValue = juce::jlimit(minimumUpperValue, maxValue, snappedValue);
 
     if (std::abs(upperValue - clampedValue) < 0.000001f)
-    {
         return;
-    }
 
     upperValue = clampedValue;
 
     if (OnUpperValueChanged)
-    {
         OnUpperValueChanged(upperValue);
-    }
 
     repaint();
     notifyTooltipStateChanged();
@@ -68,9 +60,7 @@ void HorizontalRangeSlider::setMinimumRange(float NewMinimumRange)
         upperValue = juce::jmin(maxValue, lowerValue + minimumRange);
 
         if ((upperValue - lowerValue) < minimumRange)
-        {
             lowerValue = juce::jmax(minValue, upperValue - minimumRange);
-        }
     }
 
     repaint();
@@ -110,9 +100,7 @@ juce::Rectangle<float> HorizontalRangeSlider::GetTooltipTargetBoundsInComponent(
     const juce::Rectangle<float> activeThumbRectangle = getActiveThumbRectangle();
 
     if (activeThumbRectangle.isEmpty())
-    {
         return {};
-    }
 
     const juce::Rectangle<int> integerThumbRectangle =
         activeThumbRectangle.getSmallestIntegerContainer();
@@ -126,24 +114,16 @@ juce::Rectangle<float> HorizontalRangeSlider::GetTooltipTargetBoundsInComponent(
 juce::String HorizontalRangeSlider::GetTooltipText() const
 {
     if (draggingThumb == Lower)
-    {
         return juce::String(lowerValue, 2);
-    }
 
     if (draggingThumb == Upper)
-    {
         return juce::String(upperValue, 2);
-    }
 
     if (hoveredThumb == HoverLower)
-    {
         return juce::String(lowerValue, 2);
-    }
 
     if (hoveredThumb == HoverUpper)
-    {
         return juce::String(upperValue, 2);
-    }
 
     return {};
 }
@@ -156,24 +136,16 @@ TooltipClient::Placement HorizontalRangeSlider::GetTooltipPlacement() const
 HorizontalRangeSlider::ActiveThumb HorizontalRangeSlider::getActiveThumb() const
 {
     if (draggingThumb == Lower)
-    {
         return LowerThumb;
-    }
 
     if (draggingThumb == Upper)
-    {
         return UpperThumb;
-    }
 
     if (hoveredThumb == HoverLower)
-    {
         return LowerThumb;
-    }
 
     if (hoveredThumb == HoverUpper)
-    {
         return UpperThumb;
-    }
 
     return NoThumb;
 }
@@ -182,7 +154,7 @@ void HorizontalRangeSlider::paint(juce::Graphics& GraphicsContext)
 {
     const juce::Rectangle<float> bounds = getLocalBounds().toFloat();
 
-    GraphicsContext.setColour(AccentGray.brighter(0.02f));
+    GraphicsContext.setColour(ThemeContext::GetAdjustedColour(AccentGray, *this));
     GraphicsContext.fillRoundedRectangle(bounds, roundness);
 
     const juce::Rectangle<float> rangeRectangle = getRangeRectangle();
@@ -230,9 +202,7 @@ float HorizontalRangeSlider::xToValue(int XPosition) const
     const juce::Rectangle<int> bounds = getLocalBounds();
 
     if (bounds.getWidth() <= 0)
-    {
         return minValue;
-    }
 
     const float proportion =
         static_cast<float>(XPosition - bounds.getX()) / static_cast<float>(bounds.getWidth());
@@ -248,9 +218,7 @@ float HorizontalRangeSlider::deltaXToValueDelta(float DeltaX) const
     const juce::Rectangle<int> bounds = getLocalBounds();
 
     if (bounds.getWidth() <= 0)
-    {
         return 0.0f;
-    }
 
     const float valueRange = maxValue - minValue;
     return (DeltaX / static_cast<float>(bounds.getWidth())) * valueRange;
@@ -332,24 +300,16 @@ juce::Rectangle<float> HorizontalRangeSlider::getUpperThumbRectangle() const
 juce::Rectangle<float> HorizontalRangeSlider::getActiveThumbRectangle() const
 {
     if (draggingThumb == Lower)
-    {
         return getLowerThumbRectangle();
-    }
 
     if (draggingThumb == Upper)
-    {
         return getUpperThumbRectangle();
-    }
 
     if (hoveredThumb == HoverLower)
-    {
         return getLowerThumbRectangle();
-    }
 
     if (hoveredThumb == HoverUpper)
-    {
         return getUpperThumbRectangle();
-    }
 
     return {};
 }
@@ -361,14 +321,10 @@ HorizontalRangeSlider::HoveredThumb HorizontalRangeSlider::getHoveredThumbAtPosi
     const juce::Rectangle<float> upperThumbRectangle = getUpperThumbRectangle().expanded(6.0f, 6.0f);
 
     if (lowerThumbRectangle.contains(MousePosition.toFloat()))
-    {
         return HoverLower;
-    }
 
     if (upperThumbRectangle.contains(MousePosition.toFloat()))
-    {
         return HoverUpper;
-    }
 
     return HoverNone;
 }
@@ -376,9 +332,7 @@ HorizontalRangeSlider::HoveredThumb HorizontalRangeSlider::getHoveredThumbAtPosi
 float HorizontalRangeSlider::snapValueToStep(float Value) const
 {
     if (!steppingEnabled || stepSize <= 0.0f)
-    {
         return Value;
-    }
 
     const float stepsFromMinimum = std::round((Value - minValue) / stepSize);
     const float snappedValue = minValue + (stepsFromMinimum * stepSize);
@@ -391,26 +345,18 @@ void HorizontalRangeSlider::mouseDown(const juce::MouseEvent& MouseEvent)
     hoveredThumb = getHoveredThumbAtPosition(MouseEvent.getPosition());
 
     if (hoveredThumb == HoverLower)
-    {
         draggingThumb = Lower;
-    }
     else if (hoveredThumb == HoverUpper)
-    {
         draggingThumb = Upper;
-    }
     else
-    {
         draggingThumb = None;
-    }
 
     dragStartMouseX = MouseEvent.getPosition().getX();
     dragStartLowerValue = lowerValue;
     dragStartUpperValue = upperValue;
 
     if (draggingThumb != None && OnDragStarted)
-    {
         OnDragStarted();
-    }
 
     repaint();
     notifyTooltipStateChanged();
@@ -424,13 +370,9 @@ void HorizontalRangeSlider::mouseDrag(const juce::MouseEvent& MouseEvent)
     const float valueDelta = deltaXToValueDelta(mouseDeltaX);
 
     if (draggingThumb == Lower)
-    {
         setLowerValue(dragStartLowerValue + valueDelta);
-    }
     else if (draggingThumb == Upper)
-    {
         setUpperValue(dragStartUpperValue + valueDelta);
-    }
 
     notifyTooltipStateChanged();
 }
@@ -447,13 +389,9 @@ void HorizontalRangeSlider::mouseMove(const juce::MouseEvent& MouseEvent)
     }
 
     if (hoveredThumb == HoverNone)
-    {
         setMouseCursor(juce::MouseCursor::NormalCursor);
-    }
     else
-    {
         setMouseCursor(juce::MouseCursor::LeftRightResizeCursor);
-    }
 }
 
 void HorizontalRangeSlider::mouseExit(const juce::MouseEvent& MouseEvent)
@@ -474,9 +412,7 @@ void HorizontalRangeSlider::mouseUp(const juce::MouseEvent& MouseEvent)
     draggingThumb = None;
 
     if (wasDragging && OnDragEnded)
-    {
         OnDragEnded();
-    }
 
     repaint();
     notifyTooltipStateChanged();
@@ -485,9 +421,7 @@ void HorizontalRangeSlider::mouseUp(const juce::MouseEvent& MouseEvent)
 void HorizontalRangeSlider::notifyTooltipStateChanged()
 {
     if (OnTooltipStateChanged)
-    {
         OnTooltipStateChanged();
-    }
 }
 
 HorizontalRangeSliderAttachment::HorizontalRangeSliderAttachment(
@@ -514,9 +448,7 @@ HorizontalRangeSliderAttachment::HorizontalRangeSliderAttachment(
     rangeSlider.OnLowerValueChanged = [this](float NewValue)
     {
         if (updatingParameter || lowerParameter == nullptr)
-        {
             return;
-        }
 
         updatingSlider = true;
         lowerParameter->setValueNotifyingHost(lowerParameter->convertTo0to1(NewValue));
@@ -526,9 +458,7 @@ HorizontalRangeSliderAttachment::HorizontalRangeSliderAttachment(
     rangeSlider.OnUpperValueChanged = [this](float NewValue)
     {
         if (updatingParameter || upperParameter == nullptr)
-        {
             return;
-        }
 
         updatingSlider = true;
         upperParameter->setValueNotifyingHost(upperParameter->convertTo0to1(NewValue));
@@ -566,9 +496,7 @@ void HorizontalRangeSliderAttachment::parameterChanged(
     juce::ignoreUnused(ParameterID, NewValue);
 
     if (updatingSlider)
-    {
         return;
-    }
 
     updatingParameter = true;
 
@@ -582,19 +510,13 @@ void HorizontalRangeSliderAttachment::parameterChanged(
 void HorizontalRangeSliderAttachment::beginGesture()
 {
     if (gestureInProgress)
-    {
         return;
-    }
 
     if (lowerParameter != nullptr)
-    {
         lowerParameter->beginChangeGesture();
-    }
 
     if (upperParameter != nullptr)
-    {
         upperParameter->beginChangeGesture();
-    }
 
     gestureInProgress = true;
 }
@@ -602,19 +524,13 @@ void HorizontalRangeSliderAttachment::beginGesture()
 void HorizontalRangeSliderAttachment::endGesture()
 {
     if (!gestureInProgress)
-    {
         return;
-    }
 
     if (lowerParameter != nullptr)
-    {
         lowerParameter->endChangeGesture();
-    }
 
     if (upperParameter != nullptr)
-    {
         upperParameter->endChangeGesture();
-    }
 
     gestureInProgress = false;
 }

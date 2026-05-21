@@ -243,7 +243,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
 
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
         "pitchWetMix", "Pitch Shift Wet Mix",
-        juce::NormalisableRange(0.0f, 1.0f), 1.0f));
+        juce::NormalisableRange(0.0f, 1.0f), 0.0f));
 
     return { parameterList.begin(), parameterList.end() };
 }
