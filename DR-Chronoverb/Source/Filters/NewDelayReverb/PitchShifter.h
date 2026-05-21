@@ -28,6 +28,7 @@ public:
         granular->SetGrainLengthMilliseconds(35.0f);
         granular->SetJitterPercent(0.15f);
         granular->SetLookbackMultiplier(3.0f);
+        granular->SetBoundaryCrossfadeMilliseconds(4.0f);
 
         auto seq = std::make_unique<ProgressiveOctaveSequence>();
         seq->SetRange(-2, 2);
@@ -43,8 +44,11 @@ public:
         sampleRate = newSampleRate;
         maximumBlockSizeCached = maximumBlockSize;
 
-        if (backend != nullptr)
-            backend->Prepare(sampleRate, maximumBlockSize);
+        if (backendLeft != nullptr)
+            backendLeft->Prepare(sampleRate, maximumBlockSize);
+
+        if (backendRight != nullptr)
+            backendRight->Prepare(sampleRate, maximumBlockSize);
 
         Reset();
     }
@@ -57,8 +61,11 @@ public:
         if (sequence != nullptr)
             sequence->Reset();
 
-        if (backend != nullptr)
-            backend->Reset();
+        if (backendLeft != nullptr)
+            backendLeft->Reset();
+
+        if (backendRight != nullptr)
+            backendRight->Reset();
     }
 
     void SetEnabled(bool shouldBeEnabled)
@@ -83,8 +90,11 @@ public:
             sequence = std::move(pendingSequence);
             hasPendingSequence = false;
 
-            if (backend != nullptr)
-                backend->OnEchoBoundary(sequence->GetCurrentPitchRatio());
+            if (backendLeft != nullptr)
+                backendLeft->OnEchoBoundary(sequence->GetCurrentPitchRatio());
+
+            if (backendRight != nullptr)
+                backendRight->OnEchoBoundary(sequence->GetCurrentPitchRatio());
 
             return; // Don't advance yet — let the new sequence start from step 0.
         }
@@ -93,8 +103,11 @@ public:
         if (sequence != nullptr)
             sequence->AdvanceToNextEcho();
 
-        if (backend != nullptr)
-            backend->OnEchoBoundary(sequence != nullptr ? sequence->GetCurrentPitchRatio() : 1.0f);
+        if (backendLeft != nullptr)
+            backendLeft->OnEchoBoundary(sequence != nullptr ? sequence->GetCurrentPitchRatio() : 1.0f);
+
+        if (backendRight != nullptr)
+            backendRight->OnEchoBoundary(sequence != nullptr ? sequence->GetCurrentPitchRatio() : 1.0f);
     }
 
     // Mono-linked mode: right channel mirrors the left channel's ratio.
@@ -102,19 +115,28 @@ public:
     {
         CommitPendingSequenceIfAny();
 
-        if (backend != nullptr)
-            backend->OnEchoBoundary(mirroredRatio);
+        if (backendLeft != nullptr)
+            backendLeft->OnEchoBoundary(mirroredRatio);
+
+        if (backendRight != nullptr)
+            backendRight->OnEchoBoundary(mirroredRatio);
     }
 
-    float ProcessSample(float inputSample)
+    std::pair<float, float> ProcessSample(float inputSampleLeft, float inputSampleRight)
     {
-        if (!GetEnabled())
-            return inputSample;
+        if (!GetEnabled() || sequence == nullptr)
+            return { inputSampleLeft, inputSampleRight };
 
-        if (sequence == nullptr || backend == nullptr)
-            return inputSample;
+        float outLeft = backendLeft->ProcessSample(inputSampleLeft, sequence->GetCurrentPitchRatio());
+        float outRight = backendRight->ProcessSample(inputSampleRight, sequence->GetCurrentPitchRatio());
 
-        return backend->ProcessSample(inputSample, sequence->GetCurrentPitchRatio());
+        if (backendLeft == nullptr)
+            outLeft = inputSampleLeft;
+
+        if (backendRight == nullptr)
+            outRight = inputSampleRight;
+
+        return { outLeft, outRight };
     }
 
     // Stages a new sequence; it will be committed at the next echo boundary.
@@ -128,7 +150,7 @@ public:
         hasPendingSequence = true;
     }
 
-    void SetBackendType(BackendType newBackendType)
+    /*void SetBackendType(BackendType newBackendType)
     {
         if (newBackendType == BackendType::Granular)
         {
@@ -138,7 +160,7 @@ public:
             granular->SetLookbackMultiplier(3.0f);
             SetBackend(std::move(granular));
         }
-    }
+    }*/
 
     // Commits a pending sequence immediately — only safe outside the audio thread.
     void CommitPendingSequenceNow()
@@ -148,8 +170,11 @@ public:
             sequence = std::move(pendingSequence);
             hasPendingSequence = false;
 
-            if (backend != nullptr)
-                backend->SetInitialRatio(sequence->GetCurrentPitchRatio());
+            if (backendLeft != nullptr)
+                backendLeft->SetInitialRatio(sequence->GetCurrentPitchRatio());
+
+            if (backendRight != nullptr)
+                backendRight->SetInitialRatio(sequence->GetCurrentPitchRatio());
         }
     }
 
@@ -160,14 +185,23 @@ public:
             sequence = std::move(pendingSequence);
             hasPendingSequence = false;
 
-            if (backend != nullptr)
-                backend->Reset();
+            // Left
+            if (backendLeft != nullptr)
+                backendLeft->Reset();
 
+            if (backendRight != nullptr)
+                backendRight->Reset();
+
+            // Sequence
             if (sequence != nullptr)
                 sequence->Reset();
 
-            if (backend != nullptr)
-                backend->SetInitialRatio(sequence != nullptr ? sequence->GetCurrentPitchRatio() : 1.0f);
+            // Right
+            if (backendLeft != nullptr)
+                backendLeft->SetInitialRatio(sequence != nullptr ? sequence->GetCurrentPitchRatio() : 1.0f);
+
+            if (backendRight != nullptr)
+                backendRight->SetInitialRatio(sequence != nullptr ? sequence->GetCurrentPitchRatio() : 1.0f);
         }
     }
 
@@ -176,31 +210,45 @@ public:
         if (sequence != nullptr)
             sequence->Reset();
 
-        if (backend != nullptr)
-            backend->Reset();
+        if (backendLeft != nullptr)
+            backendLeft->Reset();
 
-        if (backend != nullptr)
-            backend->SetInitialRatio(sequence != nullptr ? sequence->GetCurrentPitchRatio() : 1.0f);
+        if (backendRight != nullptr)
+            backendRight->Reset();
+
+        if (backendLeft != nullptr)
+            backendLeft->SetInitialRatio(sequence != nullptr ? sequence->GetCurrentPitchRatio() : 1.0f);
+
+        if (backendRight != nullptr)
+            backendRight->SetInitialRatio(sequence != nullptr ? sequence->GetCurrentPitchRatio() : 1.0f);
     }
 
     void SetBackend(std::unique_ptr<IPitchShifterBackend>&& newBackend)
     {
-        backend = std::move(newBackend);
+        backendLeft = std::move(newBackend);
+        backendRight = std::move(newBackend);
 
-        if (backend != nullptr)
+        if (backendLeft != nullptr)
         {
-            backend->Prepare(sampleRate, maximumBlockSizeCached);
-            backend->Reset();
-            backend->SetInitialRatio(sequence != nullptr ? sequence->GetCurrentPitchRatio() : 1.0f);
+            backendLeft->Prepare(sampleRate, maximumBlockSizeCached);
+            backendLeft->Reset();
+            backendLeft->SetInitialRatio(sequence != nullptr ? sequence->GetCurrentPitchRatio() : 1.0f);
+        }
+
+        if (backendRight != nullptr)
+        {
+            backendRight->Prepare(sampleRate, maximumBlockSizeCached);
+            backendRight->Reset();
+            backendRight->SetInitialRatio(sequence != nullptr ? sequence->GetCurrentPitchRatio() : 1.0f);
         }
     }
 
     float GetLatencyMilliseconds() const
     {
-        if (!GetEnabled() || backend == nullptr)
+        if (!GetEnabled() || backendLeft == nullptr || backendRight == nullptr)
             return 0.0f;
 
-        return backend->GetLatencyMilliseconds();
+        return backendLeft->GetLatencyMilliseconds();
     }
 
     float GetCurrentPitchRatio() const
@@ -214,9 +262,11 @@ private:
     int maximumBlockSizeCached = 0;
     bool hasPendingSequence = false;
 
-    std::unique_ptr<IPitchSequence>      sequence;
-    std::unique_ptr<IPitchSequence>      pendingSequence;
-    std::unique_ptr<IPitchShifterBackend> backend;
+    std::unique_ptr<IPitchSequence> sequence;
+    std::unique_ptr<IPitchSequence> pendingSequence;
+
+    std::unique_ptr<IPitchShifterBackend> backendLeft;
+    std::unique_ptr<IPitchShifterBackend> backendRight;
 
     std::atomic<bool> enabled { false };
 };

@@ -344,7 +344,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float preReadWetLeft  = mainDelayLeft->ReadDelayMilliseconds(preReadMs, sampleRate);
         const float preReadWetRight = mainDelayRight->ReadDelayMilliseconds(preReadMs, sampleRate);
 
-        // ---- 9: Optional pitch shift ----
+        // ---- 9: Pitch shift ----
         float pitchedLeft = dampedLeft;
         float pitchedRight = dampedRight;
 
@@ -352,8 +352,9 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         {
             // Feed the pre-read tap (not the nominal tap) into the pitcher.
             // The output will be time-aligned with dampedLeft/dampedRight.
-            pitchedLeft  = wetInputPitchShifterLeft.ProcessSample(preReadWetLeft);
-            pitchedRight = wetInputPitchShifterRight.ProcessSample(preReadWetRight);
+            //float pitched =
+            //pitchedLeft = wetInputPitchShifterLeft.ProcessSample(preReadWetLeft);
+            //pitchedRight = wetInputPitchShifterRight.ProcessSample(preReadWetRight);
 
             // ---- 9b: Post-pitch allpass smoothing (only when pitch and diffusion are active) ----
             if (diffusionAmountSmoothed > 0.001f)
@@ -517,11 +518,6 @@ void NewDelayReverb::SetHPLPPrePost(float prePost01)
     hplpPrePost01 = clamp01(prePost01);
 }
 
-//void NewDelayReverb::SetPitchEnabled(float pitchEnabled01)
-//{
-//    pitchEnabled = clamp01(pitchEnabled01);
-//}
-
 void NewDelayReverb::SetPitchRangeLower(float pitchRangeLowerSemitones)
 {
     pitchRangeLower = juce::jlimit(-48.0f, 48.0f, pitchRangeLowerSemitones);
@@ -567,12 +563,6 @@ void NewDelayReverb::SetPitchStereoEnabled(float enabled01)
             wetInputPitchShifterRight.OnNewEchoBoundaryMirrored(leftRatio);
         }
     }
-}
-
-void NewDelayReverb::SetPitchAlgorithm(OctaveEchoPitchShifter::BackendType backendType)
-{
-    wetInputPitchShifterLeft.SetBackendType(backendType);
-    wetInputPitchShifterRight.SetBackendType(backendType);
 }
 
 void NewDelayReverb::SetHostTempo(float bpm)

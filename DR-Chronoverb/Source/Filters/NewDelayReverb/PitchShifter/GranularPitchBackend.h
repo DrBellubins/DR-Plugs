@@ -36,11 +36,6 @@ public:
 
         buffer.assign(static_cast<size_t>(bufferSize), 0.0f);
 
-        SetGrainLengthMilliseconds(50.0f);
-        SetJitterPercent(0.12f);
-        SetLookbackMultiplier(4.0f);
-        SetBoundaryCrossfadeMilliseconds(4.0f);
-
         Reset();
     }
 
@@ -148,11 +143,11 @@ public:
         {
             const float outInactive = processStateOneSample(inactive);
             const int done = crossfadeTotalSamples - crossfadeRemainingSamples;
-            const float t  = static_cast<float>(done)
+            const float timeSamples  = static_cast<float>(done)
                            / static_cast<float>(std::max(1, crossfadeTotalSamples));
 
-            const float gOld = std::cos(t * juce::MathConstants<float>::halfPi);
-            const float gNew = std::sin(t * juce::MathConstants<float>::halfPi);
+            const float gOld = std::cos(timeSamples * juce::MathConstants<float>::halfPi);
+            const float gNew = std::sin(timeSamples * juce::MathConstants<float>::halfPi);
 
             --crossfadeRemainingSamples;
 
@@ -180,7 +175,7 @@ public:
 
     void SetBoundaryCrossfadeMilliseconds(float ms)
     {
-        const float clamped      = juce::jlimit(0.0f, 30.0f, ms);
+        const float clamped = juce::jlimit(0.0f, 30.0f, ms);
         boundaryCrossfadeSamples = std::max(0, static_cast<int>(
             std::round((clamped * sampleRate) / 1000.0)));
     }
