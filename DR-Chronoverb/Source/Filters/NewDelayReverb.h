@@ -71,7 +71,7 @@ private:
     void updateFilters() const;
     void rebuildPitchSequences();
 
-    int semitonesToOctaveIndex(float semitones);
+    static int semitonesToOctaveIndex(float semitones);
 
     static float map01ToRange(float value01, float minValue, float maxValue);
     static float clamp01(float value);
