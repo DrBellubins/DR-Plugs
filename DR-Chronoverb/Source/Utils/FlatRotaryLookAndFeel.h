@@ -3,6 +3,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Theme.h"
 #include "FlatLabel.h"
+#include "ThemeContext.h"
 
 class FlatRotaryLookAndFeel : public juce::LookAndFeel_V4
 {
@@ -29,7 +30,7 @@ public:
         juce::Point<float> Center = Bounds.getCentre();
 
         // Background fill
-        Graphics.setColour(AccentGray.brighter(0.1f));
+        Graphics.setColour(ThemeContext::GetAdjustedColour(AccentGray, *this).brighter(0.1f));
         Graphics.fillEllipse(Center.x - Radius, Center.y - Radius, Diameter, Diameter);
 
         // Arc value
