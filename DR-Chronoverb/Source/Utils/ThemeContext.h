@@ -23,9 +23,7 @@ namespace ThemeContext
                 dynamic_cast<const DarkeningThemeProvider*>(currentComponent);
 
             if (darkeningThemeProvider != nullptr)
-            {
                 return darkeningThemeProvider->GetThemeDarkeningAmount();
-            }
 
             currentComponent = currentComponent->getParentComponent();
         }
@@ -38,9 +36,7 @@ namespace ThemeContext
         const juce::Component& component)
     {
         if (baseColour == ThemePink)
-        {
             return baseColour;
-        }
 
         const float darkeningAmount = GetDarkeningAmountForComponent(component);
         return baseColour.darker(darkeningAmount);

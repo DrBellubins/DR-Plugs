@@ -30,7 +30,9 @@ public:
         juce::Point<float> Center = Bounds.getCentre();
 
         // Background fill
-        Graphics.setColour(ThemeContext::GetAdjustedColour(AccentGray, *this).brighter(0.1f));
+        Graphics.setColour(ThemeContext::GetAdjustedColour(AccentGray, Slider).brighter(0.1f));
+        //Graphics.setColour(AccentGray.brighter(0.1));
+
         Graphics.fillEllipse(Center.x - Radius, Center.y - Radius, Diameter, Diameter);
 
         // Arc value
@@ -83,7 +85,9 @@ public:
         juce::ignoreUnused(TextEditor);
 
         // Flat editor outline (if we ever allow focus border)
-        Graphics.setColour(AccentGray.brighter(0.1));
+        Graphics.setColour(ThemeContext::GetAdjustedColour(AccentGray.darker(0.1), TextEditor));
+        //Graphics.setColour(AccentGray.brighter(0.1));
+
         Graphics.drawRect(0, 0, Width, Height, 2);
     }
 };
