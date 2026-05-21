@@ -67,8 +67,13 @@ public:
         // Remove any shadow/border artifacts
         ValueBox->setBorderSize(juce::BorderSize<int>(0));
 
+        const juce::Colour adjustedAccentColor = ThemeContext::GetAdjustedColour(AccentGray, Slider);
+
         // Colours already set in FlatLabel constructor; ensure consistency:
-        ValueBox->setColour(juce::Label::backgroundColourId, AccentGray);
+        // Texbox colors
+        ValueBox->setColour(juce::Label::backgroundColourId, adjustedAccentColor);
+        ValueBox->setColour(juce::Label::backgroundWhenEditingColourId, adjustedAccentColor);
+        
         ValueBox->setColour(juce::Label::textColourId, juce::Colours::white);
 
         // Ensure slider's colour lookups do not override
