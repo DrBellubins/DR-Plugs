@@ -153,11 +153,6 @@ private:
     OctaveEchoPitchShifter wetInputPitchShifterLeft;
     OctaveEchoPitchShifter wetInputPitchShifterRight;
 
-    // Pitch latency compensation delay lines.
-    // Delays the non-pitched wet path to match the granular backend lookback.
-    std::unique_ptr<DelayLine> pitchCompDelayLeft;
-    std::unique_ptr<DelayLine> pitchCompDelayRight;
-
     DiffusionAllpass postPitchAllpassLeft;
     DiffusionAllpass postPitchAllpassRight;
 

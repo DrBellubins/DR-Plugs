@@ -94,18 +94,6 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     postPitchAllpassRight.Prepare(sampleRate);
     postPitchAllpassRight.Configure(pitchShiftAllpassDelay, 0.6f);
 
-    // ---- Pitch latency compensation delay lines ----
-    // Must be sized after the backend is prepared so GetLatencyMilliseconds() is valid.
-    cachedPitchCompensationMs = wetInputPitchShifterLeft.GetLatencyMilliseconds();
-
-    // Allocate for up to 300 ms (well above any granular lookback we'd ever use).
-    const int maxCompSamples = std::max(
-        1,
-        static_cast<int>(std::ceil((300.0 * sampleRate) / 1000.0)));
-
-    pitchCompDelayLeft = std::make_unique<DelayLine>(maxCompSamples);
-    pitchCompDelayRight = std::make_unique<DelayLine>(maxCompSamples);
-
     // End Pitch Shift
 
     kBlendSlewCoeff = 1.0f / (0.01f * static_cast<float>(sampleRate));
@@ -336,28 +324,27 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         lastFeedbackL = dampedLeft  * feedbackGain;
         lastFeedbackR = dampedRight * feedbackGain;
 
-        // ---- 8b: Pitch latency compensation ----
-        // Delay the non-pitched wet path to match the granular lookback latency,
-        // so both sides of the EqualPowerCrossfade below are time-aligned.
-        pitchCompDelayLeft->PushSample(dampedLeft);
-        pitchCompDelayRight->PushSample(dampedRight);
+        // ---- 8b: Pre-read tap for pitch shifting (reads earlier so output lands on time) ----
+        // Instead of delaying the non-pitched path forward in time to match the pitcher,
+        // we read a tap pitchLatencyMs BEFORE the nominal position and feed that to the
+        // pitcher. The granular backend's lookback consumes exactly that head-start, so
+        // the pitched output arrives at the same moment as the nominal wet tap.
+        // This eliminates the compensation delay lines and adds zero latency to the plugin.
+        const float preReadMs = std::max(1.0f, nominalReadMilliseconds - pitchShifterLatencyMs);
 
-        const float compDampedLeft  = (cachedPitchCompensationMs > 0.0f)
-            ? pitchCompDelayLeft->ReadDelayMilliseconds(cachedPitchCompensationMs, sampleRate)
-            : dampedLeft;
-
-        const float compDampedRight = (cachedPitchCompensationMs > 0.0f)
-            ? pitchCompDelayRight->ReadDelayMilliseconds(cachedPitchCompensationMs, sampleRate)
-            : dampedRight;
+        const float preReadWetLeft  = mainDelayLeft->ReadDelayMilliseconds(preReadMs, sampleRate);
+        const float preReadWetRight = mainDelayRight->ReadDelayMilliseconds(preReadMs, sampleRate);
 
         // ---- 9: Optional pitch shift ----
-        float pitchedLeft = wetLeft;
-        float pitchedRight = wetRight;
+        float pitchedLeft = dampedLeft;
+        float pitchedRight = dampedRight;
 
         if (pitchWetMix > 0.0001f)
         {
-            pitchedLeft = wetInputPitchShifterLeft.ProcessSample(wetLeft);
-            pitchedRight = wetInputPitchShifterRight.ProcessSample(wetRight);
+            // Feed the pre-read tap (not the nominal tap) into the pitcher.
+            // The output will be time-aligned with dampedLeft/dampedRight.
+            pitchedLeft  = wetInputPitchShifterLeft.ProcessSample(preReadWetLeft);
+            pitchedRight = wetInputPitchShifterRight.ProcessSample(preReadWetRight);
 
             // ---- 9b: Post-pitch allpass smoothing (only when pitch and diffusion are active) ----
             if (diffusionAmountSmoothed > 0.001f)
@@ -401,8 +388,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             }
         }
 
-        pitchedLeft = PMath::EqualPowerCrossfade(compDampedLeft, pitchedLeft, pitchWetMix);
-        pitchedRight = PMath::EqualPowerCrossfade(compDampedRight, pitchedRight, pitchWetMix);
+        pitchedLeft = PMath::EqualPowerCrossfade(dampedLeft, pitchedLeft, pitchWetMix);
+        pitchedRight = PMath::EqualPowerCrossfade(dampedRight, pitchedRight, pitchWetMix);
 
         // ---- 10: Stereo spread ----
         float spreadWetLeft = pitchedLeft;

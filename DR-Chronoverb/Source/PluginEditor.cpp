@@ -231,7 +231,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     // Horizontal slider
     horizontalPitchRangeSlider = std::make_unique<HorizontalRangeSlider>(-48.0f, 48.0f);
-    horizontalPitchRangeSlider->setMinimumRange(12.0f);
+    horizontalPitchRangeSlider->setMinimumRange(0.0f);
     horizontalPitchRangeSlider->setSteppingEnabled(true);
     horizontalPitchRangeSlider->setStepSize(12.0f);
     horizontalPitchRangeSlider->setRoundness(7.0f);
