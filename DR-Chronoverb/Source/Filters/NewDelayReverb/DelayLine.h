@@ -32,30 +32,25 @@ public:
 
     float ReadDelayMilliseconds(float delayMs, double sampleRate) const
     {
-        const double delaySamplesDouble = (delayMs * sampleRate) / 1000.0;
-        const int delaySamples = static_cast<int>(std::floor(delaySamplesDouble));
-        const float frac = static_cast<float>(delaySamplesDouble - static_cast<double>(delaySamples));
+        const double delaySamples = (delayMs * sampleRate) / 1000.0;
+        const double readPos = static_cast<double>(writeIndex) - delaySamples - 1.0;
 
         const int size = static_cast<int>(buffer.size());
 
-        int indexA = writeIndex - delaySamples;
+        double wrappedReadPos = readPos;
+        while (wrappedReadPos < 0.0)
+            wrappedReadPos += static_cast<double>(size);
+        while (wrappedReadPos >= static_cast<double>(size))
+            wrappedReadPos -= static_cast<double>(size);
 
-        while (indexA < 0)
-            indexA += size;
-
-        indexA %= size;
-
-        int indexB = indexA - 1;
-
-        while (indexB < 0)
-            indexB += size;
-
-        indexB %= size;
+        const int indexA = static_cast<int>(std::floor(wrappedReadPos));
+        const int indexB = (indexA + 1) % size;
+        const float frac = static_cast<float>(wrappedReadPos - static_cast<double>(indexA));
 
         const float sampleA = buffer[indexA];
         const float sampleB = buffer[indexB];
 
-        return sampleA * (1.0f - frac) + sampleB * frac;
+        return sampleA + (sampleB - sampleA) * frac;
     }
 
 private:
