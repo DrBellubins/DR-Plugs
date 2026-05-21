@@ -1,11 +1,12 @@
-# Dr Plugs Plugins Suite
-This repository holds the entire suite of vst plugins I have made. I make my plugins free and open source because I believe that tools to make art should be free! Use the code from this repo however you like, as it is all under the MIT license!
+# Dr Plugs Plugin Suite
+This repository holds the entire suite of VST plugins I have made. I make my plugins free and open source because I believe that tools used to make art should be free! Use the code from this repo however you like, as it is all under the MIT license!
 
 ## Plugin list
+The plugins below are in varying states of development
 ### ChronoVerb
-![ChronoVerb FX](https://i.imgur.com/2j1qoF5.png)
+![ChronoVerb FX](https://i.imgur.com/j4x3ZJO.png)
 
-A clustered delay/reverb effect inspired by ![Deelay from Sixth Sample](https://sixthsample.com/deelay/) with rich and extensive pitch modulation.
+A clustered delay/reverb effect inspired by Deelay from Sixth Sample (https://sixthsample.com/deelay/) with rich and extensive pitch modulation.
 
 ### Arp Rand
 ![Arp Rand MIDI FX](https://i.imgur.com/nFUbEQY.png)
