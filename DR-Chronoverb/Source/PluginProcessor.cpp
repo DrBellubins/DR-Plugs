@@ -323,13 +323,6 @@ void AudioPluginAudioProcessor::prepareToPlay(double sampleRate, int samplesPerB
     keyboardSynth.PrepareToPlay(sampleRate);
 
     DelayReverb.PrepareToPlay(sampleRate, 1.0f);
-
-    // Report pitch-shifter latency to the DAW so it can compensate dry/wet alignment.
-    const float latencyMs = DelayReverb.GetPitchShifterLatencyMilliseconds();
-    const int latencySamples =
-        static_cast<int>(std::round((latencyMs * sampleRate) / 1000.0));
-
-    setLatencySamples(latencySamples);
 }
 
 void AudioPluginAudioProcessor::releaseResources()

@@ -66,9 +66,6 @@ public:
 
     void SetHostTempo(float bpm);
 
-    // Returns the current pitch-shifter latency in milliseconds (0 when disabled).
-    float GetPitchShifterLatencyMilliseconds() const;
-
 private:
     void updateDelayMillisecondsFromNormalized();
     void rebuildDiffusionIfNeeded();
