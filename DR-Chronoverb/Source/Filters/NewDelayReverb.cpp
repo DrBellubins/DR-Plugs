@@ -325,11 +325,6 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         lastFeedbackR = dampedRight * feedbackGain;
 
         // ---- 8b: Pre-read tap for pitch shifting (reads earlier so output lands on time) ----
-        // Instead of delaying the non-pitched path forward in time to match the pitcher,
-        // we read a tap pitchLatencyMs BEFORE the nominal position and feed that to the
-        // pitcher. The granular backend's lookback consumes exactly that head-start, so
-        // the pitched output arrives at the same moment as the nominal wet tap.
-        // This eliminates the compensation delay lines and adds zero latency to the plugin.
         const float preReadMs = std::max(1.0f, nominalReadMilliseconds - pitchShifterLatencyMs);
 
         const float preReadWetLeft  = mainDelayLeft->ReadDelayMilliseconds(preReadMs, sampleRate);

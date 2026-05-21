@@ -31,7 +31,7 @@ public:
 private:
     void updateDelayKnobDisplay(int modeIndex);
 
-    const int nonPitchYOffset = 20;
+    const int nonPitchYOffset = -20;
     const int pitchYOffset = 230;
 
     // This reference is provided as a quick way for your editor to

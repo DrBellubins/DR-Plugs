@@ -42,52 +42,52 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     // ------ KNOBS ------
     uiHelpers.CreateKnob(*this, delayTimeKnob, delayTimeAttachment, "delayTime",
-        "", 100, cX + 0, cY + -25 + nonPitchYOffset);
+        "", 140, cX + 0, cY +  nonPitchYOffset);
 
     uiHelpers.CreateKnob(*this, feedbackTimeKnob, feedbackTimeAttachment, "feedbackTime",
-        "", 80, cX + 350, cY + -125 + nonPitchYOffset);
+        "", 100, cX + 350, cY + -125 + nonPitchYOffset);
 
     uiHelpers.CreateKnob(*this, diffusionAmountKnob, diffusionAmountAttachment, "diffusionAmount",
-        "", 80, cX + -350, cY + -125 + nonPitchYOffset);
+        "", 100, cX + -350, cY + -125 + nonPitchYOffset);
 
     uiHelpers.CreateKnob(*this, diffusionSizeKnob, diffusionSizeAttachment, "diffusionSize",
-        "", 80, cX + -200, cY + -125 + nonPitchYOffset);
+        "", 100, cX + -200, cY + -125 + nonPitchYOffset);
 
     uiHelpers.CreateKnob(*this, dryVolumeKnob, dryVolumeAttachment, "dryVolume",
-        "", 80, cX + 200, cY + 50 + nonPitchYOffset);
+        "", 100, cX + 200, cY + 50 + nonPitchYOffset);
 
     uiHelpers.CreateKnob(*this, wetVolumeKnob, wetVolumeAttachment, "wetVolume",
-        "", 80, cX + 350, cY + 50 + nonPitchYOffset);
+        "", 100, cX + 350, cY + 50 + nonPitchYOffset);
 
     // Filters
     uiHelpers.CreateKnob(*this, stereoSpreadKnob, stereoSpreadAttachment, "stereoSpread",
-        "", 80, cX + 200, cY + -125 + nonPitchYOffset);
+        "", 100, cX + 200, cY + -125 + nonPitchYOffset);
 
     uiHelpers.CreateKnob(*this, lowPassKnob, lowPassAttachment, "lowPassCutoff",
-        "", 80, cX + -350, cY + 50 + nonPitchYOffset);
+        "", 100, cX + -350, cY + 50 + nonPitchYOffset);
 
     uiHelpers.CreateKnob(*this, highPassKnob, highPassAttachment, "highPassCutoff",
-        "", 80, cX + -200, cY + 50 + nonPitchYOffset);
+        "", 100, cX + -200, cY + 50 + nonPitchYOffset);
 
     // Ducking
     uiHelpers.CreateKnob(*this, duckAmountKnob, duckAmountAttachment, "duckAmount",
-        "", 60, cX + 0, cY + -170 + nonPitchYOffset);
+        "", 70, cX + 0, cY + -170 + nonPitchYOffset);
 
     uiHelpers.CreateKnob(*this, duckAttackKnob, duckAttackAttachment, "duckAttack",
-        "", 60, cX + -80, cY + -170 + nonPitchYOffset);
+        "", 70, cX + -80, cY + -170 + nonPitchYOffset);
 
     uiHelpers.CreateKnob(*this, duckReleaseKnob, duckReleaseAttachment, "duckRelease",
-        "", 60, cX + 80, cY + -170 + nonPitchYOffset);
+        "", 70, cX + 80, cY + -170 + nonPitchYOffset);
 
     // Quality slider
     uiHelpers.CreateSlider(*this, diffusionQualitySlider, diffusionQualityAttachment, "diffusionQuality",
-        200, 20, cX + 200, cY + -260);
+        200, 20, cX + 200, 30);
 
     uiHelpers.CreateSliderLabel(*this, diffusionQualityLabel, *diffusionQualitySlider,
         "Diffusion Quality", 15.0f, 170);
 
     // ------ Knob Labels ------
-    uiHelpers.CreateKnobLabel(*this, delayTimeLabel, *delayTimeKnob, "Delay Time", 20.0f, 80);
+    uiHelpers.CreateKnobLabel(*this, delayTimeLabel, *delayTimeKnob, "Delay Time", 20.0f, 100);
     uiHelpers.CreateKnobLabel(*this, feedbackLabel, *feedbackTimeKnob, "Feedback", 15.0f, 70);
 
     uiHelpers.CreateKnobLabel(*this, diffusionAmountLabel, *diffusionAmountKnob,
@@ -118,7 +118,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     delayTimeModeButtons = std::make_unique<SegmentedButton>(juce::StringArray{ "ms", "nrm", "trip", "dot" });
 
     addAndMakeVisible(*delayTimeModeButtons);
-    delayTimeModeButtons->setBounds((getWidth() / 2) - 100, (getHeight() / 2) + 50 + nonPitchYOffset, 200, 30);
+    delayTimeModeButtons->setBounds(cX - 100, cY + 85 + nonPitchYOffset, 200, 30);
 
     delayTimeModeAttachment = std::make_unique<SegmentedButton::ChoiceAttachment>(processorRef.parameters,
         "delayTimeMode", *delayTimeModeButtons);
@@ -268,7 +268,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     pitchModeLabel->setBounds(340, 0, 220, 32);
 
     uiHelpers.CreateKnob(*pitchPage, pitchWetMixKnob, pitchWetMixAttachment, "pitchWetMix",
-        "", 80, 750, 50);
+        "", 70, 750, 50);
 
     // Algorithm dropdown (Granular / Phase Vocoder)
     /*pitchAlgorithmDropdown = std::make_unique<ThemedDropdown>();
