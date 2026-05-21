@@ -100,14 +100,17 @@ private:
     float smoothedCenteredReadDelayMilliseconds = 1.0f;
     float readDelaySlewCoefficient = 0.0f;
 
-    // Latency
-    float cachedPitchCompensationMs = 0.0f;
-    float pitchShifterLatencyMs = 0.0f;
-
     // Settings
+    const float centeredSwellRatio = 0.25f;
+    const float diffusionCompensationBias = 3.0f; // Controls swell into nominal (higher = longer swell)
+
     const float pitchAllpassTuningMultiplier = 1.5f; // For secondary allpass filter tuning
     const float pitchDelayAllpassTuning = 170.0f;
     const float pitchReverbAllpassTuning = 50.0f;
+
+    // Latency
+    float cachedPitchCompensationMs = 0.0f;
+    float pitchShifterLatencyMs = 0.0f;
 
     // Parameters
     double sampleRate = 48000.0;
@@ -124,9 +127,6 @@ private:
     float diffusionSize01 = 0.0f;
     int diffusionQualityStages = 6;
 
-    float centeredSwellRatio = 0.25f;
-    float diffusionCompensationBias = 1.5f;
-
     float dryVolume = 1.0f;
     float wetVolume = 1.0f;
 
@@ -135,7 +135,6 @@ private:
     float stereoSpreadMinus1To1 = 0.0f;
     float hplpPrePost01 = 1.0f;
 
-    //float pitchEnabled = 0.0f;
     float pitchRangeLower = -12.0f;
     float pitchRangeUpper = 12.0f;
     int pitchMode = 0;

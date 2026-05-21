@@ -19,7 +19,7 @@ public:
 
     void Prepare(double sampleRate)
     {
-        sr = sampleRate;
+        smapleRate = sampleRate;
         SetDelayMilliseconds(50.0f); // default
         SetGain(0.65f);              // default
         Clear();
@@ -41,7 +41,7 @@ public:
         const float yDelayed = readOutputDelaySamplesFractional(currentDelaySamples);
 
         // Allpass equation
-        const float y = -g * inputSample + xDelayed + g * yDelayed;
+        const float y = -gain * inputSample + xDelayed + gain * yDelayed;
 
         // Push input and output
         pushInput(inputSample);
@@ -52,14 +52,14 @@ public:
 
     void SetGain(float newGain)
     {
-        g = std::max(-0.99f, std::min(0.99f, newGain));
+        gain = std::max(-0.99f, std::min(0.99f, newGain));
     }
 
     // Set a base delay in milliseconds once (Configure calls this).
     void SetBaseDelayMilliseconds(float newDelayMs)
     {
         delayMs = std::max(1.0f, newDelayMs);
-        delaySamplesInteger = static_cast<int>(std::floor((delayMs * sr) / 1000.0));
+        delaySamplesInteger = static_cast<int>(std::floor((delayMs * smapleRate) / 1000.0));
         ensureBufferSize();
         currentDelaySamples = static_cast<float>(delaySamplesInteger);
     }
@@ -82,7 +82,7 @@ public:
     void SetDelayMilliseconds(float newDelayMs)
     {
         delayMs = std::max(1.0f, newDelayMs);
-        delaySamples = static_cast<int>(std::round((delayMs * sr) / 1000.0));
+        delaySamples = static_cast<int>(std::round((delayMs * smapleRate) / 1000.0));
         ensureBufferSize();
     }
 
@@ -95,9 +95,9 @@ public:
     }
 
 private:
-    double sr = 48000.0;
+    double smapleRate = 48000.0;
     float delayMs = 50.0f;
-    float g = 0.65f;
+    float gain = 0.65f;
 
     std::vector<float> inputBuffer;
     std::vector<float> outputBuffer;
