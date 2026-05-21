@@ -38,7 +38,7 @@ public:
 
         SetGrainLengthMilliseconds(50.0f);
         SetJitterPercent(0.12f);
-        SetLookbackMultiplier(3.0f);
+        SetLookbackMultiplier(4.0f);
         SetBoundaryCrossfadeMilliseconds(4.0f);
 
         Reset();
