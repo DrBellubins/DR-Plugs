@@ -88,11 +88,25 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     lastFeedbackL = 0.0f;
     lastFeedbackR = 0.0f;
 
-    postPitchAllpassLeft.Prepare(sampleRate);
-    postPitchAllpassLeft.Configure(pitchShiftAllpassDelay, 0.6f); // 15 ms delay, gain 0.6
+    // For diffusion amount < 0.5
+    pitchDelayAllpassOneLeft.Prepare(sampleRate);
+    pitchDelayAllpassOneLeft.Configure(pitchDelayAllpassTuning, 0.6f);
 
-    postPitchAllpassRight.Prepare(sampleRate);
-    postPitchAllpassRight.Configure(pitchShiftAllpassDelay, 0.6f);
+    pitchDelayAllpassOneRight.Prepare(sampleRate);
+    pitchDelayAllpassOneRight.Configure(pitchDelayAllpassTuning, 0.6f);
+
+    pitchDelayAllpassTwoLeft.Prepare(sampleRate);
+    pitchDelayAllpassTwoLeft.Configure(pitchDelayAllpassTuning * pitchAllpassTuningMultiplier, 0.6f);
+
+    pitchDelayAllpassTwoRight.Prepare(sampleRate);
+    pitchDelayAllpassTwoRight.Configure(pitchDelayAllpassTuning * pitchAllpassTuningMultiplier, 0.6f);
+
+    // For diffusion amount > 0.5
+    pitchReverbAllpassLeft.Prepare(sampleRate);
+    pitchReverbAllpassLeft.Configure(pitchReverbAllpassTuning, 0.6f);
+
+    pitchReverbAllpassRight.Prepare(sampleRate);
+    pitchReverbAllpassRight.Configure(pitchReverbAllpassTuning, 0.6f);
 
     // End Pitch Shift
 
@@ -238,8 +252,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
         if (diffusionAmountSmoothed > 0.001f)
         {
-            float diffLeft;
-            float diffRight;
+            float diffLeft = writeLeft;
+            float diffRight = writeRight;
 
             if (diffusionAmountSmoothed <= 0.5f)
             {
@@ -344,8 +358,11 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             // ---- 9b: Post-pitch allpass smoothing (only when pitch and diffusion are active) ----
             if (diffusionAmountSmoothed > 0.001f)
             {
-                float diffPitchedLeft  = postPitchAllpassLeft.ProcessSample(pitchedLeft);
-                float diffPitchedRight = postPitchAllpassRight.ProcessSample(pitchedRight);
+                float firstDiffPitchedLeft = pitchDelayAllpassOneLeft.ProcessSample(pitchedLeft);
+                float firstDiffPitchedRight = pitchDelayAllpassOneRight.ProcessSample(pitchedRight);
+
+                float diffPitchedLeft = pitchDelayAllpassTwoLeft.ProcessSample(firstDiffPitchedLeft);
+                float diffPitchedRight = pitchDelayAllpassTwoRight.ProcessSample(firstDiffPitchedRight);
 
                 pitchedLeft = (pitchedLeft * diffusionGainOne) + (diffPitchedLeft * diffusionGainTwo);
                 pitchedRight = (pitchedRight * diffusionGainOne) + (diffPitchedRight * diffusionGainTwo);
@@ -647,10 +664,10 @@ void NewDelayReverb::rebuildDiffusionIfNeeded()
         delayDiffusionRight->Configure(diffusionQualityStages, diffusionSize01, DelayTunings);
 
     if (reverbDiffusionLeft  != nullptr)
-        reverbDiffusionLeft->ConfigureAsReverb(diffusionQualityStages, diffusionSize01, DeverbTunings);
+        reverbDiffusionLeft->ConfigureAsReverb(diffusionQualityStages, diffusionSize01, ReverbTunings);
 
     if (reverbDiffusionRight != nullptr)
-        reverbDiffusionRight->ConfigureAsReverb(diffusionQualityStages, diffusionSize01, DeverbTunings);
+        reverbDiffusionRight->ConfigureAsReverb(diffusionQualityStages, diffusionSize01, ReverbTunings);
 
     totalDelayDiffusionMilliseconds = 0.0f;
 

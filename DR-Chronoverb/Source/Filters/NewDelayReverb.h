@@ -21,14 +21,15 @@ public:
     // Delay-mode tunings: shorter, natural-spacing delays for discrete-tap blur.
     std::vector<float> DelayTunings =
     {
-        10.0f, 15.0f, 22.5f, 33.75f, 50.6f, 75.9f, 113.9f, 170.8f   // Natural
+        10.0f, 15.0f, 22.0f, 33.0f, 50.0f, 75.0f, 113.0f, 170.0f    // Natural
         //7.0f, 13.0f, 19.0f, 29.0f, 53.0f, 79.0f, 113.0f, 149.0f   // Generated primes
+        //10.0f, 20.0f, 25.0f, 29.0f, 53.0f, 79.0f, 113.0f, 149.0f  // Primes modified
         //5.0f, 11.0f, 17.0f, 19.0f, 23.0f, 29.0f, 31.0f, 37.0f     // Bad Deelay approx.
         //5.0f, 11.0f, 17.0f, 23.0f, 47.0f, 67.0f, 71.0f, 73.0f     // Also bad.
     };
 
     // Reverb-mode tunings: longer, prime-spaced delays for lush modal density.
-    std::vector<float> DeverbTunings =
+    std::vector<float> ReverbTunings =
     {
         29.0f, 37.0f, 43.0f, 53.0f, 71.0f, 89.0f, 113.0f, 149.0f
     };
@@ -115,7 +116,9 @@ private:
     float pitchStereoEnabled01 = 0.0f;
     float pitchWetMix = 0.0f;
 
-    const float pitchShiftAllpassDelay = 15.0f;
+    const float pitchAllpassTuningMultiplier = 1.5f; // For secondary allpass filter tuning
+    const float pitchDelayAllpassTuning = 170.0f;
+    const float pitchReverbAllpassTuning = 50.0f;
 
     float cachedPitchCompensationMs = 0.0f;
     float pitchShifterLatencyMs = 0.0f;
@@ -150,8 +153,16 @@ private:
     OctaveEchoPitchShifter wetInputPitchShifterLeft;
     OctaveEchoPitchShifter wetInputPitchShifterRight;
 
-    DiffusionAllpass postPitchAllpassLeft;
-    DiffusionAllpass postPitchAllpassRight;
+    // Pitch delay allpass
+    DiffusionAllpass pitchDelayAllpassOneLeft;
+    DiffusionAllpass pitchDelayAllpassOneRight;
+
+    DiffusionAllpass pitchDelayAllpassTwoLeft;
+    DiffusionAllpass pitchDelayAllpassTwoRight;
+
+    // Pitch reverb allpass
+    DiffusionAllpass pitchReverbAllpassLeft;
+    DiffusionAllpass pitchReverbAllpassRight;
 
     juce::dsp::IIR::Filter<float> lowpassL;
     juce::dsp::IIR::Filter<float> lowpassR;
