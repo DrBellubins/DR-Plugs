@@ -48,36 +48,26 @@ public:
     juce::Label* createSliderTextBox(juce::Slider& Slider) override
     {
         auto* ValueBox = new FlatLabel();
+        ValueBox->setSize(54, 22);
 
-        // Size: tweak for your design
-        int BoxWidth = 54;
-        int BoxHeight = 22;
-
-        // TextBox style already chosen by Slider (TextBoxBelow / Right)
-        // We enforce size here:
-        ValueBox->setSize(BoxWidth, BoxHeight);
-
-        // Font (optional)
-        juce::Font Font("Liberation Sans", 12.0f, juce::Font::bold);
-        ValueBox->setFont(Font);
-
-        // Centred text
+        juce::Font font("Liberation Sans", 12.0f, juce::Font::bold);
+        ValueBox->setFont(font);
         ValueBox->setJustificationType(juce::Justification::centred);
-
-        // Remove any shadow/border artifacts
         ValueBox->setBorderSize(juce::BorderSize<int>(0));
 
-        const juce::Colour adjustedAccentColor = ThemeContext::GetAdjustedColour(AccentGray, Slider);
+        const juce::Colour adjustedAccent =
+            ThemeContext::GetAdjustedColour(AccentGray, Slider);
 
-        // Colours already set in FlatLabel constructor; ensure consistency:
-        // Texbox colors
-        ValueBox->setColour(juce::Label::backgroundColourId, adjustedAccentColor);
-        ValueBox->setColour(juce::Label::backgroundWhenEditingColourId, adjustedAccentColor);
-        
+        // Idle label colours
+        ValueBox->setColour(juce::Label::backgroundColourId, adjustedAccent);
         ValueBox->setColour(juce::Label::textColourId, juce::Colours::white);
+        ValueBox->setColour(juce::Label::outlineColourId, juce::Colours::transparentBlack);
 
-        // Ensure slider's colour lookups do not override
+        // Editing TextEditor colours (these are the ones that often "snap back")
+        Slider.setColour(juce::Slider::textBoxBackgroundColourId, adjustedAccent);
+        Slider.setColour(juce::Slider::textBoxTextColourId, juce::Colours::white);
         Slider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
+        Slider.setColour(juce::Slider::textBoxHighlightColourId, ThemePink.withAlpha(0.35f));
 
         return ValueBox;
     }
