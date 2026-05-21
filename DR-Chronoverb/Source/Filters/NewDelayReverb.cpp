@@ -362,8 +362,11 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             // ---- 9b: Post-pitch allpass smoothing (only when pitch and diffusion are active) ----
             if (diffusionAmountSmoothed > 0.001f)
             {
-                pitchedLeft  = postPitchAllpassLeft.ProcessSample(pitchedLeft);
-                pitchedRight = postPitchAllpassRight.ProcessSample(pitchedRight);
+                float diffPitchedLeft  = postPitchAllpassLeft.ProcessSample(pitchedLeft);
+                float diffPitchedRight = postPitchAllpassRight.ProcessSample(pitchedRight);
+
+                pitchedLeft = (pitchedLeft * diffusionGainOne) + (diffPitchedLeft * diffusionGainTwo);
+                pitchedRight = (pitchedRight * diffusionGainOne) + (diffPitchedRight * diffusionGainTwo);
             }
         }
 
@@ -397,9 +400,6 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
                 }
             }
         }
-
-        pitchedLeft = (pitchedLeft * diffusionGainOne) + (compDampedLeft * diffusionGainTwo);
-        pitchedRight = (pitchedRight * diffusionGainOne) + (compDampedRight * diffusionGainTwo);
 
         pitchedLeft = PMath::EqualPowerCrossfade(compDampedLeft, pitchedLeft, pitchWetMix);
         pitchedRight = PMath::EqualPowerCrossfade(compDampedRight, pitchedRight, pitchWetMix);
