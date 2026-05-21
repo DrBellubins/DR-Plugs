@@ -74,7 +74,6 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     // End Pitch Shift
     pitchShifterLeft.Prepare(sampleRate, 512);
     pitchShifterRight.Prepare(sampleRate, 512);
-    asdaf
     pitchShifterLeft.SetEnabled(true);
     pitchShifterRight.SetEnabled(true);
 
