@@ -259,7 +259,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     pitchModeLabel->setBounds(340, 0, 220, 32);
 
-    uiHelpers.CreateKnobExt(*pitchPage, pitchWetMixKnob, pitchWetMixAttachment, "pitchWetMix",
+    uiHelpers.CreateKnobExt(*this, pitchWetMixKnob, pitchWetMixAttachment, "pitchWetMix",
         "", 70, 200, 750, 50);
 
     pitchWetMixKnob->setTextBoxStyle(juce::Slider::TextBoxRight, false,
@@ -290,45 +290,6 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
     // Draw bounding box for this component
     graphics.setColour(juce::Colours::red);
     graphics.drawRect(getLocalBounds(), 2);
-
-    // Draw bounding boxes for tabbed page box children
-    if (bottomTabbedPageBox != nullptr)
-    {
-        // Box around the tabbed page box itself
-        graphics.setColour(juce::Colours::cyan);
-        graphics.drawRect(bottomTabbedPageBox->getBounds(), 2);
-
-        // Boxes around each page component's children
-        for (int ChildIndex = 0; ChildIndex < bottomTabbedPageBox->getNumChildComponents(); ++ChildIndex)
-        {
-            auto* Child = bottomTabbedPageBox->getChildComponent(ChildIndex);
-
-            if (Child != nullptr && Child->isVisible())
-            {
-                // Draw box around the page itself (in editor coords)
-                juce::Rectangle PageBounds = Child->getBounds()
-                    .translated(bottomTabbedPageBox->getX(), bottomTabbedPageBox->getY());
-
-                graphics.setColour(juce::Colours::orange);
-                graphics.drawRect(PageBounds, 2);
-
-                // Draw boxes around each child inside the page
-                for (int PageChildIndex = 0; PageChildIndex < Child->getNumChildComponents(); ++PageChildIndex)
-                {
-                    auto* PageChild = Child->getChildComponent(PageChildIndex);
-
-                    if (PageChild != nullptr)
-                    {
-                        juce::Rectangle PageChildBounds = PageChild->getBounds()
-                            .translated(PageBounds.getX(), PageBounds.getY());
-
-                        graphics.setColour(juce::Colours::magenta);
-                        graphics.drawRect(PageChildBounds, 1);
-                    }
-                }
-            }
-        }
-    }
 
     // Draw bounding boxes for children
     for (int ChildIndex = 0; ChildIndex < getNumChildComponents(); ++ChildIndex)
