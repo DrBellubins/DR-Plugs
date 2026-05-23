@@ -85,21 +85,19 @@ public:
     {
         juce::Slider::paint(Graphics);
 
-        // replicate arc/ellipse calculation from FlatRotaryLookAndFeel
-        juce::Rectangle<int> KnobArea = getLocalBounds();
+        // Ask JUCE where it actually drew the rotary arc.
+        auto layout = getLookAndFeel().getSliderLayout(*this);
+        juce::Rectangle<int> KnobArea = layout.sliderBounds;
 
-        if (getTextBoxPosition() == juce::Slider::TextBoxBelow && getTextBoxHeight() > 0)
-            KnobArea.setHeight(KnobArea.getHeight() - getTextBoxHeight());
-
-        int width = KnobArea.getWidth();
-        int height = KnobArea.getHeight();
-        int size = juce::jmin(width, height);
-
+        int size = juce::jmin(KnobArea.getWidth(), KnobArea.getHeight());
         float diameter = static_cast<float>(size) - 20.0f;
+
+        if (diameter <= 0.0f)
+            return;
+
         float radius = diameter / 2.0f;
         juce::Point<float> center = KnobArea.toFloat().getCentre();
 
-        // Now draw the inner circle using the same base as the arc
         Graphics.setColour(ThemeContext::GetAdjustedColour(AccentGray, *this));
         Graphics.fillEllipse(center.x - radius, center.y - radius, diameter, diameter);
     }
