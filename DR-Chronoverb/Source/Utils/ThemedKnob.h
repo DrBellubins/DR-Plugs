@@ -40,35 +40,25 @@ public:
     juce::String getTextFromValue(double Value) override
     {
         if (valueToTextFunction)
-        {
             return valueToTextFunction(Value);
-        }
 
         // Default: show value with suffix
         if (!valueSuffix.isEmpty())
-        {
             return juce::String(Value, 2) + " " + valueSuffix;
-        }
         else
-        {
             return juce::String(Value, 2);
-        }
     }
 
     double getValueFromText(const juce::String& Text) override
     {
         if (textToValueFunction)
-        {
             return textToValueFunction(Text);
-        }
 
         // Default: parse as double
         juce::String textNoSuffix = Text;
 
         if (!valueSuffix.isEmpty() && textNoSuffix.endsWith(valueSuffix))
-        {
             textNoSuffix = textNoSuffix.dropLastCharacters(valueSuffix.length()).trim();
-        }
 
         return textNoSuffix.getDoubleValue();
     }

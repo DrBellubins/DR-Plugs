@@ -141,10 +141,6 @@ private:
     std::unique_ptr<juce::Component> granularPage;
 
     // Pitch shift
-    //std::unique_ptr<ThemedCheckbox> pitchShiftToggle;
-    //std::unique_ptr<ThemedCheckbox::Attachment> pitchShiftToggleAttachment;
-    //std::unique_ptr<juce::Label> pitchShiftTitle;
-
     std::unique_ptr<ThemedCheckbox> pitchShiftStereoToggle;
     std::unique_ptr<ThemedCheckbox::Attachment> pitchShiftStereoToggleAttachment;
     std::unique_ptr<juce::Label> pitchShiftStereoLabel;

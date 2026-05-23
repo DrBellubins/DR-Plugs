@@ -213,14 +213,6 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     bottomTabbedPageBox->AddTab("Granular", granularPage.get());
 
     // Pitch shifting
-    /*uiHelpers.CreateCheckbox(*pitchPage, pitchShiftToggle,
-        pitchShiftToggleAttachment,
-        "pitchEnabled",
-        20, 20, 30, 30);
-
-    uiHelpers.CreateCheckboxLabel(*pitchPage, pitchShiftTitle, *pitchShiftToggle,
-        "Enabled", 14.0f, -40);*/
-
     uiHelpers.CreateCheckbox(*pitchPage, pitchShiftStereoToggle,
     pitchShiftStereoToggleAttachment,
     "pitchStereoEnabled",
@@ -270,21 +262,13 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     uiHelpers.CreateKnob(*pitchPage, pitchWetMixKnob, pitchWetMixAttachment, "pitchWetMix",
         "", 70, 750, 50);
 
-    // Algorithm dropdown (Granular / Phase Vocoder)
-    /*pitchAlgorithmDropdown = std::make_unique<ThemedDropdown>();
-    pitchPage->addAndMakeVisible(*pitchAlgorithmDropdown);
-    pitchAlgorithmDropdown->setBounds(500, 50, 220, 32);
+    pitchWetMixKnob->setTextBoxStyle(juce::Slider::TextBoxRight, false,
+        pitchWetMixKnob->getTextBoxWidth(), pitchWetMixKnob->getTextBoxHeight());
 
-    pitchAlgorithmAttachment = std::make_unique<ThemedDropdown::Attachment>(
-        processorRef.parameters,
-        "pitchAlgorithm",
-        *pitchAlgorithmDropdown
-    );
+    uiHelpers.CreateKnobLabel(*pitchPage, pitchWetMixLabel,
+        *pitchWetMixKnob, "  Mix   ", 12.0f, 45.0f);
 
-    uiHelpers.CreateLabel(*pitchPage, pitchAlgorithmLabel,
-        "Algorithm:", 12.0f, 0, 0);
-
-    pitchAlgorithmLabel->setBounds(340, 50, 220, 32);*/
+    //uiHelpers.CreateLabel(*pitchPage, pitchWetMixLabel, "  Mix  ", 12.0f, 50, 20);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
@@ -304,7 +288,7 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
         graphics.drawImage(logo, juce::Rectangle<float>(-70, -15, 512.0f, 120.0f), juce::RectanglePlacement::centred);
 
     // Draw bounding box for this component
-    /*graphics.setColour(juce::Colours::red);
+    graphics.setColour(juce::Colours::red);
     graphics.drawRect(getLocalBounds(), 2);
 
 
@@ -319,7 +303,7 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
             graphics.setColour(juce::Colours::green);
             graphics.drawRect(ChildBounds, 2);
         }
-    }*/
+    }
 }
 
 void AudioPluginAudioProcessorEditor::resized()
