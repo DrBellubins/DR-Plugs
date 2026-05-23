@@ -149,9 +149,9 @@ private:
     std::unique_ptr<HorizontalRangeSliderAttachment> horizontalPitchRangeAttachment;
     std::unique_ptr<TooltipOverlay> horizontalPitchRangeTooltipOverlay;
 
-    std::unique_ptr<ThemedDropdown> pitchModeDropdown;
-    std::unique_ptr<ThemedDropdown::Attachment> pitchModeAttachment;
-    std::unique_ptr<juce::Label> pitchModeLabel;
+    std::unique_ptr<ThemedDropdown> pitchSequenceDropdown;
+    std::unique_ptr<ThemedDropdown::Attachment> pitchSequenceAttachment;
+    std::unique_ptr<juce::Label> pitchSequenceLabel;
 
     std::unique_ptr<ThemedDropdown> pitchAlgorithmDropdown;
     std::unique_ptr<ThemedDropdown::Attachment> pitchAlgorithmAttachment;

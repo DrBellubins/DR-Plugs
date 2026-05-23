@@ -73,10 +73,10 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     float pitchRangeLower = parameters.getRawParameterValue("pitchRangeLower")->load();
     float pitchRangeUpper = parameters.getRawParameterValue("pitchRangeUpper")->load();
 
-    auto* pitchModeParameter =
-                dynamic_cast<juce::AudioParameterChoice*>(parameters.getParameter("pitchMode"));
+    auto* pitchSequenceParameter =
+                dynamic_cast<juce::AudioParameterChoice*>(parameters.getParameter("pitchSequence"));
 
-    int pitchMode = pitchModeParameter->getIndex();
+    int pitchSequence = pitchSequenceParameter->getIndex();
 
     float pitchStereoEnabled = parameters.getRawParameterValue("pitchStereoEnabled")->load();
 
@@ -100,7 +100,7 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
 
     DelayReverb.SetPitchRangeLower(pitchRangeLower);
     DelayReverb.SetPitchRangeUpper(pitchRangeUpper);
-    DelayReverb.SetPitchMode(pitchMode);
+    DelayReverb.SetPitchSequence(pitchSequence);
     DelayReverb.SetPitchStereoEnabled(pitchStereoEnabled);
     DelayReverb.SetpitchWetMix(pitchWetMix);
 
@@ -206,8 +206,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
         12.0f));
 
     parameterList.push_back(std::make_unique<juce::AudioParameterChoice>(
-        "pitchMode",
-        "Pitch Shift Mode",
+        "pitchSequence",
+        "Pitch Shift Sequence",
         juce::StringArray
         {
             "Up",
@@ -374,15 +374,15 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
     if (parameterID == "pitchRangeLower") DelayReverb.SetPitchRangeLower(newValue);
     if (parameterID == "pitchRangeUpper") DelayReverb.SetPitchRangeUpper(newValue);
 
-    if (parameterID == "pitchMode")
+    if (parameterID == "pitchSequence")
     {
-        auto* pitchModeParameter =
-                dynamic_cast<juce::AudioParameterChoice*>(parameters.getParameter("pitchMode"));
+        auto* pitchSequenceParameter =
+                dynamic_cast<juce::AudioParameterChoice*>(parameters.getParameter("pitchSequence"));
 
-        if (pitchModeParameter != nullptr)
+        if (pitchSequenceParameter != nullptr)
         {
-            const int selectedModeIndex = pitchModeParameter->getIndex();
-            DelayReverb.SetPitchMode(selectedModeIndex);
+            const int selectedSequenceIndex = pitchSequenceParameter->getIndex();
+            DelayReverb.SetPitchSequence(selectedSequenceIndex);
         }
     }
 

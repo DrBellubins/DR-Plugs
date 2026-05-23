@@ -216,7 +216,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     uiHelpers.CreateCheckbox(*pitchPage, pitchShiftStereoToggle,
     pitchShiftStereoToggleAttachment,
     "pitchStereoEnabled",
-    20, 20, 30, 60);
+    20, 20, 300, 35);
 
     uiHelpers.CreateCheckboxLabel(*pitchPage, pitchShiftStereoLabel, *pitchShiftStereoToggle,
         "Stereo", 14.0f, -38);
@@ -244,23 +244,22 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     horizontalPitchRangeTooltipOverlay->toFront(false);
 
     // Pitch mode (sequence)
-    pitchModeDropdown = std::make_unique<ThemedDropdown>();
-    pitchPage->addAndMakeVisible(*pitchModeDropdown);
-    pitchModeDropdown->setBounds(500, 0, 180, 32);
+    const int sequenceWidth = 180;
+    pitchSequenceDropdown = std::make_unique<ThemedDropdown>();
+    pitchPage->addAndMakeVisible(*pitchSequenceDropdown);
+    pitchSequenceDropdown->setBounds(30, 45, sequenceWidth, 32);
 
-    pitchModeAttachment = std::make_unique<ThemedDropdown::Attachment>(
+    pitchSequenceAttachment = std::make_unique<ThemedDropdown::Attachment>(
         processorRef.parameters,
-        "pitchMode",
-        *pitchModeDropdown
+        "pitchSequence",
+        *pitchSequenceDropdown
     );
 
-    uiHelpers.CreateLabel(*pitchPage, pitchModeLabel,
-        "Sequence:", 12.0f, 0, 0);
+    uiHelpers.CreateLabel(*pitchPage, pitchSequenceLabel,
+        "Sequence", 14.0f, 30 + (sequenceWidth / 2), 22);
 
-    pitchModeLabel->setBounds(340, 0, 220, 32);
-
-    uiHelpers.CreateKnobExt(*this, pitchWetMixKnob, pitchWetMixAttachment, "pitchWetMix",
-        "", 70, 200, 750, 50);
+    uiHelpers.CreateKnobExt(*pitchPage, pitchWetMixKnob, pitchWetMixAttachment, "pitchWetMix",
+        "", 130, 50, 750, 50);
 
     pitchWetMixKnob->setTextBoxStyle(juce::Slider::TextBoxRight, false,
         pitchWetMixKnob->getTextBoxWidth(), pitchWetMixKnob->getTextBoxHeight());
@@ -288,7 +287,7 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
         graphics.drawImage(logo, juce::Rectangle<float>(-70, -15, 512.0f, 120.0f), juce::RectanglePlacement::centred);
 
     // Draw bounding box for this component
-    graphics.setColour(juce::Colours::red);
+    /*graphics.setColour(juce::Colours::red);
     graphics.drawRect(getLocalBounds(), 2);
 
     // Draw bounding boxes for children
@@ -302,7 +301,7 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
             graphics.setColour(juce::Colours::green);
             graphics.drawRect(ChildBounds, 2);
         }
-    }
+    }*/
 }
 
 void AudioPluginAudioProcessorEditor::resized()

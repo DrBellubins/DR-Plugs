@@ -23,7 +23,7 @@ public:
         int width,
         int height,
         int x,
-        int y);
+        int y) const;
 
     void CreateCheckbox(
         juce::Component& parentComponent,
@@ -33,9 +33,9 @@ public:
         int width,
         int height,
         int x,
-        int y);
+        int y) const;
 
-    void CreateCheckboxLabel(
+    static void CreateCheckboxLabel(
         juce::Component& parentComponent,
         std::unique_ptr<juce::Label>& label,
         ThemedCheckbox& checkbox,
@@ -51,9 +51,9 @@ public:
         int width,
         int height,
         int x,
-        int y);
+        int y) const;
 
-    void CreateSliderLabel(
+    static void CreateSliderLabel(
         juce::Component& parentComponent,
         std::unique_ptr<juce::Label>& label,
         ThemedSlider& slider,
@@ -61,13 +61,13 @@ public:
         float fontSize,
         int offsetX);
 
-    void CreateLabel(
+    static void CreateLabel(
         juce::Component& parentComponent,
         std::unique_ptr<juce::Label>& label,
         const juce::String& text,
         float fontSize,
-        int offsetFromCenterX,
-        int offsetFromCenterY);
+        int cx,
+        int cy);
 
     void CreateKnob(
         juce::Component& parentComponent,
@@ -77,7 +77,7 @@ public:
         const juce::String& suffix,
         int widthHeight,
         int x,
-        int y);
+        int y) const;
 
     void CreateKnobExt(
         juce::Component& parentComponent,
@@ -88,7 +88,7 @@ public:
         int width,
         int height,
         int x,
-        int y);
+        int y) const;
 
     void CreateKnobLabel(
         juce::Component& parentComponent,
@@ -96,14 +96,14 @@ public:
         ThemedKnob& knob,
         const juce::String& text,
         float fontSize,
-        int offsetY);
+        int offsetY) const;
 
-    void CenterKnobLabel(
+    static void CenterKnobLabel(
         std::unique_ptr<juce::Label>& label,
         ThemedKnob& knob,
         int offsetY);
 
-    int GetLabelWidth(const std::unique_ptr<juce::Label>& label) const;
+    static int GetLabelWidth(const std::unique_ptr<juce::Label>& label);
 
 private:
     juce::AudioProcessorValueTreeState& valueTreeState;

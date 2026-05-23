@@ -471,9 +471,9 @@ void NewDelayReverb::SetPitchRangeUpper(float pitchRangeUpperSemitones)
     pitchSequenceRebuildPending.store(true, std::memory_order_release);
 }
 
-void NewDelayReverb::SetPitchMode(int modeIndex)
+void NewDelayReverb::SetPitchSequence(int sequenceIndex)
 {
-    pitchMode = juce::jlimit(0, 3, modeIndex);
+    pitchMode = juce::jlimit(0, 3, sequenceIndex);
     pitchSequenceRebuildPending.store(true, std::memory_order_release);
 }
 

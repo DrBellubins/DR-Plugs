@@ -17,17 +17,13 @@ void UIHelpers::CreateToggle(
     int width,
     int height,
     int x,
-    int y)
+    int y) const
 {
     if (toggle == nullptr)
-    {
         toggle = std::make_unique<RoundedToggle>();
-    }
 
     if (attachment == nullptr)
-    {
         attachment = std::make_unique<RoundedToggle::Attachment>(valueTreeState, parameterID, *toggle);
-    }
 
     parentComponent.addAndMakeVisible(*toggle);
     toggle->setOrientation(orientation);
@@ -46,17 +42,13 @@ void UIHelpers::CreateCheckbox(
     int width,
     int height,
     int x,
-    int y)
+    int y) const
 {
     if (checkbox == nullptr)
-    {
         checkbox = std::make_unique<ThemedCheckbox>();
-    }
 
     if (attachment == nullptr)
-    {
         attachment = std::make_unique<ThemedCheckbox::Attachment>(valueTreeState, parameterID, *checkbox);
-    }
 
     parentComponent.addAndMakeVisible(*checkbox);
 
@@ -102,7 +94,7 @@ void UIHelpers::CreateSlider(
     int width,
     int height,
     int x,
-    int y)
+    int y) const
 {
     slider = std::make_unique<ThemedSlider>(
         "",
@@ -159,8 +151,8 @@ void UIHelpers::CreateLabel(
     std::unique_ptr<juce::Label>& label,
     const juce::String& text,
     float fontSize,
-    int x,
-    int y)
+    int cx,
+    int cy)
 {
     label = std::make_unique<juce::Label>();
     label->setText(text, juce::dontSendNotification);
@@ -176,8 +168,8 @@ void UIHelpers::CreateLabel(
     int labelWidth = GetLabelWidth(label);
     int fontHeight = static_cast<int>(fontSize);
 
-    int labelX = x - (labelWidth / 2);
-    int labelY = y - (fontHeight / 2);
+    int labelX = cx - (labelWidth / 2);
+    int labelY = cy - (fontHeight / 2);
 
     label->setBounds(labelX, labelY, labelWidth, 20);
 }
@@ -190,7 +182,7 @@ void UIHelpers::CreateKnob(
     const juce::String& suffix,
     int widthHeight,
     int x,
-    int y)
+    int y) const
 {
     knob = std::make_unique<ThemedKnob>(
         "",
@@ -224,7 +216,7 @@ void UIHelpers::CreateKnobExt(
     int width,
     int height,
     int x,
-    int y)
+    int y) const
 {
     knob = std::make_unique<ThemedKnob>(
         "",
@@ -255,7 +247,7 @@ void UIHelpers::CreateKnobLabel(
     ThemedKnob& knob,
     const juce::String& text,
     float fontSize,
-    int offsetY)
+    int offsetY) const
 {
     label = std::make_unique<juce::Label>();
     label->setText(text, juce::dontSendNotification);
@@ -286,7 +278,7 @@ void UIHelpers::CenterKnobLabel(
     label->setBounds(labelX, labelY, labelWidth, labelHeight);
 }
 
-int UIHelpers::GetLabelWidth(const std::unique_ptr<juce::Label>& label) const
+int UIHelpers::GetLabelWidth(const std::unique_ptr<juce::Label>& label)
 {
     return label->getFont().getStringWidth(label->getText());
 }

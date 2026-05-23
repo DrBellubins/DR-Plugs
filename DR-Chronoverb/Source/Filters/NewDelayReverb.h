@@ -60,7 +60,7 @@ public:
 
     void SetPitchRangeLower(float pitchRangeLowerSemitones);
     void SetPitchRangeUpper(float pitchRangeUpperSemitones);
-    void SetPitchMode(int modeIndex);                // 0=Up, 1=Down, 2=Random
+    void SetPitchSequence(int sequenceIndex);                // 0=Up, 1=Down, 2=Random
     void SetPitchStereoEnabled(float enabled01);
     void SetpitchWetMix(float wetVolume);
 
