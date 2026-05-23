@@ -259,8 +259,8 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     pitchModeLabel->setBounds(340, 0, 220, 32);
 
-    uiHelpers.CreateKnob(*pitchPage, pitchWetMixKnob, pitchWetMixAttachment, "pitchWetMix",
-        "", 70, 750, 50);
+    uiHelpers.CreateKnobExt(*pitchPage, pitchWetMixKnob, pitchWetMixAttachment, "pitchWetMix",
+        "", 70, 200, 750, 50);
 
     pitchWetMixKnob->setTextBoxStyle(juce::Slider::TextBoxRight, false,
         pitchWetMixKnob->getTextBoxWidth(), pitchWetMixKnob->getTextBoxHeight());

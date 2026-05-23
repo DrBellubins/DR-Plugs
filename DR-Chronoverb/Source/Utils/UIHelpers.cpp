@@ -215,6 +215,40 @@ void UIHelpers::CreateKnob(
     knob->setTextBoxStyle(juce::Slider::TextBoxBelow, false, 54, 22);
 }
 
+void UIHelpers::CreateKnobExt(
+    juce::Component& parentComponent,
+    std::unique_ptr<ThemedKnob>& knob,
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>& attachment,
+    const juce::String& parameterID,
+    const juce::String& suffix,
+    int width,
+    int height,
+    int x,
+    int y)
+{
+    knob = std::make_unique<ThemedKnob>(
+        "",
+        nullptr,
+        nullptr,
+        suffix,
+        juce::Slider::NoTextBox);
+
+    knob->setLookAndFeel(&rotaryLookAndFeel);
+
+    attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        valueTreeState,
+        parameterID,
+        *knob);
+
+    parentComponent.addAndMakeVisible(*knob);
+
+    int knobX = x - (width / 2);
+    int knobY = y - (height / 2);
+
+    knob->setBounds(knobX, knobY, width, height);
+    knob->setTextBoxStyle(juce::Slider::TextBoxBelow, false, 54, 22);
+}
+
 void UIHelpers::CreateKnobLabel(
     juce::Component& parentComponent,
     std::unique_ptr<juce::Label>& label,

@@ -79,6 +79,17 @@ public:
         int x,
         int y);
 
+    void CreateKnobExt(
+        juce::Component& parentComponent,
+        std::unique_ptr<ThemedKnob>& knob,
+        std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>& attachment,
+        const juce::String& parameterID,
+        const juce::String& suffix,
+        int width,
+        int height,
+        int x,
+        int y);
+
     void CreateKnobLabel(
         juce::Component& parentComponent,
         std::unique_ptr<juce::Label>& label,
