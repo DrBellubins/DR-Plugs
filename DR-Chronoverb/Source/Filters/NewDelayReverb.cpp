@@ -100,6 +100,9 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     pitchDiffusionLeft->Prepare(sampleRate);
     pitchDiffusionRight->Prepare(sampleRate);
 
+    lastPitchDiffFeedbackL = 0.0f;
+    lastPitchDiffFeedbackR = 0.0f;
+
     // End Pitch Shift
 
     kBlendSlewCoeff = 1.0f / (0.01f * static_cast<float>(sampleRate));
@@ -265,10 +268,10 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         float wetRight = nominalWetRight * cleanTapGain + diffusedEarlyRight * diffusedTapGain;
 
         // ---- 8: Damping + feedback recirculation ----
-        const float dampedLeft  = dampingLeft->ProcessSample(wetLeft,  lowpass01);
+        const float dampedLeft = dampingLeft->ProcessSample(wetLeft, lowpass01);
         const float dampedRight = dampingRight->ProcessSample(wetRight, lowpass01);
 
-        lastFeedbackL = dampedLeft  * feedbackGain;
+        lastFeedbackL = dampedLeft * feedbackGain;
         lastFeedbackR = dampedRight * feedbackGain;
 
         // ---- 8b: Pre-read tap for pitch shifting (reads earlier so output lands on time) ----
@@ -286,12 +289,17 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             pitchedLeft = pitchShifterLeft.ProcessSample(preReadWetLeft);
             pitchedRight = pitchShifterRight.ProcessSample(preReadWetRight);
 
-            // ---- 9b: Post-pitch diffusion (only when pitch and diffusion are active) ----
+            const float pitchDiffInputL = pitchedLeft + lastPitchDiffFeedbackL;
+            const float pitchDiffInputR = pitchedRight + lastPitchDiffFeedbackR;
+
+            const float diffPitchedLeft  = pitchDiffusionLeft->ProcessSample(pitchDiffInputL);
+            const float diffPitchedRight = pitchDiffusionRight->ProcessSample(pitchDiffInputR);
+
+            lastPitchDiffFeedbackL = diffPitchedLeft * pitchDiffFeedbackGain;
+            lastPitchDiffFeedbackR = diffPitchedRight * pitchDiffFeedbackGain;
+
             if (diffusionAmountSmoothed > 0.001f)
             {
-                float diffPitchedLeft = pitchDiffusionLeft->ProcessSample(pitchedLeft);
-                float diffPitchedRight = pitchDiffusionRight->ProcessSample(pitchedRight);
-
                 pitchedLeft = (pitchedLeft * diffusionGainOne) + (diffPitchedLeft * diffusionGainTwo);
                 pitchedRight = (pitchedRight * diffusionGainOne) + (diffPitchedRight * diffusionGainTwo);
             }

@@ -100,6 +100,10 @@ private:
     float smoothedCenteredReadDelayMilliseconds = 1.0f;
     float readDelaySlewCoefficient = 0.0f;
 
+    float lastPitchDiffFeedbackL = 0.0f;
+    float lastPitchDiffFeedbackR = 0.0f;
+    float pitchDiffFeedbackGain = 0.6f;
+
     // Settings
     const float centeredSwellRatio = 0.25f;
     const float diffusionCompensationBias = 3.0f; // Controls swell into nominal (higher = longer swell)
