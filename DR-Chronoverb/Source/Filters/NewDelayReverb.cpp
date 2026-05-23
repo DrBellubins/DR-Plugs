@@ -94,25 +94,11 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     lastFeedbackL = 0.0f;
     lastFeedbackR = 0.0f;
 
-    // For diffusion amount < 0.5
-    pitchDelayAllpassOneLeft.Prepare(sampleRate);
-    pitchDelayAllpassOneLeft.Configure(pitchDelayAllpassTuning, 0.6f);
+    pitchDiffusionLeft = std::make_unique<DiffusionChain>();
+    pitchDiffusionRight = std::make_unique<DiffusionChain>();
 
-    pitchDelayAllpassOneRight.Prepare(sampleRate);
-    pitchDelayAllpassOneRight.Configure(pitchDelayAllpassTuning, 0.6f);
-
-    pitchDelayAllpassTwoLeft.Prepare(sampleRate);
-    pitchDelayAllpassTwoLeft.Configure(pitchDelayAllpassTuning * pitchAllpassTuningMultiplier, 0.6f);
-
-    pitchDelayAllpassTwoRight.Prepare(sampleRate);
-    pitchDelayAllpassTwoRight.Configure(pitchDelayAllpassTuning * pitchAllpassTuningMultiplier, 0.6f);
-
-    // For diffusion amount > 0.5
-    pitchReverbAllpassLeft.Prepare(sampleRate);
-    pitchReverbAllpassLeft.Configure(pitchReverbAllpassTuning, 0.6f);
-
-    pitchReverbAllpassRight.Prepare(sampleRate);
-    pitchReverbAllpassRight.Configure(pitchReverbAllpassTuning, 0.6f);
+    pitchDiffusionLeft->Prepare(sampleRate);
+    pitchDiffusionRight->Prepare(sampleRate);
 
     // End Pitch Shift
 
@@ -151,8 +137,12 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
     {
         delayDiffusionLeft->UpdateSize(diffusionSize01);
         delayDiffusionRight->UpdateSize(diffusionSize01);
+
         reverbDiffusionLeft->UpdateSize(diffusionSize01);
         reverbDiffusionRight->UpdateSize(diffusionSize01);
+
+        pitchDiffusionLeft->UpdateSize(diffusionSize01);
+        pitchDiffusionRight->UpdateSize(diffusionSize01);
 
         const float dryLeft = leftData[sampleIndex];
         const float dryRight = (rightData != nullptr ? rightData[sampleIndex] : dryLeft);
@@ -293,19 +283,14 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
         if (pitchWetMix > 0.0001f)
         {
-            // Feed the pre-read tap (not the nominal tap) into the pitcher.
-            // The output will be time-aligned with dampedLeft/dampedRight.
             pitchedLeft = pitchShifterLeft.ProcessSample(preReadWetLeft);
             pitchedRight = pitchShifterRight.ProcessSample(preReadWetRight);
 
-            // ---- 9b: Post-pitch allpass smoothing (only when pitch and diffusion are active) ----
+            // ---- 9b: Post-pitch diffusion (only when pitch and diffusion are active) ----
             if (diffusionAmountSmoothed > 0.001f)
             {
-                float firstDiffPitchedLeft = pitchDelayAllpassOneLeft.ProcessSample(pitchedLeft);
-                float firstDiffPitchedRight = pitchDelayAllpassOneRight.ProcessSample(pitchedRight);
-
-                float diffPitchedLeft = pitchDelayAllpassTwoLeft.ProcessSample(firstDiffPitchedLeft);
-                float diffPitchedRight = pitchDelayAllpassTwoRight.ProcessSample(firstDiffPitchedRight);
+                float diffPitchedLeft = pitchDiffusionLeft->ProcessSample(pitchedLeft);
+                float diffPitchedRight = pitchDiffusionRight->ProcessSample(pitchedRight);
 
                 pitchedLeft = (pitchedLeft * diffusionGainOne) + (diffPitchedLeft * diffusionGainTwo);
                 pitchedRight = (pitchedRight * diffusionGainOne) + (diffPitchedRight * diffusionGainTwo);
@@ -577,17 +562,26 @@ void NewDelayReverb::rebuildDiffusionIfNeeded()
     lastBuiltQualityStages = diffusionQualityStages;
     lastBuiltSize01 = diffusionSize01;
 
+    // Delay
     if (delayDiffusionLeft  != nullptr)
         delayDiffusionLeft->Configure(diffusionQualityStages, diffusionSize01, DelayTunings);
 
     if (delayDiffusionRight != nullptr)
         delayDiffusionRight->Configure(diffusionQualityStages, diffusionSize01, DelayTunings);
 
+    // Reverb
     if (reverbDiffusionLeft  != nullptr)
         reverbDiffusionLeft->ConfigureAsReverb(diffusionQualityStages, diffusionSize01, ReverbTunings);
 
     if (reverbDiffusionRight != nullptr)
         reverbDiffusionRight->ConfigureAsReverb(diffusionQualityStages, diffusionSize01, ReverbTunings);
+
+    // Pitch shifting
+    if (pitchDiffusionLeft != nullptr)
+        pitchDiffusionLeft->ConfigureAsReverb(diffusionQualityStages, diffusionSize01, ReverbTunings);
+
+    if (pitchDiffusionRight != nullptr)
+        pitchDiffusionRight->ConfigureAsReverb(diffusionQualityStages, diffusionSize01, ReverbTunings);
 
     totalDelayDiffusionMilliseconds = 0.0f;
 

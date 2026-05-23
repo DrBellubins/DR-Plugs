@@ -161,19 +161,13 @@ private:
     std::unique_ptr<DampingFilter> dampingLeft;
     std::unique_ptr<DampingFilter> dampingRight;
 
+    // Pitch shifting
     OctaveEchoPitchShifter pitchShifterLeft;
     OctaveEchoPitchShifter pitchShifterRight;
 
-    // Pitch delay allpass
-    DiffusionAllpass pitchDelayAllpassOneLeft;
-    DiffusionAllpass pitchDelayAllpassOneRight;
-
-    DiffusionAllpass pitchDelayAllpassTwoLeft;
-    DiffusionAllpass pitchDelayAllpassTwoRight;
-
-    // Pitch reverb allpass
-    DiffusionAllpass pitchReverbAllpassLeft;
-    DiffusionAllpass pitchReverbAllpassRight;
+    // Pitch shifting diffusion
+    std::unique_ptr<DiffusionChain> pitchDiffusionLeft;
+    std::unique_ptr<DiffusionChain> pitchDiffusionRight;
 
     juce::dsp::IIR::Filter<float> lowpassL;
     juce::dsp::IIR::Filter<float> lowpassR;
