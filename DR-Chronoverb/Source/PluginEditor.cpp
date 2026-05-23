@@ -258,16 +258,20 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     uiHelpers.CreateLabel(*pitchPage, pitchSequenceLabel,
         "Sequence", 14.0f, 30 + (sequenceWidth / 2), 22);
 
+    constexpr int pWetWidth = 130;
+
     uiHelpers.CreateKnobExt(*pitchPage, pitchWetMixKnob, pitchWetMixAttachment, "pitchWetMix",
-        "", 130, 50, 750, 50);
+        "", pWetWidth, 50, 750, 50);
 
     pitchWetMixKnob->setTextBoxStyle(juce::Slider::TextBoxRight, false,
         pitchWetMixKnob->getTextBoxWidth(), pitchWetMixKnob->getTextBoxHeight());
 
-    uiHelpers.CreateKnobLabel(*pitchPage, pitchWetMixLabel,
-        *pitchWetMixKnob, "  Mix   ", 12.0f, 45.0f);
+    uiHelpers.CreateLabel(*pitchPage, pitchWetMixLabel, "  Mix  ", 12.0f, 0, 0);
 
-    //uiHelpers.CreateLabel(*pitchPage, pitchWetMixLabel, "  Mix  ", 12.0f, 50, 20);
+    const int pWetLabelWidth = pitchWetMixLabel->getWidth();
+    const int pWetLabelHeight = pitchWetMixLabel->getHeight();
+
+    pitchWetMixLabel->setBounds((750 - (pWetWidth / 2)) + (pWetLabelWidth / 2), 0, pWetLabelWidth, pWetLabelHeight);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
