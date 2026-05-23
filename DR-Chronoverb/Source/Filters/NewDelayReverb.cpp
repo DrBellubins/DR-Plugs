@@ -292,17 +292,16 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             const float pitchDiffInputL = pitchedLeft + lastPitchDiffFeedbackL;
             const float pitchDiffInputR = pitchedRight + lastPitchDiffFeedbackR;
 
-            const float diffPitchedLeft  = pitchDiffusionLeft->ProcessSample(pitchDiffInputL);
+            const float diffPitchedLeft = pitchDiffusionLeft->ProcessSample(pitchDiffInputL);
             const float diffPitchedRight = pitchDiffusionRight->ProcessSample(pitchDiffInputR);
 
             lastPitchDiffFeedbackL = diffPitchedLeft * pitchDiffFeedbackGain;
             lastPitchDiffFeedbackR = diffPitchedRight * pitchDiffFeedbackGain;
 
-            if (diffusionAmountSmoothed > 0.001f)
-            {
-                pitchedLeft = (pitchedLeft * diffusionGainOne) + (diffPitchedLeft * diffusionGainTwo);
-                pitchedRight = (pitchedRight * diffusionGainOne) + (diffPitchedRight * diffusionGainTwo);
-            }
+            /*pitchedLeft = (pitchedLeft * diffusionGainOne) + (diffPitchedLeft * diffusionGainTwo);
+            pitchedRight = (pitchedRight * diffusionGainOne) + (diffPitchedRight * diffusionGainTwo);*/
+            pitchedLeft  = diffPitchedLeft;
+            pitchedRight = diffPitchedRight;
         }
 
         // Advance echo boundary counters (needed regardless of pitch enable state)
