@@ -6,6 +6,10 @@
 
 #include <juce_dsp/juce_dsp.h>
 
+#include "../DelayLine.h"
+#include "../DampingFilter.h"
+#include "../DiffusionChain.h"
+
 class DelayLine;
 class DiffusionChain;
 
@@ -21,26 +25,37 @@ public:
         //5.0, 11.0, 17.0, 23.0, 47.0, 67.0, 71.0, 73.0     // Also bad.
     };
 
-    void PrepareToPlay(double sampleRate, float hostBPM);
+    void PrepareToPlay(double sampleRate);
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
-
     void SetHostTempo(float bpm);
-    void SetDelayTime(float delayTime01);
-    void SetDelayMode(int mode);
+
+    void SetDelayTime(float newDelayTime);
+    void SetDelayMode(int newDelaymode);
+    void SetFeedbackTime(float newFeedbackTimeSeconds);
+    void SetDiffusionQuality(int newDiffusionQuality);
+    void SetDiffusionSize(float newDiffusionSize);
 
     // CONTINUE
 
 private:
+    void updateDelayMillisecondsFromNormalized();
+    void rebuildDiffusionIfNeeded();
+    void updateFeedbackGainFromFeedbackTime();
+
     // Settings
     const float centeredSwellRatio = 0.25f;
     const float diffusionCompensationBias = 2.2f; // Controls swell into nominal (higher = longer swell)
 
     // Runtime
     double sampleRate = 48000.0;
-    float hostTempoBpm = 120.0f;
+    float hostBpm = 120.0f;
 
     float lastFeedbackL = 0.0f;
     float lastFeedbackR = 0.0f;
+
+    int writePeriodSamples = 1;
+    int echoWriteCounterL = 0;
+    int echoWriteCounterR = 0;
 
     int lastBuiltQualityStages = -1;
     float lastBuiltSize01 = -1.0f;
@@ -59,9 +74,9 @@ private:
     float feedbackTimeSeconds = 3.0f;
     float feedbackGain = 0.5f;
 
-    float diffusionAmount01 = 0.0f;
-    float diffusionSize01 = 0.0f;
-    int diffusionQualityStages = 6;
+    float diffusionAmount = 0.0f;
+    float diffusionSize = 0.0f;
+    int diffusionQualityStages = 8;
 
     // Data
     std::unique_ptr<DelayLine> delayLineLeft;
@@ -74,4 +89,20 @@ private:
     std::unique_ptr<DiffusionChain> delayDiffusionWriteRight;
 
     std::atomic<bool> diffusionRebuildPending { false };
+
+    // Helper functions
+    float map01ToRange(float value01, float minValue, float maxValue)
+    {
+        return minValue + (maxValue - minValue) * clamp01(value01);
+    }
+
+    float clamp01(float value)
+    {
+        return juce::jlimit(0.0f, 1.0f, value);
+    }
+
+    int clampInt(int value, int minValue, int maxValue)
+    {
+        return std::max(minValue, std::min(maxValue, value));
+    }
 };
