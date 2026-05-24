@@ -4,9 +4,6 @@
 #include <algorithm>
 #include <memory>
 
-NewDelayReverb::NewDelayReverb() = default;
-NewDelayReverb::~NewDelayReverb() = default;
-
 void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoBpm)
 {
     sampleRate = newSampleRate;

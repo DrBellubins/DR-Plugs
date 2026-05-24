@@ -30,8 +30,6 @@ public:
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
 
-    bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
-
     void parameterChanged(const juce::String& parameterID, float newValue) override;
 
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
@@ -59,6 +57,9 @@ public:
     //==============================================================================
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
+
+protected:
+    bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
 
 private:
     //==============================================================================

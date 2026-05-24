@@ -39,9 +39,6 @@ public:
         5.0f, 8.0f, 12.0f, 17.0f, 23.0f, 31.0f, 43.0f, 59.0f
     };
 
-    NewDelayReverb();
-    ~NewDelayReverb();
-
     void PrepareToPlay(double sampleRate, float initialHostTempoBpm);
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
 
@@ -92,9 +89,6 @@ private:
     // Runtime Values
     float lastFeedbackL = 0.0f;
     float lastFeedbackR = 0.0f;
-
-    int echoSampleCounterL = 0;
-    int echoSampleCounterR = 0;
 
     int writePeriodSamples = 1;
     int echoWriteCounterL = 0;
