@@ -110,8 +110,8 @@ private:
     float pitchDiffFeedbackGain = 0.6f;
 
     // Settings
-    const float centeredSwellRatio = 0.25f;
-    const float diffusionCompensationBias = 3.0f; // Controls swell into nominal (higher = longer swell)
+    const float centeredSwellRatio = 0.1f;
+    const float diffusionCompensationBias = 1.25f; // Controls swell into nominal (higher = longer swell)
 
     const float pitchAllpassTuningMultiplier = 1.5f; // For secondary allpass filter tuning
     const float pitchDelayAllpassTuning = 170.0f;
