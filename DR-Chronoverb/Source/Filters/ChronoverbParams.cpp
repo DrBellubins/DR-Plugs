@@ -33,6 +33,9 @@ void Chronoverb::SetFeedbackTime(float newFeedbackTimeSeconds)
 void Chronoverb::SetDiffusionAmount(float newAmount01)
 {
     diffusionAmount = clamp01(newAmount01);
+
+    DelayLeft->SetDiffusionAmount(diffusionAmount);
+    DelayRight->SetDiffusionAmount(diffusionAmount);
 }
 
 void Chronoverb::SetDiffusionSize(float newSize01)

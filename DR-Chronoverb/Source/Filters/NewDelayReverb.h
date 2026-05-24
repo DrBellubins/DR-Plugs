@@ -39,7 +39,7 @@ public:
         5.0f, 8.0f, 12.0f, 17.0f, 23.0f, 31.0f, 43.0f, 59.0f
     };
 
-    void PrepareToPlay(double sampleRate, float initialHostTempoBpm);
+    void PrepareToPlay(double sampleRate);
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
 
     // NewDelayReverbParams START

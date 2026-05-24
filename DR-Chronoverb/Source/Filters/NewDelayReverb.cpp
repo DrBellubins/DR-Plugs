@@ -4,10 +4,9 @@
 #include <algorithm>
 #include <memory>
 
-void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoBpm)
+void NewDelayReverb::PrepareToPlay(double newSampleRate)
 {
     sampleRate = newSampleRate;
-    hostTempoBpm = initialHostTempoBpm;
 
     // Prepare IIR filters
     juce::dsp::ProcessSpec filterSpec {};

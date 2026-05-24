@@ -31,15 +31,18 @@ public:
     void PrepareToPlay(double newSampleRate);
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
 
-    std::pair<float, float> ProcessSample(float inputSample); // Returns <Clear delay, Diffused delay>
+    float ProcessSample(float inputSample);
 
     void SetHostTempo(float bpm);
 
     void SetDelayTime(float newDelayTime);
     void SetDelayMode(int newDelaymode);
     void SetFeedbackTime(float newFeedbackTimeSeconds);
+
+    void SetDiffusionAmount(float newDiffusionAmount);
     void SetDiffusionSize(float newDiffusionSize);
     void SetDiffusionQuality(int newDiffusionQuality);
+
     void SetLowpassCutoff(float newLowpassCutoff);
     void SetHighpassCutoff(float newHighpassCutoff);
 

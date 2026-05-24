@@ -41,7 +41,7 @@ void Delay::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         updateFilters();
 }
 
-std::pair<float, float> Delay::ProcessSample(float inputSample)
+float Delay::ProcessSample(float inputSample)
 {
     delayDiffusionRead->UpdateSize(diffusionSize);
     delayDiffusionWrite->UpdateSize(diffusionSize);
@@ -52,8 +52,14 @@ std::pair<float, float> Delay::ProcessSample(float inputSample)
     // 2) Pre write diffusion
     const float diffused = delayDiffusionWrite->ProcessSample(inputFeedback);
 
+    // 3) Blend between clean tap -> diffused tap
+    const float inputFeedbackGain = std::cos(diffusionAmount * juce::MathConstants<float>::halfPi);
+    const float diffusionGain = std::sin(diffusionAmount * juce::MathConstants<float>::halfPi);
+
+    const float feedbackWrite = (inputFeedback * inputFeedbackGain) + (diffused  * diffusionGain);
+
     // 3) Write to delay line
-    delayLine->PushSample(diffused);
+    delayLine->PushSample(feedbackWrite);
 
     // 4) Read nominal and early tap
     smoothedCenteredReadDelayMilliseconds += readDelaySlewCoefficient *
@@ -64,20 +70,26 @@ std::pair<float, float> Delay::ProcessSample(float inputSample)
     const float earlyReadMilliseconds =
         std::max(1.0f, delayMilliseconds - staticDiffusionCompensationMilliseconds);
 
-    const float nominalWet = delayLine->ReadFeedbackBuffer(nominalReadMilliseconds);
-    const float earlyWet = delayLine->ReadFeedbackBuffer(earlyReadMilliseconds);
+    const float nominalTap = delayLine->ReadFeedbackBuffer(nominalReadMilliseconds);
+    const float earlyTap = delayLine->ReadFeedbackBuffer(earlyReadMilliseconds);
 
     // 4) Diffuse the early tap (second pass)
-    const float diffusedEarly = delayDiffusionRead->ProcessSample(earlyWet);
+    const float diffusedEarly = delayDiffusionRead->ProcessSample(earlyTap);
 
-    // 5) Damping
-    const float dampedDiffused = damping->ProcessSample(diffusedEarly, lowpassCutoff);
+    // 5) Blend between nominal tap -> early tap
+    const float diffusionDrive = juce::jlimit(0.0f, 1.0f, diffusionAmount * 2.0f);
+    const float nominalTapGain = std::pow(1.0f - diffusionDrive, 4.0f);   // collapses to 0 at drive >= 1
+    const float earlyTapGain = std::sin(diffusionDrive * juce::MathConstants<float>::halfPi);
 
-    // 6) Recirculation
+    const float blendedTap = nominalTap * nominalTapGain + diffusedEarly * earlyTapGain;
+
+    // 6) Damping
+    const float dampedDiffused = damping->ProcessSample(blendedTap, lowpassCutoff);
+
+    // 7) Recirculation
     lastFeedback = dampedDiffused * feedbackGain;
 
-    // Return <Clear tap, Diffused tap>
-    return std::make_pair(nominalWet, lastFeedback);
+    return dampedDiffused;
 }
 
 // --- Parameters ---
@@ -103,6 +115,11 @@ void Delay::SetFeedbackTime(float newFeedbackTime)
 {
     feedbackTimeSeconds = newFeedbackTime;
     updateFeedbackGainFromFeedbackTime();
+}
+
+void Delay::SetDiffusionAmount(float newDiffusionAmount)
+{
+    diffusionAmount = newDiffusionAmount;
 }
 
 void Delay::SetDiffusionSize(float newDiffusionSize)
