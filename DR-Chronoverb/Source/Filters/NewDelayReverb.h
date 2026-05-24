@@ -42,11 +42,11 @@ public:
     NewDelayReverb();
     ~NewDelayReverb();
 
-    void SetHostTempo(float bpm);
     void PrepareToPlay(double sampleRate, float initialHostTempoBpm);
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
 
     // ---------------- Parameter Setters ----------------
+    void SetHostTempo(float bpm);
     void SetDelayTime(float newDelayTimeNormalized);      // 0..1 -> 0..1000 ms
     void SetDelayMode(int newDelayMode);
 
