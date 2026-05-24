@@ -191,7 +191,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             float diffLeft = 0.0f;
             float diffRight = 0.0f;
 
-            /*if (diffusionAmountSmoothed <= 0.5f)
+            if (diffusionAmountSmoothed <= 0.5f)
             {
                 // Lower half: delay-quality diffusion only
                 diffLeft = delayDiffusionLeft->ProcessSample(preLeft);
@@ -217,25 +217,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
                 diffLeft = delayDiffLeft * delayGain + reverbDiffLeft  * reverbGain;
                 diffRight = delayDiffRight * delayGain + reverbDiffRight * reverbGain;
-            }*/
-
-            const float reverbBlend =
-                    (diffusionAmountSmoothed - 0.5f) * 2.0f; // 0..1
-
-            const float delayDiffLeft = delayDiffusionLeft->ProcessSample(preLeft);
-            const float delayDiffRight = delayDiffusionRight->ProcessSample(preRight);
-
-            const float reverbDiffLeft = reverbDiffusionLeft->ProcessSample(preLeft);
-            const float reverbDiffRight = reverbDiffusionRight->ProcessSample(preRight);
-
-            const float delayGain =
-                std::cos(reverbBlend * juce::MathConstants<float>::halfPi);
-
-            const float reverbGain =
-                std::sin(reverbBlend * juce::MathConstants<float>::halfPi);
-
-            diffLeft = delayDiffLeft * delayGain + reverbDiffLeft  * reverbGain;
-            diffRight = delayDiffRight * delayGain + reverbDiffRight * reverbGain;
+            }
 
             writeLeft = (preLeft * diffusionGainOne) + (diffLeft  * diffusionGainTwo);
             writeRight = (preRight * diffusionGainOne) + (diffRight * diffusionGainTwo);
@@ -299,35 +281,23 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float preReadWetRight = mainDelayRight->ReadDelayMilliseconds(preReadMs, sampleRate);
 
         // ---- 9: Pitch shift ----
-        float pitchedLeft = pitchShifterLeft.ProcessSample(preReadWetLeft);
-        float pitchedRight = pitchShifterRight.ProcessSample(preReadWetRight);
+        float pitchedLeft = dampedLeft;
+        float pitchedRight = dampedRight;
 
-        float diffPitchedLeft = pitchDiffusionLeft->ProcessSample(pitchedLeft);
-        float diffPitchedRight = pitchDiffusionRight->ProcessSample(pitchedRight);
-
-        pitchedLeft = PMath::EqualPowerCrossfade(pitchedLeft, diffPitchedLeft, diffusionAmountSmoothed);
-        pitchedRight = PMath::EqualPowerCrossfade(pitchedRight, diffPitchedRight, diffusionAmountSmoothed);
-
-        /*if (pitchWetMix > 0.0001f)
+        if (pitchWetMix > 0.0001f)
         {
             pitchedLeft = pitchShifterLeft.ProcessSample(preReadWetLeft);
             pitchedRight = pitchShifterRight.ProcessSample(preReadWetRight);
 
-            const float pitchDiffInputL = pitchedLeft + lastPitchDiffFeedbackL;
-            const float pitchDiffInputR = pitchedRight + lastPitchDiffFeedbackR;
+            float diffPitchedLeft = pitchDiffusionLeft->ProcessSample(pitchedLeft);
+            float diffPitchedRight = pitchDiffusionRight->ProcessSample(pitchedRight);
 
-            const float diffPitchedLeft = pitchDiffusionLeft->ProcessSample(pitchDiffInputL);
-            const float diffPitchedRight = pitchDiffusionRight->ProcessSample(pitchDiffInputR);
+            pitchedLeft = PMath::EqualPowerCrossfade(pitchedLeft,
+                diffPitchedLeft, diffusionAmountSmoothed);
 
-            lastPitchDiffFeedbackL = diffPitchedLeft * pitchDiffFeedbackGain;
-            lastPitchDiffFeedbackR = diffPitchedRight * pitchDiffFeedbackGain;
-
-            //pitchedLeft = (pitchedLeft * diffusionGainOne) + (diffPitchedLeft * diffusionGainTwo);
-            //pitchedRight = (pitchedRight * diffusionGainOne) + (diffPitchedRight * diffusionGainTwo);
-
-            pitchedLeft  = diffPitchedLeft;
-            pitchedRight = diffPitchedRight;
-        }*/
+            pitchedRight = PMath::EqualPowerCrossfade(pitchedRight,
+                diffPitchedRight, diffusionAmountSmoothed);
+        }
 
         // Advance echo boundary counters (needed regardless of pitch enable state)
         {
