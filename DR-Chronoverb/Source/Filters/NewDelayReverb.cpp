@@ -20,8 +20,8 @@ void NewDelayReverb::SetHostTempo(float bpm)
 
 void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoBpm)
 {
-    sampleRate    = newSampleRate;
-    hostTempoBpm  = initialHostTempoBpm;
+    sampleRate = newSampleRate;
+    hostTempoBpm = initialHostTempoBpm;
 
     // Prepare IIR filters
     juce::dsp::ProcessSpec filterSpec {};
@@ -144,8 +144,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         reverbDiffusionLeft->UpdateSize(diffusionSize01);
         reverbDiffusionRight->UpdateSize(diffusionSize01);
 
-        pitchDiffusionLeft->UpdateSize(diffusionSize01);
-        pitchDiffusionRight->UpdateSize(diffusionSize01);
+        //pitchDiffusionLeft->UpdateSize(diffusionSize01);
+        //pitchDiffusionRight->UpdateSize(diffusionSize01);
 
         const float dryLeft = leftData[sampleIndex];
         const float dryRight = (rightData != nullptr ? rightData[sampleIndex] : dryLeft);
@@ -584,11 +584,12 @@ void NewDelayReverb::rebuildDiffusionIfNeeded()
         reverbDiffusionRight->ConfigureAsReverb(diffusionQualityStages, diffusionSize01, ReverbTunings);
 
     // Pitch shifting
+    // Always configure pitch diffusion at full size — smearing is independent of the size knob
     if (pitchDiffusionLeft != nullptr)
-        pitchDiffusionLeft->ConfigureAsReverb(diffusionQualityStages, diffusionSize01, ReverbTunings);
+        pitchDiffusionLeft->ConfigureAsReverb(diffusionQualityStages, 1.0f, ReverbTunings);
 
     if (pitchDiffusionRight != nullptr)
-        pitchDiffusionRight->ConfigureAsReverb(diffusionQualityStages, diffusionSize01, ReverbTunings);
+        pitchDiffusionRight->ConfigureAsReverb(diffusionQualityStages, 1.0f, ReverbTunings);
 
     totalDelayDiffusionMilliseconds = 0.0f;
 
