@@ -268,10 +268,10 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             delayLineRight->ReadFeedbackBuffer(earlyReadMilliseconds);
 
         // ---- 7: Diffuse the early tap (second pass through delay chain) ----
-        // This gives the characteristic "blur around each tap" and creates
-        // audible content before the nominal tap on each feedback recirculation.
         const float diffusedEarlyLeft = delayDiffusionReadLeft->ProcessSample(earlyWetLeft);
         const float diffusedEarlyRight = delayDiffusionReadRight->ProcessSample(earlyWetRight);
+
+        // Diffusion amount < 0.5 - Fade between clean, and diffused delay tap
 
         // Remap amount so clean tap suppression is aggressive (gone by amount=0.5)
         const float diffusionDrive =
@@ -283,7 +283,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float diffusedTapGain =
             std::sin(diffusionDrive * juce::MathConstants<float>::halfPi);
 
-        float wetLeft = nominalWetLeft  * cleanTapGain + diffusedEarlyLeft  * diffusedTapGain;
+        float wetLeft = nominalWetLeft * cleanTapGain + diffusedEarlyLeft * diffusedTapGain;
         float wetRight = nominalWetRight * cleanTapGain + diffusedEarlyRight * diffusedTapGain;
 
         // ---- 8: Damping + feedback recirculation ----

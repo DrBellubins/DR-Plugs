@@ -161,9 +161,6 @@ private:
     // Diffusion chains — two pairs:
     //   delayDiffusion  : delay-quality blur (amount 0..0.5 and post-read early tap)
     //   reverbDiffusion : reverb-quality smear (crossfaded in for amount 0.5..1)
-    //std::unique_ptr<DiffusionChain> delayDiffusionLeft;
-    //std::unique_ptr<DiffusionChain> delayDiffusionRight;
-
     std::unique_ptr<DiffusionChain> delayDiffusionReadLeft;
     std::unique_ptr<DiffusionChain> delayDiffusionReadRight;
 
