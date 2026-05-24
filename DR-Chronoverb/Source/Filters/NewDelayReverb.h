@@ -45,7 +45,8 @@ public:
     void PrepareToPlay(double sampleRate, float initialHostTempoBpm);
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
 
-    // ---------------- Parameter Setters ----------------
+    // NewDelayReverbParams START
+
     void SetHostTempo(float bpm);
     void SetDelayTime(float newDelayTimeNormalized);      // 0..1 -> 0..1000 ms
     void SetDelayMode(int newDelayMode);
@@ -69,7 +70,11 @@ public:
     void SetPitchStereoEnabled(float enabled01);
     void SetpitchWetMix(float wetVolume);
 
+    // NewDelayReverbParams END
+
 private:
+    // NewDelayReverbParams START
+
     void updateDelayMillisecondsFromNormalized();
     void rebuildDiffusionIfNeeded();
     void updateFeedbackGainFromFeedbackTime();
@@ -81,6 +86,8 @@ private:
     static float map01ToRange(float value01, float minValue, float maxValue);
     static float clamp01(float value);
     static int clampInt(int value, int minValue, int maxValue);
+
+    // NewDelayReverbParams END
 
     // Runtime Values
     float lastFeedbackL = 0.0f;
