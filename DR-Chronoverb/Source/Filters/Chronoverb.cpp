@@ -4,6 +4,9 @@ void Chronoverb::PrepareToPlay(double newSampleRate)
 {
     sampleRate = newSampleRate;
 
+    DelayLeft = std::make_unique<Delay>();
+    DelayRight = std::make_unique<Delay>();
+
     DelayLeft->PrepareToPlay(sampleRate);
     DelayRight->PrepareToPlay(sampleRate);
 }

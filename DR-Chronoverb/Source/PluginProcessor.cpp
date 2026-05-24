@@ -306,7 +306,7 @@ void AudioPluginAudioProcessor::prepareToPlay(double sampleRate, int samplesPerB
     KeyboardSynth.PrepareToPlay(sampleRate);
     ImpulseClick.PrepareToPlay(sampleRate);
 
-    DelayReverb.PrepareToPlay(sampleRate, 1.0f);
+    DelayReverb.PrepareToPlay(sampleRate);
 }
 
 void AudioPluginAudioProcessor::releaseResources()

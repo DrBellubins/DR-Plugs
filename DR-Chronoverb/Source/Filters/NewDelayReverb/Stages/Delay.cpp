@@ -77,7 +77,7 @@ std::pair<float, float> Delay::ProcessSample(float inputSample)
     lastFeedback = dampedDiffused * feedbackGain;
 
     // Return <Clear tap, Diffused tap>
-    return std::make_pair(nominalWet * feedbackGain, lastFeedback);
+    return std::make_pair(nominalWet, lastFeedback);
 }
 
 // --- Parameters ---
