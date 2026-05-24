@@ -110,8 +110,8 @@ private:
     float pitchDiffFeedbackGain = 0.6f;
 
     // Settings
-    const float centeredSwellRatio = 0.1f;
-    const float diffusionCompensationBias = 1.25f; // Controls swell into nominal (higher = longer swell)
+    const float centeredSwellRatio = 0.25f;
+    const float diffusionCompensationBias = 2.2f; // Controls swell into nominal (higher = longer swell)
 
     const float pitchAllpassTuningMultiplier = 1.5f; // For secondary allpass filter tuning
     const float pitchDelayAllpassTuning = 170.0f;
@@ -155,14 +155,20 @@ private:
     std::atomic<bool> pitchSequenceRebuildPending { false };
 
     // Delay lines
-    std::unique_ptr<DelayLine> mainDelayLeft;
-    std::unique_ptr<DelayLine> mainDelayRight;
+    std::unique_ptr<DelayLine> delayLineLeft;
+    std::unique_ptr<DelayLine> delayLineRight;
 
     // Diffusion chains — two pairs:
     //   delayDiffusion  : delay-quality blur (amount 0..0.5 and post-read early tap)
     //   reverbDiffusion : reverb-quality smear (crossfaded in for amount 0.5..1)
-    std::unique_ptr<DiffusionChain> delayDiffusionLeft;
-    std::unique_ptr<DiffusionChain> delayDiffusionRight;
+    //std::unique_ptr<DiffusionChain> delayDiffusionLeft;
+    //std::unique_ptr<DiffusionChain> delayDiffusionRight;
+
+    std::unique_ptr<DiffusionChain> delayDiffusionReadLeft;
+    std::unique_ptr<DiffusionChain> delayDiffusionReadRight;
+
+    std::unique_ptr<DiffusionChain> delayDiffusionWriteLeft;
+    std::unique_ptr<DiffusionChain> delayDiffusionWriteRight;
 
     std::unique_ptr<DiffusionChain> reverbDiffusionLeft;
     std::unique_ptr<DiffusionChain> reverbDiffusionRight;

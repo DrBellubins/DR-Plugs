@@ -40,20 +40,35 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
 
     // Main delay lines (1000 ms max)
     const int maxDelaySamples = static_cast<int>(std::ceil(1.0 * sampleRate));
-    mainDelayLeft = std::make_unique<DelayLine>(maxDelaySamples);
-    mainDelayRight = std::make_unique<DelayLine>(maxDelaySamples);
+    delayLineLeft = std::make_unique<DelayLine>(maxDelaySamples);
+    delayLineRight = std::make_unique<DelayLine>(maxDelaySamples);
 
-    mainDelayLeft->Clear();
-    mainDelayRight->Clear();
+    delayLineLeft->Clear();
+    delayLineRight->Clear();
 
-    mainDelayLeft->SetSampleRate(newSampleRate);
-    mainDelayRight->SetSampleRate(newSampleRate);
+    delayLineLeft->SetSampleRate(newSampleRate);
+    delayLineRight->SetSampleRate(newSampleRate);
 
     // Delay-quality diffusion chains
-    delayDiffusionLeft = std::make_unique<DiffusionChain>();
-    delayDiffusionRight = std::make_unique<DiffusionChain>();
-    delayDiffusionLeft->Prepare(sampleRate);
-    delayDiffusionRight->Prepare(sampleRate);
+    // Read
+    delayDiffusionReadLeft = std::make_unique<DiffusionChain>();
+    delayDiffusionReadRight = std::make_unique<DiffusionChain>();
+
+    delayDiffusionReadLeft->Prepare(sampleRate);
+    delayDiffusionReadRight->Prepare(sampleRate);
+
+    if (delayDiffusionReadLeft) delayDiffusionReadLeft->ClearState();
+    if (delayDiffusionReadRight) delayDiffusionReadRight->ClearState();
+
+    // Write
+    delayDiffusionWriteLeft = std::make_unique<DiffusionChain>();
+    delayDiffusionWriteRight = std::make_unique<DiffusionChain>();
+
+    delayDiffusionWriteLeft->Prepare(sampleRate);
+    delayDiffusionWriteRight->Prepare(sampleRate);
+
+    if (delayDiffusionWriteLeft) delayDiffusionWriteLeft->ClearState();
+    if (delayDiffusionWriteRight) delayDiffusionWriteRight->ClearState();
 
     // Reverb-quality diffusion chains
     reverbDiffusionLeft = std::make_unique<DiffusionChain>();
@@ -66,8 +81,6 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     lastBuiltSize01 = -1.0f;
     rebuildDiffusionIfNeeded();
 
-    if (delayDiffusionLeft) delayDiffusionLeft->ClearState();
-    if (delayDiffusionRight) delayDiffusionRight->ClearState();
     if (reverbDiffusionLeft) reverbDiffusionLeft->ClearState();
     if (reverbDiffusionRight) reverbDiffusionRight->ClearState();
 
@@ -141,8 +154,11 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
     for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
     {
-        delayDiffusionLeft->UpdateSize(diffusionSize01);
-        delayDiffusionRight->UpdateSize(diffusionSize01);
+        delayDiffusionReadLeft->UpdateSize(diffusionSize01);
+        delayDiffusionReadLeft->UpdateSize(diffusionSize01);
+
+        delayDiffusionWriteLeft->UpdateSize(diffusionSize01);
+        delayDiffusionWriteLeft->UpdateSize(diffusionSize01);
 
         reverbDiffusionLeft->UpdateSize(diffusionSize01);
         reverbDiffusionRight->UpdateSize(diffusionSize01);
@@ -197,8 +213,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             if (diffusionAmountSmoothed <= 0.5f)
             {
                 // Lower half: delay-quality diffusion only
-                diffLeft = delayDiffusionLeft->ProcessSample(preLeft);
-                diffRight = delayDiffusionRight->ProcessSample(preRight);
+                diffLeft = delayDiffusionWriteLeft->ProcessSample(preLeft);
+                diffRight = delayDiffusionWriteRight->ProcessSample(preRight);
             }
             else
             {
@@ -206,8 +222,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
                 const float reverbBlend =
                     (diffusionAmountSmoothed - 0.5f) * 2.0f; // 0..1
 
-                const float delayDiffLeft = delayDiffusionLeft->ProcessSample(preLeft);
-                const float delayDiffRight = delayDiffusionRight->ProcessSample(preRight);
+                const float delayDiffLeft = delayDiffusionWriteLeft->ProcessSample(preLeft);
+                const float delayDiffRight = delayDiffusionWriteRight->ProcessSample(preRight);
 
                 const float reverbDiffLeft = reverbDiffusionLeft->ProcessSample(preLeft);
                 const float reverbDiffRight = reverbDiffusionRight->ProcessSample(preRight);
@@ -227,8 +243,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         }
 
         // ---- 5: Write to delay line ----
-        mainDelayLeft->PushSample(writeLeft);
-        mainDelayRight->PushSample(writeRight);
+        delayLineLeft->PushSample(writeLeft);
+        delayLineRight->PushSample(writeRight);
 
         // ---- 6: Read nominal tap and early tap ----
         smoothedCenteredReadDelayMilliseconds += readDelaySlewCoefficient *
@@ -240,22 +256,22 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             std::max(1.0f, delayMilliseconds - staticDiffusionCompensationMilliseconds);
 
         const float nominalWetLeft  =
-            mainDelayLeft->ReadFeedbackBuffer(nominalReadMilliseconds);
+            delayLineLeft->ReadFeedbackBuffer(nominalReadMilliseconds);
 
         const float nominalWetRight =
-            mainDelayRight->ReadFeedbackBuffer(nominalReadMilliseconds);
+            delayLineRight->ReadFeedbackBuffer(nominalReadMilliseconds);
 
         const float earlyWetLeft  =
-            mainDelayLeft->ReadFeedbackBuffer(earlyReadMilliseconds);
+            delayLineLeft->ReadFeedbackBuffer(earlyReadMilliseconds);
 
         const float earlyWetRight =
-            mainDelayRight->ReadFeedbackBuffer(earlyReadMilliseconds);
+            delayLineRight->ReadFeedbackBuffer(earlyReadMilliseconds);
 
         // ---- 7: Diffuse the early tap (second pass through delay chain) ----
         // This gives the characteristic "blur around each tap" and creates
         // audible content before the nominal tap on each feedback recirculation.
-        const float diffusedEarlyLeft = delayDiffusionLeft->ProcessSample(earlyWetLeft);
-        const float diffusedEarlyRight = delayDiffusionRight->ProcessSample(earlyWetRight);
+        const float diffusedEarlyLeft = delayDiffusionReadLeft->ProcessSample(earlyWetLeft);
+        const float diffusedEarlyRight = delayDiffusionReadRight->ProcessSample(earlyWetRight);
 
         // Remap amount so clean tap suppression is aggressive (gone by amount=0.5)
         const float diffusionDrive =
@@ -280,8 +296,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         // ---- 8b: Pre-read tap for pitch shifting (reads earlier so output lands on time) ----
         const float preReadMs = std::max(1.0f, nominalReadMilliseconds - pitchShifterLatencyMs);
 
-        const float preReadWetLeft  = mainDelayLeft->ReadFeedbackBuffer(preReadMs);
-        const float preReadWetRight = mainDelayRight->ReadFeedbackBuffer(preReadMs);
+        const float preReadWetLeft  = delayLineLeft->ReadFeedbackBuffer(preReadMs);
+        const float preReadWetRight = delayLineRight->ReadFeedbackBuffer(preReadMs);
 
         // ---- 9: Pitch shift ----
         float pitchedLeft = dampedLeft;
@@ -568,15 +584,27 @@ void NewDelayReverb::rebuildDiffusionIfNeeded()
     lastBuiltSize01 = diffusionSize01;
 
     // Delay
-    if (delayDiffusionLeft  != nullptr)
+    if (delayDiffusionReadLeft != nullptr)
     {
-        delayDiffusionLeft->Configure(diffusionQualityStages,
+        delayDiffusionReadLeft->Configure(diffusionQualityStages,
             diffusionSize01, 0.005f, 0.5f, DelayTunings);
     }
 
-    if (delayDiffusionRight != nullptr)
+    if (delayDiffusionReadRight != nullptr)
     {
-        delayDiffusionRight->Configure(diffusionQualityStages,
+        delayDiffusionReadRight->Configure(diffusionQualityStages,
+            diffusionSize01, 0.005f, 0.5f, DelayTunings);
+    }
+
+    if (delayDiffusionWriteLeft != nullptr)
+    {
+        delayDiffusionWriteLeft->Configure(diffusionQualityStages,
+            diffusionSize01, 0.005f, 0.5f, DelayTunings);
+    }
+
+    if (delayDiffusionWriteRight != nullptr)
+    {
+        delayDiffusionWriteRight->Configure(diffusionQualityStages,
             diffusionSize01, 0.005f, 0.5f, DelayTunings);
     }
 
@@ -609,9 +637,9 @@ void NewDelayReverb::rebuildDiffusionIfNeeded()
 
     totalDelayDiffusionMilliseconds = 0.0f;
 
-    if (delayDiffusionLeft != nullptr)
+    if (delayDiffusionReadLeft != nullptr)
     {
-        for (float stageDelayMilliseconds : delayDiffusionLeft->perStageDelayMs)
+        for (float stageDelayMilliseconds : delayDiffusionReadLeft->perStageDelayMs)
             totalDelayDiffusionMilliseconds += stageDelayMilliseconds;
     }
 
