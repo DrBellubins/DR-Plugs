@@ -7,17 +7,6 @@
 NewDelayReverb::NewDelayReverb() = default;
 NewDelayReverb::~NewDelayReverb() = default;
 
-void NewDelayReverb::SetHostTempo(float bpm)
-{
-    if (bpm > 0.0f)
-    {
-        hostTempoBpm = bpm;
-
-        if (delayMode != 0)
-            updateDelayMillisecondsFromNormalized();
-    }
-}
-
 void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoBpm)
 {
     sampleRate = newSampleRate;
@@ -396,6 +385,17 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
         if (rightData != nullptr)
             rightData[sampleIndex] = outputRight;
+    }
+}
+
+void NewDelayReverb::SetHostTempo(float bpm)
+{
+    if (bpm > 0.0f)
+    {
+        hostTempoBpm = bpm;
+
+        if (delayMode != 0)
+            updateDelayMillisecondsFromNormalized();
     }
 }
 
