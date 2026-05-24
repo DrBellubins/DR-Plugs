@@ -20,6 +20,8 @@ class DiffusionChain;
 class Chronoverb
 {
 public:
+    Chronoverb();
+    
     void PrepareToPlay(double sampleRate);
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
 

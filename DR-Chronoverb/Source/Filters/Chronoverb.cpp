@@ -1,11 +1,15 @@
 #include "Chronoverb.h"
 
+Chronoverb::Chronoverb()
+{
+    // Must happen at class construction
+    DelayLeft = std::make_unique<Delay>();
+    DelayRight = std::make_unique<Delay>();
+}
+
 void Chronoverb::PrepareToPlay(double newSampleRate)
 {
     sampleRate = newSampleRate;
-
-    DelayLeft = std::make_unique<Delay>();
-    DelayRight = std::make_unique<Delay>();
 
     DelayLeft->PrepareToPlay(sampleRate);
     DelayRight->PrepareToPlay(sampleRate);
