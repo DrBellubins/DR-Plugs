@@ -36,6 +36,9 @@ void Delay::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 {
     if (diffusionRebuildPending.exchange(false, std::memory_order_acq_rel))
         rebuildDiffusionIfNeeded();
+
+    if (filterRebuildPending.exchange(false, std::memory_order_acq_rel))
+        updateFilters();
 }
 
 std::pair<float, float> Delay::ProcessSample(float inputSample)
@@ -225,6 +228,18 @@ void Delay::updateFeedbackGainFromFeedbackTime()
     const float normalized = juce::jlimit(0.0f, 1.0f, feedbackTimeSeconds / 10.0f);
     const float curved = std::sqrt(normalized);
     feedbackGain = std::max(0.0f, std::min(0.85f * curved, 0.95f));
+}
+
+void Delay::updateFilters() const
+{
+    const float lpHz = map01ToRange(lowpassCutoff,  500.0f, 9000.0f);
+    const float hpHz = map01ToRange(highpassCutoff,  10.0f, 2000.0f);
+
+    auto lpCoeffs = juce::dsp::IIR::Coefficients<float>::makeLowPass(sampleRate,  lpHz);
+    auto hpCoeffs = juce::dsp::IIR::Coefficients<float>::makeHighPass(sampleRate, hpHz);
+
+    *lowpass.coefficients = *lpCoeffs;
+    *highpass.coefficients = *hpCoeffs;
 }
 
 // endregion
