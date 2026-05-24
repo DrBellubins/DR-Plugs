@@ -234,8 +234,11 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             const float reverbGain =
                 std::sin(reverbBlend * juce::MathConstants<float>::halfPi);
 
-            diffLeft = delayDiffLeft * delayGain + reverbDiffLeft  * reverbGain;
-            diffRight = delayDiffRight * delayGain + reverbDiffRight * reverbGain;
+            diffLeft = delayDiffLeft;
+            diffRight = delayDiffRight;
+
+            //diffLeft = delayDiffLeft * delayGain + reverbDiffLeft  * reverbGain;
+            //diffRight = delayDiffRight * delayGain + reverbDiffRight * reverbGain;
 
             writeLeft = (preLeft * diffusionGainOne) + (diffLeft  * diffusionGainTwo);
             writeRight = (preRight * diffusionGainOne) + (diffRight * diffusionGainTwo);
