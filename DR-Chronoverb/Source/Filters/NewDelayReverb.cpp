@@ -205,6 +205,37 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
         if (diffusionAmountSmoothed > 0.001f)
         {
+            /*float diffLeft = 0.0f;
+            float diffRight = 0.0f;
+
+            if (diffusionAmountSmoothed <= 0.5f)
+            {
+                // Lower half: delay-quality diffusion only
+                diffLeft = delayDiffusionLeft->ProcessSample(preLeft);
+                diffRight = delayDiffusionRight->ProcessSample(preRight);
+            }
+            else
+            {
+                // Upper half: crossfade between delay and reverb chains
+                const float reverbBlend =
+                    (diffusionAmountSmoothed - 0.5f) * 2.0f; // 0..1
+
+                const float delayDiffLeft = delayDiffusionLeft->ProcessSample(preLeft);
+                const float delayDiffRight = delayDiffusionRight->ProcessSample(preRight);
+
+                const float reverbDiffLeft = reverbDiffusionLeft->ProcessSample(preLeft);
+                const float reverbDiffRight = reverbDiffusionRight->ProcessSample(preRight);
+
+                const float delayGain =
+                    std::cos(reverbBlend * juce::MathConstants<float>::halfPi);
+
+                const float reverbGain =
+                    std::sin(reverbBlend * juce::MathConstants<float>::halfPi);
+
+                diffLeft = delayDiffLeft * delayGain + reverbDiffLeft  * reverbGain;
+                diffRight = delayDiffRight * delayGain + reverbDiffRight * reverbGain;
+            }*/
+
             const float reverbBlend =
                     (diffusionAmountSmoothed - 0.5f) * 2.0f; // 0..1
 
@@ -220,11 +251,17 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             const float reverbGain =
                 std::sin(reverbBlend * juce::MathConstants<float>::halfPi);
 
-            float diffLeft = delayDiffLeft * delayGain + reverbDiffLeft  * reverbGain;
-            float diffRight = delayDiffRight * delayGain + reverbDiffRight * reverbGain;
+            writeLeft = delayDiffLeft;
+            writeRight = delayDiffRight;
 
-            writeLeft = (preLeft * diffusionGainOne) + (diffLeft * diffusionGainTwo);
-            writeRight = (preRight * diffusionGainOne) + (diffRight * diffusionGainTwo);
+            //diffLeft = delayDiffLeft;
+            //diffRight = delayDiffRight;
+
+            //diffLeft = delayDiffLeft * delayGain + reverbDiffLeft  * reverbGain;
+            //diffRight = delayDiffRight * delayGain + reverbDiffRight * reverbGain;
+
+            //writeLeft = (preLeft * diffusionGainOne) + (diffLeft  * diffusionGainTwo);
+            //writeRight = (preRight * diffusionGainOne) + (diffRight * diffusionGainTwo);
         }
 
         // ---- 5: Write to delay line ----
@@ -255,8 +292,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         // ---- 7: Diffuse the early tap (second pass through delay chain) ----
         // This gives the characteristic "blur around each tap" and creates
         // audible content before the nominal tap on each feedback recirculation.
-        const float diffusedEarlyLeft = delayDiffusionReadLeft->ProcessSample(nominalWetLeft);
-        const float diffusedEarlyRight = delayDiffusionReadRight->ProcessSample(nominalWetRight);
+        const float diffusedEarlyLeft = delayDiffusionReadLeft->ProcessSample(earlyWetLeft);
+        const float diffusedEarlyRight = delayDiffusionReadRight->ProcessSample(earlyWetRight);
 
         // Remap amount so clean tap suppression is aggressive (gone by amount=0.5)
         const float diffusionDrive =
