@@ -43,6 +43,12 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
     mainDelayLeft = std::make_unique<DelayLine>(maxDelaySamples);
     mainDelayRight = std::make_unique<DelayLine>(maxDelaySamples);
 
+    mainDelayLeft->Clear();
+    mainDelayRight->Clear();
+
+    mainDelayLeft->SetSampleRate(newSampleRate);
+    mainDelayRight->SetSampleRate(newSampleRate);
+
     // Delay-quality diffusion chains
     delayDiffusionLeft = std::make_unique<DiffusionChain>();
     delayDiffusionRight = std::make_unique<DiffusionChain>();
@@ -109,9 +115,6 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate, float initialHostTempoB
 
     smoothedCenteredReadDelayMilliseconds = delayMilliseconds;
     readDelaySlewCoefficient = 1.0f / (0.02f * static_cast<float>(sampleRate));
-
-    mainDelayLeft->Clear();
-    mainDelayRight->Clear();
 }
 
 void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
@@ -237,16 +240,16 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             std::max(1.0f, delayMilliseconds - staticDiffusionCompensationMilliseconds);
 
         const float nominalWetLeft  =
-            mainDelayLeft->ReadDelayMilliseconds(nominalReadMilliseconds, sampleRate);
+            mainDelayLeft->ReadFeedbackBuffer(nominalReadMilliseconds);
 
         const float nominalWetRight =
-            mainDelayRight->ReadDelayMilliseconds(nominalReadMilliseconds, sampleRate);
+            mainDelayRight->ReadFeedbackBuffer(nominalReadMilliseconds);
 
         const float earlyWetLeft  =
-            mainDelayLeft->ReadDelayMilliseconds(earlyReadMilliseconds, sampleRate);
+            mainDelayLeft->ReadFeedbackBuffer(earlyReadMilliseconds);
 
         const float earlyWetRight =
-            mainDelayRight->ReadDelayMilliseconds(earlyReadMilliseconds, sampleRate);
+            mainDelayRight->ReadFeedbackBuffer(earlyReadMilliseconds);
 
         // ---- 7: Diffuse the early tap (second pass through delay chain) ----
         // This gives the characteristic "blur around each tap" and creates
@@ -277,8 +280,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         // ---- 8b: Pre-read tap for pitch shifting (reads earlier so output lands on time) ----
         const float preReadMs = std::max(1.0f, nominalReadMilliseconds - pitchShifterLatencyMs);
 
-        const float preReadWetLeft  = mainDelayLeft->ReadDelayMilliseconds(preReadMs, sampleRate);
-        const float preReadWetRight = mainDelayRight->ReadDelayMilliseconds(preReadMs, sampleRate);
+        const float preReadWetLeft  = mainDelayLeft->ReadFeedbackBuffer(preReadMs);
+        const float preReadWetRight = mainDelayRight->ReadFeedbackBuffer(preReadMs);
 
         // ---- 9: Pitch shift ----
         float pitchedLeft = dampedLeft;

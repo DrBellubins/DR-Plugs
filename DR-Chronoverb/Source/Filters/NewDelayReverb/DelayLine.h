@@ -18,6 +18,11 @@ public:
         writeIndex = 0;
     }
 
+    void SetSampleRate(double newSampleRate)
+    {
+        sampleRate = newSampleRate;
+    }
+
     void Clear()
     {
         std::fill(buffer.begin(), buffer.end(), 0.0f);
@@ -30,7 +35,7 @@ public:
         writeIndex = (writeIndex + 1) % buffer.size();
     }
 
-    float ReadDelayMilliseconds(float delayMs, double sampleRate) const
+    float ReadFeedbackBuffer(float delayMs) const
     {
         const double delaySamples = (delayMs * sampleRate) / 1000.0;
         const double readPos = static_cast<double>(writeIndex) - delaySamples - 1.0;
@@ -54,6 +59,8 @@ public:
     }
 
 private:
+    double sampleRate = 48000.0;
+
     std::vector<float> buffer;
     int writeIndex = 0;
 };
