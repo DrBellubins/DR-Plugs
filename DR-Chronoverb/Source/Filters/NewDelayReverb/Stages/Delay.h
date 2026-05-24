@@ -9,10 +9,13 @@
 #include "../DelayLine.h"
 #include "../DampingFilter.h"
 #include "../DiffusionChain.h"
+#include "../../ChronoverbUtils.h"
 
 class DelayLine;
 class DiffusionChain;
 
+
+// Single channel, handles all delay feedback, diffusion, damping, etc.
 class Delay
 {
 public:
@@ -25,17 +28,20 @@ public:
         //5.0, 11.0, 17.0, 23.0, 47.0, 67.0, 71.0, 73.0     // Also bad.
     };
 
-    void PrepareToPlay(double sampleRate);
+    void PrepareToPlay(double newSampleRate);
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
+
+    std::pair<float, float> ProcessSample(float inputSample); // Returns <Clear delay, Diffused delay>
+
     void SetHostTempo(float bpm);
 
     void SetDelayTime(float newDelayTime);
     void SetDelayMode(int newDelaymode);
     void SetFeedbackTime(float newFeedbackTimeSeconds);
-    void SetDiffusionQuality(int newDiffusionQuality);
     void SetDiffusionSize(float newDiffusionSize);
-
-    // CONTINUE
+    void SetDiffusionQuality(int newDiffusionQuality);
+    void SetLowpassCutoff(float newLowpassCutoff);
+    void SetHighpassCutoff(float newHighpassCutoff);
 
 private:
     void updateDelayMillisecondsFromNormalized();
@@ -50,12 +56,10 @@ private:
     double sampleRate = 48000.0;
     float hostBpm = 120.0f;
 
-    float lastFeedbackL = 0.0f;
-    float lastFeedbackR = 0.0f;
+    float lastFeedback = 0.0f;
 
     int writePeriodSamples = 1;
-    int echoWriteCounterL = 0;
-    int echoWriteCounterR = 0;
+    int echoWriteCounter = 0;
 
     int lastBuiltQualityStages = -1;
     float lastBuiltSize01 = -1.0f;
@@ -78,31 +82,17 @@ private:
     float diffusionSize = 0.0f;
     int diffusionQualityStages = 8;
 
+    float lowpassCutoff = 0.0f;
+    float highpassCutoff = 0.0f;
+
     // Data
-    std::unique_ptr<DelayLine> delayLineLeft;
-    std::unique_ptr<DelayLine> delayLineRight;
+    std::unique_ptr<DelayLine> delayLine;
 
-    std::unique_ptr<DiffusionChain> delayDiffusionReadLeft;
-    std::unique_ptr<DiffusionChain> delayDiffusionReadRight;
+    std::unique_ptr<DiffusionChain> delayDiffusionRead;
+    std::unique_ptr<DiffusionChain> delayDiffusionWrite;
 
-    std::unique_ptr<DiffusionChain> delayDiffusionWriteLeft;
-    std::unique_ptr<DiffusionChain> delayDiffusionWriteRight;
+    std::unique_ptr<DampingFilter> damping;
 
+    std::atomic<bool> filterRebuildPending { false };
     std::atomic<bool> diffusionRebuildPending { false };
-
-    // Helper functions
-    float map01ToRange(float value01, float minValue, float maxValue)
-    {
-        return minValue + (maxValue - minValue) * clamp01(value01);
-    }
-
-    float clamp01(float value)
-    {
-        return juce::jlimit(0.0f, 1.0f, value);
-    }
-
-    int clampInt(int value, int minValue, int maxValue)
-    {
-        return std::max(minValue, std::min(maxValue, value));
-    }
 };

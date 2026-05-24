@@ -4,40 +4,77 @@ void Delay::PrepareToPlay(double newSampleRate)
 {
     sampleRate = newSampleRate;
 
+    // Delay line
     const int maxDelaySamples = static_cast<int>(std::ceil(1.0 * sampleRate));
-    delayLineLeft = std::make_unique<DelayLine>(maxDelaySamples);
-    delayLineRight = std::make_unique<DelayLine>(maxDelaySamples);
+    delayLine = std::make_unique<DelayLine>(maxDelaySamples);
 
-    delayLineLeft->Clear();
-    delayLineRight->Clear();
+    delayLine->Clear();
 
-    delayLineLeft->SetSampleRate(sampleRate);
-    delayLineRight->SetSampleRate(sampleRate);
+    delayLine->SetSampleRate(sampleRate);
 
     // Diffusion Read
-    delayDiffusionReadLeft = std::make_unique<DiffusionChain>();
-    delayDiffusionReadRight = std::make_unique<DiffusionChain>();
+    delayDiffusionRead = std::make_unique<DiffusionChain>();
+    delayDiffusionRead->Prepare(sampleRate);
 
-    delayDiffusionReadLeft->Prepare(sampleRate);
-    delayDiffusionReadRight->Prepare(sampleRate);
-
-    if (delayDiffusionReadLeft) delayDiffusionReadLeft->ClearState();
-    if (delayDiffusionReadRight) delayDiffusionReadRight->ClearState();
+    if (delayDiffusionRead) delayDiffusionRead->ClearState();
 
     // Diffusion Write
-    delayDiffusionWriteLeft = std::make_unique<DiffusionChain>();
-    delayDiffusionWriteRight = std::make_unique<DiffusionChain>();
+    delayDiffusionWrite = std::make_unique<DiffusionChain>();
+    delayDiffusionWrite->Prepare(sampleRate);
 
-    delayDiffusionWriteLeft->Prepare(sampleRate);
-    delayDiffusionWriteRight->Prepare(sampleRate);
+    if (delayDiffusionWrite) delayDiffusionWrite->ClearState();
 
-    if (delayDiffusionWriteLeft) delayDiffusionWriteLeft->ClearState();
-    if (delayDiffusionWriteRight) delayDiffusionWriteRight->ClearState();
+    // Various
+    damping = std::make_unique<DampingFilter>();
+    damping->Prepare(sampleRate);
+
+    smoothedCenteredReadDelayMilliseconds = delayMilliseconds;
+    readDelaySlewCoefficient = 1.0f / (0.02f * static_cast<float>(sampleRate));
 }
 
 void Delay::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 {
+    if (diffusionRebuildPending.exchange(false, std::memory_order_acq_rel))
+        rebuildDiffusionIfNeeded();
+}
 
+std::pair<float, float> Delay::ProcessSample(float inputSample)
+{
+    delayDiffusionRead->UpdateSize(diffusionSize);
+    delayDiffusionWrite->UpdateSize(diffusionSize);
+
+    // 1) Input + feedback
+    float inputFeedback = inputSample + lastFeedback;
+
+    // 2) Pre write diffusion
+    const float diffused = delayDiffusionWrite->ProcessSample(inputFeedback);
+
+    // 3) Write to delay line
+    delayLine->PushSample(diffused);
+
+    // 4) Read nominal and early tap
+    smoothedCenteredReadDelayMilliseconds += readDelaySlewCoefficient *
+            (delayMilliseconds - smoothedCenteredReadDelayMilliseconds);
+
+    const float nominalReadMilliseconds = smoothedCenteredReadDelayMilliseconds;
+
+    const float earlyReadMilliseconds =
+        std::max(1.0f, delayMilliseconds - staticDiffusionCompensationMilliseconds);
+
+    const float nominalWet = delayLine->ReadFeedbackBuffer(nominalReadMilliseconds);
+    const float earlyWet = delayLine->ReadFeedbackBuffer(earlyReadMilliseconds);
+
+    // 4) Diffuse the early tap (second pass)
+    const float diffusedEarly = delayDiffusionRead->ProcessSample(earlyWet);
+
+    // 5) Damping
+    const float dampedDiffused = damping->ProcessSample(diffusedEarly, lowpassCutoff);
+
+    // 6) Recirculation
+    lastFeedback = dampedDiffused * feedbackGain;
+
+    // Return <Clear tap, Diffused tap>
+    return std::make_pair(nominalWet * feedbackGain, lastFeedback);
 }
 
 // --- Parameters ---
@@ -73,6 +110,19 @@ void Delay::SetDiffusionSize(float newDiffusionSize)
 void Delay::SetDiffusionQuality(int newDiffusionQuality)
 {
     diffusionQualityStages = newDiffusionQuality;
+    diffusionRebuildPending.store(true, std::memory_order_release);
+}
+
+void Delay::SetLowpassCutoff(float newLowpassCutoff)
+{
+    lowpassCutoff = newLowpassCutoff;
+    filterRebuildPending.store(true, std::memory_order_release);
+}
+
+void Delay::SetHighpassCutoff(float newHighpassCutoff)
+{
+    highpassCutoff = newHighpassCutoff;
+    filterRebuildPending.store(true, std::memory_order_release);
 }
 
 //region Update Functions
@@ -131,8 +181,7 @@ void Delay::updateDelayMillisecondsFromNormalized()
     );
 
     // Keep counters in range after timing changes
-    echoWriteCounterL = juce::jlimit(0, writePeriodSamples - 1, echoWriteCounterL);
-    echoWriteCounterR = juce::jlimit(0, writePeriodSamples - 1, echoWriteCounterR);
+    echoWriteCounter = juce::jlimit(0, writePeriodSamples - 1, echoWriteCounter);
 }
 
 void Delay::rebuildDiffusionIfNeeded()
@@ -147,40 +196,35 @@ void Delay::rebuildDiffusionIfNeeded()
     lastBuiltSize01 = diffusionSize;
 
     // Delay
-    if (delayDiffusionReadLeft != nullptr)
+    if (delayDiffusionRead != nullptr)
     {
-        delayDiffusionReadLeft->Configure(diffusionQualityStages,
+        delayDiffusionRead->Configure(diffusionQualityStages,
             diffusionSize, 0.005f, 0.5f, Tunings);
     }
 
-    if (delayDiffusionReadRight != nullptr)
+    if (delayDiffusionWrite != nullptr)
     {
-        delayDiffusionReadRight->Configure(diffusionQualityStages,
-            diffusionSize, 0.005f, 0.5f, Tunings);
-    }
-
-    if (delayDiffusionWriteLeft != nullptr)
-    {
-        delayDiffusionWriteLeft->Configure(diffusionQualityStages,
-            diffusionSize, 0.005f, 0.5f, Tunings);
-    }
-
-    if (delayDiffusionWriteRight != nullptr)
-    {
-        delayDiffusionWriteRight->Configure(diffusionQualityStages,
+        delayDiffusionWrite->Configure(diffusionQualityStages,
             diffusionSize, 0.005f, 0.5f, Tunings);
     }
 
     totalDelayDiffusionMilliseconds = 0.0f;
 
-    if (delayDiffusionReadLeft != nullptr)
+    if (delayDiffusionRead != nullptr)
     {
-        for (float stageDelayMilliseconds : delayDiffusionReadLeft->perStageDelayMs)
+        for (float stageDelayMilliseconds : delayDiffusionRead->perStageDelayMs)
             totalDelayDiffusionMilliseconds += stageDelayMilliseconds;
     }
 
     const float baseCompensation = totalDelayDiffusionMilliseconds * centeredSwellRatio;
     staticDiffusionCompensationMilliseconds = baseCompensation * diffusionCompensationBias;
+}
+
+void Delay::updateFeedbackGainFromFeedbackTime()
+{
+    const float normalized = juce::jlimit(0.0f, 1.0f, feedbackTimeSeconds / 10.0f);
+    const float curved = std::sqrt(normalized);
+    feedbackGain = std::max(0.0f, std::min(0.85f * curved, 0.95f));
 }
 
 // endregion

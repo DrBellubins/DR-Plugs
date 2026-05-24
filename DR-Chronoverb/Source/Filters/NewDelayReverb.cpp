@@ -141,10 +141,10 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
     for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
     {
         delayDiffusionReadLeft->UpdateSize(diffusionSize01);
-        delayDiffusionReadLeft->UpdateSize(diffusionSize01);
+        delayDiffusionReadRight->UpdateSize(diffusionSize01);
 
         delayDiffusionWriteLeft->UpdateSize(diffusionSize01);
-        delayDiffusionWriteLeft->UpdateSize(diffusionSize01);
+        delayDiffusionWriteRight->UpdateSize(diffusionSize01);
 
         reverbDiffusionLeft->UpdateSize(diffusionSize01);
         reverbDiffusionRight->UpdateSize(diffusionSize01);
