@@ -205,10 +205,10 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
         if (diffusionAmountSmoothed > 0.001f)
         {
-            /*float diffLeft = 0.0f;
+            float diffLeft = 0.0f;
             float diffRight = 0.0f;
 
-            if (diffusionAmountSmoothed <= 0.5f)
+            /*if (diffusionAmountSmoothed <= 0.5f)
             {
                 // Lower half: delay-quality diffusion only
                 diffLeft = delayDiffusionLeft->ProcessSample(preLeft);
@@ -251,17 +251,14 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             const float reverbGain =
                 std::sin(reverbBlend * juce::MathConstants<float>::halfPi);
 
-            writeLeft = delayDiffLeft;
-            writeRight = delayDiffRight;
-
-            //diffLeft = delayDiffLeft;
-            //diffRight = delayDiffRight;
+            diffLeft = delayDiffLeft;
+            diffRight = delayDiffRight;
 
             //diffLeft = delayDiffLeft * delayGain + reverbDiffLeft  * reverbGain;
             //diffRight = delayDiffRight * delayGain + reverbDiffRight * reverbGain;
 
-            //writeLeft = (preLeft * diffusionGainOne) + (diffLeft  * diffusionGainTwo);
-            //writeRight = (preRight * diffusionGainOne) + (diffRight * diffusionGainTwo);
+            writeLeft = (preLeft * diffusionGainOne) + (diffLeft  * diffusionGainTwo);
+            writeRight = (preRight * diffusionGainOne) + (diffRight * diffusionGainTwo);
         }
 
         // ---- 5: Write to delay line ----
@@ -299,12 +296,13 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float diffusionDrive =
             juce::jlimit(0.0f, 1.0f, diffusionAmountSmoothed * 2.0f);
 
-        const float cleanTapGain = std::pow(1.0f - diffusionDrive, 4.0f);
+        const float cleanTapGain =
+            std::pow(1.0f - diffusionDrive, 4.0f); // collapses to 0 at drive >= 1
 
         const float diffusedTapGain =
             std::sin(diffusionDrive * juce::MathConstants<float>::halfPi);
 
-        float wetLeft = nominalWetLeft * cleanTapGain + diffusedEarlyLeft * diffusedTapGain;
+        float wetLeft = nominalWetLeft  * cleanTapGain + diffusedEarlyLeft  * diffusedTapGain;
         float wetRight = nominalWetRight * cleanTapGain + diffusedEarlyRight * diffusedTapGain;
 
         // ---- 8: Damping + feedback recirculation ----
