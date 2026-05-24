@@ -21,20 +21,21 @@ public:
         sampleRate = newSampleRate;
     }
 
-    void Configure(int numberOfStages, float size01, const std::vector<float>& delayTunings)
+    void Configure(int numberOfStages, float size01, float jitterPercent,
+        float jitterRate, const std::vector<float>& tunings)
     {
         cachedStageCount = std::max(1, numberOfStages);
-        cachedSize01     = std::max(0.0f, std::min(1.0f, size01));
+        cachedSize01 = std::max(0.0f, std::min(1.0f, size01));
 
         stages.clear();
         stages.reserve(static_cast<size_t>(cachedStageCount));
         perStageDelayMs.clear();
 
         const std::vector<float> finalDelays =
-            BuildQualityDistributedStageDelays(delayTunings, cachedStageCount, cachedSize01);
+            BuildQualityDistributedStageDelays(tunings, cachedStageCount, cachedSize01);
 
         baseStageDelayMsAtFullSize =
-            BuildQualityDistributedStageDelays(delayTunings, cachedStageCount, 1.0f);
+            BuildQualityDistributedStageDelays(tunings, cachedStageCount, 1.0f);
 
         for (float stageDelayMilliseconds : finalDelays)
         {
@@ -51,16 +52,17 @@ public:
         const int effectiveStages = static_cast<int>(perStageDelayMs.size());
 
         jitterLPState.assign(effectiveStages, 0.0f);
-        jitterDepthPercent.assign(effectiveStages, 0.005f);
-        jitterRateHz.assign(effectiveStages, 0.20f + 0.30f * random01());
+        jitterDepthPercent.assign(effectiveStages, jitterPercent);
+        jitterRateHz.assign(effectiveStages, jitterRate * random01());
+
         tpdfNoiseSeedA.assign(effectiveStages, static_cast<unsigned int>(rand()));
         tpdfNoiseSeedB.assign(effectiveStages, static_cast<unsigned int>(rand()));
     }
 
-    void ConfigureAsReverb(int numberOfStages, float size01, const std::vector<float>& reverbTunings)
+    /*void ConfigureAsReverb(int numberOfStages, float size01, const std::vector<float>& reverbTunings)
     {
         cachedStageCount = std::max(1, numberOfStages);
-        cachedSize01     = std::max(0.0f, std::min(1.0f, size01));
+        cachedSize01 = std::max(0.0f, std::min(1.0f, size01));
 
         stages.clear();
         stages.reserve(static_cast<size_t>(cachedStageCount));
@@ -89,9 +91,10 @@ public:
         jitterLPState.assign(effectiveStages, 0.0f);
         jitterDepthPercent.assign(effectiveStages, 0.003f);
         jitterRateHz.assign(effectiveStages, 0.10f + 0.20f * random01());
+
         tpdfNoiseSeedA.assign(effectiveStages, static_cast<unsigned int>(rand()));
         tpdfNoiseSeedB.assign(effectiveStages, static_cast<unsigned int>(rand()));
-    }
+    }*/
 
     float ProcessSample(float inputSample)
     {

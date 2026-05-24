@@ -21,8 +21,8 @@ public:
     // Delay-mode tunings: shorter, natural-spacing delays for discrete-tap blur.
     std::vector<float> DelayTunings =
     {
-        //10.0, 15.0, 22.0, 33.0, 50.0, 75.0, 113.0, 170.0  // Natural
-        7.0, 13.0, 19.0, 29.0, 53.0, 79.0, 113.0, 149.0     // Generated primes
+        10.0, 15.0, 22.0, 33.0, 50.0, 75.0, 113.0, 170.0    // Natural
+        //7.0, 13.0, 19.0, 29.0, 53.0, 79.0, 113.0, 149.0   // Generated primes
         //10.0, 20.0, 25.0, 29.0, 53.0, 79.0, 113.0, 149.0  // Primes modified
         //5.0, 11.0, 17.0, 19.0, 23.0, 29.0, 31.0, 37.0     // Bad Deelay approx.
         //5.0, 11.0, 17.0, 23.0, 47.0, 67.0, 71.0, 73.0     // Also bad.
@@ -32,6 +32,11 @@ public:
     std::vector<float> ReverbTunings =
     {
         29.0f, 37.0f, 43.0f, 53.0f, 71.0f, 89.0f, 113.0f, 149.0f
+    };
+
+    std::vector<float> PitchMaskTunings
+    {
+        5.0f, 8.0f, 12.0f, 17.0f, 23.0f, 31.0f, 43.0f, 59.0f
     };
 
     NewDelayReverb();

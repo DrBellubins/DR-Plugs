@@ -191,7 +191,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             float diffLeft = 0.0f;
             float diffRight = 0.0f;
 
-            if (diffusionAmountSmoothed <= 0.5f)
+            /*if (diffusionAmountSmoothed <= 0.5f)
             {
                 // Lower half: delay-quality diffusion only
                 diffLeft = delayDiffusionLeft->ProcessSample(preLeft);
@@ -215,9 +215,27 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
                 const float reverbGain =
                     std::sin(reverbBlend * juce::MathConstants<float>::halfPi);
 
-                diffLeft = delayDiffLeft  * delayGain + reverbDiffLeft  * reverbGain;
+                diffLeft = delayDiffLeft * delayGain + reverbDiffLeft  * reverbGain;
                 diffRight = delayDiffRight * delayGain + reverbDiffRight * reverbGain;
-            }
+            }*/
+
+            const float reverbBlend =
+                    (diffusionAmountSmoothed - 0.5f) * 2.0f; // 0..1
+
+            const float delayDiffLeft = delayDiffusionLeft->ProcessSample(preLeft);
+            const float delayDiffRight = delayDiffusionRight->ProcessSample(preRight);
+
+            const float reverbDiffLeft = reverbDiffusionLeft->ProcessSample(preLeft);
+            const float reverbDiffRight = reverbDiffusionRight->ProcessSample(preRight);
+
+            const float delayGain =
+                std::cos(reverbBlend * juce::MathConstants<float>::halfPi);
+
+            const float reverbGain =
+                std::sin(reverbBlend * juce::MathConstants<float>::halfPi);
+
+            diffLeft = delayDiffLeft * delayGain + reverbDiffLeft  * reverbGain;
+            diffRight = delayDiffRight * delayGain + reverbDiffRight * reverbGain;
 
             writeLeft = (preLeft * diffusionGainOne) + (diffLeft  * diffusionGainTwo);
             writeRight = (preRight * diffusionGainOne) + (diffRight * diffusionGainTwo);
@@ -578,25 +596,43 @@ void NewDelayReverb::rebuildDiffusionIfNeeded()
 
     // Delay
     if (delayDiffusionLeft  != nullptr)
-        delayDiffusionLeft->Configure(diffusionQualityStages, diffusionSize01, DelayTunings);
+    {
+        delayDiffusionLeft->Configure(diffusionQualityStages,
+            diffusionSize01, 0.005f, 0.5f, DelayTunings);
+    }
 
     if (delayDiffusionRight != nullptr)
-        delayDiffusionRight->Configure(diffusionQualityStages, diffusionSize01, DelayTunings);
+    {
+        delayDiffusionRight->Configure(diffusionQualityStages,
+            diffusionSize01, 0.005f, 0.5f, DelayTunings);
+    }
 
     // Reverb
     if (reverbDiffusionLeft  != nullptr)
-        reverbDiffusionLeft->ConfigureAsReverb(diffusionQualityStages, diffusionSize01, ReverbTunings);
+    {
+        reverbDiffusionLeft->Configure(diffusionQualityStages,
+            diffusionSize01, 0.003f, 0.3f, ReverbTunings);
+    }
 
     if (reverbDiffusionRight != nullptr)
-        reverbDiffusionRight->ConfigureAsReverb(diffusionQualityStages, diffusionSize01, ReverbTunings);
+    {
+        reverbDiffusionRight->Configure(diffusionQualityStages,
+            diffusionSize01, 0.003f, 0.3f, ReverbTunings);
+    }
 
     // Pitch shifting
     // Always configure pitch diffusion at full size — smearing is independent of the size knob
     if (pitchDiffusionLeft != nullptr)
-        pitchDiffusionLeft->ConfigureAsReverb(diffusionQualityStages, 1.0f, ReverbTunings);
+    {
+        pitchDiffusionLeft->Configure(diffusionQualityStages,
+            diffusionSize01, 0.001f, 0.1f, ReverbTunings);
+    }
 
     if (pitchDiffusionRight != nullptr)
-        pitchDiffusionRight->ConfigureAsReverb(diffusionQualityStages, 1.0f, ReverbTunings);
+    {
+        pitchDiffusionRight->Configure(diffusionQualityStages,
+            diffusionSize01, 0.001f, 0.1f, ReverbTunings);
+    }
 
     totalDelayDiffusionMilliseconds = 0.0f;
 
