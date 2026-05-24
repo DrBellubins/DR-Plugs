@@ -24,6 +24,14 @@ void Delay::PrepareToPlay(double newSampleRate)
 
     if (delayDiffusionWrite) delayDiffusionWrite->ClearState();
 
+    // Force full rebuild
+    lastBuiltQualityStages = -1;
+    lastBuiltSize01 = -1.0f;
+
+    updateDelayMillisecondsFromNormalized();
+    rebuildDiffusionIfNeeded();
+    updateFeedbackGainFromFeedbackTime();
+
     // Various
     damping = std::make_unique<DampingFilter>();
     damping->Prepare(sampleRate);
@@ -37,8 +45,8 @@ void Delay::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
     if (diffusionRebuildPending.exchange(false, std::memory_order_acq_rel))
         rebuildDiffusionIfNeeded();
 
-    if (filterRebuildPending.exchange(false, std::memory_order_acq_rel))
-        updateFilters();
+    //if (filterRebuildPending.exchange(false, std::memory_order_acq_rel))
+    //    updateFilters();
 }
 
 float Delay::ProcessSample(float inputSample)
@@ -58,10 +66,10 @@ float Delay::ProcessSample(float inputSample)
 
     const float feedbackWrite = (inputFeedback * inputFeedbackGain) + (diffused  * diffusionGain);
 
-    // 3) Write to delay line
+    // 4) Write to delay line
     delayLine->PushSample(feedbackWrite);
 
-    // 4) Read nominal and early tap
+    // 5) Read nominal and early tap
     smoothedCenteredReadDelayMilliseconds += readDelaySlewCoefficient *
             (delayMilliseconds - smoothedCenteredReadDelayMilliseconds);
 
@@ -73,23 +81,23 @@ float Delay::ProcessSample(float inputSample)
     const float nominalTap = delayLine->ReadFeedbackBuffer(nominalReadMilliseconds);
     const float earlyTap = delayLine->ReadFeedbackBuffer(earlyReadMilliseconds);
 
-    // 4) Diffuse the early tap (second pass)
+    // 6) Diffuse the early tap (second pass)
     const float diffusedEarly = delayDiffusionRead->ProcessSample(earlyTap);
 
-    // 5) Blend between nominal tap -> early tap
+    // 7) Blend between nominal tap -> early tap
     const float diffusionDrive = juce::jlimit(0.0f, 1.0f, diffusionAmount * 2.0f);
     const float nominalTapGain = std::pow(1.0f - diffusionDrive, 4.0f);   // collapses to 0 at drive >= 1
     const float earlyTapGain = std::sin(diffusionDrive * juce::MathConstants<float>::halfPi);
 
     const float blendedTap = nominalTap * nominalTapGain + diffusedEarly * earlyTapGain;
 
-    // 6) Damping
+    // 8) Damping
     const float dampedDiffused = damping->ProcessSample(blendedTap, lowpassCutoff);
 
-    // 7) Recirculation
+    // 9) Recirculation
     lastFeedback = dampedDiffused * feedbackGain;
 
-    return dampedDiffused;
+    return blendedTap;
 }
 
 // --- Parameters ---
@@ -133,7 +141,7 @@ void Delay::SetDiffusionQuality(int newDiffusionQuality)
     diffusionRebuildPending.store(true, std::memory_order_release);
 }
 
-void Delay::SetLowpassCutoff(float newLowpassCutoff)
+/*void Delay::SetLowpassCutoff(float newLowpassCutoff)
 {
     lowpassCutoff = newLowpassCutoff;
     filterRebuildPending.store(true, std::memory_order_release);
@@ -143,7 +151,7 @@ void Delay::SetHighpassCutoff(float newHighpassCutoff)
 {
     highpassCutoff = newHighpassCutoff;
     filterRebuildPending.store(true, std::memory_order_release);
-}
+}*/
 
 //region Update Functions
 
@@ -247,7 +255,7 @@ void Delay::updateFeedbackGainFromFeedbackTime()
     feedbackGain = std::max(0.0f, std::min(0.85f * curved, 0.95f));
 }
 
-void Delay::updateFilters() const
+/*void Delay::updateFilters() const
 {
     const float lpHz = map01ToRange(lowpassCutoff,  500.0f, 9000.0f);
     const float hpHz = map01ToRange(highpassCutoff,  10.0f, 2000.0f);
@@ -257,6 +265,6 @@ void Delay::updateFilters() const
 
     *lowpass.coefficients = *lpCoeffs;
     *highpass.coefficients = *hpCoeffs;
-}
+}*/
 
 // endregion

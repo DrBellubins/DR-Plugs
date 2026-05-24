@@ -58,16 +58,16 @@ void Chronoverb::SetLowpassCutoff(float newLowpass01)
 {
     lowpassCutoff = clamp01(newLowpass01);
 
-    DelayLeft->SetLowpassCutoff(lowpassCutoff);
-    DelayRight->SetLowpassCutoff(lowpassCutoff);
+    //DelayLeft->SetLowpassCutoff(lowpassCutoff);
+    //DelayRight->SetLowpassCutoff(lowpassCutoff);
 }
 
 void Chronoverb::SetHighpassCutoff(float newHighpass01)
 {
     highpassCutoff = clamp01(newHighpass01);
 
-    DelayLeft->SetHighpassCutoff(highpassCutoff);
-    DelayRight->SetHighpassCutoff(highpassCutoff);
+    //DelayLeft->SetHighpassCutoff(highpassCutoff);
+    //DelayRight->SetHighpassCutoff(highpassCutoff);
 }
 
 void Chronoverb::SetDryVolume(float newDry01)
