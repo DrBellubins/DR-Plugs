@@ -186,5 +186,3 @@ private:
     juce::dsp::IIR::Filter<float> highpassL;
     juce::dsp::IIR::Filter<float> highpassR;
 };
-
-#include "NewDelayReverb/Helpers.h"
