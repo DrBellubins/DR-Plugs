@@ -281,10 +281,16 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float preReadWetRight = mainDelayRight->ReadDelayMilliseconds(preReadMs, sampleRate);
 
         // ---- 9: Pitch shift ----
-        float pitchedLeft = dampedLeft;
-        float pitchedRight = dampedRight;
+        float pitchedLeft = pitchShifterLeft.ProcessSample(preReadWetLeft);
+        float pitchedRight = pitchShifterRight.ProcessSample(preReadWetRight);
 
-        if (pitchWetMix > 0.0001f)
+        float diffPitchedLeft = pitchDiffusionLeft->ProcessSample(pitchedLeft);
+        float diffPitchedRight = pitchDiffusionRight->ProcessSample(pitchedRight);
+
+        pitchedLeft = PMath::EqualPowerCrossfade(pitchedLeft, diffPitchedLeft, diffusionAmountSmoothed);
+        pitchedRight = PMath::EqualPowerCrossfade(pitchedRight, diffPitchedRight, diffusionAmountSmoothed);
+
+        /*if (pitchWetMix > 0.0001f)
         {
             pitchedLeft = pitchShifterLeft.ProcessSample(preReadWetLeft);
             pitchedRight = pitchShifterRight.ProcessSample(preReadWetRight);
@@ -298,11 +304,12 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             lastPitchDiffFeedbackL = diffPitchedLeft * pitchDiffFeedbackGain;
             lastPitchDiffFeedbackR = diffPitchedRight * pitchDiffFeedbackGain;
 
-            /*pitchedLeft = (pitchedLeft * diffusionGainOne) + (diffPitchedLeft * diffusionGainTwo);
-            pitchedRight = (pitchedRight * diffusionGainOne) + (diffPitchedRight * diffusionGainTwo);*/
+            //pitchedLeft = (pitchedLeft * diffusionGainOne) + (diffPitchedLeft * diffusionGainTwo);
+            //pitchedRight = (pitchedRight * diffusionGainOne) + (diffPitchedRight * diffusionGainTwo);
+
             pitchedLeft  = diffPitchedLeft;
             pitchedRight = diffPitchedRight;
-        }
+        }*/
 
         // Advance echo boundary counters (needed regardless of pitch enable state)
         {
