@@ -280,5 +280,7 @@ void UIHelpers::CenterKnobLabel(
 
 int UIHelpers::GetLabelWidth(const std::unique_ptr<juce::Label>& label)
 {
-    return label->getFont().getStringWidth(label->getText());
+    return static_cast<int>(
+        std::ceil(juce::GlyphArrangement::getStringWidth(label->getFont(), label->getText())
+    ));
 }

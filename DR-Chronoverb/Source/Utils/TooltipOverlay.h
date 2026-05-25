@@ -64,7 +64,7 @@ public:
         GraphicsContext.setFont(tooltipFont);
 
         const float tooltipWidth =
-            static_cast<float>(tooltipFont.getStringWidth(cachedTooltipText))
+            juce::GlyphArrangement::getStringWidth(tooltipFont, cachedTooltipText)
             + (tooltipHorizontalPadding * 2.0f);
 
         juce::Rectangle<float> tooltipBounds = CalculateTooltipBounds(
