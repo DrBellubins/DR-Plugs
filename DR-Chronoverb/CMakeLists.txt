@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.22)
 
 project(Chronoverb VERSION 0.0.1)
 
-set(LIB_JUCE_TAG "7.0.8")
+set(LIB_JUCE_TAG "8.0.13")
 
 string(APPEND CMAKE_CXX_FLAGS_RELEASE " -O3 -s")
 
