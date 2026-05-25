@@ -43,14 +43,10 @@ public:
     void SetDiffusionSize(float newDiffusionSize);
     void SetDiffusionQuality(int newDiffusionQuality);
 
-    //void SetLowpassCutoff(float newLowpassCutoff);
-    //void SetHighpassCutoff(float newHighpassCutoff);
-
 private:
     void updateDelayMillisecondsFromNormalized();
     void rebuildDiffusionIfNeeded();
     void updateFeedbackGainFromFeedbackTime();
-    //void updateFilters() const;
 
     // Settings
     const float centeredSwellRatio = 0.25f;
@@ -97,9 +93,5 @@ private:
 
     std::unique_ptr<DampingFilter> damping;
 
-    //juce::dsp::IIR::Filter<float> lowpass;
-    //juce::dsp::IIR::Filter<float> highpass;
-
-    //std::atomic<bool> filterRebuildPending { false };
     std::atomic<bool> diffusionRebuildPending { false };
 };

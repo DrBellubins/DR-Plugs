@@ -44,9 +44,6 @@ void Delay::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 {
     if (diffusionRebuildPending.exchange(false, std::memory_order_acq_rel))
         rebuildDiffusionIfNeeded();
-
-    //if (filterRebuildPending.exchange(false, std::memory_order_acq_rel))
-    //    updateFilters();
 }
 
 float Delay::ProcessSample(float inputSample)
@@ -140,18 +137,6 @@ void Delay::SetDiffusionQuality(int newDiffusionQuality)
     diffusionQualityStages = newDiffusionQuality;
     diffusionRebuildPending.store(true, std::memory_order_release);
 }
-
-/*void Delay::SetLowpassCutoff(float newLowpassCutoff)
-{
-    lowpassCutoff = newLowpassCutoff;
-    filterRebuildPending.store(true, std::memory_order_release);
-}
-
-void Delay::SetHighpassCutoff(float newHighpassCutoff)
-{
-    highpassCutoff = newHighpassCutoff;
-    filterRebuildPending.store(true, std::memory_order_release);
-}*/
 
 //region Update Functions
 
