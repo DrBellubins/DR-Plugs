@@ -82,7 +82,7 @@ float Delay::ProcessSample(float inputSample)
     const float diffusedEarly = delayDiffusionRead->ProcessSample(earlyTap);
 
     // 7) Blend between nominal tap -> early tap
-    const float diffusionDrive = juce::jlimit(0.0f, 1.0f, diffusionAmount * 2.0f);
+    const float diffusionDrive = juce::jlimit(0.0f, 1.0f, diffusionAmount);
     const float nominalTapGain = std::pow(1.0f - diffusionDrive, 4.0f);   // collapses to 0 at drive >= 1
     const float earlyTapGain = std::sin(diffusionDrive * juce::MathConstants<float>::halfPi);
 
