@@ -272,8 +272,8 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         float wetRight = nominalWetRight * cleanTapGain + diffusedEarlyRight * diffusedTapGain;
 
         // ---- 8: Damping + feedback recirculation ----
-        const float dampedLeft = dampingLeft->ProcessSample(wetLeft, lowpass01);
-        const float dampedRight = dampingRight->ProcessSample(wetRight, lowpass01);
+        const float dampedLeft = dampingLeft->ProcessSample(wetLeft, 7000.0f);
+        const float dampedRight = dampingRight->ProcessSample(wetRight, 7000.0f);
 
         lastFeedbackL = dampedLeft * feedbackGain;
         lastFeedbackR = dampedRight * feedbackGain;

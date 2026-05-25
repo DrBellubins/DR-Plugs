@@ -51,7 +51,7 @@ private:
 
     // Settings
     const float centeredSwellRatio = 0.25f;
-    const float diffusionCompensationBias = 2.2f; // Controls swell into nominal (higher = longer swell)
+    const float diffusionCompensationBias = 3.0f; // Controls swell into nominal (higher = longer swell)
 
     // Runtime
     double sampleRate = 48000.0;
@@ -83,8 +83,8 @@ private:
     float diffusionSize = 0.0f;
     int diffusionQualityStages = 8;
 
-    float lowpassCutoff = 0.0f;
-    float highpassCutoff = 0.0f;
+    //float lowpassCutoff = 0.0f;
+    //float highpassCutoff = 0.0f;
 
     // Data
     std::unique_ptr<DelayLine> delayLine;

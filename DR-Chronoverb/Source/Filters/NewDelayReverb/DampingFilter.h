@@ -25,11 +25,10 @@ public:
         z1 = 0.0f;
     }
 
-    float ProcessSample(float inputSample, float lowpass01)
+    float ProcessSample(float inputSample, float cutoffHz)
     {
         // Map lowpass01 to cutoff; if you prefer alternative mapping, adjust in NewDelayReverb::updateFilters.
         // Here, we keep it simple and derive alpha from an approximate RC filter coefficient.
-        const float cutoffHz = 500.0f + lowpass01 * (9000.0f - 500.0f);
         const float x = std::exp(-2.0f * kPiF * cutoffHz / static_cast<float>(sampleRate));
         const float alpha = 1.0f - x;
 

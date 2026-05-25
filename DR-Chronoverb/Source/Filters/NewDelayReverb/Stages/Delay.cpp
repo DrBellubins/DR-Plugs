@@ -89,7 +89,7 @@ float Delay::ProcessSample(float inputSample)
     const float blendedTap = nominalTap * nominalTapGain + diffusedEarly * earlyTapGain;
 
     // 8) Damping
-    const float dampedDiffused = damping->ProcessSample(blendedTap, lowpassCutoff);
+    const float dampedDiffused = damping->ProcessSample(blendedTap, 7000.0f);
 
     // 9) Recirculation
     lastFeedback = dampedDiffused * feedbackGain;
