@@ -40,15 +40,24 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float dryLeft = leftData[sampleIndex];
         const float dryRight = (rightData != nullptr ? rightData[sampleIndex] : dryLeft);
 
-        //float delayLeft = DelayLeft->ProcessSample(dryLeft);
-        //float delayRight = DelayRight->ProcessSample(dryRight);
+        float delayLeft = DelayLeft->ProcessSample(dryLeft);
+        float delayRight = DelayRight->ProcessSample(dryRight);
 
         float reverbLeft = ReverbLeft->ProcessSample(dryLeft);
         float reverbRight = ReverbRight->ProcessSample(dryRight);
 
+        // Blend delay -> reverb between diff amt 0.5 -> 1.0
+        const float delayReverbBlend = (diffusionAmount - 0.5f) * 2.0f;
+
+        const float delayGain = std::cos(delayReverbBlend * juce::MathConstants<float>::halfPi);
+        const float reverbGain = std::sin(delayReverbBlend * juce::MathConstants<float>::halfPi);
+
+        const float wetLeft = (delayLeft * delayGain) + (reverbLeft * reverbGain);
+        const float wetRight = (delayRight * delayGain) + (reverbRight * reverbGain);
+
         // Dry + wet volume
-        float outputLeft = (dryLeft * dryVolume) + (reverbLeft * wetVolume);
-        float outputRight = (dryRight * dryVolume) + (reverbRight * wetVolume);
+        float outputLeft = (dryLeft * dryVolume) + (wetLeft * wetVolume);
+        float outputRight = (dryRight * dryVolume) + (wetRight * wetVolume);
 
         // Write to buffer
         leftData[sampleIndex] = outputLeft;
