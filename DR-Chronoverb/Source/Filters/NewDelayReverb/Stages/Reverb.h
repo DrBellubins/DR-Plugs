@@ -1,32 +1,21 @@
 #pragma once
 
-#include <atomic>
-#include <memory>
+#include <juce_dsp/juce_dsp.h>
 #include <vector>
 
-#include <juce_dsp/juce_dsp.h>
-
-#include "../DelayLine.h"
-#include "../DampingFilter.h"
-#include "../DiffusionChain.h"
 #include "../../ChronoverbUtils.h"
+#include "../DiffusionChain.h"
+#include "../DampingFilter.h"
 
-class DelayLine;
 class DiffusionChain;
+class DampingFilter;
 
-
-// Single channel, handles all delay feedback, diffusion, damping, etc.
-class Delay
+class Reverb
 {
 public:
     std::vector<float> Tunings =
     {
-        5.0, 13.0, 19.0, 29.0, 31.0, 47.0, 73.0, 89.0       // Snappy primes
-        //10.0, 15.0, 22.0, 33.0, 50.0, 75.0, 113.0, 170.0  // Natural
-        //7.0, 13.0, 19.0, 29.0, 53.0, 79.0, 113.0, 149.0   // Generated primes
-        //10.0, 20.0, 25.0, 29.0, 53.0, 79.0, 113.0, 149.0  // Primes modified
-        //5.0, 11.0, 17.0, 19.0, 23.0, 29.0, 31.0, 37.0     // Bad Deelay approx.
-        //5.0, 11.0, 17.0, 23.0, 47.0, 67.0, 71.0, 73.0     // Also bad.
+        29.0f, 37.0f, 43.0f, 53.0f, 71.0f, 89.0f, 113.0f, 149.0f
     };
 
     void PrepareToPlay(double newSampleRate);
@@ -49,10 +38,6 @@ private:
     void rebuildDiffusionIfNeeded();
     void updateFeedbackGainFromFeedbackTime();
 
-    // Settings
-    const float centeredSwellRatio = 0.25f;
-    const float diffusionCompensationBias = 3.0f; // Controls swell into nominal (higher = longer swell)
-
     // Runtime
     double sampleRate = 48000.0;
     float hostBPM = 120.0f;
@@ -60,17 +45,15 @@ private:
     float lastFeedback = 0.0f;
     float feedbackGain = 0.5f;
 
-    int writePeriodSamples = 1;
-    int echoWriteCounter = 0;
-
     int lastBuiltQualityStages = -1;
     float lastBuiltSize01 = -1.0f;
 
-    float totalDelayDiffusionMilliseconds = 0.0f;
-    float staticDiffusionCompensationMilliseconds = 0.0f;
-
     float smoothedCenteredReadDelayMilliseconds = 1.0f;
     float readDelaySlewCoefficient = 0.0f;
+
+    // Probably not needed
+    int writePeriodSamples = 1;
+    int echoWriteCounter = 0;
 
     // Parameters
     float delayTimeNormalized = 0.3f;
@@ -83,15 +66,7 @@ private:
     float diffusionSize = 0.0f;
     int diffusionQualityStages = 8;
 
-    //float lowpassCutoff = 0.0f;
-    //float highpassCutoff = 0.0f;
-
-    // Data
-    std::unique_ptr<DelayLine> delayLine;
-
-    std::unique_ptr<DiffusionChain> diffusionRead;
-    std::unique_ptr<DiffusionChain> diffusionWrite;
-
+    std::unique_ptr<DiffusionChain> diffusion;
     std::unique_ptr<DampingFilter> damping;
 
     std::atomic<bool> diffusionRebuildPending { false };

@@ -13,28 +13,28 @@ void Delay::PrepareToPlay(double newSampleRate)
     delayLine->SetSampleRate(sampleRate);
 
     // Diffusion Read
-    delayDiffusionRead = std::make_unique<DiffusionChain>();
-    delayDiffusionRead->Prepare(sampleRate);
+    diffusionRead = std::make_unique<DiffusionChain>();
+    diffusionRead->Prepare(sampleRate);
 
-    if (delayDiffusionRead) delayDiffusionRead->ClearState();
+    if (diffusionRead) diffusionRead->ClearState();
 
     // Diffusion Write
-    delayDiffusionWrite = std::make_unique<DiffusionChain>();
-    delayDiffusionWrite->Prepare(sampleRate);
+    diffusionWrite = std::make_unique<DiffusionChain>();
+    diffusionWrite->Prepare(sampleRate);
 
-    if (delayDiffusionWrite) delayDiffusionWrite->ClearState();
+    if (diffusionWrite) diffusionWrite->ClearState();
 
-    // Force full rebuild
+    // Damping
+    damping = std::make_unique<DampingFilter>();
+    damping->Prepare(sampleRate);
+
+    // Various
     lastBuiltQualityStages = -1;
     lastBuiltSize01 = -1.0f;
 
     updateDelayMillisecondsFromNormalized();
     rebuildDiffusionIfNeeded();
     updateFeedbackGainFromFeedbackTime();
-
-    // Various
-    damping = std::make_unique<DampingFilter>();
-    damping->Prepare(sampleRate);
 
     smoothedCenteredReadDelayMilliseconds = delayMilliseconds;
     readDelaySlewCoefficient = 1.0f / (0.02f * static_cast<float>(sampleRate));
@@ -48,16 +48,16 @@ void Delay::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
 float Delay::ProcessSample(float inputSample)
 {
-    delayDiffusionRead->UpdateSize(diffusionSize);
-    delayDiffusionWrite->UpdateSize(diffusionSize);
+    diffusionRead->UpdateSize(diffusionSize);
+    diffusionWrite->UpdateSize(diffusionSize);
 
     // 1) Input + feedback
-    float inputFeedback = inputSample + lastFeedback;
+    const float inputFeedback = inputSample + lastFeedback;
 
     // 2) Pre write diffusion
-    const float diffused = delayDiffusionWrite->ProcessSample(inputFeedback);
+    const float diffused = diffusionWrite->ProcessSample(inputFeedback);
 
-    // 3) Blend between clean tap -> diffused tap
+    // 3) Blend between clean tap -> diffused tap (diff amt 0.0 -> 0.5)
     const float inputFeedbackGain = std::cos(diffusionAmount * juce::MathConstants<float>::halfPi);
     const float diffusionGain = std::sin(diffusionAmount * juce::MathConstants<float>::halfPi);
 
@@ -79,9 +79,9 @@ float Delay::ProcessSample(float inputSample)
     const float earlyTap = delayLine->ReadFeedbackBuffer(earlyReadMilliseconds);
 
     // 6) Diffuse the early tap (second pass)
-    const float diffusedEarly = delayDiffusionRead->ProcessSample(earlyTap);
+    const float diffusedEarly = diffusionRead->ProcessSample(earlyTap);
 
-    // 7) Blend between nominal tap -> early tap
+    // 7) Blend between nominal tap -> early tap (diff amt 0.0 -> 0.5)
     const float diffusionDrive = juce::jlimit(0.0f, 1.0f, diffusionAmount * 1.25f);
     const float nominalTapGain = std::pow(1.0f - diffusionDrive, 4.0f);   // collapses to 0 at drive >= 1
     const float earlyTapGain = std::sin(diffusionDrive * juce::MathConstants<float>::halfPi);
@@ -89,10 +89,10 @@ float Delay::ProcessSample(float inputSample)
     const float blendedTap = nominalTap * nominalTapGain + diffusedEarly * earlyTapGain;
 
     // 8) Damping
-    const float dampedDiffused = damping->ProcessSample(blendedTap, 7000.0f);
+    const float damped = damping->ProcessSample(blendedTap, 7000.0f);
 
     // 9) Recirculation
-    lastFeedback = dampedDiffused * feedbackGain;
+    lastFeedback = damped * feedbackGain;
 
     return blendedTap;
 }
@@ -100,7 +100,7 @@ float Delay::ProcessSample(float inputSample)
 // --- Parameters ---
 void Delay::SetHostTempo(float bpm)
 {
-    hostBpm = bpm;
+    hostBPM = bpm;
     updateDelayMillisecondsFromNormalized();
 }
 
@@ -155,7 +155,7 @@ void Delay::updateDelayMillisecondsFromNormalized()
     {
         // Beat-synced modes. Knob snaps to:
         // 0, 0.25, 0.5, 0.75, 1.0 => 1/1, 1/2, 1/4, 1/8, 1/16
-        static constexpr float snapPositions[5]   = { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
+        static constexpr float snapPositions[5] = { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
         static constexpr float beatMultipliers[5] = { 4.0f, 2.0f, 1.0f, 0.5f, 0.25f };
 
         int stepIndex = 0;
@@ -172,7 +172,7 @@ void Delay::updateDelayMillisecondsFromNormalized()
             }
         }
 
-        const float quarterNoteMs = 60000.0f / hostBpm;
+        const float quarterNoteMs = 60000.0f / hostBPM;
         float beatMs = beatMultipliers[stepIndex] * quarterNoteMs;
 
         if (delayMode == 2)      // triplet
@@ -209,23 +209,23 @@ void Delay::rebuildDiffusionIfNeeded()
     lastBuiltSize01 = diffusionSize;
 
     // Delay
-    if (delayDiffusionRead != nullptr)
+    if (diffusionRead != nullptr)
     {
-        delayDiffusionRead->Configure(diffusionQualityStages,
+        diffusionRead->Configure(diffusionQualityStages,
             diffusionSize, 0.005f, 0.5f, Tunings);
     }
 
-    if (delayDiffusionWrite != nullptr)
+    if (diffusionWrite != nullptr)
     {
-        delayDiffusionWrite->Configure(diffusionQualityStages,
+        diffusionWrite->Configure(diffusionQualityStages,
             diffusionSize, 0.005f, 0.5f, Tunings);
     }
 
     totalDelayDiffusionMilliseconds = 0.0f;
 
-    if (delayDiffusionRead != nullptr)
+    if (diffusionRead != nullptr)
     {
-        for (float stageDelayMilliseconds : delayDiffusionRead->perStageDelayMs)
+        for (float stageDelayMilliseconds : diffusionRead->perStageDelayMs)
             totalDelayDiffusionMilliseconds += stageDelayMilliseconds;
     }
 

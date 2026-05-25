@@ -5,6 +5,9 @@ Chronoverb::Chronoverb()
     // Must happen at class construction
     DelayLeft = std::make_unique<Delay>();
     DelayRight = std::make_unique<Delay>();
+
+    ReverbLeft = std::make_unique<Reverb>();
+    ReverbRight = std::make_unique<Reverb>();
 }
 
 void Chronoverb::PrepareToPlay(double newSampleRate)
@@ -13,6 +16,9 @@ void Chronoverb::PrepareToPlay(double newSampleRate)
 
     DelayLeft->PrepareToPlay(sampleRate);
     DelayRight->PrepareToPlay(sampleRate);
+
+    ReverbLeft->PrepareToPlay(sampleRate);
+    ReverbRight->PrepareToPlay(sampleRate);
 }
 
 void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
@@ -26,17 +32,25 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
     DelayLeft->ProcessBlock(audioBuffer);
     DelayRight->ProcessBlock(audioBuffer);
 
+    ReverbLeft->ProcessBlock(audioBuffer);
+    ReverbRight->ProcessBlock(audioBuffer);
+
     for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
     {
         const float dryLeft = leftData[sampleIndex];
         const float dryRight = (rightData != nullptr ? rightData[sampleIndex] : dryLeft);
 
-        float delayLeft = DelayLeft->ProcessSample(dryLeft);
-        float delayRight = DelayRight->ProcessSample(dryRight);
+        //float delayLeft = DelayLeft->ProcessSample(dryLeft);
+        //float delayRight = DelayRight->ProcessSample(dryRight);
 
-        float outputLeft = (dryLeft * dryVolume) + (delayLeft * wetVolume);
-        float outputRight = (dryRight * dryVolume) + (delayRight * wetVolume);
+        float reverbLeft = ReverbLeft->ProcessSample(dryLeft);
+        float reverbRight = ReverbRight->ProcessSample(dryRight);
 
+        // Dry + wet volume
+        float outputLeft = (dryLeft * dryVolume) + (reverbLeft * wetVolume);
+        float outputRight = (dryRight * dryVolume) + (reverbRight * wetVolume);
+
+        // Write to buffer
         leftData[sampleIndex] = outputLeft;
 
         if (rightData != nullptr)
