@@ -69,7 +69,9 @@ void UIHelpers::CreateCheckboxLabel(
     label = std::make_unique<juce::Label>();
     label->setText(text, juce::dontSendNotification);
 
-    juce::Font mainFont("Liberation Sans", fontSize, juce::Font::bold);
+    const juce::FontOptions fontOptions("Liberation Sans", fontSize, juce::Font::bold);
+    juce::Font mainFont(fontOptions);
+
     mainFont.setExtraKerningFactor(0.05f);
 
     label->setFont(mainFont);
@@ -129,7 +131,9 @@ void UIHelpers::CreateSliderLabel(
     label = std::make_unique<juce::Label>();
     label->setText(text, juce::dontSendNotification);
 
-    juce::Font mainFont("Liberation Sans", fontSize, juce::Font::bold);
+    const juce::FontOptions fontOptions("Liberation Sans", fontSize, juce::Font::bold);
+    juce::Font mainFont(fontOptions);
+
     mainFont.setExtraKerningFactor(0.05f);
 
     label->setFont(mainFont);
@@ -157,7 +161,9 @@ void UIHelpers::CreateLabel(
     label = std::make_unique<juce::Label>();
     label->setText(text, juce::dontSendNotification);
 
-    juce::Font mainFont("Liberation Sans", fontSize, juce::Font::bold);
+    const juce::FontOptions fontOptions("Liberation Sans", fontSize, juce::Font::bold);
+    juce::Font mainFont(fontOptions);
+
     mainFont.setExtraKerningFactor(0.05f);
 
     label->setFont(mainFont);
@@ -252,7 +258,9 @@ void UIHelpers::CreateKnobLabel(
     label = std::make_unique<juce::Label>();
     label->setText(text, juce::dontSendNotification);
 
-    juce::Font mainFont("Liberation Sans", fontSize, juce::Font::bold);
+    const juce::FontOptions fontOptions("Liberation Sans", fontSize, juce::Font::bold);
+    juce::Font mainFont(fontOptions);
+
     mainFont.setExtraKerningFactor(0.05f);
 
     label->setFont(mainFont);

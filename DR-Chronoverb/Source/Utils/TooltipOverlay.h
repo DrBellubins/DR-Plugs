@@ -46,14 +46,10 @@ public:
     void paint(juce::Graphics& GraphicsContext) override
     {
         if (currentAlpha <= 0.001f)
-        {
             return;
-        }
 
         if (cachedTargetBounds.isEmpty() || cachedTooltipText.isEmpty())
-        {
             return;
-        }
 
         constexpr float tooltipHeight = 24.0f;
         constexpr float tooltipHorizontalPadding = 8.0f;
@@ -143,9 +139,7 @@ private:
         }
 
         if (shouldRepaint)
-        {
             repaint();
-        }
     }
 
     juce::Rectangle<float> CalculateTooltipBounds(
@@ -206,14 +200,10 @@ private:
         else
         {
             if (TooltipBounds.getX() < OverlayBounds.getX())
-            {
                 TooltipBounds.setX(OverlayBounds.getX());
-            }
 
             if (TooltipBounds.getRight() > OverlayBounds.getRight())
-            {
                 TooltipBounds.setX(OverlayBounds.getRight() - TooltipBounds.getWidth());
-            }
         }
 
         if (TooltipBounds.getHeight() > OverlayBounds.getHeight())
@@ -224,14 +214,10 @@ private:
         else
         {
             if (TooltipBounds.getY() < OverlayBounds.getY())
-            {
                 TooltipBounds.setY(OverlayBounds.getY());
-            }
 
             if (TooltipBounds.getBottom() > OverlayBounds.getBottom())
-            {
                 TooltipBounds.setY(OverlayBounds.getBottom() - TooltipBounds.getHeight());
-            }
         }
     }
 
