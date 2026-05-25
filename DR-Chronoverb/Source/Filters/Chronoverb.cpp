@@ -31,11 +31,11 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float dryLeft = leftData[sampleIndex];
         const float dryRight = (rightData != nullptr ? rightData[sampleIndex] : dryLeft);
 
-        float delayOutputLeft = DelayLeft->ProcessSample(dryLeft);
-        float delayOutputRight = DelayRight->ProcessSample(dryRight);
+        float delayLeft = DelayLeft->ProcessSample(dryLeft);
+        float delayRight = DelayRight->ProcessSample(dryRight);
 
-        float outputLeft = (dryLeft * dryVolume) + (delayOutputLeft * wetVolume);
-        float outputRight = (dryRight * dryVolume) + (delayOutputRight * wetVolume);
+        float outputLeft = (dryLeft * dryVolume) + (delayLeft * wetVolume);
+        float outputRight = (dryRight * dryVolume) + (delayRight * wetVolume);
 
         leftData[sampleIndex] = outputLeft;
 

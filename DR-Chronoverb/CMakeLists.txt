@@ -27,7 +27,7 @@ juce_add_plugin("${PROJECT_NAME}"
     COPY_PLUGIN_AFTER_BUILD FALSE
 )
 
-target_compile_features("${PROJECT_NAME}" PUBLIC cxx_std_17)
+target_compile_features("${PROJECT_NAME}" PUBLIC cxx_std_23)
 set_target_properties("${PROJECT_NAME}" PROPERTIES CXX_EXTENSIONS OFF)
 
 add_subdirectory(Source)
