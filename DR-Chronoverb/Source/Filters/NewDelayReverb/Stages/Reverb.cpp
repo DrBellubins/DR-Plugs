@@ -1,5 +1,6 @@
 #include "Reverb.h"
 
+// TODO: Doesn't scale with delay time (similar to Deelay)
 void Reverb::PrepareToPlay(double newSampleRate)
 {
     sampleRate = newSampleRate;
