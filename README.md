@@ -19,4 +19,13 @@ A MIDI effect that takes the currently played chords, and randomly arpeggiates b
 Though it looks simple (it kinda is), it allows for a huge breadth of audio engineering. It's an audio gate, that allows the sound to be gated if it either goes above, or below the given range. Can be used to create new and interesting transients (best used on hihats *wink* *wink*)
 
 ## Building
-Make sure to use `git clone --recurse-submodules --shallow-submodules <repo url>` when cloning.
+Make sure to use `git clone --recurse-submodules --shallow-submodules https://github.com/DrBellubins/DR-Plugs.git` when cloning.
+
+Then checkout the submodules. Example:
+
+`````
+cd DR-Chronoverb/Libs/JUCE
+git fetch --tags
+git checkout 8.0.13
+cd ../..
+`````
