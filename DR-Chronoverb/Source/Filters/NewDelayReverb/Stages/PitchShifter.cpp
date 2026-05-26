@@ -1,7 +1,5 @@
 #include "PitchShifter.h"
 
-#include "juce_audio_processors_headless/format_types/juce_VST3Common.h"
-
 void PitchShifter::PrepareToPlay(double newSampleRate)
 {
     sampleRate = newSampleRate;
@@ -119,25 +117,25 @@ void PitchShifter::SetDiffusionQuality(int newDiffusionQuality)
 
 void PitchShifter::SetPitchRangeLower(float pitchRangeLowerSemitones)
 {
-    pitchRangeLower = juce::jlimit(-48.0f, 48.0f, pitchRangeLowerSemitones);
+    pitchRangeLower = pitchRangeLowerSemitones;
     pitchSequenceRebuildPending.store(true, std::memory_order_release);
 }
 
 void PitchShifter::SetPitchRangeUpper(float pitchRangeUpperSemitones)
 {
-    pitchRangeUpper = juce::jlimit(-48.0f, 48.0f, pitchRangeUpperSemitones);
+    pitchRangeUpper = pitchRangeUpperSemitones;
     pitchSequenceRebuildPending.store(true, std::memory_order_release);
 }
 
 void PitchShifter::SetPitchSequence(int sequenceIndex)
 {
-    pitchMode = juce::jlimit(0, 3, sequenceIndex);
+    pitchMode = sequenceIndex;
     pitchSequenceRebuildPending.store(true, std::memory_order_release);
 }
 
-void PitchShifter::SetpitchWetMix(float newPitchWetMix)
+void PitchShifter::SetPitchWetMix(float newPitchWetMix)
 {
-    pitchWetMix = clamp01(newPitchWetMix);
+    pitchWetMix = newPitchWetMix;
 }
 
 //region Update Functions

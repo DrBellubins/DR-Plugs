@@ -101,7 +101,6 @@ float Delay::ProcessSample(float inputSample)
 void Delay::SetHostTempo(float bpm)
 {
     hostBPM = bpm;
-
     delayTimeSegment.SetHostTempo(bpm);
 }
 

@@ -33,8 +33,8 @@ public:
 
     std::unique_ptr<Reverb> ReverbLeftRight;
 
-    std::unique_ptr<PitchShifter> PitchLeft;
-    std::unique_ptr<PitchShifter> PitchRight;
+    std::unique_ptr<PitchShifter> PitchShifterLeft;
+    std::unique_ptr<PitchShifter> PitchShifterRight;
 
     //region Parameter Sets
     void SetHostTempo(float bpm);
@@ -82,7 +82,7 @@ private:
 
     float lowpassCutoff = 0.0f;
     float highpassCutoff = 0.0f;
-    float stereoSpreadMinus1To1 = 0.0f;
+    float stereoSpread = 0.0f; // -1 - 1 range
     float hplpPrePost01 = 1.0f;
 
     float pitchRangeLower = -12.0f;

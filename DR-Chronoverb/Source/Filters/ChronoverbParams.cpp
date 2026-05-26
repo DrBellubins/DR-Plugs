@@ -98,7 +98,7 @@ void Chronoverb::SetWetVolume(float newWet01)
 
 void Chronoverb::SetStereoSpread(float newSpreadMinus1To1)
 {
-    stereoSpreadMinus1To1 = juce::jlimit(-1.0f, 1.0f, newSpreadMinus1To1);
+    stereoSpread = juce::jlimit(-1.0f, 1.0f, newSpreadMinus1To1);
 }
 
 void Chronoverb::SetHPLPPrePost(float prePost01)
@@ -106,30 +106,39 @@ void Chronoverb::SetHPLPPrePost(float prePost01)
     hplpPrePost01 = clamp01(prePost01);
 }
 
-// Pitch shifting
-
 void Chronoverb::SetPitchRangeLower(float pitchRangeLowerSemitones)
 {
-    //pitchRangeLower = juce::jlimit(-48.0f, 48.0f, pitchRangeLowerSemitones);
-    //pitchSequenceRebuildPending.store(true, std::memory_order_release);
+    pitchRangeLower = juce::jlimit(-48.0f, 48.0f, pitchRangeLowerSemitones);
+
+    PitchShifterLeft->SetPitchRangeLower(pitchRangeLower);
+    PitchShifterRight->SetPitchRangeLower(pitchRangeLower);
 }
 
 void Chronoverb::SetPitchRangeUpper(float pitchRangeUpperSemitones)
 {
-    //pitchRangeUpper = juce::jlimit(-48.0f, 48.0f, pitchRangeUpperSemitones);
-    //pitchSequenceRebuildPending.store(true, std::memory_order_release);
+    pitchRangeUpper = juce::jlimit(-48.0f, 48.0f, pitchRangeUpperSemitones);
+
+    PitchShifterLeft->SetPitchRangeUpper(pitchRangeUpper);
+    PitchShifterRight->SetPitchRangeUpper(pitchRangeUpper);
 }
 
 void Chronoverb::SetPitchSequence(int sequenceIndex)
 {
-    //pitchMode = juce::jlimit(0, 3, sequenceIndex);
-    //pitchSequenceRebuildPending.store(true, std::memory_order_release);
+    pitchMode = juce::jlimit(0, 3, sequenceIndex);
+
+    PitchShifterLeft->SetPitchSequence(pitchMode);
+    PitchShifterRight->SetPitchSequence(pitchMode);
 }
 
 void Chronoverb::SetpitchWetMix(float newPitchWetMix)
 {
     pitchWetMix = clamp01(newPitchWetMix);
+
+    PitchShifterLeft->SetPitchWetMix(pitchWetMix);
+    PitchShifterRight->SetPitchWetMix(pitchWetMix);
 }
+
+// Pitch shifting
 
 void Chronoverb::SetPitchStereoEnabled(float enabled01)
 {

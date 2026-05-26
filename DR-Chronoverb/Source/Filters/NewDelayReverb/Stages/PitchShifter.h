@@ -26,7 +26,7 @@ public:
     void SetPitchRangeLower(float pitchRangeLowerSemitones);
     void SetPitchRangeUpper(float pitchRangeUpperSemitones);
     void SetPitchSequence(int sequenceIndex);
-    void SetpitchWetMix(float newPitchWetMix);
+    void SetPitchWetMix(float newPitchWetMix);
 
     void SetWetMix(float newWetMix);
 
