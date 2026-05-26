@@ -6,8 +6,6 @@
 #include "../DelayLine.h"
 #include "../../../Utils/PMath.h"
 
-// TODO: Make multi-channel, similar to delay.
-// TODO: Implement pitch reverb line.
 // TODO: Pitch sequences aren't set??? (Happens in old implementation)
 
 class PitchShifter

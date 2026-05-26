@@ -92,7 +92,6 @@ std::pair<float, float> PitchShifter::ProcessSample(float inputSampleL, float in
         }
     }
 
-    // TODO: Temporary, until reverb line implemented
     pitchedLeft = PMath::EqualPowerCrossfade(inputSampleL, pitchedLeft, pitchWetMix);
     pitchedRight = PMath::EqualPowerCrossfade(inputSampleR, pitchedRight, pitchWetMix);
 
