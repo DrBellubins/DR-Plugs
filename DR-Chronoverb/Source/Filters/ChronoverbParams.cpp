@@ -6,6 +6,9 @@ void Chronoverb::SetHostTempo(float bpm)
     DelayRight->SetHostTempo(bpm);
 
     ReverbLeftRight->SetHostTempo(bpm);
+
+    PitchShifterLeft->SetHostTempo(bpm);
+    PitchShifterRight->SetHostTempo(bpm);
 }
 
 void Chronoverb::SetDelayTime(float newDelayTimeNormalized)
@@ -16,6 +19,9 @@ void Chronoverb::SetDelayTime(float newDelayTimeNormalized)
     DelayRight->SetDelayTime(delayTimeNormalized);
 
     ReverbLeftRight->SetDelayTime(delayTimeNormalized);
+
+    PitchShifterLeft->SetDelayTime(delayTimeNormalized);
+    PitchShifterRight->SetDelayTime(delayTimeNormalized);
 }
 
 void Chronoverb::SetDelayMode(int newDelayMode)
@@ -26,6 +32,9 @@ void Chronoverb::SetDelayMode(int newDelayMode)
     DelayRight->SetDelayMode(delayMode);
 
     ReverbLeftRight->SetDelayMode(delayMode);
+
+    PitchShifterLeft->SetDelayMode(delayMode);
+    PitchShifterRight->SetDelayMode(delayMode);
 }
 
 void Chronoverb::SetFeedbackTime(float newFeedbackTimeSeconds)
@@ -46,6 +55,9 @@ void Chronoverb::SetDiffusionAmount(float newAmount01)
     DelayRight->SetDiffusionAmount(diffusionAmount);
 
     ReverbLeftRight->SetDiffusionAmount(diffusionAmount);
+
+    PitchShifterLeft->SetDiffusionAmount(diffusionAmount);
+    PitchShifterRight->SetDiffusionAmount(diffusionAmount);
 }
 
 void Chronoverb::SetDiffusionSize(float newSize01)
@@ -56,6 +68,9 @@ void Chronoverb::SetDiffusionSize(float newSize01)
     DelayRight->SetDiffusionSize(diffusionSize);
 
     ReverbLeftRight->SetDiffusionSize(diffusionSize);
+
+    PitchShifterLeft->SetDiffusionSize(diffusionSize);
+    PitchShifterRight->SetDiffusionSize(diffusionSize);
 }
 
 void Chronoverb::SetDiffusionQuality(int newQualityStages)
@@ -66,6 +81,9 @@ void Chronoverb::SetDiffusionQuality(int newQualityStages)
     DelayRight->SetDiffusionQuality(diffusionQualityStages);
 
     ReverbLeftRight->SetDiffusionQuality(diffusionQualityStages);
+
+    PitchShifterLeft->SetDiffusionQuality(diffusionQualityStages);
+    PitchShifterRight->SetDiffusionQuality(diffusionQualityStages);
 }
 
 void Chronoverb::SetLowpassCutoff(float newLowpass01)
