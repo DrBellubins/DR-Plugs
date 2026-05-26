@@ -9,14 +9,14 @@
 class PitchShifter
 {
 public:
-    PitchShifter(DelayLine& newDelayLine);
-
     void PrepareToPlay(double newSampleRate);
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
 
     float ProcessSample(float inputSample);
 
     void SetHostTempo(float bpm);
+
+    void SetDelayLine(DelayLine& newDelayLine); // From Delay.cpp
 
     void SetDelayTime(float newDelayTime);
     void SetDelayMode(int newDelaymode);
@@ -29,8 +29,6 @@ public:
     void SetPitchRangeUpper(float pitchRangeUpperSemitones);
     void SetPitchSequence(int sequenceIndex);
     void SetPitchWetMix(float newPitchWetMix);
-
-    void SetWetMix(float newWetMix);
 
 private:
     void rebuildPitchSequences();

@@ -1,11 +1,5 @@
 #include "PitchShifter.h"
 
-PitchShifter::PitchShifter(DelayLine& newDelayLine)
-    : delayLine(&newDelayLine)
-{
-    delayLine = &newDelayLine;
-}
-
 void PitchShifter::PrepareToPlay(double newSampleRate)
 {
     sampleRate = newSampleRate;
@@ -13,12 +7,6 @@ void PitchShifter::PrepareToPlay(double newSampleRate)
     // Delay time
     delayTimeSegment.PepareToPlay(sampleRate);
     delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
-
-    // Delay line
-    //delayLine = std::make_unique<DelayLine>(delayTimeSegment.MaxDelaySamples);
-
-    //delayLine.Clear();
-    //delayLine.SetSampleRate(sampleRate);
 
     // Pitch shifter
     echoWriteCounter = 0;
@@ -94,6 +82,11 @@ void PitchShifter::SetHostTempo(float bpm)
 
     delayTimeSegment.SetHostTempo(bpm);
     delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
+}
+
+void PitchShifter::SetDelayLine(DelayLine& newDelayLine)
+{
+    delayLine = &newDelayLine;
 }
 
 void PitchShifter::SetDelayTime(float newDelayTime)

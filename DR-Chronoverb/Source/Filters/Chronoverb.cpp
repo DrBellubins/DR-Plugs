@@ -8,8 +8,8 @@ Chronoverb::Chronoverb()
 
     ReverbLeftRight = std::make_unique<Reverb>();
 
-    PitchShifterLeft = std::make_unique<PitchShifter>(*DelayLeft->InternalDelayLine);
-    PitchShifterRight = std::make_unique<PitchShifter>(*DelayRight->InternalDelayLine);
+    PitchShifterLeft = std::make_unique<PitchShifter>();
+    PitchShifterRight = std::make_unique<PitchShifter>();
 }
 
 void Chronoverb::PrepareToPlay(double newSampleRate)
@@ -20,6 +20,9 @@ void Chronoverb::PrepareToPlay(double newSampleRate)
     DelayRight->PrepareToPlay(sampleRate);
 
     ReverbLeftRight->PrepareToPlay(sampleRate);
+
+    PitchShifterLeft->SetDelayLine(*DelayLeft->InternalDelayLine);
+    PitchShifterRight->SetDelayLine(*DelayRight->InternalDelayLine);
 
     PitchShifterLeft->PrepareToPlay(sampleRate);
     PitchShifterRight->PrepareToPlay(sampleRate);
