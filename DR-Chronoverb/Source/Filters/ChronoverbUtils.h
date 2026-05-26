@@ -21,3 +21,19 @@ inline int semitonesToOctaveIndex(float semitones)
 {
     return static_cast<int>(std::round(semitones / 12.0f));
 }
+
+inline std::pair<float, float> GetDelayReverbGain(float diffusionAmount)
+{
+    const float delayReverbBlend = (diffusionAmount - 0.5f) * 2.0f;
+
+    float delayGain = std::cos(delayReverbBlend * juce::MathConstants<float>::halfPi);
+    float reverbGain = std::sin(delayReverbBlend * juce::MathConstants<float>::halfPi);
+
+    delayGain = std::abs(delayGain);
+    reverbGain = std::abs(reverbGain);
+
+    delayGain = clamp01(delayGain);
+    reverbGain = clamp01(reverbGain);
+
+    return std::make_pair(delayGain, reverbGain);
+}

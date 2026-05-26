@@ -5,11 +5,15 @@ void Delay::PrepareToPlay(double newSampleRate)
     sampleRate = newSampleRate;
 
     // Delay line
-    const int maxDelaySamples = static_cast<int>(std::ceil(1.0 * sampleRate));
+    constexpr float MaxBeatMultiplier = 4.0f;
+    constexpr float MaxDottedMultiplier = 1.5f;
+
+    maxDelayMS = (60000.0f / MinimumBPM) * MaxBeatMultiplier * MaxDottedMultiplier;
+    const int maxDelaySamples = static_cast<int>(std::ceil((maxDelayMS / 1000.0f) * sampleRate));
+
     delayLine = std::make_unique<DelayLine>(maxDelaySamples);
 
     delayLine->Clear();
-
     delayLine->SetSampleRate(sampleRate);
 
     // Diffusion Read
@@ -180,21 +184,19 @@ void Delay::updateDelayMillisecondsFromNormalized()
         else if (delayMode == 3) // dotted
             beatMs *= 1.5f;
 
-        delayMilliseconds = juce::jlimit(1.0f, 1000.0f, beatMs);
+        delayMilliseconds = juce::jlimit(1.0f, maxDelayMS, beatMs);
 
         const float slewSeconds = std::max(0.05f, delayMilliseconds / 1000.0f);
         readDelaySlewCoefficient =
             1.0f / (slewSeconds * static_cast<float>(sampleRate));
 
-        DBG("Delay time ms: " << delayMilliseconds << " Beat mult: " <<
-            beatMultipliers[stepIndex] << " Delay mode: " << delayMode);
+        //DBG("Delay time ms: " << delayMilliseconds << " Beat mult: " <<
+        //    beatMultipliers[stepIndex] << " Delay mode: " << delayMode);
     }
 
     // IMPORTANT: always update write period for all modes
     writePeriodSamples = std::max(
-        1,
-        static_cast<int>(std::round((delayMilliseconds * static_cast<float>(sampleRate)) / 1000.0f))
-    );
+        1, static_cast<int>(std::round((delayMilliseconds * static_cast<float>(sampleRate)) / 1000.0f)));
 
     // Keep counters in range after timing changes
     echoWriteCounter = juce::jlimit(0, writePeriodSamples - 1, echoWriteCounter);
