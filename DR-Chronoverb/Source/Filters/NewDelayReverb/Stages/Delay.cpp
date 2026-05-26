@@ -187,6 +187,8 @@ void Delay::updateDelayMillisecondsFromNormalized()
             1.0f / (slewSeconds * static_cast<float>(sampleRate));
     }
 
+    DBG("delay time ms: " << delayMilliseconds);
+
     // IMPORTANT: always update write period for all modes
     writePeriodSamples = std::max(
         1,

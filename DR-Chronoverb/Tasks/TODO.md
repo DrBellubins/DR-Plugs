@@ -1,6 +1,6 @@
 ## Core
-- [ ] Fix delay time nrm 1/1 and 1/2 sounding the same (and 1/2 sometimes breaking?)
-- [ ] Completely separate delay and reverb into separate lines
+- [ ] Fix delay time nrm 1/1 and 1/2 sounding the same (triplets seems to work fine?)
+- [ ] Fix reverb not being affected by delay time
 
 ## Pitch shifting
 - [ ] Make more diffuse signal for diffusion > 0.5

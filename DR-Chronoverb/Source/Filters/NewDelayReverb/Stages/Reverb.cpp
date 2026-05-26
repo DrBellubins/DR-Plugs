@@ -135,7 +135,7 @@ void Reverb::updateDelayMillisecondsFromNormalized()
         else if (delayMode == 3) // dotted
             beatMs *= 1.5f;
 
-        delayMilliseconds = juce::jlimit(1.0f, 1000.0f, beatMs);
+        //delayMilliseconds = juce::jlimit(1.0f, 1000.0f, beatMs);
 
         const float slewSeconds = std::max(0.05f, delayMilliseconds / 1000.0f);
         readDelaySlewCoefficient =

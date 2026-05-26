@@ -1,7 +1,6 @@
 import sys
 import math
 import numpy as np
-import matplotlib.ticker as ticker
 
 from PyQt6.QtWidgets import (
     QApplication,
@@ -238,69 +237,14 @@ def render_diffusion_preview(
 
     return t_ms, raw_display, diffused_display, debug
 
-def render_reverb_preview(
-    sample_rate=48000,
-    total_ms=1600.0,
-    source_tunings=None,
-    quality=8,
-    size01=1.0,
-    allpass_gain=0.7,
-    diffusion_amount=1.0,
-    feedback_gain=0.5,
-    feedback_passes=6,
-):
-    """
-    Approximates Reverb.cpp's signal path:
-    input+feedback -> diffusion chain -> damp -> recirculate
-    No delay line, no early/nominal tap split.
-    """
-    if source_tunings is None:
-        source_tunings = [29.0, 37.0, 43.0, 53.0, 71.0, 89.0, 113.0, 149.0]
 
-    total_samples = int(total_ms * sample_rate / 1000.0)
-
-    stage_delays_ms = build_quality_distributed_stage_delays(
-        source_tunings, quality, size01
-    )
-
-    # Raw: impulse with no diffusion for reference
-    raw = make_impulse(total_samples, index=0, amplitude=1.0)
-
-    # Simulate a few feedback passes through the diffusion chain,
-    # accumulating into the output — mirrors the recirculation loop in Reverb.cpp.
-    accumulated = np.zeros(total_samples, dtype=np.float64)
-    current_pass = make_impulse(total_samples, index=0, amplitude=1.0)
-
-    for pass_index in range(feedback_passes):
-        diffused_pass = process_allpass_chain(
-            current_pass, stage_delays_ms, allpass_gain, sample_rate
-        )
-        gain = feedback_gain ** pass_index
-        accumulated += diffused_pass * gain
-        current_pass = diffused_pass * feedback_gain
-
-    # Normalize for display
-    peak = max(np.max(np.abs(raw)), np.max(np.abs(accumulated)), 1e-9)
-    raw_display = raw / peak
-    diffused_display = accumulated / peak
-
-    t_ms = np.arange(total_samples) * 1000.0 / sample_rate
-
-    debug = {
-        "stage_delays_ms": stage_delays_ms,
-        "total_diffusion_ms": sum(stage_delays_ms),
-        "feedback_passes": feedback_passes,
-        "feedback_gain": feedback_gain,
-    }
-
-    return t_ms, raw_display, diffused_display, debug
-    
 class MplCanvas(FigureCanvas):
     def __init__(self):
         self.figure = Figure(figsize=(10, 6), tight_layout=True)
         self.ax_wave = self.figure.add_subplot(211)
         self.ax_db = self.figure.add_subplot(212)
         super().__init__(self.figure)
+
 
 class MainWindow(QWidget):
     def __init__(self):
@@ -399,38 +343,6 @@ class MainWindow(QWidget):
         controls.addWidget(self.comp_bias_spin, row, 1)
         controls.addWidget(self.early_branch_check, row, 2, 1, 2)
         row += 1
-        
-        # Mode selector
-        from PyQt6.QtWidgets import QComboBox
-        self.mode_combo = QComboBox()
-        self.mode_combo.addItems(["Delay", "Reverb"])
-        self.mode_combo.currentIndexChanged.connect(self._on_mode_changed)
-
-        # Reverb-only controls
-        self.feedback_gain_spin = QDoubleSpinBox()
-        self.feedback_gain_spin.setRange(0.0, 0.99)
-        self.feedback_gain_spin.setSingleStep(0.01)
-        self.feedback_gain_spin.setValue(0.5)
-
-        self.feedback_passes_spin = QSpinBox()
-        self.feedback_passes_spin.setRange(1, 20)
-        self.feedback_passes_spin.setValue(6)
-
-        self.reverb_controls_widget = QWidget()
-        reverb_layout = QHBoxLayout(self.reverb_controls_widget)
-        reverb_layout.setContentsMargins(0, 0, 0, 0)
-        reverb_layout.addWidget(QLabel("Feedback gain:"))
-        reverb_layout.addWidget(self.feedback_gain_spin)
-        reverb_layout.addWidget(QLabel("Feedback passes:"))
-        reverb_layout.addWidget(self.feedback_passes_spin)
-        self.reverb_controls_widget.setVisible(False)
-        
-        controls.addWidget(QLabel("Mode:"), row, 0)
-        controls.addWidget(self.mode_combo, row, 1)
-        row += 1
-
-        controls.addWidget(self.reverb_controls_widget, row, 0, 1, 4)
-        row += 1
 
         controls.addWidget(self.render_button, row, 0, 1, 4)
         row += 1
@@ -442,95 +354,60 @@ class MainWindow(QWidget):
         self.setLayout(layout)
 
         self.render()
-        
-    def _on_mode_changed(self, index):
-        is_reverb = (index == 1)
-        self.reverb_controls_widget.setVisible(is_reverb)
-        
-        # Swap to sensible default tunings for each mode
-        if is_reverb:
-            self.tunings_edit.setText("29.0, 37.0, 43.0, 53.0, 71.0, 89.0, 113.0, 149.0")
-        else:
-            self.tunings_edit.setText("10.0, 15.0, 22.5, 33.75, 50.6, 75.9, 113.9, 170.8")
-        self.render()
 
     def render(self):
         try:
             tunings = parse_tunings(self.tunings_edit.text())
-            is_reverb = (self.mode_combo.currentIndex() == 1)
 
-            if is_reverb:
-                t_ms, raw, diffused, debug = render_reverb_preview(
-                    sample_rate=self.sample_rate_spin.value(),
-                    total_ms=self.total_ms_spin.value(),
-                    source_tunings=tunings,
-                    quality=self.quality_spin.value(),
-                    size01=self.size_spin.value(),
-                    allpass_gain=self.gain_spin.value(),
-                    diffusion_amount=self.amount_spin.value(),
-                    feedback_gain=self.feedback_gain_spin.value(),
-                    feedback_passes=self.feedback_passes_spin.value(),
-                )
-                debug_text = (
-                    "Effective stage delays (ms): "
-                    + ", ".join(f"{x:.2f}" for x in debug["stage_delays_ms"])
-                    + f"\nTotal diffusion ms: {debug['total_diffusion_ms']:.2f}\n"
-                    + f"Feedback passes: {debug['feedback_passes']}  "
-                    + f"Feedback gain: {debug['feedback_gain']:.3f}"
-                )
-            else:
-                t_ms, raw, diffused, debug = render_diffusion_preview(
-                    sample_rate=self.sample_rate_spin.value(),
-                    total_ms=self.total_ms_spin.value(),
-                    nominal_delay_ms=self.nominal_delay_spin.value(),
-                    source_tunings=tunings,
-                    quality=self.quality_spin.value(),
-                    size01=self.size_spin.value(),
-                    allpass_gain=self.gain_spin.value(),
-                    diffusion_amount=self.amount_spin.value(),
-                    centered_swell_ratio=self.centered_swell_spin.value(),
-                    diffusion_comp_bias=self.comp_bias_spin.value(),
-                    include_early_branch=self.early_branch_check.isChecked(),
-                )
-                debug_text = (
-                    "Effective stage delays (ms): "
-                    + ", ".join(f"{x:.2f}" for x in debug["stage_delays_ms"])
-                    + f"\nTotal delay diffusion ms: {debug['total_delay_diffusion_ms']:.2f}\n"
-                    + f"Static compensation ms: {debug['static_comp_ms']:.2f}\n"
-                    + f"Early read ms: {debug['early_read_ms']:.2f}\n"
-                    + f"Nominal delay ms: {debug['nominal_delay_ms']:.2f}"
-                )
+            t_ms, raw, diffused, debug = render_diffusion_preview(
+                sample_rate=self.sample_rate_spin.value(),
+                total_ms=self.total_ms_spin.value(),
+                nominal_delay_ms=self.nominal_delay_spin.value(),
+                source_tunings=tunings,
+                quality=self.quality_spin.value(),
+                size01=self.size_spin.value(),
+                allpass_gain=self.gain_spin.value(),
+                diffusion_amount=self.amount_spin.value(),
+                centered_swell_ratio=self.centered_swell_spin.value(),
+                diffusion_comp_bias=self.comp_bias_spin.value(),
+                include_early_branch=self.early_branch_check.isChecked(),
+            )
 
             ax1 = self.canvas.ax_wave
             ax2 = self.canvas.ax_db
             ax1.clear()
             ax2.clear()
 
-            total_ms_val = self.total_ms_spin.value()
-
-            ax1.plot(t_ms, raw, color="blue", linewidth=1.5, label="Raw impulse")
+            ax1.plot(t_ms, raw, color="blue", linewidth=1.5, label="Raw delay")
             ax1.plot(t_ms, diffused, color="red", linewidth=1.2, label="Diffused")
-            ax1.set_title(f"Waveform Overlay ({'Reverb' if is_reverb else 'Delay'} mode)")
+            ax1.set_title("Waveform Overlay")
             ax1.set_xlabel("Time (ms)")
             ax1.set_ylabel("Amplitude")
             ax1.grid(True, alpha=0.25)
             ax1.legend(loc="upper right")
-            ax1.set_xlim(0.0, total_ms_val)
-            ax1.xaxis.set_major_locator(ticker.MultipleLocator(100))
+            ax1.set_xlim(0.0, self.total_ms_spin.value())
 
-            ax2.plot(t_ms, dbfs_safe(raw), color="blue", linewidth=1.5, label="Raw impulse")
+            ax2.plot(t_ms, dbfs_safe(raw), color="blue", linewidth=1.5, label="Raw delay")
             ax2.plot(t_ms, dbfs_safe(diffused), color="red", linewidth=1.2, label="Diffused")
             ax2.set_title("Magnitude Overlay (dB)")
             ax2.set_xlabel("Time (ms)")
             ax2.set_ylabel("dB")
             ax2.grid(True, alpha=0.25)
             ax2.legend(loc="upper right")
-            ax2.set_xlim(0.0, total_ms_val)
+            ax2.set_xlim(0.0, self.total_ms_spin.value())
             ax2.set_ylim(-120, 6)
-            ax2.xaxis.set_major_locator(ticker.MultipleLocator(100))
 
             self.canvas.draw()
-            self.debug_label.setText(debug_text)
+
+            self.debug_label.setText(
+                "Effective stage delays (ms): "
+                + ", ".join(f"{x:.2f}" for x in debug["stage_delays_ms"])
+                + "\n"
+                + f"Total delay diffusion ms: {debug['total_delay_diffusion_ms']:.2f}\n"
+                + f"Static compensation ms: {debug['static_comp_ms']:.2f}\n"
+                + f"Early read ms: {debug['early_read_ms']:.2f}\n"
+                + f"Nominal delay ms: {debug['nominal_delay_ms']:.2f}"
+            )
 
         except Exception as exc:
             QMessageBox.critical(self, "Render Error", str(exc))

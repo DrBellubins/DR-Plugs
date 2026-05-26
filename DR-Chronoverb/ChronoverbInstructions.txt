@@ -9,19 +9,7 @@ Under NO circumstances should the order of operations of any of the following wi
 
 It uses 8 carefully tuned allpass filters. The quality of which is changed with the Diffusion Quality slider, which when turned down, avoids the tail lengths from getting shorter, leading to it sounding like delay time has been reduced, by interpolating the given allpass tunings, which are as follows:
 
-It is absolutely non-negotiable that the delay diffusion should sound like there is a swell into the nominal tap, with a nice diffusion tail after the tap, which sounds like the signal is being "blurred" both before and after the nominal tap.    
-
-// Delay-mode tunings: shorter, natural-spacing delays for discrete-tap blur.
-std::vector<float> delayTunings =
-{
-     10.0f, 15.0f, 22.5f, 33.75f, 50.6f, 75.9f, 113.9f, 170.8f
-};
-
-// Reverb-mode tunings: longer, prime-spaced delays for lush modal density.
-std::vector<float> reverbTunings =
-{
-      29.0f, 37.0f, 43.0f, 53.0f, 71.0f, 89.0f, 113.0f, 149.0f
-};
+It is absolutely non-negotiable that the delay diffusion should sound like there is a swell into the nominal tap, with a nice diffusion tail after the tap, which sounds like the signal is being "blurred" both before and after the nominal tap.
 
 The diffusion space knob controls the perceived "space" of the wet signal by scaling the allpass tunings by the diffusion space value. Diffusion space should be smoothed so that it can be changed at runtime without ugly artifacting. This smoothing in Deelay causes changing the space to "pitch warp". This is the intended characteristic.
 
@@ -90,6 +78,9 @@ Diode - Classic circuit model. Used to biasing and clipping.
 Tube Distortion - A gentle distortion algorithm mimicking vacuum tube distortion. (I would like this to mimic fabfilter saturn 2's warm tube).
 Tape Distortion - Non-linear distortion mimicking magnetic tape distortion. (I would also like this to mimic fabfilter 2's warm tape).
 
+Will have the option to be applied before or after delay/reverb (denoted by a binary dual toggle Pre/Post)
+Will have the option tb be applied to either the dry or wet signal, or both (denoted by a non-binary dual toggle)
+
 -- Distortion end --
 --------------------------------------------
 -- Tape start --
@@ -107,6 +98,8 @@ Dropouts - Brief moments where the oxide coating is absent or damaged, causing m
 
 For dropouts, I will only want thinning, avoiding full silent dropouts.
 
+Will have the option tb be applied to either the dry or wet signal, or both (denoted by a non-binary dual toggle)
+
 -- Tape end --
 --------------------------------------------
 -- Granular start --
@@ -114,6 +107,8 @@ For dropouts, I will only want thinning, avoiding full silent dropouts.
 Granular is fed into the same diffusion chain as the regular delay/reverb. It is added on top of the input + feedback signal before diffusion.
 
 There is a Wet volume knob that controls the volume of the granular delay/reverb that allows for extensive control between how loud the regular delay/reverb is, with its Wet volume knob, vs granular with its own independant Wet volume knob.
+
+Will have the option to be applied before or after delay/reverb (denoted by a binary dual toggle Pre/Post)
 
 -- Granular end --
 --------------------------------------------
