@@ -17,6 +17,10 @@ void PitchShifter::PrepareToPlay(double newSampleRate)
     pitchShifter.CommitPendingSequenceNow();
 
     // Various
+    smoothedCenteredReadDelayMilliseconds = delayTimeSegment.DelayTimeMilliseconds;
+    readDelaySlewCoefficient = delayTimeSegment.ReadDelaySlewCoefficient;
+    writePeriodSamples = delayTimeSegment.WritePeriodSamples;
+
     rebuildPitchSequences();
 }
 
@@ -95,6 +99,9 @@ void PitchShifter::SetDelayTime(float newDelayTime)
 
     delayTimeSegment.SetDelayTime(newDelayTime);
     delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
+
+    readDelaySlewCoefficient = delayTimeSegment.ReadDelaySlewCoefficient;
+    writePeriodSamples = delayTimeSegment.WritePeriodSamples;
 }
 
 void PitchShifter::SetDelayMode(int newDelayMode)
@@ -103,6 +110,9 @@ void PitchShifter::SetDelayMode(int newDelayMode)
 
     delayTimeSegment.SetDelayMode(newDelayMode);
     delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
+
+    readDelaySlewCoefficient = delayTimeSegment.ReadDelaySlewCoefficient;
+    writePeriodSamples = delayTimeSegment.WritePeriodSamples;
 }
 
 void PitchShifter::SetDiffusionAmount(float newDiffusionAmount)
