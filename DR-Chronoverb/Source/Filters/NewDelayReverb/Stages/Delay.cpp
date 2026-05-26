@@ -1,13 +1,5 @@
 #include "Delay.h"
 
-Delay::Delay()
-{
-    InternalDelayLine = std::make_unique<DelayLine>(delayTimeSegment.MaxDelaySamples);
-    diffusionRead = std::make_unique<DiffusionChain>();
-    diffusionWrite = std::make_unique<DiffusionChain>();
-    damping = std::make_unique<DampingFilter>();
-}
-
 void Delay::PrepareToPlay(double newSampleRate)
 {
     sampleRate = newSampleRate;
@@ -16,20 +8,25 @@ void Delay::PrepareToPlay(double newSampleRate)
     delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 
     // Delay line
+    InternalDelayLine = std::make_unique<DelayLine>(delayTimeSegment.MaxDelaySamples);
+
     InternalDelayLine->Clear();
     InternalDelayLine->SetSampleRate(sampleRate);
 
     // Diffusion Read
+    diffusionRead = std::make_unique<DiffusionChain>();
     diffusionRead->Prepare(sampleRate);
 
     if (diffusionRead) diffusionRead->ClearState();
 
     // Diffusion Write
+    diffusionWrite = std::make_unique<DiffusionChain>();
     diffusionWrite->Prepare(sampleRate);
 
     if (diffusionWrite) diffusionWrite->ClearState();
 
     // Damping
+    damping = std::make_unique<DampingFilter>();
     damping->Prepare(sampleRate);
 
     // Various

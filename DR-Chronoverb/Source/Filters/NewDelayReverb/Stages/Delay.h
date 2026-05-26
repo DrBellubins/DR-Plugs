@@ -16,8 +16,6 @@
 class Delay
 {
 public:
-    Delay();
-
     // TODO: Need to be scaled by 0.25 to fit Deelay
     std::vector<float> Tunings =
     {
