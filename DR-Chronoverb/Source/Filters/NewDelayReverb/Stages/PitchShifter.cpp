@@ -86,7 +86,9 @@ std::pair<float, float> PitchShifter::ProcessSample(float inputSampleL, float in
         if (echoWriteCounter >= writePeriodSamples)
         {
             echoWriteCounter = 0;
+
             pitchShifterLeft.OnNewEchoBoundary();
+            pitchShifterRight.OnNewEchoBoundary();
         }
     }
 
@@ -233,6 +235,7 @@ void PitchShifter::rebuildPitchSequences()
     };
 
     configureShifter(pitchShifterLeft);
+    configureShifter(pitchShifterRight);
 }
 
 //endregion

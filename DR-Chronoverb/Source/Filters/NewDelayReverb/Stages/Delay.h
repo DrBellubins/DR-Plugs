@@ -9,7 +9,6 @@
 #include "../DiffusionChain.h"
 #include "../DelayTimeSegment.h"
 
-// TODO: Make multi-channel (UGH!)
 // TODO: Wet signal has white noise (DC artifacts??)
 // TODO: Sounds too mono when compared to Deelay?
 
@@ -17,7 +16,6 @@
 class Delay
 {
 public:
-    // TODO: Need to be scaled by 0.25 to fit Deelay
     std::vector<float> Tunings =
     {
         5.0, 13.0, 19.0, 29.0, 31.0, 47.0, 73.0, 89.0       // Snappy primes
