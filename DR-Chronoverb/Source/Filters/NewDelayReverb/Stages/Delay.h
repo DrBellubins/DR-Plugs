@@ -42,7 +42,7 @@ public:
     void SetDiffusionSize(float newDiffusionSize);
     void SetDiffusionQuality(int newDiffusionQuality);
 
-    std::unique_ptr<DelayLine> DelayLine;
+    std::unique_ptr<DelayLine> InternalDelayLine;
 
 private:
     void rebuildDiffusionIfNeeded();

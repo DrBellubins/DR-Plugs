@@ -1,9 +1,9 @@
 #include "PitchShifter.h"
 
-PitchShifter::PitchShifter(const DelayLine& newDelayLine)
+PitchShifter::PitchShifter(DelayLine& newDelayLine)
+    : delayLine(&newDelayLine)
 {
-    delayLine = new DelayLine(0);
-    delayLine = newDelayLine;
+
 }
 
 void PitchShifter::PrepareToPlay(double newSampleRate)
@@ -42,6 +42,9 @@ void PitchShifter::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
 float PitchShifter::ProcessSample(float inputSample)
 {
+    if (delayLine == nullptr)
+        return inputSample;
+
     // 0) Write sample to buffer
     //delayLine->PushSample(inputSample);
 
@@ -52,7 +55,7 @@ float PitchShifter::ProcessSample(float inputSample)
     const float nominalReadMilliseconds = smoothedCenteredReadDelayMilliseconds;
     const float preReadMs = std::max(1.0f, nominalReadMilliseconds - pitchShifterLatencyMs);
 
-    const float preReadWet  = delayLine.ReadFeedbackBuffer(preReadMs);
+    const float preReadWet  = delayLine->ReadFeedbackBuffer(preReadMs);
 
     // 2) Process pitch shifter
     float pitched = inputSample;
