@@ -1,5 +1,11 @@
 #include "PitchShifter.h"
 
+PitchShifter::PitchShifter(const DelayLine& newDelayLine)
+{
+    delayLine = new DelayLine(0);
+    delayLine = newDelayLine;
+}
+
 void PitchShifter::PrepareToPlay(double newSampleRate)
 {
     sampleRate = newSampleRate;
@@ -9,10 +15,10 @@ void PitchShifter::PrepareToPlay(double newSampleRate)
     delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 
     // Delay line
-    delayLine = std::make_unique<DelayLine>(delayTimeSegment.MaxDelaySamples);
+    //delayLine = std::make_unique<DelayLine>(delayTimeSegment.MaxDelaySamples);
 
-    delayLine->Clear();
-    delayLine->SetSampleRate(sampleRate);
+    //delayLine.Clear();
+    //delayLine.SetSampleRate(sampleRate);
 
     // Pitch shifter
     echoWriteCounter = 0;
@@ -36,6 +42,9 @@ void PitchShifter::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
 float PitchShifter::ProcessSample(float inputSample)
 {
+    // 0) Write sample to buffer
+    //delayLine->PushSample(inputSample);
+
     // 1) Pre-read latency compensation.
     smoothedCenteredReadDelayMilliseconds += readDelaySlewCoefficient *
             (delayTimeSegment.DelayTimeMilliseconds - smoothedCenteredReadDelayMilliseconds);
@@ -43,7 +52,7 @@ float PitchShifter::ProcessSample(float inputSample)
     const float nominalReadMilliseconds = smoothedCenteredReadDelayMilliseconds;
     const float preReadMs = std::max(1.0f, nominalReadMilliseconds - pitchShifterLatencyMs);
 
-    const float preReadWet  = delayLine->ReadFeedbackBuffer(preReadMs);
+    const float preReadWet  = delayLine.ReadFeedbackBuffer(preReadMs);
 
     // 2) Process pitch shifter
     float pitched = inputSample;

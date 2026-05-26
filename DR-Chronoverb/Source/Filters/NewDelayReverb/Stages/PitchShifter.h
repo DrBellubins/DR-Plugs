@@ -9,6 +9,8 @@
 class PitchShifter
 {
 public:
+    PitchShifter(const DelayLine& newDelayLine);
+
     void PrepareToPlay(double newSampleRate);
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
 
@@ -79,7 +81,8 @@ private:
     // Data
     OctaveEchoPitchShifter pitchShifter;
 
-    std::unique_ptr<DelayLine> delayLine;
+    //DelayLine delayLine;
+    DelayLine delayLine;
 
     DelayTimeSegment delayTimeSegment;
     Reverb reverb;

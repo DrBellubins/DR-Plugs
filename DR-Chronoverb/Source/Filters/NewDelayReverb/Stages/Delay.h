@@ -42,6 +42,8 @@ public:
     void SetDiffusionSize(float newDiffusionSize);
     void SetDiffusionQuality(int newDiffusionQuality);
 
+    std::unique_ptr<DelayLine> DelayLine;
+
 private:
     void rebuildDiffusionIfNeeded();
     void updateFeedbackGainFromFeedbackTime();
@@ -85,8 +87,6 @@ private:
 
     // Data
     DelayTimeSegment delayTimeSegment;
-
-    std::unique_ptr<DelayLine> delayLine;
 
     std::unique_ptr<DiffusionChain> diffusionRead;
     std::unique_ptr<DiffusionChain> diffusionWrite;

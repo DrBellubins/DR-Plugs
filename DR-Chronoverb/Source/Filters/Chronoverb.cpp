@@ -21,7 +21,7 @@ void Chronoverb::PrepareToPlay(double newSampleRate)
 
     ReverbLeftRight->PrepareToPlay(sampleRate);
 
-    PitchShifterLeft->PrepareToPlay(sampleRate);
+    PitchShifterLeft->PrepareToPlay(sampleRate, DelayLeft->InternalDelayLine);
     PitchShifterRight->PrepareToPlay(sampleRate);
 }
 

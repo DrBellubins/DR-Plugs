@@ -8,10 +8,10 @@ void Delay::PrepareToPlay(double newSampleRate)
     delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 
     // Delay line
-    delayLine = std::make_unique<DelayLine>(delayTimeSegment.MaxDelaySamples);
+    InternalDelayLine = std::make_unique<DelayLine>(delayTimeSegment.MaxDelaySamples);
 
-    delayLine->Clear();
-    delayLine->SetSampleRate(sampleRate);
+    InternalDelayLine->Clear();
+    InternalDelayLine->SetSampleRate(sampleRate);
 
     // Diffusion Read
     diffusionRead = std::make_unique<DiffusionChain>();
@@ -64,7 +64,7 @@ float Delay::ProcessSample(float inputSample)
     const float feedbackWrite = (inputFeedback * inputFeedbackGain) + (diffused  * diffusionGain);
 
     // 4) Write to delay line
-    delayLine->PushSample(feedbackWrite);
+    InternalDelayLine->PushSample(feedbackWrite);
 
     // 5) Read nominal and early tap
     smoothedCenteredReadDelayMilliseconds += readDelaySlewCoefficient *
@@ -75,8 +75,8 @@ float Delay::ProcessSample(float inputSample)
     const float earlyReadMilliseconds =
         std::max(1.0f, delayTimeSegment.DelayTimeMilliseconds - staticDiffusionCompensationMilliseconds);
 
-    const float nominalTap = delayLine->ReadFeedbackBuffer(nominalReadMilliseconds);
-    const float earlyTap = delayLine->ReadFeedbackBuffer(earlyReadMilliseconds);
+    const float nominalTap = InternalDelayLine->ReadFeedbackBuffer(nominalReadMilliseconds);
+    const float earlyTap = InternalDelayLine->ReadFeedbackBuffer(earlyReadMilliseconds);
 
     // 6) Diffuse the early tap (second pass)
     const float diffusedEarly = diffusionRead->ProcessSample(earlyTap);
