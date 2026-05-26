@@ -6,6 +6,8 @@
 #include "../DelayLine.h"
 #include "../../../Utils/PMath.h"
 
+// TODO: Pitch sequences aren't set???
+// TODO: Implement pitch reverb line.
 class PitchShifter
 {
 public:

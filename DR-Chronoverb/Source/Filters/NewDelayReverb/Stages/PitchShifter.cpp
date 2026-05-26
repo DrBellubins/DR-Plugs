@@ -53,8 +53,6 @@ float PitchShifter::ProcessSample(float inputSample)
     {
         pitched = pitchShifter.ProcessSample(preReadWet);
 
-        // TODO: Implement pitch reverb line.
-
         /*float diffPitchedLeft = pitchDiffusion->ProcessSample(pitched);
 
         pitched = PMath::EqualPowerCrossfade(pitched, diffPitchedLeft, diffusionAmount);*/
