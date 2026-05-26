@@ -6,6 +6,10 @@
 #include "../DiffusionChain.h"
 #include "../DampingFilter.h"
 
+// TODO: Implement left/right decorrelation (UGH!)
+// TODO: Make Schroeder reverb by implementing delay line
+// TODO: Wet signal has white noise (DC artifacts??)
+
 class Reverb
 {
 public:
@@ -34,7 +38,8 @@ private:
     void updateFeedbackGainFromFeedbackTime();
 
     // Settings
-    const float irLengthMs = 2000.0f;
+    const float tuningLengthMultiplier = 2.0f;
+    const float irLengthMs = 1600.0f;
 
     // Runtime
     double sampleRate = 48000.0;

@@ -8,13 +8,7 @@ void Delay::PrepareToPlay(double newSampleRate)
     delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 
     // Delay line
-    constexpr float MaxBeatMultiplier = 4.0f;
-    constexpr float MaxDottedMultiplier = 1.5f;
-
-    maxDelayMS = (60000.0f / MinimumBPM) * MaxBeatMultiplier * MaxDottedMultiplier;
-    const int maxDelaySamples = static_cast<int>(std::ceil((maxDelayMS / 1000.0f) * sampleRate));
-
-    delayLine = std::make_unique<DelayLine>(maxDelaySamples);
+    delayLine = std::make_unique<DelayLine>(delayTimeSegment.MaxDelaySamples);
 
     delayLine->Clear();
     delayLine->SetSampleRate(sampleRate);
@@ -109,7 +103,6 @@ void Delay::SetHostTempo(float bpm)
     hostBPM = bpm;
 
     delayTimeSegment.SetHostTempo(bpm);
-    delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 }
 
 void Delay::SetDelayTime(float newDelayTime)

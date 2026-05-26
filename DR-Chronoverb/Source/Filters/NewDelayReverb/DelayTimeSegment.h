@@ -8,7 +8,7 @@ public:
     const float MinimumBPM = 20.0f; // Silently breaks below this
 
     // Runtime
-    float MaxDelayMS = 0.0f;
+    float MaxDelayMS = 1.0f;
     int MaxDelaySamples = 0;
 
     int WritePeriodSamples = 1;
@@ -26,6 +26,8 @@ public:
         constexpr float MaxDottedMultiplier = 1.5f;
 
         MaxDelayMS = (60000.0f / MinimumBPM) * MaxBeatMultiplier * MaxDottedMultiplier;
+        MaxDelayMS = std::min(1.0f, MaxDelayMS);
+
         MaxDelaySamples = static_cast<int>(std::ceil((MaxDelayMS / 1000.0f) * sampleRate));
     }
 

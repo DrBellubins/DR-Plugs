@@ -21,18 +21,19 @@ public:
         sampleRate = newSampleRate;
     }
 
-    void Configure(int numberOfStages, float size01, float jitterPercent,
+    void Configure(int numberOfStages, float size, float jitterPercent,
         float jitterRate, const std::vector<float>& tunings)
     {
         cachedStageCount = std::max(1, numberOfStages);
-        cachedSize01 = std::max(0.0f, std::min(1.0f, size01));
+        //cachedSize = std::max(0.0f, std::min(1.0f, size));
+        cachedSize = std::max(0.0f, size);
 
         stages.clear();
         stages.reserve(static_cast<size_t>(cachedStageCount));
         perStageDelayMs.clear();
 
         const std::vector<float> finalDelays =
-            BuildQualityDistributedStageDelays(tunings, cachedStageCount, cachedSize01);
+            BuildQualityDistributedStageDelays(tunings, cachedStageCount, size);
 
         baseStageDelayMsAtFullSize =
             BuildQualityDistributedStageDelays(tunings, cachedStageCount, 1.0f);
@@ -131,10 +132,12 @@ public:
 
     // Smoothly slews currentScaledDelayMs toward the target defined by newSize01.
     // ProcessSample reads currentScaledDelayMs, so this now has real effect.
-    void UpdateSize(float newSize01)
+    void UpdateSize(float newSize)
     {
-        cachedSize01 = juce::jlimit(0.0f, 1.0f, newSize01);
-        const float Scale = 0.25f + 0.75f * cachedSize01;
+        //cachedSize = juce::jlimit(0.0f, 1.0f, newSize01);
+        cachedSize = std::max(0.0f, newSize);
+
+        const float Scale = 0.25f + 0.75f * newSize;
 
         for (size_t StageIndex = 0;
              StageIndex < stages.size() && StageIndex < baseStageDelayMsAtFullSize.size();
@@ -183,17 +186,18 @@ private:
     std::vector<unsigned int> tpdfNoiseSeedB;
 
     int cachedStageCount = 6;
-    float cachedSize01 = 0.0f;
+    float cachedSize = 0.0f;
 
     std::vector<float> baseStageDelayMsAtFullSize;
 
     std::vector<float> BuildQualityDistributedStageDelays(
         const std::vector<float>& sourceTunings,
         int numberOfStages,
-        float size01) const
+        float size) const
     {
         const int clampedStageCount = std::max(1, numberOfStages);
-        const float clampedSize01   = std::max(0.0f, std::min(1.0f, size01));
+        //const float clampedSize01 = std::max(0.0f, std::min(1.0f, size01));
+        const float clampedSize = std::max(0.0f, size);
 
         if (sourceTunings.empty())
             return {};
@@ -209,7 +213,7 @@ private:
             const int centerIndex = sourceCount / 2;
             const float scaledMilliseconds =
                 sourceTunings[static_cast<size_t>(centerIndex)]
-                * (0.25f + 0.75f * clampedSize01);
+                * (0.25f + 0.75f * clampedSize);
 
             finalDelays.push_back(scaledMilliseconds);
             return finalDelays;
@@ -237,7 +241,7 @@ private:
                 + sourceTunings[static_cast<size_t>(sourceIndexB)] * fraction;
 
             const float scaledMilliseconds =
-                interpolatedMilliseconds * (0.25f + 0.75f * clampedSize01);
+                interpolatedMilliseconds * (0.25f + 0.75f * clampedSize);
 
             finalDelays.push_back(scaledMilliseconds);
         }

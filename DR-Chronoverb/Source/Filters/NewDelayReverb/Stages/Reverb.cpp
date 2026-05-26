@@ -1,12 +1,5 @@
 #include "Reverb.h"
 
-// TODO: Doesn't scale with delay time (similar to Deelay)
-// TODO: Reverb IR lasts around 2000 ms.
-// TODO: Scale delayTimeScaled to IR length (maxDelayMS - IRLength)
-// TODO: Run UpdateSize(delayTimeScaled * diffusionSize)
-
-// TODO: Wet signal has white noise (DC artifacts??)
-
 void Reverb::PrepareToPlay(double newSampleRate)
 {
     sampleRate = newSampleRate;
@@ -39,6 +32,8 @@ void Reverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 {
     if (diffusionRebuildPending.exchange(false, std::memory_order_acq_rel))
         rebuildDiffusionIfNeeded();
+
+    DBG("Delay time: " << delayTimeSegment.DelayTimeMilliseconds);
 }
 
 float Reverb::ProcessSample(float inputSample)
@@ -47,6 +42,8 @@ float Reverb::ProcessSample(float inputSample)
         3.0f, delayTimeSegment.DelayTimeMilliseconds / irLengthMs);
 
     diffusion->UpdateSize(diffusionSize * timeScale);
+
+    //DBG("Diff size: " << diffusionSize);
 
     // 1) Input + feedback
     const float inputFeedback = inputSample + lastFeedback;
@@ -69,7 +66,6 @@ void Reverb::SetHostTempo(float bpm)
     hostBPM = bpm;
 
     delayTimeSegment.SetHostTempo(bpm);
-    delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 }
 
 void Reverb::SetDelayTime(float newDelayTime)
@@ -97,7 +93,7 @@ void Reverb::SetDiffusionAmount(float newDiffusionAmount)
 
 void Reverb::SetDiffusionSize(float newDiffusionSize)
 {
-    diffusionSize = newDiffusionSize;
+    diffusionSize = newDiffusionSize * tuningLengthMultiplier;
 }
 
 void Reverb::SetDiffusionQuality(int newDiffusionQuality)
