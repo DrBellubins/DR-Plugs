@@ -96,6 +96,7 @@ float Delay::ProcessSample(float inputSample)
 
     return blendedTap;
 }
+
 //region Parameters
 
 void Delay::SetHostTempo(float bpm)

@@ -13,6 +13,8 @@
 class PitchShifter
 {
 public:
+    //PitchShifter();
+
     void PrepareToPlay(double newSampleRate);
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
 
@@ -20,7 +22,7 @@ public:
 
     void SetHostTempo(float bpm);
 
-    void SetDelayLine(DelayLine& newDelayLine); // From Delay.cpp
+    void SetDelayLines(DelayLine& newDelayLineLeft, DelayLine& newDelayLineRight); // From Delay.cpp
 
     void SetDelayTime(float newDelayTime);
     void SetDelayMode(int newDelaymode);
@@ -87,11 +89,13 @@ private:
     OctaveEchoPitchShifter pitchShifterRight;
 
     //DelayLine delayLine;
-    DelayLine* delayLine = nullptr;
+    //DelayLine* delayLine = nullptr;
+    DelayLine* delayLineLeft;
+    DelayLine* delayLineRight;
 
     DelayTimeSegment delayTimeSegment;
 
-    std::unique_ptr<Reverb> reverb;
+    //std::unique_ptr<Reverb> reverb;
 
     std::atomic<bool> pitchSequenceRebuildPending { false };
 };
