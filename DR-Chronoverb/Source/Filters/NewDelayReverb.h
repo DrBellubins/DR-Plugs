@@ -8,7 +8,7 @@
 #include "NewDelayReverb/DelayLine.h"
 #include "NewDelayReverb/DampingFilter.h"
 #include "NewDelayReverb/DiffusionChain.h"
-#include "NewDelayReverb/PitchShifter.h"
+#include "NewDelayReverb/PitchShiftingEngine.h"
 #include "NewDelayReverb/DiffusionAllpass.h"
 
 class DelayLine;

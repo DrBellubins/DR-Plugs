@@ -38,13 +38,12 @@ public:
         SetBackend(std::move(granular));
     }
 
-    void Prepare(double newSampleRate, int maximumBlockSize)
+    void Prepare(double newSampleRate)
     {
         sampleRate = newSampleRate;
-        maximumBlockSizeCached = maximumBlockSize;
 
         if (backend != nullptr)
-            backend->Prepare(sampleRate, maximumBlockSize);
+            backend->Prepare(sampleRate);
 
         Reset();
     }
@@ -189,7 +188,7 @@ public:
 
         if (backend != nullptr)
         {
-            backend->Prepare(sampleRate, maximumBlockSizeCached);
+            backend->Prepare(sampleRate);
             backend->Reset();
             backend->SetInitialRatio(sequence != nullptr ? sequence->GetCurrentPitchRatio() : 1.0f);
         }
@@ -211,7 +210,6 @@ public:
 
 private:
     double sampleRate = 48000.0;
-    int maximumBlockSizeCached = 0;
     bool hasPendingSequence = false;
 
     std::unique_ptr<IPitchSequence>      sequence;

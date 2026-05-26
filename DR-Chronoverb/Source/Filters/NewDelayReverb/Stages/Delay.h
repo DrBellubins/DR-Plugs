@@ -12,7 +12,7 @@
 // TODO: Wet signal has white noise (DC artifacts??)
 // TODO: Sounds too mono when compared to Deelay?
 
-// Single channel, handles all delay feedback, diffusion, damping, etc.
+// Single-channel, handles all delay feedback, diffusion, damping, etc.
 class Delay
 {
 public:
@@ -47,7 +47,7 @@ private:
     void updateFeedbackGainFromFeedbackTime();
 
     // Settings
-    const float tuningLengthMultiplier = 0.25f;
+    const float tuningLengthMultiplier = 0.5f;
     const float MinimumBPM = 20.0f; // Silently breaks below this point
     const float centeredSwellRatio = 0.25f;
     const float diffusionCompensationBias = 5.0f; // Controls swell into nominal (higher = longer swell)

@@ -1,21 +1,80 @@
 #include "PitchShifter.h"
 
+#include "juce_audio_processors_headless/format_types/juce_VST3Common.h"
+
 void PitchShifter::PrepareToPlay(double newSampleRate)
 {
     sampleRate = newSampleRate;
 
+    // Delay time
     delayTimeSegment.PepareToPlay(sampleRate);
     delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
+
+    // Delay line
+    delayLine = std::make_unique<DelayLine>(delayTimeSegment.MaxDelaySamples);
+
+    delayLine->Clear();
+    delayLine->SetSampleRate(sampleRate);
+
+    // Pitch shifter
+    echoWriteCounter = 0;
+
+    pitchShifter.Prepare(sampleRate);
+    pitchShifter.SetEnabled(true);
+
+    pitchShifter.CommitPendingSequenceNow();
+
+    // Various
+    rebuildPitchSequences();
 }
 
 void PitchShifter::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 {
+    if (pitchSequenceRebuildPending.exchange(false, std::memory_order_acq_rel))
+        rebuildPitchSequences();
 
+    pitchShifterLatencyMs = pitchShifter.GetLatencyMilliseconds();
 }
 
 float PitchShifter::ProcessSample(float inputSample)
 {
+    // 1) Pre-read latency compensation.
+    smoothedCenteredReadDelayMilliseconds += readDelaySlewCoefficient *
+            (delayTimeSegment.DelayTimeMilliseconds - smoothedCenteredReadDelayMilliseconds);
 
+    const float nominalReadMilliseconds = smoothedCenteredReadDelayMilliseconds;
+    const float preReadMs = std::max(1.0f, nominalReadMilliseconds - pitchShifterLatencyMs);
+
+    const float preReadWet  = delayLine->ReadFeedbackBuffer(preReadMs);
+
+    // 2) Process pitch shifter
+    float pitched = inputSample;
+
+    if (pitchWetMix > 0.0001f)
+    {
+        pitched = pitchShifter.ProcessSample(preReadWet);
+
+        // TODO: Implement pitch reverb line.
+
+        /*float diffPitchedLeft = pitchDiffusion->ProcessSample(pitched);
+
+        pitched = PMath::EqualPowerCrossfade(pitched, diffPitchedLeft, diffusionAmount);*/
+    }
+
+    // 3) Advance echo boundary counters (needed regardless of pitch enable state)
+    {
+        ++echoWriteCounter;
+        if (echoWriteCounter >= writePeriodSamples)
+        {
+            echoWriteCounter = 0;
+            pitchShifter.OnNewEchoBoundary();
+        }
+    }
+
+    // TODO: Temporary, until reverb line implemented
+    pitched = PMath::EqualPowerCrossfade(inputSample, pitched, pitchWetMix);
+
+    return pitched;
 }
 
 // --- Parameters ---
@@ -56,6 +115,29 @@ void PitchShifter::SetDiffusionSize(float newDiffusionSize)
 void PitchShifter::SetDiffusionQuality(int newDiffusionQuality)
 {
     diffusionQualityStages = newDiffusionQuality;
+}
+
+void PitchShifter::SetPitchRangeLower(float pitchRangeLowerSemitones)
+{
+    pitchRangeLower = juce::jlimit(-48.0f, 48.0f, pitchRangeLowerSemitones);
+    pitchSequenceRebuildPending.store(true, std::memory_order_release);
+}
+
+void PitchShifter::SetPitchRangeUpper(float pitchRangeUpperSemitones)
+{
+    pitchRangeUpper = juce::jlimit(-48.0f, 48.0f, pitchRangeUpperSemitones);
+    pitchSequenceRebuildPending.store(true, std::memory_order_release);
+}
+
+void PitchShifter::SetPitchSequence(int sequenceIndex)
+{
+    pitchMode = juce::jlimit(0, 3, sequenceIndex);
+    pitchSequenceRebuildPending.store(true, std::memory_order_release);
+}
+
+void PitchShifter::SetpitchWetMix(float newPitchWetMix)
+{
+    pitchWetMix = clamp01(newPitchWetMix);
 }
 
 //region Update Functions

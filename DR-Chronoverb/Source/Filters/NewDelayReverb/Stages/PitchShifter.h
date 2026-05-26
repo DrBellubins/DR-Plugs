@@ -1,8 +1,10 @@
 #pragma once
 
-#include "../PitchShifter.h"
+#include "../PitchShiftingEngine.h"
 #include "Reverb.h"
 #include "../DelayTimeSegment.h"
+#include "../DelayLine.h"
+#include "../../../Utils/PMath.h"
 
 class PitchShifter
 {
@@ -20,6 +22,13 @@ public:
     void SetDiffusionAmount(float newDiffusionAmount);
     void SetDiffusionSize(float newDiffusionSize);
     void SetDiffusionQuality(int newDiffusionQuality);
+
+    void SetPitchRangeLower(float pitchRangeLowerSemitones);
+    void SetPitchRangeUpper(float pitchRangeUpperSemitones);
+    void SetPitchSequence(int sequenceIndex);
+    void SetpitchWetMix(float newPitchWetMix);
+
+    void SetWetMix(float newWetMix);
 
 private:
     void rebuildPitchSequences();
@@ -39,16 +48,15 @@ private:
     float smoothedCenteredReadDelayMilliseconds = 1.0f;
     float readDelaySlewCoefficient = 0.0f;
 
+    int writePeriodSamples = 1;
+    int echoWriteCounter = 0;
+
     // Settings
     const float MinimumBPM = 20.0f;
 
     // Latency
     float cachedPitchCompensationMs = 0.0f;
     float pitchShifterLatencyMs = 0.0f;
-
-    // Probably not needed
-    int writePeriodSamples = 1;
-    int echoWriteCounter = 0;
 
     // Parameters
     float delayTimeNormalized = 0.3f;
@@ -70,6 +78,9 @@ private:
 
     // Data
     OctaveEchoPitchShifter pitchShifter;
+
+    std::unique_ptr<DelayLine> delayLine;
+
     DelayTimeSegment delayTimeSegment;
     Reverb reverb;
 

@@ -8,11 +8,13 @@
 #include "NewDelayReverb/DelayLine.h"
 #include "NewDelayReverb/DampingFilter.h"
 #include "NewDelayReverb/DiffusionChain.h"
-#include "NewDelayReverb/PitchShifter.h"
+#include "NewDelayReverb/PitchShiftingEngine.h"
 #include "NewDelayReverb/DiffusionAllpass.h"
 #include "ChronoverbUtils.h"
+
 #include "NewDelayReverb/Stages/Delay.h"
 #include "NewDelayReverb/Stages/Reverb.h"
+#include "NewDelayReverb/Stages/PitchShifter.h"
 
 class DelayLine;
 class DampingFilter;
@@ -25,6 +27,14 @@ public:
 
     void PrepareToPlay(double sampleRate);
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
+
+    std::unique_ptr<Delay> DelayLeft;
+    std::unique_ptr<Delay> DelayRight;
+
+    std::unique_ptr<Reverb> ReverbLeftRight;
+
+    std::unique_ptr<PitchShifter> PitchLeft;
+    std::unique_ptr<PitchShifter> PitchRight;
 
     //region Parameter Sets
     void SetHostTempo(float bpm);
@@ -81,9 +91,4 @@ private:
     float pitchStereoEnabled01 = 0.0f;
     float pitchWetMix = 0.0f;
     //endregion
-
-    std::unique_ptr<Delay> DelayLeft;
-    std::unique_ptr<Delay> DelayRight;
-
-    std::unique_ptr<Reverb> ReverbLeftRight;
 };

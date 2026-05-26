@@ -27,9 +27,9 @@ class IPitchShifterBackend
 public:
     virtual ~IPitchShifterBackend() = default;
 
-    virtual void Prepare(double newSampleRate, int maximumBlockSize)
+    virtual void Prepare(double newSampleRate)
     {
-        juce::ignoreUnused(newSampleRate, maximumBlockSize);
+        juce::ignoreUnused(newSampleRate);
     }
 
     virtual void Reset() {}

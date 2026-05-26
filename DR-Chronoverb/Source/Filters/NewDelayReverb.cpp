@@ -82,8 +82,8 @@ void NewDelayReverb::PrepareToPlay(double newSampleRate)
     updateFeedbackGainFromFeedbackTime();
 
     // Start Pitch Shift
-    pitchShifterLeft.Prepare(sampleRate, 512);
-    pitchShifterRight.Prepare(sampleRate, 512);
+    pitchShifterLeft.Prepare(sampleRate);
+    pitchShifterRight.Prepare(sampleRate);
     pitchShifterLeft.SetEnabled(true);
     pitchShifterRight.SetEnabled(true);
 

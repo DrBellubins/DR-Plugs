@@ -6,8 +6,7 @@
 #include "../DiffusionChain.h"
 #include "../DampingFilter.h"
 
-// TODO: Wet signal has white noise (DC artifacts??)
-
+// Multi-channel, handles all reverb feedback, diffusion, damping, etc.
 class Reverb
 {
 public:

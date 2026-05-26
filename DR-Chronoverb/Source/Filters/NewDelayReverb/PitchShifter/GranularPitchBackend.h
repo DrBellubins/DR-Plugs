@@ -24,9 +24,8 @@ class GranularPitchBackend : public IPitchShifterBackend
 public:
     GranularPitchBackend() = default;
 
-    void Prepare(double newSampleRate, int maximumBlockSize) override
+    void Prepare(double newSampleRate) override
     {
-        juce::ignoreUnused(maximumBlockSize);
         sampleRate = newSampleRate;
 
         const int bufferMs = 300;
