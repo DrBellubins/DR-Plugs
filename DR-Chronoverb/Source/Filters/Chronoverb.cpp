@@ -41,6 +41,9 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
     ReverbLeftRight->ProcessBlock(audioBuffer);
 
+    PitchShifterLeft->ProcessBlock(audioBuffer);
+    PitchShifterRight->ProcessBlock(audioBuffer);
+
     for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
     {
         const float dryLeft = leftData[sampleIndex];

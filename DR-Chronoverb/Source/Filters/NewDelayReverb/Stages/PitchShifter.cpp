@@ -37,9 +37,6 @@ float PitchShifter::ProcessSample(float inputSample)
     if (delayLine == nullptr)
         return inputSample;
 
-    // 0) Write sample to buffer
-    //delayLine->PushSample(inputSample);
-
     // 1) Pre-read latency compensation.
     smoothedCenteredReadDelayMilliseconds += readDelaySlewCoefficient *
             (delayTimeSegment.DelayTimeMilliseconds - smoothedCenteredReadDelayMilliseconds);
