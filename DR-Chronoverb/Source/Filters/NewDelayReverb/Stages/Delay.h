@@ -4,16 +4,14 @@
 #include <memory>
 #include <vector>
 
-#include <juce_dsp/juce_dsp.h>
-
 #include "../DelayLine.h"
 #include "../DampingFilter.h"
 #include "../DiffusionChain.h"
-#include "../../ChronoverbUtils.h"
+#include "../DelayTimeSegment.h"
 
+class DelayTimeSegment;
 class DelayLine;
 class DiffusionChain;
-
 
 // Single channel, handles all delay feedback, diffusion, damping, etc.
 class Delay
@@ -45,7 +43,6 @@ public:
     void SetDiffusionQuality(int newDiffusionQuality);
 
 private:
-    void updateDelayMillisecondsFromNormalized();
     void rebuildDiffusionIfNeeded();
     void updateFeedbackGainFromFeedbackTime();
 
@@ -76,11 +73,6 @@ private:
     float readDelaySlewCoefficient = 0.0f;
 
     // Parameters
-    float delayTimeNormalized = 0.3f;
-    float delayTimeMilliseconds = 300.0f;
-
-    int delayMode = 0;
-
     float feedbackTimeSeconds = 3.0f;
 
     float diffusionAmount = 0.0f;
@@ -91,6 +83,8 @@ private:
     //float highpassCutoff = 0.0f;
 
     // Data
+    DelayTimeSegment delayTimeSegment;
+
     std::unique_ptr<DelayLine> delayLine;
 
     std::unique_ptr<DiffusionChain> diffusionRead;

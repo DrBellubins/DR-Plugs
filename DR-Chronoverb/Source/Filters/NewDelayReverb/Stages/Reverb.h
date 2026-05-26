@@ -35,7 +35,6 @@ public:
     void SetDiffusionQuality(int newDiffusionQuality);
 
 private:
-    void updateDelayMillisecondsFromNormalized();
     void rebuildDiffusionIfNeeded();
     void updateFeedbackGainFromFeedbackTime();
 
@@ -49,19 +48,7 @@ private:
     int lastBuiltQualityStages = -1;
     float lastBuiltSize01 = -1.0f;
 
-    float smoothedCenteredReadDelayMilliseconds = 1.0f;
-    float readDelaySlewCoefficient = 0.0f;
-
-    // Probably not needed
-    int writePeriodSamples = 1;
-    int echoWriteCounter = 0;
-
     // Parameters
-    float delayTimeNormalized = 0.3f;
-    float delayTimeMilliseconds = 300.0f;
-
-    int delayMode = 0;
-
     float feedbackTimeSeconds = 3.0f;
 
     float diffusionAmount = 0.0f;
