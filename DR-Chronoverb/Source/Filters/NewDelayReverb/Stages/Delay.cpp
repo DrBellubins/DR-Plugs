@@ -185,9 +185,10 @@ void Delay::updateDelayMillisecondsFromNormalized()
         const float slewSeconds = std::max(0.05f, delayMilliseconds / 1000.0f);
         readDelaySlewCoefficient =
             1.0f / (slewSeconds * static_cast<float>(sampleRate));
-    }
 
-    DBG("delay time ms: " << delayMilliseconds);
+        DBG("Delay time ms: " << delayMilliseconds << " Beat mult: " <<
+            beatMultipliers[stepIndex] << " Delay mode: " << delayMode);
+    }
 
     // IMPORTANT: always update write period for all modes
     writePeriodSamples = std::max(
