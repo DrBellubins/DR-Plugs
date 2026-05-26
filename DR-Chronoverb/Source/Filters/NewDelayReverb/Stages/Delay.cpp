@@ -4,7 +4,7 @@ void Delay::PrepareToPlay(double newSampleRate)
 {
     sampleRate = newSampleRate;
 
-    delayTimeSegment.PepareToPlay(newSampleRate);
+    delayTimeSegment.PepareToPlay(sampleRate);
     delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 
     // Delay line
@@ -37,7 +37,7 @@ void Delay::PrepareToPlay(double newSampleRate)
 
     // Various
     lastBuiltQualityStages = -1;
-    lastBuiltSize01 = -1.0f;
+    lastBuiltSize = -1.0f;
 
     rebuildDiffusionIfNeeded();
     updateFeedbackGainFromFeedbackTime();
@@ -151,13 +151,13 @@ void Delay::SetDiffusionQuality(int newDiffusionQuality)
 void Delay::rebuildDiffusionIfNeeded()
 {
     if (diffusionQualityStages == lastBuiltQualityStages
-        && diffusionSize == lastBuiltSize01)
+        && diffusionSize == lastBuiltSize)
     {
         return;
     }
 
     lastBuiltQualityStages = diffusionQualityStages;
-    lastBuiltSize01 = diffusionSize;
+    lastBuiltSize = diffusionSize;
 
     // Delay
     if (diffusionRead != nullptr)

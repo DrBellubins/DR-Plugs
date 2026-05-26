@@ -9,14 +9,14 @@
 #include "../DiffusionChain.h"
 #include "../DelayTimeSegment.h"
 
-class DelayTimeSegment;
-class DelayLine;
-class DiffusionChain;
+// TODO: Wet signal has white noise (DC artifacts??)
+// TODO: Sounds too mono when compared to Deelay?
 
 // Single channel, handles all delay feedback, diffusion, damping, etc.
 class Delay
 {
 public:
+    // TODO: Need to be scaled by 0.25 to fit Deelay
     std::vector<float> Tunings =
     {
         5.0, 13.0, 19.0, 29.0, 31.0, 47.0, 73.0, 89.0       // Snappy primes
@@ -64,7 +64,7 @@ private:
     int echoWriteCounter = 0;
 
     int lastBuiltQualityStages = -1;
-    float lastBuiltSize01 = -1.0f;
+    float lastBuiltSize = -1.0f;
 
     float totalDelayDiffusionMilliseconds = 0.0f;
     float staticDiffusionCompensationMilliseconds = 0.0f;

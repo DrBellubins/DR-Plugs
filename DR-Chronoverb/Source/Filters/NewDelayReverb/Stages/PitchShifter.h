@@ -1,13 +1,8 @@
 #pragma once
 
-#include <juce_dsp/juce_dsp.h>
-#include <vector>
-
 #include "../PitchShifter.h"
 #include "Reverb.h"
-#include "../../ChronoverbUtils.h"
-
-class DiffusionChain;
+#include "../DelayTimeSegment.h"
 
 class PitchShifter
 {
@@ -21,14 +16,12 @@ public:
 
     void SetDelayTime(float newDelayTime);
     void SetDelayMode(int newDelaymode);
-    void SetFeedbackTime(float newFeedbackTimeSeconds);
 
     void SetDiffusionAmount(float newDiffusionAmount);
     void SetDiffusionSize(float newDiffusionSize);
     void SetDiffusionQuality(int newDiffusionQuality);
 
 private:
-    void updateDelayMillisecondsFromNormalized();
     void rebuildPitchSequences();
 
     // Runtime
@@ -77,6 +70,7 @@ private:
 
     // Data
     OctaveEchoPitchShifter pitchShifter;
+    DelayTimeSegment delayTimeSegment;
     Reverb reverb;
 
     std::atomic<bool> pitchSequenceRebuildPending { false };

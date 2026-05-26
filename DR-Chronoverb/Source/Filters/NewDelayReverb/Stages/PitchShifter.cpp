@@ -4,10 +4,8 @@ void PitchShifter::PrepareToPlay(double newSampleRate)
 {
     sampleRate = newSampleRate;
 
-    constexpr float MaxBeatMultiplier = 4.0f;
-    constexpr float MaxDottedMultiplier = 1.5f;
-
-    maxDelayMS = (60000.0f / MinimumBPM) * MaxBeatMultiplier * MaxDottedMultiplier;
+    delayTimeSegment.PepareToPlay(sampleRate);
+    delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 }
 
 void PitchShifter::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
@@ -24,19 +22,25 @@ float PitchShifter::ProcessSample(float inputSample)
 void PitchShifter::SetHostTempo(float bpm)
 {
     hostBPM = bpm;
-    updateDelayMillisecondsFromNormalized();
+
+    delayTimeSegment.SetHostTempo(bpm);
+    delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 }
 
 void PitchShifter::SetDelayTime(float newDelayTime)
 {
     delayTimeNormalized = newDelayTime;
-    updateDelayMillisecondsFromNormalized();
+
+    delayTimeSegment.SetDelayTime(newDelayTime);
+    delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 }
 
 void PitchShifter::SetDelayMode(int newDelayMode)
 {
     delayMode = newDelayMode;
-    updateDelayMillisecondsFromNormalized();
+
+    delayTimeSegment.SetDelayMode(newDelayMode);
+    delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 }
 
 void PitchShifter::SetDiffusionAmount(float newDiffusionAmount)
@@ -100,8 +104,7 @@ void PitchShifter::rebuildPitchSequences()
         }
     };
 
-    configureShifter(pitchShifterLeft);
-    configureShifter(pitchShifterRight);
+    configureShifter(pitchShifter);
 }
 
 //endregion

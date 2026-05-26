@@ -1,15 +1,10 @@
 #pragma once
 
-#include <juce_dsp/juce_dsp.h>
 #include <vector>
 
-#include "../../ChronoverbUtils.h"
+#include "../DelayTimeSegment.h"
 #include "../DiffusionChain.h"
 #include "../DampingFilter.h"
-#include "../DelayLine.h"
-
-class DiffusionChain;
-class DampingFilter;
 
 class Reverb
 {
@@ -38,6 +33,9 @@ private:
     void rebuildDiffusionIfNeeded();
     void updateFeedbackGainFromFeedbackTime();
 
+    // Settings
+    const float irLengthMs = 2000.0f;
+
     // Runtime
     double sampleRate = 48000.0;
     float hostBPM = 120.0f;
@@ -46,7 +44,10 @@ private:
     float feedbackGain = 0.5f;
 
     int lastBuiltQualityStages = -1;
-    float lastBuiltSize01 = -1.0f;
+    float lastBuiltSize = -1.0f;
+
+    float smoothedCenteredReadDelayMilliseconds = 1.0f;
+    float readDelaySlewCoefficient = 0.0f;
 
     // Parameters
     float feedbackTimeSeconds = 3.0f;
@@ -56,6 +57,8 @@ private:
     int diffusionQualityStages = 8;
 
     // Data
+    DelayTimeSegment delayTimeSegment;
+
     std::unique_ptr<DiffusionChain> diffusion;
     std::unique_ptr<DampingFilter> damping;
 

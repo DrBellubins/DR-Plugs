@@ -4,9 +4,15 @@
 // TODO: Reverb IR lasts around 2000 ms.
 // TODO: Scale delayTimeScaled to IR length (maxDelayMS - IRLength)
 // TODO: Run UpdateSize(delayTimeScaled * diffusionSize)
+
+// TODO: Wet signal has white noise (DC artifacts??)
+
 void Reverb::PrepareToPlay(double newSampleRate)
 {
     sampleRate = newSampleRate;
+
+    delayTimeSegment.PepareToPlay(newSampleRate);
+    delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 
     // Diffusion
     diffusion = std::make_unique<DiffusionChain>();
@@ -20,10 +26,13 @@ void Reverb::PrepareToPlay(double newSampleRate)
 
     // Various
     lastBuiltQualityStages = -1;
-    lastBuiltSize01 = -1.0f;
+    lastBuiltSize = -1.0f;
 
     rebuildDiffusionIfNeeded();
     updateFeedbackGainFromFeedbackTime();
+
+    smoothedCenteredReadDelayMilliseconds = delayTimeSegment.DelayTimeMilliseconds;
+    readDelaySlewCoefficient = 1.0f / (0.02f * static_cast<float>(sampleRate));
 }
 
 void Reverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
@@ -34,7 +43,10 @@ void Reverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
 float Reverb::ProcessSample(float inputSample)
 {
-    diffusion->UpdateSize(diffusionSize);
+    const float timeScale = juce::jlimit(0.1f,
+        3.0f, delayTimeSegment.DelayTimeMilliseconds / irLengthMs);
+
+    diffusion->UpdateSize(diffusionSize * timeScale);
 
     // 1) Input + feedback
     const float inputFeedback = inputSample + lastFeedback;
@@ -55,14 +67,21 @@ float Reverb::ProcessSample(float inputSample)
 void Reverb::SetHostTempo(float bpm)
 {
     hostBPM = bpm;
+
+    delayTimeSegment.SetHostTempo(bpm);
+    delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 }
 
 void Reverb::SetDelayTime(float newDelayTime)
 {
+    delayTimeSegment.SetDelayTime(newDelayTime);
+    delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 }
 
 void Reverb::SetDelayMode(int newDelayMode)
 {
+    delayTimeSegment.SetDelayMode(newDelayMode);
+    delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 }
 
 void Reverb::SetFeedbackTime(float newFeedbackTime)
@@ -92,13 +111,13 @@ void Reverb::SetDiffusionQuality(int newDiffusionQuality)
 void Reverb::rebuildDiffusionIfNeeded()
 {
     if (diffusionQualityStages == lastBuiltQualityStages
-        && diffusionSize == lastBuiltSize01)
+        && diffusionSize == lastBuiltSize)
     {
         return;
     }
 
     lastBuiltQualityStages = diffusionQualityStages;
-    lastBuiltSize01 = diffusionSize;
+    lastBuiltSize = diffusionSize;
 
     // Delay
     if (diffusion != nullptr)
