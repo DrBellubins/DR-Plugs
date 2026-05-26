@@ -29,8 +29,9 @@ inline std::pair<float, float> GetDelayReverbGain(float diffusionAmount)
     float delayGain = std::cos(delayReverbBlend * juce::MathConstants<float>::halfPi);
     float reverbGain = std::sin(delayReverbBlend * juce::MathConstants<float>::halfPi);
 
-    delayGain = std::abs(delayGain);
-    reverbGain = std::abs(reverbGain);
+    // Suppress floating-point noise near zero
+    if (std::abs(delayGain) < 1.0e-6f) delayGain = 0.0f;
+    if (std::abs(reverbGain) < 1.0e-6f) reverbGain = 0.0f;
 
     delayGain = clamp01(delayGain);
     reverbGain = clamp01(reverbGain);

@@ -49,17 +49,12 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         // Blend delay -> reverb between diff amt 0.5 -> 1.0
         auto [delayGain, reverbGain] = GetDelayReverbGain(diffusionAmount);
 
-        DBG("Delay gain: " << delayGain << " Reverb gain: " << reverbGain);
-
         const float wetLeft = (delayLeft * delayGain) + (reverbLeft * reverbGain);
         const float wetRight = (delayRight * delayGain) + (reverbRight * reverbGain);
 
         // Dry + wet volume
-        //float outputLeft = (dryLeft * dryVolume) + (wetLeft * wetVolume);
-        //float outputRight = (dryRight * dryVolume) + (wetRight * wetVolume);
-
-        float outputLeft = delayLeft;
-        float outputRight = delayRight;
+        float outputLeft = (dryLeft * dryVolume) + (wetLeft * wetVolume);
+        float outputRight = (dryRight * dryVolume) + (wetRight * wetVolume);
 
         // Write to buffer
         leftData[sampleIndex] = outputLeft;
