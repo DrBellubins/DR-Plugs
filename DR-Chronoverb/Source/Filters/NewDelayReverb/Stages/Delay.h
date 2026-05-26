@@ -77,7 +77,7 @@ private:
 
     // Parameters
     float delayTimeNormalized = 0.3f;
-    float delayMilliseconds = 300.0f;
+    float delayTimeMilliseconds = 300.0f;
 
     int delayMode = 0;
 

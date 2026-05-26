@@ -351,7 +351,7 @@ void NewDelayReverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             if (widen > 0.0f)
             {
                 const float cross = widen * 0.25f;
-                const float newLeft = spreadWetLeft  - cross * spreadWetRight;
+                const float newLeft = spreadWetLeft - cross * spreadWetRight;
                 const float newRight = spreadWetRight - cross * spreadWetLeft;
                 spreadWetLeft = newLeft;
                 spreadWetRight = newRight;
