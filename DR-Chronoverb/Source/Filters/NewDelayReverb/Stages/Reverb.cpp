@@ -71,13 +71,11 @@ void Reverb::SetHostTempo(float bpm)
 void Reverb::SetDelayTime(float newDelayTime)
 {
     delayTimeSegment.SetDelayTime(newDelayTime);
-    delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 }
 
 void Reverb::SetDelayMode(int newDelayMode)
 {
     delayTimeSegment.SetDelayMode(newDelayMode);
-    delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 }
 
 void Reverb::SetFeedbackTime(float newFeedbackTime)
