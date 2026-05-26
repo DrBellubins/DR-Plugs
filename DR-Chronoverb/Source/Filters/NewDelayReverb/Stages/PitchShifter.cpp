@@ -3,7 +3,7 @@
 PitchShifter::PitchShifter(DelayLine& newDelayLine)
     : delayLine(&newDelayLine)
 {
-
+    delayLine = &newDelayLine;
 }
 
 void PitchShifter::PrepareToPlay(double newSampleRate)
