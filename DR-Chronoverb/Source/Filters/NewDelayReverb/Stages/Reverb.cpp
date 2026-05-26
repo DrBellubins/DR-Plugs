@@ -69,7 +69,8 @@ std::pair<float, float> Reverb::ProcessSample(float inputSampleL, float inputSam
     return std::make_pair(dampedLeft, dampedRight);
 }
 
-// --- Parameters ---
+//region Parameters
+
 void Reverb::SetHostTempo(float bpm)
 {
     hostBPM = bpm;
@@ -108,6 +109,8 @@ void Reverb::SetDiffusionQuality(int newDiffusionQuality)
     diffusionQualityStages = newDiffusionQuality;
     diffusionRebuildPending.store(true, std::memory_order_release);
 }
+
+//endregion
 
 //region Update Functions
 

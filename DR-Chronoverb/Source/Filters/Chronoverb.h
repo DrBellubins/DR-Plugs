@@ -33,8 +33,8 @@ public:
 
     std::unique_ptr<Reverb> ReverbLeftRight;
 
-    std::unique_ptr<PitchShifter> PitchShifterLeft;
-    std::unique_ptr<PitchShifter> PitchShifterRight;
+    std::unique_ptr<PitchShifter> PitchShifterLeftRight;
+    //std::unique_ptr<PitchShifter> PitchShifterRight;
 
     //region Parameter Sets
     void SetHostTempo(float bpm);

@@ -96,8 +96,8 @@ float Delay::ProcessSample(float inputSample)
 
     return blendedTap;
 }
+//region Parameters
 
-// --- Parameters ---
 void Delay::SetHostTempo(float bpm)
 {
     hostBPM = bpm;
@@ -137,6 +137,8 @@ void Delay::SetDiffusionQuality(int newDiffusionQuality)
     diffusionQualityStages = newDiffusionQuality;
     diffusionRebuildPending.store(true, std::memory_order_release);
 }
+
+//endregion
 
 //region Update Functions
 

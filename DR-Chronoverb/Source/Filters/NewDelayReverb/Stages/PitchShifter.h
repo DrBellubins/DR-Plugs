@@ -6,15 +6,17 @@
 #include "../DelayLine.h"
 #include "../../../Utils/PMath.h"
 
-// TODO: Pitch sequences aren't set???
+// TODO: Make multi-channel, similar to delay.
 // TODO: Implement pitch reverb line.
+// TODO: Pitch sequences aren't set??? (Happens in old implementation)
+
 class PitchShifter
 {
 public:
     void PrepareToPlay(double newSampleRate);
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
 
-    float ProcessSample(float inputSample);
+    std::pair<float, float> ProcessSample(float inputSampleL, float inputSampleR);
 
     void SetHostTempo(float bpm);
 
@@ -22,6 +24,7 @@ public:
 
     void SetDelayTime(float newDelayTime);
     void SetDelayMode(int newDelaymode);
+    void SetFeebackTime(float newFeebackTime);
 
     void SetDiffusionAmount(float newDiffusionAmount);
     void SetDiffusionSize(float newDiffusionSize);
@@ -42,6 +45,7 @@ private:
     float maxDelayMS = 0.0f;
 
     float lastFeedback = 0.0f;
+
     float feedbackGain = 0.5f;
 
     int lastBuiltQualityStages = -1;
@@ -79,13 +83,15 @@ private:
     float pitchWetMix = 0.0f;
 
     // Data
-    OctaveEchoPitchShifter pitchShifter;
+    OctaveEchoPitchShifter pitchShifterLeft;
+    OctaveEchoPitchShifter pitchShifterRight;
 
     //DelayLine delayLine;
     DelayLine* delayLine = nullptr;
 
     DelayTimeSegment delayTimeSegment;
-    Reverb reverb;
+
+    std::unique_ptr<Reverb> reverb;
 
     std::atomic<bool> pitchSequenceRebuildPending { false };
 };

@@ -7,8 +7,7 @@ void Chronoverb::SetHostTempo(float bpm)
 
     ReverbLeftRight->SetHostTempo(bpm);
 
-    PitchShifterLeft->SetHostTempo(bpm);
-    PitchShifterRight->SetHostTempo(bpm);
+    PitchShifterLeftRight->SetHostTempo(bpm);
 }
 
 void Chronoverb::SetDelayTime(float newDelayTimeNormalized)
@@ -20,8 +19,7 @@ void Chronoverb::SetDelayTime(float newDelayTimeNormalized)
 
     ReverbLeftRight->SetDelayTime(delayTimeNormalized);
 
-    PitchShifterLeft->SetDelayTime(delayTimeNormalized);
-    PitchShifterRight->SetDelayTime(delayTimeNormalized);
+    PitchShifterLeftRight->SetDelayTime(delayTimeNormalized);
 }
 
 void Chronoverb::SetDelayMode(int newDelayMode)
@@ -33,8 +31,7 @@ void Chronoverb::SetDelayMode(int newDelayMode)
 
     ReverbLeftRight->SetDelayMode(delayMode);
 
-    PitchShifterLeft->SetDelayMode(delayMode);
-    PitchShifterRight->SetDelayMode(delayMode);
+    PitchShifterLeftRight->SetDelayMode(delayMode);
 }
 
 void Chronoverb::SetFeedbackTime(float newFeedbackTimeSeconds)
@@ -56,8 +53,7 @@ void Chronoverb::SetDiffusionAmount(float newAmount01)
 
     ReverbLeftRight->SetDiffusionAmount(diffusionAmount);
 
-    PitchShifterLeft->SetDiffusionAmount(diffusionAmount);
-    PitchShifterRight->SetDiffusionAmount(diffusionAmount);
+    PitchShifterLeftRight->SetDiffusionAmount(diffusionAmount);
 }
 
 void Chronoverb::SetDiffusionSize(float newSize01)
@@ -69,8 +65,7 @@ void Chronoverb::SetDiffusionSize(float newSize01)
 
     ReverbLeftRight->SetDiffusionSize(diffusionSize);
 
-    PitchShifterLeft->SetDiffusionSize(diffusionSize);
-    PitchShifterRight->SetDiffusionSize(diffusionSize);
+    PitchShifterLeftRight->SetDiffusionSize(diffusionSize);
 }
 
 void Chronoverb::SetDiffusionQuality(int newQualityStages)
@@ -82,8 +77,7 @@ void Chronoverb::SetDiffusionQuality(int newQualityStages)
 
     ReverbLeftRight->SetDiffusionQuality(diffusionQualityStages);
 
-    PitchShifterLeft->SetDiffusionQuality(diffusionQualityStages);
-    PitchShifterRight->SetDiffusionQuality(diffusionQualityStages);
+    PitchShifterLeftRight->SetDiffusionQuality(diffusionQualityStages);
 }
 
 void Chronoverb::SetLowpassCutoff(float newLowpass01)
@@ -128,32 +122,28 @@ void Chronoverb::SetPitchRangeLower(float pitchRangeLowerSemitones)
 {
     pitchRangeLower = juce::jlimit(-48.0f, 48.0f, pitchRangeLowerSemitones);
 
-    PitchShifterLeft->SetPitchRangeLower(pitchRangeLower);
-    PitchShifterRight->SetPitchRangeLower(pitchRangeLower);
+    PitchShifterLeftRight->SetPitchRangeLower(pitchRangeLower);
 }
 
 void Chronoverb::SetPitchRangeUpper(float pitchRangeUpperSemitones)
 {
     pitchRangeUpper = juce::jlimit(-48.0f, 48.0f, pitchRangeUpperSemitones);
 
-    PitchShifterLeft->SetPitchRangeUpper(pitchRangeUpper);
-    PitchShifterRight->SetPitchRangeUpper(pitchRangeUpper);
+    PitchShifterLeftRight->SetPitchRangeUpper(pitchRangeUpper);
 }
 
 void Chronoverb::SetPitchSequence(int sequenceIndex)
 {
     pitchMode = juce::jlimit(0, 3, sequenceIndex);
 
-    PitchShifterLeft->SetPitchSequence(pitchMode);
-    PitchShifterRight->SetPitchSequence(pitchMode);
+    PitchShifterLeftRight->SetPitchSequence(pitchMode);
 }
 
 void Chronoverb::SetpitchWetMix(float newPitchWetMix)
 {
     pitchWetMix = clamp01(newPitchWetMix);
 
-    PitchShifterLeft->SetPitchWetMix(pitchWetMix);
-    PitchShifterRight->SetPitchWetMix(pitchWetMix);
+    PitchShifterLeftRight->SetPitchWetMix(pitchWetMix);
 }
 
 // Pitch shifting
