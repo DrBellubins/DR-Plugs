@@ -26,7 +26,7 @@ public:
         constexpr float MaxDottedMultiplier = 1.5f;
 
         MaxDelayMS = (60000.0f / MinimumBPM) * MaxBeatMultiplier * MaxDottedMultiplier;
-        MaxDelayMS = std::min(1.0f, MaxDelayMS);
+        MaxDelayMS = std::max(1.0f, MaxDelayMS);
 
         MaxDelaySamples = static_cast<int>(std::ceil((MaxDelayMS / 1000.0f) * sampleRate));
     }

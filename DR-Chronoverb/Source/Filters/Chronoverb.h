@@ -85,6 +85,5 @@ private:
     std::unique_ptr<Delay> DelayLeft;
     std::unique_ptr<Delay> DelayRight;
 
-    std::unique_ptr<Reverb> ReverbLeft;
-    std::unique_ptr<Reverb> ReverbRight;
+    std::unique_ptr<Reverb> ReverbLeftRight;
 };

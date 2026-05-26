@@ -6,8 +6,7 @@ Chronoverb::Chronoverb()
     DelayLeft = std::make_unique<Delay>();
     DelayRight = std::make_unique<Delay>();
 
-    ReverbLeft = std::make_unique<Reverb>();
-    ReverbRight = std::make_unique<Reverb>();
+    ReverbLeftRight = std::make_unique<Reverb>();
 }
 
 void Chronoverb::PrepareToPlay(double newSampleRate)
@@ -17,8 +16,7 @@ void Chronoverb::PrepareToPlay(double newSampleRate)
     DelayLeft->PrepareToPlay(sampleRate);
     DelayRight->PrepareToPlay(sampleRate);
 
-    ReverbLeft->PrepareToPlay(sampleRate);
-    ReverbRight->PrepareToPlay(sampleRate);
+    ReverbLeftRight->PrepareToPlay(sampleRate);
 }
 
 void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
@@ -32,8 +30,7 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
     DelayLeft->ProcessBlock(audioBuffer);
     DelayRight->ProcessBlock(audioBuffer);
 
-    ReverbLeft->ProcessBlock(audioBuffer);
-    ReverbRight->ProcessBlock(audioBuffer);
+    ReverbLeftRight->ProcessBlock(audioBuffer);
 
     for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
     {
@@ -43,8 +40,8 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         float delayLeft = DelayLeft->ProcessSample(dryLeft);
         float delayRight = DelayRight->ProcessSample(dryRight);
 
-        float reverbLeft = ReverbLeft->ProcessSample(dryLeft);
-        float reverbRight = ReverbRight->ProcessSample(dryRight);
+        auto [reverbLeft, reverbRight] =
+            ReverbLeftRight->ProcessSample(dryLeft, dryRight);
 
         // Blend delay -> reverb between diff amt 0.5 -> 1.0
         auto [delayGain, reverbGain] = GetDelayReverbGain(diffusionAmount);

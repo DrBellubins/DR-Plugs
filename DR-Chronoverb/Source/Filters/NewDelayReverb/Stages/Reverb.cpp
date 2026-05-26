@@ -4,18 +4,26 @@ void Reverb::PrepareToPlay(double newSampleRate)
 {
     sampleRate = newSampleRate;
 
+    // Delay time
     delayTimeSegment.PepareToPlay(sampleRate);
     delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 
     // Diffusion
-    diffusion = std::make_unique<DiffusionChain>();
-    diffusion->Prepare(sampleRate);
+    diffusionLeft = std::make_unique<DiffusionChain>();
+    diffusionRight = std::make_unique<DiffusionChain>();
 
-    if (diffusion) diffusion->ClearState();
+    diffusionLeft->Prepare(sampleRate);
+    diffusionRight->Prepare(sampleRate);
+
+    if (diffusionLeft) diffusionLeft->ClearState();
+    if (diffusionRight) diffusionRight->ClearState();
 
     // Damping
-    damping = std::make_unique<DampingFilter>();
-    damping->Prepare(sampleRate);
+    dampingLeft = std::make_unique<DampingFilter>();
+    dampingRight = std::make_unique<DampingFilter>();
+
+    dampingLeft->Prepare(sampleRate);
+    dampingRight->Prepare(sampleRate);
 
     // Various
     lastBuiltQualityStages = -1;
@@ -32,32 +40,33 @@ void Reverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 {
     if (diffusionRebuildPending.exchange(false, std::memory_order_acq_rel))
         rebuildDiffusionIfNeeded();
-
-    DBG("Delay time: " << delayTimeSegment.DelayTimeMilliseconds);
 }
 
-float Reverb::ProcessSample(float inputSample)
+std::pair<float, float> Reverb::ProcessSample(float inputSampleL, float inputSampleR)
 {
     const float timeScale = juce::jlimit(0.1f,
         3.0f, delayTimeSegment.DelayTimeMilliseconds / irLengthMs);
 
-    diffusion->UpdateSize(diffusionSize * timeScale);
-
-    //DBG("Diff size: " << diffusionSize);
+    diffusionLeft->UpdateSize(diffusionSize * timeScale);
+    diffusionRight->UpdateSize(diffusionSize * timeScale);
 
     // 1) Input + feedback
-    const float inputFeedback = inputSample + lastFeedback;
+    const float inputFeedbackLeft = inputSampleL + lastFeedbackL;
+    const float inputFeedbackRight = inputSampleR - lastFeedbackR;
 
     // 2) Diffusion
-    const float diffused = diffusion->ProcessSample(inputFeedback);
+    const float diffusedLeft = diffusionLeft->ProcessSample(inputFeedbackLeft);
+    const float diffusedRight = diffusionRight->ProcessSample(inputFeedbackRight);
 
     // 3) Damping
-    const float damped = damping->ProcessSample(diffused, 7000.0f);
+    const float dampedLeft = dampingLeft->ProcessSample(diffusedLeft, 7000.0f);
+    const float dampedRight = dampingRight->ProcessSample(diffusedRight, 7000.0f);
 
     // 4) Recirculation
-    lastFeedback = damped * feedbackGain;
+    lastFeedbackL = dampedLeft * feedbackGain;
+    lastFeedbackR = dampedRight * feedbackGain;
 
-    return damped;
+    return std::make_pair(dampedLeft, dampedRight);
 }
 
 // --- Parameters ---
@@ -113,11 +122,17 @@ void Reverb::rebuildDiffusionIfNeeded()
     lastBuiltQualityStages = diffusionQualityStages;
     lastBuiltSize = diffusionSize;
 
-    // Delay
-    if (diffusion != nullptr)
+    // Diffusion
+    if (diffusionLeft != nullptr)
     {
-        diffusion->Configure(diffusionQualityStages,
-            diffusionSize, 0.005f, 0.5f, Tunings);
+        diffusionLeft->Configure(diffusionQualityStages,
+            diffusionSize, 0.005f, 0.5f, TuningsLeft);
+    }
+
+    if (diffusionRight != nullptr)
+    {
+        diffusionRight->Configure(diffusionQualityStages,
+            diffusionSize, 0.005f, 0.5f, TuningsRight);
     }
 }
 

@@ -47,9 +47,10 @@ private:
     void updateFeedbackGainFromFeedbackTime();
 
     // Settings
+    const float tuningLengthMultiplier = 0.25f;
     const float MinimumBPM = 20.0f; // Silently breaks below this point
     const float centeredSwellRatio = 0.25f;
-    const float diffusionCompensationBias = 3.0f; // Controls swell into nominal (higher = longer swell)
+    const float diffusionCompensationBias = 5.0f; // Controls swell into nominal (higher = longer swell)
 
     // Runtime
     double sampleRate = 48000.0f;

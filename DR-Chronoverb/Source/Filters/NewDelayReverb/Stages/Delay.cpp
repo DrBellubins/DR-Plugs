@@ -130,7 +130,7 @@ void Delay::SetDiffusionAmount(float newDiffusionAmount)
 
 void Delay::SetDiffusionSize(float newDiffusionSize)
 {
-    diffusionSize = newDiffusionSize;
+    diffusionSize = newDiffusionSize * tuningLengthMultiplier;
 }
 
 void Delay::SetDiffusionQuality(int newDiffusionQuality)

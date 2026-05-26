@@ -5,8 +5,7 @@ void Chronoverb::SetHostTempo(float bpm)
     DelayLeft->SetHostTempo(bpm);
     DelayRight->SetHostTempo(bpm);
 
-    ReverbLeft->SetHostTempo(bpm);
-    ReverbRight->SetHostTempo(bpm);
+    ReverbLeftRight->SetHostTempo(bpm);
 }
 
 void Chronoverb::SetDelayTime(float newDelayTimeNormalized)
@@ -16,8 +15,7 @@ void Chronoverb::SetDelayTime(float newDelayTimeNormalized)
     DelayLeft->SetDelayTime(delayTimeNormalized);
     DelayRight->SetDelayTime(delayTimeNormalized);
 
-    ReverbLeft->SetDelayTime(delayTimeNormalized);
-    ReverbRight->SetDelayTime(delayTimeNormalized);
+    ReverbLeftRight->SetDelayTime(delayTimeNormalized);
 }
 
 void Chronoverb::SetDelayMode(int newDelayMode)
@@ -27,8 +25,7 @@ void Chronoverb::SetDelayMode(int newDelayMode)
     DelayLeft->SetDelayMode(delayMode);
     DelayRight->SetDelayMode(delayMode);
 
-    ReverbLeft->SetDelayMode(delayMode);
-    ReverbRight->SetDelayMode(delayMode);
+    ReverbLeftRight->SetDelayMode(delayMode);
 }
 
 void Chronoverb::SetFeedbackTime(float newFeedbackTimeSeconds)
@@ -38,8 +35,7 @@ void Chronoverb::SetFeedbackTime(float newFeedbackTimeSeconds)
     DelayLeft->SetFeedbackTime(feedbackTimeSeconds);
     DelayRight->SetFeedbackTime(feedbackTimeSeconds);
 
-    ReverbLeft->SetFeedbackTime(feedbackTimeSeconds);
-    ReverbRight->SetFeedbackTime(feedbackTimeSeconds);
+    ReverbLeftRight->SetFeedbackTime(feedbackTimeSeconds);
 }
 
 void Chronoverb::SetDiffusionAmount(float newAmount01)
@@ -49,8 +45,7 @@ void Chronoverb::SetDiffusionAmount(float newAmount01)
     DelayLeft->SetDiffusionAmount(diffusionAmount);
     DelayRight->SetDiffusionAmount(diffusionAmount);
 
-    ReverbLeft->SetDiffusionAmount(diffusionAmount);
-    ReverbRight->SetDiffusionAmount(diffusionAmount);
+    ReverbLeftRight->SetDiffusionAmount(diffusionAmount);
 }
 
 void Chronoverb::SetDiffusionSize(float newSize01)
@@ -60,8 +55,7 @@ void Chronoverb::SetDiffusionSize(float newSize01)
     DelayLeft->SetDiffusionSize(diffusionSize);
     DelayRight->SetDiffusionSize(diffusionSize);
 
-    ReverbLeft->SetDiffusionSize(diffusionSize);
-    ReverbRight->SetDiffusionSize(diffusionSize);
+    ReverbLeftRight->SetDiffusionSize(diffusionSize);
 }
 
 void Chronoverb::SetDiffusionQuality(int newQualityStages)
@@ -71,8 +65,7 @@ void Chronoverb::SetDiffusionQuality(int newQualityStages)
     DelayLeft->SetDiffusionQuality(diffusionQualityStages);
     DelayRight->SetDiffusionQuality(diffusionQualityStages);
 
-    ReverbLeft->SetDiffusionQuality(diffusionQualityStages);
-    ReverbRight->SetDiffusionQuality(diffusionQualityStages);
+    ReverbLeftRight->SetDiffusionQuality(diffusionQualityStages);
 }
 
 void Chronoverb::SetLowpassCutoff(float newLowpass01)

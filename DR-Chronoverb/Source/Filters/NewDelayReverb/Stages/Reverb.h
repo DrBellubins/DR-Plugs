@@ -6,22 +6,25 @@
 #include "../DiffusionChain.h"
 #include "../DampingFilter.h"
 
-// TODO: Implement left/right decorrelation (UGH!)
-// TODO: Make Schroeder reverb by implementing delay line
 // TODO: Wet signal has white noise (DC artifacts??)
 
 class Reverb
 {
 public:
-    std::vector<float> Tunings =
+    std::vector<float> TuningsLeft =
     {
         29.0, 37.0, 43.0, 53.0, 71.0, 89.0, 113.0, 149.0
+    };
+
+    std::vector<float> TuningsRight =
+    {
+        31.0, 41.0, 47.0, 59.0, 73.0, 97.0, 109.0, 151.0
     };
 
     void PrepareToPlay(double newSampleRate);
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
 
-    float ProcessSample(float inputSample);
+    std::pair<float, float> ProcessSample(float inputSampleL, float inputSampleR);
 
     void SetHostTempo(float bpm);
 
@@ -45,7 +48,9 @@ private:
     double sampleRate = 48000.0;
     float hostBPM = 120.0f;
 
-    float lastFeedback = 0.0f;
+    float lastFeedbackL = 0.0f;
+    float lastFeedbackR = 0.0f;
+
     float feedbackGain = 0.5f;
 
     int lastBuiltQualityStages = -1;
@@ -64,8 +69,11 @@ private:
     // Data
     DelayTimeSegment delayTimeSegment;
 
-    std::unique_ptr<DiffusionChain> diffusion;
-    std::unique_ptr<DampingFilter> damping;
+    std::unique_ptr<DiffusionChain> diffusionLeft;
+    std::unique_ptr<DiffusionChain> diffusionRight;
+
+    std::unique_ptr<DampingFilter> dampingLeft;
+    std::unique_ptr<DampingFilter> dampingRight;
 
     std::atomic<bool> diffusionRebuildPending { false };
 };
