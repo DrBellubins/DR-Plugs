@@ -24,7 +24,8 @@ inline int semitonesToOctaveIndex(float semitones)
 
 inline std::pair<float, float> GetDelayReverbGain(float diffusionAmount)
 {
-    const float delayReverbBlend = (diffusionAmount - 0.5f) * 2.0f;
+    const float delayReverbBlend = juce::jlimit(0.0f, 1.0f,
+        (diffusionAmount - 0.5f) * 2.0f);
 
     float delayGain = std::cos(delayReverbBlend * juce::MathConstants<float>::halfPi);
     float reverbGain = std::sin(delayReverbBlend * juce::MathConstants<float>::halfPi);
