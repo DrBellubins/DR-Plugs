@@ -90,8 +90,11 @@ private:
     // Data
     DelayTimeSegment delayTimeSegment;
 
-    std::unique_ptr<DiffusionChain> diffusionLeft;
-    std::unique_ptr<DiffusionChain> diffusionRight;
+    std::unique_ptr<DiffusionChain> diffusionReadLeft;
+    std::unique_ptr<DiffusionChain> diffusionWriteLeft;
+
+    std::unique_ptr<DiffusionChain> diffusionReadRight;
+    std::unique_ptr<DiffusionChain> diffusionWriteRight;
 
     std::unique_ptr<DampingFilter> dampingLeft;
     std::unique_ptr<DampingFilter> dampingRight;
