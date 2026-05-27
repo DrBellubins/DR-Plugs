@@ -24,7 +24,6 @@ public:
 
     //NewDelayReverb DelayReverb;
     Chronoverb DelayReverb;
-    //ClusteredDiffusionDelay DelayReverb;
 
     ComputerKeyboardSquareSynth KeyboardSynth;
     ImpulseClickSynth ImpulseClick;
