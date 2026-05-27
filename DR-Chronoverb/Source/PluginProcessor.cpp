@@ -90,9 +90,8 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     DelayReverb.SetDiffusionSize(diffusionSize);
     DelayReverb.SetDiffusionQuality(diffusionQuality);
 
-    DelayReverb.SetDryWetMix(wetVolume);
-    //DelayReverb.SetDryVolume(dryVolume);
-    //DelayReverb.SetWetVolume(wetVolume);
+    DelayReverb.SetDryVolume(dryVolume);
+    DelayReverb.SetWetVolume(wetVolume);
 
     DelayReverb.SetStereoSpread(stereoSpread);
     DelayReverb.SetLowpassCutoff(lowPassCutoff);
@@ -307,7 +306,7 @@ void AudioPluginAudioProcessor::prepareToPlay(double sampleRate, int samplesPerB
     KeyboardSynth.PrepareToPlay(sampleRate);
     ImpulseClick.PrepareToPlay(sampleRate);
 
-    DelayReverb.PrepareToPlay(sampleRate, 4.0f);
+    DelayReverb.PrepareToPlay(sampleRate);
 }
 
 void AudioPluginAudioProcessor::releaseResources()
@@ -357,9 +356,8 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
     if (parameterID == "diffusionSize") DelayReverb.SetDiffusionSize(newValue);
     if (parameterID == "diffusionQuality") DelayReverb.SetDiffusionQuality(static_cast<int>(std::round(newValue)));
 
-    //if (parameterID == "dryVolume") DelayReverb.SetDryVolume(newValue);
-    //if (parameterID == "wetVolume") DelayReverb.SetWetVolume(newValue);
-    if (parameterID == "wetVolume") DelayReverb.SetDryWetMix(newValue);
+    if (parameterID == "dryVolume") DelayReverb.SetDryVolume(newValue);
+    if (parameterID == "wetVolume") DelayReverb.SetWetVolume(newValue);
 
     // Filters
     if (parameterID == "stereoSpread") DelayReverb.SetStereoSpread(newValue);
@@ -373,7 +371,7 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
     //if (parameterID == "duckRelease") DelayReverb.SetDuckRelease(newValue);
 
     // Pitch shifting
-    /*if (parameterID == "pitchRangeLower") DelayReverb.SetPitchRangeLower(newValue);
+    if (parameterID == "pitchRangeLower") DelayReverb.SetPitchRangeLower(newValue);
     if (parameterID == "pitchRangeUpper") DelayReverb.SetPitchRangeUpper(newValue);
 
     if (parameterID == "pitchSequence")
@@ -389,7 +387,7 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
     }
 
     if (parameterID == "pitchStereoEnabled") DelayReverb.SetPitchStereoEnabled(newValue);
-    if (parameterID == "pitchWetMix") DelayReverb.SetpitchWetMix(newValue);*/
+    if (parameterID == "pitchWetMix") DelayReverb.SetpitchWetMix(newValue);
 }
 
 void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
