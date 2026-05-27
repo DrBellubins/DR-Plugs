@@ -28,13 +28,9 @@ public:
     void PrepareToPlay(double sampleRate);
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
 
-    std::unique_ptr<Delay> DelayLeft;
-    std::unique_ptr<Delay> DelayRight;
-
+    std::unique_ptr<Delay> DelayLeftRight;
     std::unique_ptr<Reverb> ReverbLeftRight;
-
     std::unique_ptr<PitchShifter> PitchShifterLeftRight;
-    //std::unique_ptr<PitchShifter> PitchShifterRight;
 
     //region Parameter Sets
     void SetHostTempo(float bpm);

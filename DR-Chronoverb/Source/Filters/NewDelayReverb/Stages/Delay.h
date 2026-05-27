@@ -29,7 +29,7 @@ public:
     void PrepareToPlay(double newSampleRate);
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
 
-    float ProcessSample(float inputSample);
+    std::pair<float, float> ProcessSample(float inputSampleL, float inputSampleR);
 
     void SetHostTempo(float bpm);
 
@@ -41,7 +41,8 @@ public:
     void SetDiffusionSize(float newDiffusionSize);
     void SetDiffusionQuality(int newDiffusionQuality);
 
-    std::unique_ptr<DelayLine> InternalDelayLine;
+    std::unique_ptr<DelayLine> InternalDelayLineLeft;
+    std::unique_ptr<DelayLine> InternalDelayLineRight;
 
 private:
     void rebuildDiffusionIfNeeded();
@@ -59,7 +60,9 @@ private:
 
     float maxDelayMS = 0.0f;
 
-    float lastFeedback = 0.0f;
+    float lastFeedbackL = 0.0f;
+    float lastFeedbackR = 0.0f;
+
     float feedbackGain = 0.5f;
 
     int writePeriodSamples = 1;
@@ -87,10 +90,14 @@ private:
     // Data
     DelayTimeSegment delayTimeSegment;
 
-    std::unique_ptr<DiffusionChain> diffusionRead;
-    std::unique_ptr<DiffusionChain> diffusionWrite;
+    std::unique_ptr<DiffusionChain> diffusionReadLeft;
+    std::unique_ptr<DiffusionChain> diffusionWriteLeft;
 
-    std::unique_ptr<DampingFilter> damping;
+    std::unique_ptr<DiffusionChain> diffusionReadRight;
+    std::unique_ptr<DiffusionChain> diffusionWriteRight;
+
+    std::unique_ptr<DampingFilter> dampingLeft;
+    std::unique_ptr<DampingFilter> dampingRight;
 
     std::atomic<bool> diffusionRebuildPending { false };
 };

@@ -5,19 +5,15 @@
 #include "../DelayTimeSegment.h"
 #include "../DiffusionChain.h"
 #include "../DampingFilter.h"
+#include "../../ChronoverbUtils.h"
 
 // Multi-channel, handles all reverb feedback, diffusion, damping, etc.
 class Reverb
 {
 public:
-    std::vector<float> TuningsLeft =
+    std::vector<float> Tunings =
     {
         29.0, 37.0, 43.0, 53.0, 71.0, 89.0, 113.0, 149.0
-    };
-
-    std::vector<float> TuningsRight =
-    {
-        31.0, 41.0, 47.0, 59.0, 73.0, 97.0, 109.0, 151.0
     };
 
     void PrepareToPlay(double newSampleRate);

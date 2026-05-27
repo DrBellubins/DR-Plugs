@@ -3,11 +3,8 @@
 Chronoverb::Chronoverb()
 {
     // Must happen at class construction
-    DelayLeft = std::make_unique<Delay>();
-    DelayRight = std::make_unique<Delay>();
-
+    DelayLeftRight = std::make_unique<Delay>();
     ReverbLeftRight = std::make_unique<Reverb>();
-
     PitchShifterLeftRight = std::make_unique<PitchShifter>();
 }
 
@@ -15,13 +12,11 @@ void Chronoverb::PrepareToPlay(double newSampleRate)
 {
     sampleRate = newSampleRate;
 
-    DelayLeft->PrepareToPlay(sampleRate);
-    DelayRight->PrepareToPlay(sampleRate);
-
+    DelayLeftRight->PrepareToPlay(sampleRate);
     ReverbLeftRight->PrepareToPlay(sampleRate);
 
-    PitchShifterLeftRight->SetDelayLines(*DelayLeft->InternalDelayLine,
-        *DelayRight->InternalDelayLine);
+    PitchShifterLeftRight->SetDelayLines(*DelayLeftRight->InternalDelayLineLeft,
+        *DelayLeftRight->InternalDelayLineRight);
 
     PitchShifterLeftRight->PrepareToPlay(sampleRate);
 }
@@ -34,11 +29,8 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
     float* leftData  = audioBuffer.getWritePointer(0);
     float* rightData = (numChannels > 1 ? audioBuffer.getWritePointer(1) : nullptr);
 
-    DelayLeft->ProcessBlock(audioBuffer);
-    DelayRight->ProcessBlock(audioBuffer);
-
+    DelayLeftRight->ProcessBlock(audioBuffer);
     ReverbLeftRight->ProcessBlock(audioBuffer);
-
     PitchShifterLeftRight->ProcessBlock(audioBuffer);
 
     for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
@@ -46,22 +38,25 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float dryLeft = leftData[sampleIndex];
         const float dryRight = (rightData != nullptr ? rightData[sampleIndex] : dryLeft);
 
-        float delayLeft = DelayLeft->ProcessSample(dryLeft);
-        float delayRight = DelayRight->ProcessSample(dryRight);
+        // 1) Delay
+        auto [delayLeft, delayRight] =
+            DelayLeftRight->ProcessSample(dryLeft, dryRight);
 
+        // 2) Reverb
         auto [reverbLeft, reverbRight] =
             ReverbLeftRight->ProcessSample(dryLeft, dryRight);
 
-        // Blend delay -> reverb between diff amt 0.5 -> 1.0
+        // 3) Blend delay -> reverb between diff amt 0.5 -> 1.0
         auto [delayGain, reverbGain] = GetDelayReverbGain(diffusionAmount);
 
         const float wetLeft = (delayLeft * delayGain) + (reverbLeft * reverbGain);
         const float wetRight = (delayRight * delayGain) + (reverbRight * reverbGain);
 
+        // 4) Pitch shifter
         auto [pitchLeft, pitchRight] =
             PitchShifterLeftRight->ProcessSample(wetLeft, wetRight);
 
-        // Dry + wet volume
+        // 5) Dry + wet volume gain
         float outputLeft = (dryLeft * dryVolume) + (pitchLeft * wetVolume);
         float outputRight = (dryRight * dryVolume) + (pitchRight * wetVolume);
 

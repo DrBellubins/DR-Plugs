@@ -129,13 +129,15 @@ void Reverb::rebuildDiffusionIfNeeded()
     if (diffusionLeft != nullptr)
     {
         diffusionLeft->Configure(diffusionQualityStages,
-            diffusionSize, 0.005f, 0.5f, TuningsLeft);
+            diffusionSize, 0.005f, 0.5f, Tunings);
     }
 
     if (diffusionRight != nullptr)
     {
+        auto decorrelatedTunings = DecorrelateTunings(Tunings);
+
         diffusionRight->Configure(diffusionQualityStages,
-            diffusionSize, 0.005f, 0.5f, TuningsRight);
+            diffusionSize, 0.005f, 0.5f, decorrelatedTunings);
     }
 }
 

@@ -39,3 +39,57 @@ inline std::pair<float, float> GetDelayReverbGain(float diffusionAmount)
 
     return std::make_pair(delayGain, reverbGain);
 }
+
+inline bool IsPrime(int n)
+{
+    if (n < 2) return false;
+    if (n == 2) return true;
+    if (n % 2 == 0) return false;
+
+    for (int i = 3; i * i <= n; i += 2)
+        if (n % i == 0) return false;
+
+    return true;
+}
+
+// Generates a decorrelated copy of tunings by nudging each value to a nearby prime
+// within maxShiftPercent of the original. Prefers upward shifts for consistent
+// decorrelation. Falls back to nearest prime in either direction if needed.
+inline std::vector<float> DecorrelateTunings(const std::vector<float>& tunings, float maxShiftPercent = 0.10f)
+{
+    std::vector<float> result;
+    result.reserve(tunings.size());
+
+    for (float t : tunings)
+    {
+        const int base = static_cast<int>(std::round(t));
+        const int maxDelta = std::max(2, static_cast<int>(std::round(base * maxShiftPercent)));
+
+        int best = -1;
+
+        // Prefer upward shift for consistent channel decorrelation
+        for (int delta = 1; delta <= maxDelta; ++delta)
+        {
+            if (IsPrime(base + delta))
+            {
+                best = base + delta;
+                break;
+            }
+        }
+
+        // Fallback: search both directions if no upward prime found in range
+        if (best < 0)
+        {
+            for (int delta = 1; delta <= maxDelta * 2; ++delta)
+            {
+                if (IsPrime(base + delta)) { best = base + delta; break; }
+                if (base - delta >= 2 && IsPrime(base - delta)) { best = base - delta; break; }
+            }
+        }
+
+        // Last resort: keep original (should never happen with reasonable inputs)
+        result.push_back(static_cast<float>(best >= 2 ? best : base));
+    }
+
+    return result;
+}
