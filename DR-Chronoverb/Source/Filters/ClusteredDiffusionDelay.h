@@ -7,7 +7,7 @@
 #include <memory>
 
 // Components
-#include "ClusteredDiffusionDelay/DelayLine.h"
+#include "ClusteredDiffusionDelay/DelayLineOld.h"
 #include "ClusteredDiffusionDelay/Diffusion.h"
 #include "ClusteredDiffusionDelay/HaasStereoWidener.h"
 #include "ClusteredDiffusionDelay/FeedbackDamping.h"
@@ -87,8 +87,8 @@ private:
     // Per-channel aggregate state composed of component states.
     struct ChannelState
     {
-        DelayLine::State Delay;             // Circular delay line
-        DelayLine::State PreDelay;          // Pre-delay buffer (user delayTime)
+        DelayLineOld::State Delay;             // Circular delay line
+        DelayLineOld::State PreDelay;          // Pre-delay buffer (user delayTime)
 
         HaasStereoWidener::State Haas;      // Haas widener buffer
         FeedbackDamping::State Feedback;    // Feedback damping LPF state

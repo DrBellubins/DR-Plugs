@@ -4,6 +4,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "Filters/Chronoverb.h"
+#include "Filters/ClusteredDiffusionDelay.h"
 #include "Filters/NewDelayReverb.h"
 #include "Filters/ComputerKeyboardSquareSynth.h"
 #include "Filters/ImpulseClickSynth.h"
@@ -23,7 +24,8 @@ public:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
     //NewDelayReverb DelayReverb;
-    Chronoverb DelayReverb;
+    //Chronoverb DelayReverb;
+    ClusteredDiffusionDelay DelayReverb;
 
     ComputerKeyboardSquareSynth KeyboardSynth;
     ImpulseClickSynth ImpulseClick;

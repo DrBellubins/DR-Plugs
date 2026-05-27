@@ -6,7 +6,7 @@
 #include <cmath>
 #include <juce_core/juce_core.h>
 
-#include "DelayLine.h"
+#include "DelayLineOld.h"
 #include "Lowpass.h"
 
 // FeedbackDelayNetwork
@@ -31,7 +31,7 @@ class FeedbackDelayNetwork
 public:
     struct LineState
     {
-        DelayLine::State Delay;
+        DelayLineOld::State Delay;
         float DelayLengthSamples = 1.0f;   // Read-back delay for this line
         float OutputTapGain = 1.0f;        // Mixing gain for wet sum
     };
@@ -60,7 +60,7 @@ public:
 
         for (int LineIndex = 0; LineIndex < FDNState.NumberOfLines; ++LineIndex)
         {
-            DelayLine::Prepare(FDNState.Lines[static_cast<size_t>(LineIndex)].Delay, FDNState.MaxDelayBufferSamples);
+            DelayLineOld::Prepare(FDNState.Lines[static_cast<size_t>(LineIndex)].Delay, FDNState.MaxDelayBufferSamples);
             FDNState.Lines[static_cast<size_t>(LineIndex)].DelayLengthSamples = 1.0f;
             FDNState.Lines[static_cast<size_t>(LineIndex)].OutputTapGain = 1.0f;
         }
@@ -76,7 +76,7 @@ public:
     {
         for (int LineIndex = 0; LineIndex < FDNState.NumberOfLines; ++LineIndex)
         {
-            DelayLine::Reset(FDNState.Lines[static_cast<size_t>(LineIndex)].Delay);
+            DelayLineOld::Reset(FDNState.Lines[static_cast<size_t>(LineIndex)].Delay);
         }
 
         Lowpass::Reset(FDNState.BusDampingLPF);
@@ -127,7 +127,7 @@ public:
         for (int LineIndex = 0; LineIndex < FDNState.NumberOfLines; ++LineIndex)
         {
             const LineState& Line = FDNState.Lines[static_cast<size_t>(LineIndex)];
-            const float Tap = DelayLine::Read(Line.Delay, Line.DelayLengthSamples);
+            const float Tap = DelayLineOld::Read(Line.Delay, Line.DelayLengthSamples);
             WetSum += (Tap * Line.OutputTapGain);
         }
 
@@ -164,7 +164,7 @@ public:
         for (int LineIndex = 0; LineIndex < N; ++LineIndex)
         {
             const LineState& Line = FDNState.Lines[static_cast<size_t>(LineIndex)];
-            TempLineBuffer[static_cast<size_t>(LineIndex)] = DelayLine::Read(Line.Delay, Line.DelayLengthSamples);
+            TempLineBuffer[static_cast<size_t>(LineIndex)] = DelayLineOld::Read(Line.Delay, Line.DelayLengthSamples);
         }
 
         // Multiply previous outputs by the unitary matrix rows
@@ -192,7 +192,7 @@ public:
             const float FeedbackWrite = FDNState.FeedbackGain * Mixed[static_cast<size_t>(LineIndex)];
             const float LineWriteSample = DryInputSample + FeedbackWrite;
 
-            DelayLine::Write(FDNState.Lines[static_cast<size_t>(LineIndex)].Delay, LineWriteSample);
+            DelayLineOld::Write(FDNState.Lines[static_cast<size_t>(LineIndex)].Delay, LineWriteSample);
         }
     }
 

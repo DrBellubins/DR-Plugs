@@ -8,7 +8,7 @@
 // - Static utility for circular delay buffer read/write with linear interpolation.
 // - State is held externally in DelayLine::State and managed by the caller/master processor.
 
-class DelayLine
+class DelayLineOld
 {
 public:
     struct State
@@ -19,14 +19,14 @@ public:
 
     // Prepare the delay buffer for a required length in samples.
     // Resets the write index and clears buffer contents.
-    static void Prepare(DelayLine::State& DelayState, int MaxDelayBufferSamples)
+    static void Prepare(DelayLineOld::State& DelayState, int MaxDelayBufferSamples)
     {
         DelayState.Buffer.assign(static_cast<size_t>(std::max(1, MaxDelayBufferSamples)), 0.0f);
         DelayState.WriteIndex = 0;
     }
 
     // Reset the state to silence.
-    static void Reset(DelayLine::State& DelayState)
+    static void Reset(DelayLineOld::State& DelayState)
     {
         std::fill(DelayState.Buffer.begin(), DelayState.Buffer.end(), 0.0f);
         DelayState.WriteIndex = 0;
@@ -34,7 +34,7 @@ public:
 
     // Read a sample at DelayInSamples behind the current write index using linear interpolation.
     // Negative delays are clamped to zero.
-    static inline float Read(const DelayLine::State& DelayState, float DelayInSamples)
+    static inline float Read(const DelayLineOld::State& DelayState, float DelayInSamples)
     {
         // Enforce non-negative delay
         if (DelayInSamples < 0.0f)
@@ -64,7 +64,7 @@ public:
     }
 
     // Write a sample into the circular buffer and advance the write index (with wrap).
-    static inline void Write(DelayLine::State& DelayState, float Sample)
+    static inline void Write(DelayLineOld::State& DelayState, float Sample)
     {
         const int BufferSize = static_cast<int>(DelayState.Buffer.size());
 

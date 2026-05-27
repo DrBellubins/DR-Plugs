@@ -1,16 +1,7 @@
 #pragma once
 
-#include <juce_dsp/juce_dsp.h>
-#include <vector>
-#include <memory>
 
-#include "../Utils/PMath.h"
-#include "NewDelayReverb/DelayLine.h"
-#include "NewDelayReverb/DampingFilter.h"
-#include "NewDelayReverb/DiffusionChain.h"
-#include "NewDelayReverb/PitchShiftingEngine.h"
-#include "NewDelayReverb/DiffusionAllpass.h"
-#include "ChronoverbUtils.h"
+#include <memory>
 
 #include "NewDelayReverb/Stages/Delay.h"
 #include "NewDelayReverb/Stages/Reverb.h"

@@ -56,8 +56,8 @@ void ClusteredDiffusionDelay::Reset()
     // Clear all channels' states to neutral
     for (ChannelState& State : Channels)
     {
-        DelayLine::Reset(State.Delay);
-        DelayLine::Reset(State.PreDelay);
+        DelayLineOld::Reset(State.Delay);
+        DelayLineOld::Reset(State.PreDelay);
 
         Diffusion::Reset(DiffusionChain);
         FeedbackDelayNetwork::Reset(FDNState);
@@ -224,8 +224,8 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
 
         for (int ChannelIndex = OldSize; ChannelIndex < NumChannels; ++ChannelIndex)
         {
-            DelayLine::Prepare(Channels[ChannelIndex].PreDelay, PreDelayBufferSamples); // NEW
-            DelayLine::Prepare(Channels[ChannelIndex].Delay, MaxDelayBufferSamples);
+            DelayLineOld::Prepare(Channels[ChannelIndex].PreDelay, PreDelayBufferSamples); // NEW
+            DelayLineOld::Prepare(Channels[ChannelIndex].Delay, MaxDelayBufferSamples);
 
             HaasStereoWidener::Prepare(Channels[ChannelIndex].Haas, HaasMaxDelaySamples);
 
@@ -360,9 +360,9 @@ void ClusteredDiffusionDelay::ProcessBlock(juce::AudioBuffer<float>& AudioBuffer
         float PreDelayedSample = DryInputMono;
 
         for (int ChannelIndex = 0; ChannelIndex < NumChannels; ++ChannelIndex)
-            DelayLine::Write(Channels[ChannelIndex].PreDelay, AudioBuffer.getReadPointer(ChannelIndex)[SampleIndex]);
+            DelayLineOld::Write(Channels[ChannelIndex].PreDelay, AudioBuffer.getReadPointer(ChannelIndex)[SampleIndex]);
 
-        PreDelayedSample = DelayLine::Read(Channels[0].PreDelay, PreDelaySamples);
+        PreDelayedSample = DelayLineOld::Read(Channels[0].PreDelay, PreDelaySamples);
 
         // --- FDN wet sum BEFORE writing new feedback ---
         float WetSumBefore = FeedbackDelayNetwork::ReadWetSum(FDNState, FDNNormalizeWetMix);

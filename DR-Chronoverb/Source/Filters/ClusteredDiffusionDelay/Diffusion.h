@@ -4,7 +4,7 @@
 #include <cmath>
 #include <juce_core/juce_core.h>
 
-#include "DelayLine.h"
+#include "DelayLineOld.h"
 
 // Diffusion
 // - Reworked to provide an embedded allpass diffusion chain suitable for FDN feedback bus processing.

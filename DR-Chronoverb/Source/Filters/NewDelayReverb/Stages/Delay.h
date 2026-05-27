@@ -10,8 +10,7 @@
 #include "../DelayTimeSegment.h"
 #include "../../ChronoverbUtils.h"
 
-// TODO: Sounds too mono when compared to Deelay?
-// TODO: Make multi-channel (UGH!)
+// TODO: Use Lissajous Stereo Rotation instead of static tuning decorrelation.
 
 // Single-channel, handles all delay feedback, diffusion, damping, etc.
 class Delay
