@@ -192,8 +192,10 @@ void Delay::rebuildDiffusionIfNeeded()
 
     if (diffusionReadRight != nullptr)
     {
+        auto decorrelatedTunings = DecorrelateTunings(Tunings);
+
         diffusionReadRight->Configure(diffusionQualityStages,
-            diffusionSize, 0.0f, 0.5f, Tunings);
+            diffusionSize, 0.0f, 0.5f, decorrelatedTunings);
     }
 
     // Write
@@ -205,8 +207,10 @@ void Delay::rebuildDiffusionIfNeeded()
 
     if (diffusionWriteRight != nullptr)
     {
+        auto decorrelatedTunings = DecorrelateTunings(Tunings);
+
         diffusionWriteRight->Configure(diffusionQualityStages,
-            diffusionSize, 0.0f, 0.5f, Tunings);
+            diffusionSize, 0.0f, 0.5f, decorrelatedTunings);
     }
 
     totalDelayDiffusionMilliseconds = 0.0f;

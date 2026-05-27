@@ -8,6 +8,7 @@
 #include "../DampingFilter.h"
 #include "../DiffusionChain.h"
 #include "../DelayTimeSegment.h"
+#include "../../ChronoverbUtils.h"
 
 // TODO: Sounds too mono when compared to Deelay?
 // TODO: Make multi-channel (UGH!)
