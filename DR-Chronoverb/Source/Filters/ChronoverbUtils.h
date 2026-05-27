@@ -45,10 +45,13 @@ inline std::pair<float, float> GetDelayDiffusedTapGain(float diffusionAmount,
 {
     const float driven = juce::jlimit(0.0f, 1.0f, diffusionAmount * crossfadeSpeed);
 
-    const float nominalTapGain  = std::cos(driven * juce::MathConstants<float>::halfPi);
+    const float nominalTapGain  = std::pow(1.0f - driven, 4.0f);
     const float diffusedTapGain = std::sin(driven * juce::MathConstants<float>::halfPi);
 
-    return std::make_pair(nominalTapGain, diffusedTapGain);
+    const float total      = nominalTapGain + diffusedTapGain;
+    const float normFactor = (total > 1.0e-6f) ? (1.0f / total) : 1.0f;
+
+    return std::make_pair(nominalTapGain * normFactor, diffusedTapGain * normFactor);
 }
 
 inline bool IsPrime(int n)

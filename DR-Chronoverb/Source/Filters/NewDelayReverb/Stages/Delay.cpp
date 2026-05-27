@@ -108,10 +108,6 @@ std::pair<float, float> Delay::ProcessSample(float inputSampleL, float inputSamp
     const float diffusedEarlyRight = diffusionReadRight->ProcessSample(earlyTapRight);
 
     // 7) Blend between nominal tap -> early tap (diff amt 0.0 -> 0.5)
-    //const float diffusionDrive = juce::jlimit(0.0f, 1.0f, diffusionAmount * 1.25f);
-    //const float nominalTapGain = std::pow(1.0f - diffusionDrive, 4.0f);   // collapses to 0 at drive >= 1
-    //const float earlyTapGain = std::sin(diffusionDrive * juce::MathConstants<float>::halfPi);
-
     auto [nominalTapGain, earlyTapGain] = GetDelayDiffusedTapGain(diffusionAmount, 1.25f);
 
     const float blendedTapLeft = nominalTapLeft * nominalTapGain + diffusedEarlyLeft * earlyTapGain;
