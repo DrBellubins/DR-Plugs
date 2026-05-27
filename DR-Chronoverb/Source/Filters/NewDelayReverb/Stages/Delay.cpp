@@ -18,24 +18,14 @@ void Delay::PrepareToPlay(double newSampleRate)
     InternalDelayLineRight->SetSampleRate(sampleRate);
 
     // Diffusion Read
-    diffusionReadLeft = std::make_unique<DiffusionChain>();
-    diffusionReadRight = std::make_unique<DiffusionChain>();
+    diffusionLeft = std::make_unique<DiffusionChain>();
+    diffusionRight = std::make_unique<DiffusionChain>();
 
-    diffusionReadLeft->Prepare(sampleRate);
-    diffusionReadRight->Prepare(sampleRate);
+    diffusionLeft->Prepare(sampleRate);
+    diffusionRight->Prepare(sampleRate);
 
-    if (diffusionReadLeft) diffusionReadLeft->ClearState();
-    if (diffusionReadRight) diffusionReadRight->ClearState();
-
-    // Diffusion Write
-    diffusionWriteLeft = std::make_unique<DiffusionChain>();
-    diffusionWriteRight = std::make_unique<DiffusionChain>();
-
-    diffusionWriteLeft->Prepare(sampleRate);
-    diffusionWriteRight->Prepare(sampleRate);
-
-    if (diffusionWriteLeft) diffusionWriteLeft->ClearState();
-    if (diffusionWriteRight) diffusionWriteRight->ClearState();
+    if (diffusionLeft) diffusionLeft->ClearState();
+    if (diffusionRight) diffusionRight->ClearState();
 
     // Damping
     dampingLeft = std::make_unique<DampingFilter>();
@@ -63,19 +53,17 @@ void Delay::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
 std::pair<float, float> Delay::ProcessSample(float inputSampleL, float inputSampleR)
 {
-    diffusionReadLeft->UpdateSize(diffusionSize);
-    diffusionWriteLeft->UpdateSize(diffusionSize);
+    diffusionLeft->UpdateSize(diffusionSize);
 
-    diffusionReadRight->UpdateSize(diffusionSize);
-    diffusionWriteRight->UpdateSize(diffusionSize);
+    diffusionRight->UpdateSize(diffusionSize);
 
     // 1) Input + feedback
     const float inputFeedbackLeft = inputSampleL + lastFeedbackL;
     const float inputFeedbackRight = inputSampleR + lastFeedbackR;
 
     // 2) Pre write diffusion
-    const float diffusedLeft = diffusionWriteLeft->ProcessSample(inputFeedbackLeft);
-    const float diffusedRight = diffusionWriteRight->ProcessSample(inputFeedbackRight);
+    const float diffusedLeft = diffusionLeft->ProcessSample(inputFeedbackLeft);
+    const float diffusedRight = diffusionRight->ProcessSample(inputFeedbackRight);
 
     // 3) Blend between clean tap -> diffused tap (diff amt 0.0 -> 0.5)
     const float inputFeedbackGain = std::cos(diffusionAmount * juce::MathConstants<float>::halfPi);
@@ -94,28 +82,28 @@ std::pair<float, float> Delay::ProcessSample(float inputSampleL, float inputSamp
 
     const float nominalReadMilliseconds = smoothedCenteredReadDelayMilliseconds;
 
-    const float earlyReadMilliseconds =
-        std::max(1.0f, delayTimeSegment.DelayTimeMilliseconds - staticDiffusionCompensationMilliseconds);
+    //const float earlyReadMilliseconds =
+    //    std::max(1.0f, delayTimeSegment.DelayTimeMilliseconds - staticDiffusionCompensationMilliseconds);
 
     const float nominalTapLeft = InternalDelayLineLeft->ReadFeedbackBuffer(nominalReadMilliseconds);
     const float nominalTapRight = InternalDelayLineRight->ReadFeedbackBuffer(nominalReadMilliseconds);
 
-    const float earlyTapLeft = InternalDelayLineLeft->ReadFeedbackBuffer(earlyReadMilliseconds);
+    /*const float earlyTapLeft = InternalDelayLineLeft->ReadFeedbackBuffer(earlyReadMilliseconds);
     const float earlyTapRight = InternalDelayLineRight->ReadFeedbackBuffer(earlyReadMilliseconds);
 
     // 6) Diffuse the early tap (second pass)
-    const float diffusedEarlyLeft = diffusionReadLeft->ProcessSample(earlyTapLeft);
-    const float diffusedEarlyRight = diffusionReadRight->ProcessSample(earlyTapRight);
+    const float diffusedEarlyLeft = diffusionLeft->ProcessSample(earlyTapLeft);
+    const float diffusedEarlyRight = diffusionRight->ProcessSample(earlyTapRight);
 
     // 7) Blend between nominal tap -> early tap (diff amt 0.0 -> 0.5)
     auto [nominalTapGain, earlyTapGain] = GetDelayDiffusedTapGain(diffusionAmount, 1.25f);
 
     const float blendedTapLeft = nominalTapLeft * nominalTapGain + diffusedEarlyLeft * earlyTapGain;
-    const float blendedTapRight = nominalTapRight * nominalTapGain + diffusedEarlyRight * earlyTapGain;
+    const float blendedTapRight = nominalTapRight * nominalTapGain + diffusedEarlyRight * earlyTapGain;*/
 
     // 8) Damping
-    const float dampedLeft = dampingLeft->ProcessSample(blendedTapLeft, 7000.0f);
-    const float dampedRight = dampingRight->ProcessSample(blendedTapRight, 7000.0f);
+    const float dampedLeft = dampingLeft->ProcessSample(nominalTapLeft, 7000.0f);
+    const float dampedRight = dampingRight->ProcessSample(nominalTapRight, 7000.0f);
 
     // 9) Recirculation
     lastFeedbackL = dampedLeft * feedbackGain;
@@ -181,41 +169,25 @@ void Delay::rebuildDiffusionIfNeeded()
     lastBuiltQualityStages = diffusionQualityStages;
     lastBuiltSize = diffusionSize;
 
-    // Read
-    if (diffusionReadLeft != nullptr)
+    if (diffusionLeft != nullptr)
     {
-        diffusionReadLeft->Configure(diffusionQualityStages,
+        diffusionLeft->Configure(diffusionQualityStages,
             diffusionSize, 0.0f, 0.5f, Tunings);
     }
 
-    if (diffusionReadRight != nullptr)
+    if (diffusionRight != nullptr)
     {
         auto decorrelatedTunings = DecorrelateTunings(Tunings);
 
-        diffusionReadRight->Configure(diffusionQualityStages,
-            diffusionSize, 0.0f, 0.5f, decorrelatedTunings);
-    }
-
-    // Write
-    if (diffusionWriteLeft != nullptr)
-    {
-        diffusionWriteLeft->Configure(diffusionQualityStages,
-            diffusionSize, 0.0f, 0.5f, Tunings);
-    }
-
-    if (diffusionWriteRight != nullptr)
-    {
-        auto decorrelatedTunings = DecorrelateTunings(Tunings);
-
-        diffusionWriteRight->Configure(diffusionQualityStages,
+        diffusionRight->Configure(diffusionQualityStages,
             diffusionSize, 0.0f, 0.5f, decorrelatedTunings);
     }
 
     totalDelayDiffusionMilliseconds = 0.0f;
 
-    if (diffusionReadLeft != nullptr)
+    if (diffusionLeft != nullptr)
     {
-        for (float stageDelayMilliseconds : diffusionReadLeft->perStageDelayMs)
+        for (float stageDelayMilliseconds : diffusionLeft->perStageDelayMs)
             totalDelayDiffusionMilliseconds += stageDelayMilliseconds;
     }
 
