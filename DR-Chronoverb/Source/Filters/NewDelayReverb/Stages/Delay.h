@@ -9,8 +9,8 @@
 #include "../DiffusionChain.h"
 #include "../DelayTimeSegment.h"
 
-// TODO: Wet signal has white noise (DC artifacts??)
 // TODO: Sounds too mono when compared to Deelay?
+// TODO: Make multi-channel (UGH!)
 
 // Single-channel, handles all delay feedback, diffusion, damping, etc.
 class Delay

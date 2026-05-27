@@ -158,13 +158,13 @@ void Delay::rebuildDiffusionIfNeeded()
     if (diffusionRead != nullptr)
     {
         diffusionRead->Configure(diffusionQualityStages,
-            diffusionSize, 0.005f, 0.5f, Tunings);
+            diffusionSize, 0.0f, 0.5f, Tunings);
     }
 
     if (diffusionWrite != nullptr)
     {
         diffusionWrite->Configure(diffusionQualityStages,
-            diffusionSize, 0.005f, 0.5f, Tunings);
+            diffusionSize, 0.0f, 0.5f, Tunings);
     }
 
     totalDelayDiffusionMilliseconds = 0.0f;

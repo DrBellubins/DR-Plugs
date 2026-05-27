@@ -127,7 +127,7 @@ private:
         const float frac = wrapped - floorWrapped;  // always in [0, 1)
 
         int indexA = static_cast<int>(floorWrapped) % size;
-        int indexB = (indexA - 1 + size) % size;
+        int indexB = (indexA + 1) % size;
 
         return inputBuffer[indexA] * (1.0f - frac) + inputBuffer[indexB] * frac;
     }
@@ -150,7 +150,7 @@ private:
         const float frac = wrapped - floorWrapped;  // always in [0, 1)
 
         int indexA = static_cast<int>(floorWrapped) % size;
-        int indexB = (indexA - 1 + size) % size;
+        int indexB = (indexA + 1) % size;
 
         return outputBuffer[indexA] * (1.0f - frac) + outputBuffer[indexB] * frac;
     }
