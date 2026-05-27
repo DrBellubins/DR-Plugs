@@ -77,9 +77,9 @@ std::pair<float, float> Delay::ProcessSample(float inputSampleL, float inputSamp
     const float diffusedWriteLeft = diffusionWriteLeft->ProcessSample(inputFeedbackLeft);
     const float diffusedWriteRight = diffusionWriteRight->ProcessSample(inputFeedbackRight);
 
-    // 3) Blend between clean tap -> diffused tap (diff amt 0.0 -> 0.5)
+    // 3) Write-side blend between clean tap -> diffused tap (diff amt 0.0 -> 0.5)
     const float writeBlend01 =
-        juce::jlimit(0.0f, 1.0f, diffusionAmount * 2.0f); // full by 0.5
+        juce::jlimit(0.0f, 1.0f, diffusionAmount * 2.0f);
 
     const float writeCleanGain =
         std::cos(writeBlend01 * juce::MathConstants<float>::halfPi);
@@ -116,31 +116,20 @@ std::pair<float, float> Delay::ProcessSample(float inputSampleL, float inputSamp
     const float diffusedEarlyLeft = diffusionReadLeft->ProcessSample(earlyTapLeft);
     const float diffusedEarlyRight = diffusionReadRight->ProcessSample(earlyTapRight);
 
-    // 7) Blend between nominal tap -> early tap (diff amt 0.0 -> 0.5)
+    // 7) Read-side blend between nominal tap -> early tap (diff amt 0.0 -> 0.5)
     const float lowerHalf01 =
-        juce::jlimit(0.0f, 1.0f, diffusionAmount * 2.0f); // maps 0..0.5 -> 0..1
+        juce::jlimit(0.0f, 1.0f, diffusionAmount * 2.0f);
 
-    // Aggressive clean-tap collapse:
-    // - 1.0 at amount 0
-    // - falls rapidly
-    // - effectively gone by amount 0.5
-    const float nominalAnchorGain =
-        std::pow(1.0f - lowerHalf01, 4.0f);
+    const float nominalGain = std::pow(1.0f - lowerHalf01, 3.0f);
+    const float earlyGain = std::sin(lowerHalf01 * juce::MathConstants<float>::halfPi) * 0.75f;
 
-    // Supportive read-side halo:
-    // grows strongly through the lower half, but is intentionally capped below 1.0
-    // so it behaves as reinforcement rather than a fully separate replacement branch.
-    const float haloGain =
-        std::sin(lowerHalf01 * juce::MathConstants<float>::halfPi) * 0.55f;
+    const float lowerHalfMakeupGain = 1.0f + (0.12f * std::sin(lowerHalf01 * juce::MathConstants<float>::pi));
 
-    // Optional small amount of nominal-energy retention via the diffused write path
-    // is already occurring naturally because the delay line content itself becomes
-    // more blurred as amount rises.
     const float hybridTapLeft =
-        (nominalTapLeft * nominalAnchorGain) + (diffusedEarlyLeft * haloGain);
+        ((nominalTapLeft * nominalGain) + (diffusedEarlyLeft * earlyGain)) * lowerHalfMakeupGain;
 
     const float hybridTapRight =
-        (nominalTapRight * nominalAnchorGain) + (diffusedEarlyRight * haloGain);
+        ((nominalTapRight * nominalGain) + (diffusedEarlyRight * earlyGain)) * lowerHalfMakeupGain;
 
     // 8) Damping
     const float dampedLeft = dampingLeft->ProcessSample(hybridTapLeft, 7000.0f);
