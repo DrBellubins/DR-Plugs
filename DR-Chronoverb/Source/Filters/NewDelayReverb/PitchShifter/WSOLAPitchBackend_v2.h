@@ -31,10 +31,9 @@ public:
     WSOLAPitchBackend_v2() = default;
     ~WSOLAPitchBackend_v2() override = default;
 
-    void Prepare(double newSampleRate, int maximumBlockSize) override
+    void Prepare(double newSampleRate) override
     {
         sampleRate = newSampleRate;
-        maximumBlockSizeCached = maximumBlockSize;
 
         SetSegmentLengthMilliseconds(24.0f);
         SetOverlapPercent(0.75f);
@@ -92,20 +91,21 @@ public:
             if (samplesUntilNextSegment <= 0)
             {
                 currentRatio = pendingRatio;
-                analysisHopSamples =
-                    static_cast<float>(synthesisHopSamples) / currentRatio;
+
+                analysisHopSamples = static_cast<float>(synthesisHopSamples);
 
                 synthesizeNextSegment();
-                samplesUntilNextSegment = synthesisHopSamples;
+
+                samplesUntilNextSegment = std::max(1, static_cast<int>(std::round(
+                    static_cast<float>(synthesisHopSamples) / currentRatio)));
+
+                //samplesUntilNextSegment = synthesisHopSamples;
             }
 
             // 4) Read one sample from output timeline
-            const float outputSample =
-                readOutputRingLinearNormalized(outputReadIndex);
+            const float outputSample = readOutputRingLinearNormalized(outputReadIndex);
 
-            outputReadIndex =
-                wrapFloat(outputReadIndex + 1.0f,
-                          static_cast<float>(outputRingSize));
+            outputReadIndex = wrapFloat(outputReadIndex + currentRatio, static_cast<float>(outputRingSize));
 
             // Optional conservative clear behind read head
             clearOldOutputData();
@@ -129,8 +129,8 @@ public:
     {
         currentRatio = clampPitchRatio(ratio);
         pendingRatio = currentRatio;
-        analysisHopSamples =
-            static_cast<float>(synthesisHopSamples) / currentRatio;
+
+        analysisHopSamples = static_cast<float>(synthesisHopSamples);
     }
 
     float GetLatencyMilliseconds() const override
@@ -255,8 +255,7 @@ private:
             static_cast<int>(std::round((lookbackMs * sampleRate) / 1000.0))
         );
 
-        analysisHopSamples =
-            static_cast<float>(synthesisHopSamples) / currentRatio;
+        analysisHopSamples = static_cast<float>(synthesisHopSamples);
     }
 
     void rebuildWindow()
@@ -295,8 +294,8 @@ private:
 
         currentRatio = 1.0f;
         pendingRatio = 1.0f;
-        analysisHopSamples =
-            static_cast<float>(synthesisHopSamples) / currentRatio;
+
+        analysisHopSamples = static_cast<float>(synthesisHopSamples);
 
         lastChosenSourceIndex = 0.0f;
         predictedSourceIndex = 0.0f;
@@ -326,10 +325,12 @@ private:
             synthesizeNextSegment();
 
         // Read behind the output write frontier, inside already written material
-        outputReadIndex =
-            wrapFloat(static_cast<float>(outputWriteCursor)
-                      - static_cast<float>(segmentLengthSamples * 2),
-                      static_cast<float>(outputRingSize));
+        outputReadIndex = wrapFloat(static_cast<float>(outputWriteCursor)
+            - static_cast<float>(segmentLengthSamples * 2), static_cast<float>(outputRingSize));
+
+        const int protectedDist = std::max(segmentLengthSamples * 6, 8192);
+
+        outputClearCursor = wrapInt(static_cast<int>(outputReadIndex) - protectedDist,outputRingSize);
 
         samplesUntilNextSegment = synthesisHopSamples;
         initialized = true;
@@ -542,7 +543,6 @@ private:
 private:
     // Runtime configuration
     double sampleRate = 48000.0;
-    int maximumBlockSizeCached = 0;
 
     // User-facing timing settings
     float segmentLengthMs = 24.0f;
