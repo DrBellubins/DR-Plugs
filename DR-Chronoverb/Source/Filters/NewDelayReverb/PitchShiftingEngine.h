@@ -13,13 +13,16 @@
 #include "PitchShifter/PingPongOctaveSequence.h"
 #include "PitchShifter/RandomOctaveSequence.h"
 #include "PitchShifter/GranularPitchBackend.h"
+// Added to expose the WSOLA backend as a selectable BackendType alongside Granular.
+#include "PitchShifter/WSOLAPitchBackend_v3.h"
 
 class OctaveEchoPitchShifter
 {
 public:
     enum class BackendType
     {
-        Granular
+        Granular,
+        WSOLA    // WSOLAPitchBackend_v3: WSOLA with echo-boundary-aware reset
     };
 
     OctaveEchoPitchShifter()
@@ -136,6 +139,15 @@ public:
             granular->SetJitterPercent(0.15f);
             granular->SetLookbackMultiplier(3.0f);
             SetBackend(std::move(granular));
+        }
+        // Added WSOLA backend creation with default parameters matching the v3 design.
+        else if (newBackendType == BackendType::WSOLA)
+        {
+            auto wsola = std::make_unique<WSOLAPitchBackend_v3>();
+            wsola->SetGrainLengthMilliseconds(40.0f);
+            wsola->SetSearchRadiusMilliseconds(4.0f);
+            wsola->SetLookbackMultiplier(3.0f);
+            SetBackend(std::move(wsola));
         }
     }
 
