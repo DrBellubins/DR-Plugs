@@ -74,7 +74,7 @@ private:
 
     float pitchRangeLower = -12.0f;
     float pitchRangeUpper = 12.0f;
-    int pitchMode = 0;
+    int pitchSequence = 0;
     float pitchStereoEnabled01 = 0.0f;
     float pitchWetMix = 0.0f;
     //endregion

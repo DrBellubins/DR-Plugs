@@ -1,5 +1,9 @@
 #pragma once
 
+#include <cmath>
+
+#include "PitchShiftingUtils.h"
+
 // Random octave sequence: picks a random octave within [lowerBound, upperBound]
 // each echo, avoiding an immediate back-to-back repeat when more than one choice exists.
 class RandomOctaveSequence : public IPitchSequence
@@ -29,6 +33,7 @@ public:
     float GetCurrentPitchRatio() const override
     {
         const int clamped = juce::jlimit(-4, 4, currentOctave);
+
         return std::pow(2.0f, static_cast<float>(clamped));
     }
 
@@ -36,22 +41,31 @@ private:
     void BuildOctaveList()
     {
         octaves.clear();
+
         for (int o = lowerBound; o <= upperBound; ++o)
             octaves.push_back(o);
     }
 
     int PickRandom(int excludeOctave) const
     {
-        if (octaves.empty()) return 0;
-        if (static_cast<int>(octaves.size()) == 1) return octaves[0];
+        if (octaves.empty())
+            return 0;
+
+        if (static_cast<int>(octaves.size()) == 1)
+            return octaves[0];
 
         std::vector<int> candidates;
         candidates.reserve(octaves.size());
+
         for (int o : octaves)
+        {
             if (o != excludeOctave)
                 candidates.push_back(o);
+        }
 
-        if (candidates.empty()) return octaves[0];
+        if (candidates.empty())
+            return octaves[0];
+
         return candidates[static_cast<size_t>(rand()) % candidates.size()];
     }
 

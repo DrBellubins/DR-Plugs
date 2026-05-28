@@ -6,8 +6,6 @@
 #include "../DelayLine.h"
 #include "../../../Utils/PMath.h"
 
-// TODO: Pitch sequences aren't set??? (Happens in old implementation)
-
 class PitchShifter
 {
 public:

@@ -71,18 +71,16 @@ public:
     // Called by OctaveEchoPitchShifter AFTER advancing the sequence.
     // newRatio is the ratio the next echo should play at.
     // ------------------------------------------------------------------
-    void OnEchoBoundary(float newRatio)
+    void OnEchoBoundary(float newRatio) override
     {
-        const float r = juce::jlimit(0.25f, 4.0f, newRatio);
-
-        GrainState& active   = (activeIsA ? stateA : stateB);
+        GrainState& active = (activeIsA ? stateA : stateB);
         GrainState& inactive = (activeIsA ? stateB : stateA);
 
-        if (std::abs(r - active.ratio) < 1.0e-6f)
+        if (std::abs(newRatio - active.ratio) < 1.0e-6f)
             return;
 
         inactive = active;
-        inactive.ratio = r;
+        inactive.ratio = newRatio;
 
         if (boundaryCrossfadeSamples <= 0)
         {
@@ -170,6 +168,7 @@ public:
     void SetGrainLengthMilliseconds(float ms)
     {
         const float clamped = juce::jlimit(5.0f, 120.0f, ms);
+
         grainLengthSamples  = std::max(16, static_cast<int>(
             std::round((clamped * sampleRate) / 1000.0)));
     }
@@ -179,7 +178,8 @@ public:
 
     void SetBoundaryCrossfadeMilliseconds(float ms)
     {
-        const float clamped      = juce::jlimit(0.0f, 30.0f, ms);
+        const float clamped = juce::jlimit(0.0f, 30.0f, ms);
+
         boundaryCrossfadeSamples = std::max(0, static_cast<int>(
             std::round((clamped * sampleRate) / 1000.0)));
     }

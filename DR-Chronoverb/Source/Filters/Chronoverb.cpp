@@ -21,7 +21,7 @@ void Chronoverb::PrepareToPlay(double newSampleRate)
     PitchShifterLeftRight->PrepareToPlay(sampleRate);
 }
 
-void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
+void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer) const
 {
     const int numChannels = audioBuffer.getNumChannels();
     const int numSamples  = audioBuffer.getNumSamples();

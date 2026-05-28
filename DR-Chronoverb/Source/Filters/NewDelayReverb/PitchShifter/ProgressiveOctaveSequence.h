@@ -1,5 +1,9 @@
 #pragma once
 
+#include <cmath>
+
+#include "PitchShiftingUtils.h"
+
 // Progressive octaves: starts at startOctave, steps by stepOctaves per echo,
 // clamped to [lowerBound, upperBound].
 class ProgressiveOctaveSequence : public IPitchSequence
@@ -46,6 +50,7 @@ public:
     float GetCurrentPitchRatio() const override
     {
         const int clamped = juce::jlimit(-4, 4, currentOctaves);
+
         return std::pow(2.0f, static_cast<float>(clamped));
     }
 

@@ -39,7 +39,7 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     // Pitch shifting
     parameters.addParameterListener("pitchRangeLower", this);
     parameters.addParameterListener("pitchRangeUpper", this);
-    parameters.addParameterListener("pitchMode", this);
+    parameters.addParameterListener("pitchSequence", this);
     parameters.addParameterListener("pitchStereoEnabled", this);
     parameters.addParameterListener("pitchAlgorithm", this);
     parameters.addParameterListener("pitchWetMix", this);

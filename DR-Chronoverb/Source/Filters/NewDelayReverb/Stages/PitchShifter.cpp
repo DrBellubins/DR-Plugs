@@ -170,7 +170,7 @@ void PitchShifter::SetPitchRangeUpper(float pitchRangeUpperSemitones)
 
 void PitchShifter::SetPitchSequence(int sequenceIndex)
 {
-    pitchMode = sequenceIndex;
+    pitchSequence = sequenceIndex;
     pitchSequenceRebuildPending.store(true, std::memory_order_release);
 }
 
@@ -199,7 +199,7 @@ void PitchShifter::rebuildPitchSequences()
 
     auto configureShifter = [&](OctaveEchoPitchShifter& shifter)
     {
-        if (pitchMode == 3) // Up-Down
+        if (pitchSequence == 3) // Up-Down
         {
             auto pingPongSequence = std::make_unique<PingPongOctaveSequence>();
             pingPongSequence->SetRange(lowerOctave, upperOctave);
@@ -207,7 +207,7 @@ void PitchShifter::rebuildPitchSequences()
             pingPongSequence->SetInitialDirection(1);
             shifter.SetSequence(std::move(pingPongSequence));
         }
-        else if (pitchMode == 2) // Random
+        else if (pitchSequence == 2) // Random
         {
             auto randomSequence = std::make_unique<RandomOctaveSequence>();
             randomSequence->SetRange(lowerOctave, upperOctave);
@@ -218,7 +218,7 @@ void PitchShifter::rebuildPitchSequences()
             auto progressiveSequence = std::make_unique<ProgressiveOctaveSequence>();
             progressiveSequence->SetRange(lowerOctave, upperOctave);
 
-            if (pitchMode == 0) // Up
+            if (pitchSequence == 0) // Up
             {
                 progressiveSequence->SetStartOctave(lowerOctave);
                 progressiveSequence->SetStepOctaves(1);

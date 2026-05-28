@@ -1,5 +1,9 @@
 #pragma once
 
+#include <cmath>
+
+#include "PitchShiftingUtils.h"
+
 class PingPongOctaveSequence : public IPitchSequence
 {
 public:
