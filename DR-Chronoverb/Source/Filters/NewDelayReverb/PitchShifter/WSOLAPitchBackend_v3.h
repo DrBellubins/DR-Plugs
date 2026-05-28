@@ -301,7 +301,7 @@ private:
             if (score > bestScore)
             {
                 bestScore = score;
-                bestPos   = candidatePos;
+                bestPos = candidatePos;
             }
         }
 
