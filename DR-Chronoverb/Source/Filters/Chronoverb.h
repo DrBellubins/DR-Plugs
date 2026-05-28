@@ -17,7 +17,7 @@ public:
     Chronoverb();
 
     void PrepareToPlay(double sampleRate);
-    void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
+    void ProcessBlock(juce::AudioBuffer<float>& audioBuffer) const;
 
     std::unique_ptr<Delay> DelayLeftRight;
     std::unique_ptr<Reverb> ReverbLeftRight;

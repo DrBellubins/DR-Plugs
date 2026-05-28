@@ -114,9 +114,9 @@ void Chronoverb::SetPitchRangeUpper(float pitchRangeUpperSemitones)
 
 void Chronoverb::SetPitchSequence(int sequenceIndex)
 {
-    pitchMode = juce::jlimit(0, 3, sequenceIndex);
+    pitchSequence = juce::jlimit(0, 3, sequenceIndex);
 
-    PitchShifterLeftRight->SetPitchSequence(pitchMode);
+    PitchShifterLeftRight->SetPitchSequence(pitchSequence);
 }
 
 void Chronoverb::SetpitchWetMix(float newPitchWetMix)
