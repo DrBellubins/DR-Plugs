@@ -13,6 +13,7 @@
 #include "PitchShifter/PingPongOctaveSequence.h"
 #include "PitchShifter/RandomOctaveSequence.h"
 #include "PitchShifter/GranularPitchBackend.h"
+#include "PitchShifter/WSOLAPitchBackend_v2.h"
 
 class OctaveEchoPitchShifter
 {
@@ -24,10 +25,11 @@ public:
 
     OctaveEchoPitchShifter()
     {
-        auto granular = std::make_unique<GranularPitchBackend>();
+        /*auto granular = std::make_unique<GranularPitchBackend>();
         granular->SetGrainLengthMilliseconds(35.0f);
         granular->SetJitterPercent(0.15f);
         granular->SetLookbackMultiplier(3.0f);
+        SetBackend(std::move(granular));*/
 
         auto seq = std::make_unique<ProgressiveOctaveSequence>();
         seq->SetRange(-2, 2);
@@ -35,7 +37,9 @@ public:
         seq->SetStepOctaves(1);
 
         SetSequence(std::move(seq));
-        SetBackend(std::move(granular));
+
+        auto wsola = std::make_unique<WSOLAPitchBackend_v2>();
+        SetBackend(std::move(wsola));
     }
 
     void Prepare(double newSampleRate)
