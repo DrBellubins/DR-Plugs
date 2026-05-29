@@ -201,6 +201,12 @@ public:
         }
     }
 
+    void SetNominalTapDelaySamples(float newNominalTapDelaySamples)
+    {
+        if (auto* granularBackend = dynamic_cast<GranularPitchBackend*>(backend.get()))
+            granularBackend->SetNominalTapDelaySamples(newNominalTapDelaySamples);
+    }
+
     float GetLatencyMilliseconds() const
     {
         if (!GetEnabled() || backend == nullptr)

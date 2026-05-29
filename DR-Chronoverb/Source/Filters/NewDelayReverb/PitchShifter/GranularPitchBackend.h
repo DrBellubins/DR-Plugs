@@ -11,7 +11,7 @@
 // only the ratio set at the last boundary call.
 class GranularPitchBackend : public IPitchShifterBackend
 {
-    struct ReadHead { float samplesBehindWriteHead = 0.0f; };
+    struct ReadHead { float samplesOffsetFromNominalTap = 0.0f; };
 
     struct GrainState
     {
@@ -53,8 +53,8 @@ public:
         stateA.ratio  = 1.0f;
         stateB = stateA;
 
-        anchorStateToWrite(stateA);
-        anchorStateToWrite(stateB);
+        anchorStateAroundNominalTap(stateA);
+        anchorStateAroundNominalTap(stateB);
 
         crossfadeRemainingSamples = 0;
         crossfadeTotalSamples = boundaryCrossfadeSamples;
@@ -114,8 +114,8 @@ public:
         stateB.phaseC = 0.5f;
         stateB.phaseD = 0.75f;
 
-        anchorStateToWrite(stateA);
-        anchorStateToWrite(stateB);
+        anchorStateAroundNominalTap(stateA);
+        anchorStateAroundNominalTap(stateB);
 
         crossfadeRemainingSamples = 0;
         pendingFlipAfterFade = false;
@@ -183,39 +183,33 @@ public:
         sourceDelayLine = newDelayLine;
     }
 
+    void SetNominalTapDelaySamples(float newNominalTapDelaySamples)
+    {
+        nominalTapDelaySamples = std::max(1.0f, newNominalTapDelaySamples);
+    }
+
     float GetLatencyMilliseconds() const override
     {
-        const GrainState& active = (activeIsA ? stateA : stateB);
-        const float grainMs = static_cast<float>(grainLengthSamples) * 1000.0f
-                              / static_cast<float>(sampleRate);
-
-        // Effective latency varies with ratio. At phase 0.5 (steady-state average
-        // across 4 interleaved heads), the read head has consumed:
-        //   0.5 * grainLength * (ratio - 1)
-        // samples of the lookback, reducing the effective age of the output.
-        const float effectiveLatencyMs = grainMs
-            * (lookbackMultiplier + 0.5f * (1.0f - active.ratio));
-
-        return std::max(1.0f, effectiveLatencyMs);
+        return 0.0f;
     }
 
 private:
     float processStateOneSample(GrainState& grainState)
     {
-        const float sampleA = readFromDelayLine(grainState.headA.samplesBehindWriteHead);
-        const float sampleB = readFromDelayLine(grainState.headB.samplesBehindWriteHead);
-        const float sampleC = readFromDelayLine(grainState.headC.samplesBehindWriteHead);
-        const float sampleD = readFromDelayLine(grainState.headD.samplesBehindWriteHead);
+        const float sampleA = readFromDelayLineAtTapOffset(grainState.headA.samplesOffsetFromNominalTap);
+        const float sampleB = readFromDelayLineAtTapOffset(grainState.headB.samplesOffsetFromNominalTap);
+        const float sampleC = readFromDelayLineAtTapOffset(grainState.headC.samplesOffsetFromNominalTap);
+        const float sampleD = readFromDelayLineAtTapOffset(grainState.headD.samplesOffsetFromNominalTap);
 
         const float maxAbsInput = std::max(
             std::max(std::abs(sampleA), std::abs(sampleB)),
             std::max(std::abs(sampleC), std::abs(sampleD)));
 
         const float advance = grainState.ratio - 1.0f;
-        grainState.headA.samplesBehindWriteHead -= advance;
-        grainState.headB.samplesBehindWriteHead -= advance;
-        grainState.headC.samplesBehindWriteHead -= advance;
-        grainState.headD.samplesBehindWriteHead -= advance;
+        grainState.headA.samplesOffsetFromNominalTap -= advance;
+        grainState.headB.samplesOffsetFromNominalTap -= advance;
+        grainState.headC.samplesOffsetFromNominalTap -= advance;
+        grainState.headD.samplesOffsetFromNominalTap -= advance;
 
         const float phaseInc = 1.0f / static_cast<float>(grainLengthSamples);
 
@@ -223,28 +217,28 @@ private:
         if (grainState.phaseA >= 1.0f)
         {
             grainState.phaseA -= 1.0f;
-            anchorHeadToWrite(grainState.headA, generateJitterSamples(), grainState.ratio);
+            anchorHeadAroundNominalTap(grainState.headA, generateJitterSamples(), grainState.ratio);
         }
 
         grainState.phaseB += phaseInc;
         if (grainState.phaseB >= 1.0f)
         {
             grainState.phaseB -= 1.0f;
-            anchorHeadToWrite(grainState.headB, generateJitterSamples(), grainState.ratio);
+            anchorHeadAroundNominalTap(grainState.headB, generateJitterSamples(), grainState.ratio);
         }
 
         grainState.phaseC += phaseInc;
         if (grainState.phaseC >= 1.0f)
         {
             grainState.phaseC -= 1.0f;
-            anchorHeadToWrite(grainState.headC, generateJitterSamples(), grainState.ratio);
+            anchorHeadAroundNominalTap(grainState.headC, generateJitterSamples(), grainState.ratio);
         }
 
         grainState.phaseD += phaseInc;
         if (grainState.phaseD >= 1.0f)
         {
             grainState.phaseD -= 1.0f;
-            anchorHeadToWrite(grainState.headD, generateJitterSamples(), grainState.ratio);
+            anchorHeadAroundNominalTap(grainState.headD, generateJitterSamples(), grainState.ratio);
         }
 
         const float wA = hannWindow(grainState.phaseA);
@@ -261,27 +255,30 @@ private:
         return output;
     }
 
-    void anchorStateToWrite(GrainState& s)
+    void anchorStateAroundNominalTap(GrainState& state)
     {
-        anchorHeadToWrite(s.headA, 0.0f, s.ratio);
-        anchorHeadToWrite(s.headB, 0.0f, s.ratio);
-        anchorHeadToWrite(s.headC, 0.0f, s.ratio);
-        anchorHeadToWrite(s.headD, 0.0f, s.ratio);
+        anchorHeadAroundNominalTap(state.headA, 0.0f, state.ratio);
+        anchorHeadAroundNominalTap(state.headB, 0.0f, state.ratio);
+        anchorHeadAroundNominalTap(state.headC, 0.0f, state.ratio);
+        anchorHeadAroundNominalTap(state.headD, 0.0f, state.ratio);
     }
 
-    void anchorHeadToWrite(ReadHead& readHead, float jitterOffsetSamples, float ratio)
+    void anchorHeadAroundNominalTap(ReadHead& readHead, float jitterOffsetSamples, float ratio)
     {
-        const float baseLookback =
+        const float baseLookbackSamples =
             static_cast<float>(grainLengthSamples) * lookbackMultiplier;
 
-        const float safetyLookback =
+        const float safetyLookbackSamples =
             static_cast<float>(grainLengthSamples) * std::max(1.0f, ratio);
 
-        const float minimumLookback = std::max(baseLookback, safetyLookback);
-        const float positiveJitter = std::max(0.0f, jitterOffsetSamples);
+        const float lookbackSamples =
+            std::max(baseLookbackSamples, safetyLookbackSamples);
 
-        readHead.samplesBehindWriteHead =
-            std::max(8.0f, minimumLookback + positiveJitter);
+        const float positiveJitterSamples = std::max(0.0f, jitterOffsetSamples);
+
+        // Negative means “older than the nominal tap”.
+        readHead.samplesOffsetFromNominalTap =
+            -(lookbackSamples + positiveJitterSamples);
     }
 
     float generateJitterSamples() const
@@ -328,12 +325,16 @@ private:
         return ((a0 * frac + a1) * frac + a2) * frac + a3;
     }
 
-    float readFromDelayLine(float samplesBehindWriteHead) const
+    float readFromDelayLineAtTapOffset(float samplesOffsetFromNominalTap) const
     {
         if (sourceDelayLine == nullptr)
             return 0.0f;
 
-        return sourceDelayLine->ReadSamplesBehindWrite(samplesBehindWriteHead);
+        const float samplesBehindWriteHead =
+            nominalTapDelaySamples + samplesOffsetFromNominalTap;
+
+        return sourceDelayLine->ReadSamplesBehindWrite(
+            std::max(1.0f, samplesBehindWriteHead));
     }
 
     double sampleRate = 48000.0;
@@ -345,6 +346,7 @@ private:
     int grainLengthSamples = 1680;
     float jitterPercent = 0.12f;
     float lookbackMultiplier = 3.0f;
+    float nominalTapDelaySamples = 1.0f;
 
     GrainState stateA;
     GrainState stateB;

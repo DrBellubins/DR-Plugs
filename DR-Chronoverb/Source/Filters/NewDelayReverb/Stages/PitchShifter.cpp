@@ -59,10 +59,15 @@ std::pair<float, float> PitchShifter::ProcessSample(float inputSampleL, float in
             (delayTimeSegment.DelayTimeMilliseconds - smoothedCenteredReadDelayMilliseconds);
 
     const float nominalReadMilliseconds = smoothedCenteredReadDelayMilliseconds;
-    const float preReadMs = std::max(1.0f, nominalReadMilliseconds - pitchShifterLatencyMs);
 
-    const float preReadWetLeft = delayLineLeft->ReadFeedbackBuffer(preReadMs);
-    const float preReadWetRight = delayLineRight->ReadFeedbackBuffer(preReadMs);
+    const float nominalTapWetLeft = delayLineLeft->ReadFeedbackBuffer(nominalReadMilliseconds);
+    const float nominalTapWetRight = delayLineRight->ReadFeedbackBuffer(nominalReadMilliseconds);
+
+    const float nominalTapDelaySamples =
+        (nominalReadMilliseconds * static_cast<float>(sampleRate)) / 1000.0f;
+
+    pitchShifterLeft.SetNominalTapDelaySamples(nominalTapDelaySamples);
+    pitchShifterRight.SetNominalTapDelaySamples(nominalTapDelaySamples);
 
     // 2) Process pitch shifter
     float pitchedLeft = inputSampleL;
@@ -70,8 +75,8 @@ std::pair<float, float> PitchShifter::ProcessSample(float inputSampleL, float in
 
     if (pitchWetMix > 0.0001f)
     {
-        pitchedLeft = pitchShifterLeft.ProcessSample(preReadWetLeft);
-        pitchedRight = pitchShifterRight.ProcessSample(preReadWetRight);
+        pitchedLeft = pitchShifterLeft.ProcessSample(nominalTapWetLeft);
+        pitchedRight = pitchShifterRight.ProcessSample(nominalTapWetRight);
 
         auto [diffPitchedLeft, diffPitchedRight] =
             reverb->ProcessSample(pitchedLeft, pitchedRight);
