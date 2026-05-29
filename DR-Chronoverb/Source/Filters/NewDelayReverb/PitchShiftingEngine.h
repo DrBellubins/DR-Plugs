@@ -33,9 +33,8 @@ public:
 
         auto granular = std::make_unique<GranularPitchBackend>();
         granular->SetGrainLengthMilliseconds(35.0f);
-        granular->SetJitterPercent(0.0f); // TEMP was 0.15
+        granular->SetJitterPercent(0.15f);
         granular->SetLookbackMultiplier(3.0f);
-        granular->SetBoundaryCrossfadeMilliseconds(0.0f);
         SetBackend(std::move(granular));
     }
 
@@ -134,7 +133,7 @@ public:
         {
             auto granular = std::make_unique<GranularPitchBackend>();
             granular->SetGrainLengthMilliseconds(35.0f);
-            granular->SetJitterPercent(0.0f); // TEMP was 0.15
+            granular->SetJitterPercent(0.15f);
             granular->SetLookbackMultiplier(3.0f);
             SetBackend(std::move(granular));
         }

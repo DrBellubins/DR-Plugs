@@ -207,10 +207,6 @@ private:
         const float sampleC = readFromDelayLine(grainState.headC.samplesBehindWriteHead);
         const float sampleD = readFromDelayLine(grainState.headD.samplesBehindWriteHead);
 
-        const float maxAbsInput = std::max(
-            std::max(std::abs(sampleA), std::abs(sampleB)),
-            std::max(std::abs(sampleC), std::abs(sampleD)));
-
         grainState.headA.samplesBehindWriteHead -= grainState.ratio;
         grainState.headB.samplesBehindWriteHead -= grainState.ratio;
         grainState.headC.samplesBehindWriteHead -= grainState.ratio;
@@ -222,28 +218,28 @@ private:
         if (grainState.phaseA >= 1.0f)
         {
             grainState.phaseA -= 1.0f;
-            anchorHeadToWrite(grainState.headA, generateJitterSamples(), grainState.ratio);
+            anchorHeadToWrite(grainState.headA, generateJitterSamples());
         }
 
         grainState.phaseB += phaseInc;
         if (grainState.phaseB >= 1.0f)
         {
             grainState.phaseB -= 1.0f;
-            anchorHeadToWrite(grainState.headB, generateJitterSamples(), grainState.ratio);
+            anchorHeadToWrite(grainState.headB, generateJitterSamples());
         }
 
         grainState.phaseC += phaseInc;
         if (grainState.phaseC >= 1.0f)
         {
             grainState.phaseC -= 1.0f;
-            anchorHeadToWrite(grainState.headC, generateJitterSamples(), grainState.ratio);
+            anchorHeadToWrite(grainState.headC, generateJitterSamples());
         }
 
         grainState.phaseD += phaseInc;
         if (grainState.phaseD >= 1.0f)
         {
             grainState.phaseD -= 1.0f;
-            anchorHeadToWrite(grainState.headD, generateJitterSamples(), grainState.ratio);
+            anchorHeadToWrite(grainState.headD, generateJitterSamples());
         }
 
         const float wA = hannWindow(grainState.phaseA);
@@ -251,36 +247,25 @@ private:
         const float wC = hannWindow(grainState.phaseC);
         const float wD = hannWindow(grainState.phaseD);
 
-        const float output =
-            (sampleA * wA + sampleB * wB + sampleC * wC + sampleD * wD) * 0.5f;
-
-        if (maxAbsInput < 1.0e-5f)
-            return 0.0f;
-
-        return output;
+        // Divide by 2 to compensate: 4 sqrt-Hann heads summing to ~2.0 at any point.
+        return (sampleA * wA + sampleB * wB + sampleC * wC + sampleD * wD) * 0.5f;
     }
 
     void anchorStateToWrite(GrainState& s)
     {
-        anchorHeadToWrite(s.headA, 0.0f, s.ratio);
-        anchorHeadToWrite(s.headB, 0.0f, s.ratio);
-        anchorHeadToWrite(s.headC, 0.0f, s.ratio);
-        anchorHeadToWrite(s.headD, 0.0f, s.ratio);
+        anchorHeadToWrite(s.headA, 0.0f);
+        anchorHeadToWrite(s.headB, 0.0f);
+        anchorHeadToWrite(s.headC, 0.0f);
+        anchorHeadToWrite(s.headD, 0.0f);
     }
 
-    void anchorHeadToWrite(ReadHead& readHead, float jitterOffsetSamples, float ratio)
+    void anchorHeadToWrite(ReadHead& readHead, float jitterOffsetSamples)
     {
-        const float baseLookback =
-            static_cast<float>(grainLengthSamples) * lookbackMultiplier;
+        const float baseLookback = static_cast<float>(grainLengthSamples) * lookbackMultiplier;
+        const float safetyLookback = static_cast<float>(grainLengthSamples) * std::max(1.0f, stateA.ratio);
+        const float lookback = std::max(baseLookback, safetyLookback);
 
-        const float safetyLookback =
-            static_cast<float>(grainLengthSamples) * std::max(1.0f, ratio);
-
-        const float minimumLookback = std::max(baseLookback, safetyLookback);
-        const float positiveJitter = std::max(0.0f, jitterOffsetSamples);
-
-        readHead.samplesBehindWriteHead =
-            std::max(8.0f, minimumLookback + positiveJitter);
+        readHead.samplesBehindWriteHead = std::max(1.0f, lookback + jitterOffsetSamples);
     }
 
     float generateJitterSamples() const
