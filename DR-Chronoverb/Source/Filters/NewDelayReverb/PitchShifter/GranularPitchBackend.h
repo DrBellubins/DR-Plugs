@@ -1,12 +1,17 @@
 #pragma once
 
+#include <cmath>
+#include <juce_dsp/juce_dsp.h>
+
+#include "../DelayLine.h"
+
 // ============================ Granular pitch backend (echo-quantized) ============================
 // Ratio changes are driven externally by OnEchoBoundary(newRatio).
 // ProcessSample's pitchRatio parameter is ignored — the granular backend uses
 // only the ratio set at the last boundary call.
 class GranularPitchBackend : public IPitchShifterBackend
 {
-    struct ReadHead { float readIndex = 0.0f; };
+    struct ReadHead { float samplesBehindWriteHead = 0.0f; };
 
     struct GrainState
     {
@@ -28,26 +33,16 @@ public:
     {
         sampleRate = newSampleRate;
 
-        const int bufferMs = 300;
-        const int bufferSize = std::max(
-            2048,
-            static_cast<int>(std::ceil((bufferMs * sampleRate) / 1000.0)));
-
-        buffer.assign(static_cast<size_t>(bufferSize), 0.0f);
-
-        SetGrainLengthMilliseconds(50.0f);
+        /*SetGrainLengthMilliseconds(50.0f);
         SetJitterPercent(0.12f);
         SetLookbackMultiplier(4.0f);
-        SetBoundaryCrossfadeMilliseconds(4.0f);
+        SetBoundaryCrossfadeMilliseconds(4.0f);*/
 
         Reset();
     }
 
     void Reset() override
     {
-        std::fill(buffer.begin(), buffer.end(), 0.0f);
-        writeIndex = 0;
-
         stateA = {};
         stateB = {};
 
@@ -130,11 +125,10 @@ public:
     // pitchRatio is intentionally unused — ratio is now managed via OnEchoBoundary.
     float ProcessSample(float inputSample, float /*pitchRatio*/) override
     {
-        if (buffer.empty())
-            return inputSample;
+        juce::ignoreUnused(inputSample);
 
-        buffer[static_cast<size_t>(writeIndex)] = inputSample;
-        writeIndex = (writeIndex + 1) % static_cast<int>(buffer.size());
+        if (sourceDelayLine == nullptr)
+            return inputSample;
 
         GrainState& active   = (activeIsA ? stateA : stateB);
         GrainState& inactive = (activeIsA ? stateB : stateA);
@@ -184,6 +178,11 @@ public:
             std::round((clamped * sampleRate) / 1000.0)));
     }
 
+    void SetSourceDelayLine(DelayLine* newDelayLine) override
+    {
+        sourceDelayLine = newDelayLine;
+    }
+
     float GetLatencyMilliseconds() const override
     {
         const GrainState& active = (activeIsA ? stateA : stateB);
@@ -203,15 +202,15 @@ public:
 private:
     float processStateOneSample(GrainState& grainState)
     {
-        const float sampleA = readCubic(grainState.headA.readIndex);
-        const float sampleB = readCubic(grainState.headB.readIndex);
-        const float sampleC = readCubic(grainState.headC.readIndex);
-        const float sampleD = readCubic(grainState.headD.readIndex);
+        const float sampleA = readFromDelayLine(grainState.headA.samplesBehindWriteHead);
+        const float sampleB = readFromDelayLine(grainState.headB.samplesBehindWriteHead);
+        const float sampleC = readFromDelayLine(grainState.headC.samplesBehindWriteHead);
+        const float sampleD = readFromDelayLine(grainState.headD.samplesBehindWriteHead);
 
-        grainState.headA.readIndex = wrapReadIndex(grainState.headA.readIndex + grainState.ratio);
-        grainState.headB.readIndex = wrapReadIndex(grainState.headB.readIndex + grainState.ratio);
-        grainState.headC.readIndex = wrapReadIndex(grainState.headC.readIndex + grainState.ratio);
-        grainState.headD.readIndex = wrapReadIndex(grainState.headD.readIndex + grainState.ratio);
+        grainState.headA.samplesBehindWriteHead -= grainState.ratio;
+        grainState.headB.samplesBehindWriteHead -= grainState.ratio;
+        grainState.headC.samplesBehindWriteHead -= grainState.ratio;
+        grainState.headD.samplesBehindWriteHead -= grainState.ratio;
 
         const float phaseInc = 1.0f / static_cast<float>(grainLengthSamples);
 
@@ -262,9 +261,11 @@ private:
 
     void anchorHeadToWrite(ReadHead& readHead, float jitterOffsetSamples)
     {
-        const float lookback = static_cast<float>(grainLengthSamples) * lookbackMultiplier;
-        const float index = static_cast<float>(writeIndex);
-        readHead.readIndex = wrapReadIndex(index - lookback + jitterOffsetSamples);
+        const float baseLookback = static_cast<float>(grainLengthSamples) * lookbackMultiplier;
+        const float safetyLookback = static_cast<float>(grainLengthSamples) * std::max(1.0f, stateA.ratio);
+        const float lookback = std::max(baseLookback, safetyLookback);
+
+        readHead.samplesBehindWriteHead = std::max(1.0f, lookback + jitterOffsetSamples);
     }
 
     float generateJitterSamples() const
@@ -311,7 +312,17 @@ private:
         return ((a0 * frac + a1) * frac + a2) * frac + a3;
     }
 
+    float readFromDelayLine(float samplesBehindWriteHead) const
+    {
+        if (sourceDelayLine == nullptr)
+            return 0.0f;
+
+        return sourceDelayLine->ReadSamplesBehindWrite(samplesBehindWriteHead);
+    }
+
     double sampleRate = 48000.0;
+
+    DelayLine* sourceDelayLine = nullptr;
     std::vector<float> buffer;
     int writeIndex = 0;
 

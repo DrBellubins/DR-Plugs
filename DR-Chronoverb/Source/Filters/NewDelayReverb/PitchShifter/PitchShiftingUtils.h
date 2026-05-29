@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../DelayLine.h"
+
 class IPitchSequence
 {
 public:
@@ -46,6 +48,8 @@ public:
     virtual void SetInitialRatio(float ratio) { juce::ignoreUnused(ratio); }
 
     virtual float GetLatencyMilliseconds() const { return 0.0f; }
+
+    virtual void SetSourceDelayLine(DelayLine* delayLine) { juce::ignoreUnused(delayLine); }
 };
 
 // Passthrough backend (testing / bypass).

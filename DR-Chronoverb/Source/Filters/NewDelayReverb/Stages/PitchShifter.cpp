@@ -187,6 +187,9 @@ void PitchShifter::SetDelayLines(DelayLine& newDelayLineLeft, DelayLine& newDela
 {
     delayLineLeft = &newDelayLineLeft;
     delayLineRight = &newDelayLineRight;
+
+    pitchShifterLeft.SetSourceDelayLine(delayLineLeft);
+    pitchShifterRight.SetSourceDelayLine(delayLineRight);
 }
 
 void PitchShifter::rebuildPitchSequences()
