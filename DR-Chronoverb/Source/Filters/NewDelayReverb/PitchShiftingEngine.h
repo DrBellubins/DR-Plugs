@@ -139,12 +139,6 @@ public:
         }
     }
 
-    void SetSourceDelayLine(DelayLine* delayLine) const
-    {
-        if (backend != nullptr)
-            backend->SetSourceDelayLine(delayLine);
-    }
-
     // Commits a pending sequence immediately — only safe outside the audio thread.
     void CommitPendingSequenceNow()
     {
