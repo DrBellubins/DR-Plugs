@@ -277,7 +277,8 @@ private:
         const float positiveJitterSamples = std::max(0.0f, jitterOffsetSamples);
 
         // Negative means “older than the nominal tap”.
-        readHead.samplesOffsetFromNominalTap = lookbackSamples + positiveJitterSamples;
+        readHead.samplesOffsetFromNominalTap =
+            -(lookbackSamples + positiveJitterSamples);
     }
 
     float generateJitterSamples() const
