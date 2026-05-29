@@ -3,7 +3,8 @@ Analysis of Granular Pitch Shifting in DR-Chronoverb
 Context Summary
 
 Your pitch shifter lives inside a delay/reverb feedback loop. The OctaveEchoPitchShifter drives a GranularPitchBackend which uses 4 overlapping Hann-windowed read heads with cubic interpolation, reading from a small (300ms) circular buffer. Pitch ratios change only at echo boundaries (once per delay period). The sequences operate in integer octaves only.
-Part 1: Structural / Architectural Changes (Highest to Lowest Impact)
+
+##Part 1: Structural / Architectural Changes (Highest to Lowest Impact)
 
 1. Decouple the pitch shifter's internal buffer from its own write pointer — read directly from the delay line instead.
 
@@ -24,7 +25,8 @@ generateJitterSamples() uses rand(), which is global, non-thread-safe, and non-d
 5. Tie the grain phase / echo boundary to host transport position.
 
 The echo boundary counter (echoWriteCounterL) free-runs from the moment of PrepareToPlay. It has no relationship to the host's playback position. If you reset the counter and grain phases when the host transport starts (using juce::AudioPlayHead position info), the grain sequence would be identical on every playback of the same section — directly addressing issue #2.
-Part 2: Improvements for Quality, Naturalness, and High-Ratio Performance (Highest to Lowest Impact)
+
+##Part 2: Improvements for Quality, Naturalness, and High-Ratio Performance (Highest to Lowest Impact)
 
 1. Dynamic grain length scaling with ratio.
 

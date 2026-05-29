@@ -106,9 +106,8 @@ public:
     // ------------------------------------------------------------------
     void SetInitialRatio(float ratio) override
     {
-        const float m_ratio = juce::jlimit(0.25f, 4.0f, ratio);
-        stateA.ratio = m_ratio;
-        stateB.ratio = m_ratio;
+        stateA.ratio = ratio;
+        stateB.ratio = ratio;
 
         stateA.phaseA = 0.0f;
         stateA.phaseB = 0.25f;
