@@ -211,11 +211,10 @@ private:
             std::max(std::abs(sampleA), std::abs(sampleB)),
             std::max(std::abs(sampleC), std::abs(sampleD)));
 
-        const float advance = grainState.ratio - 1.0f;
-        grainState.headA.samplesBehindWriteHead -= advance;
-        grainState.headB.samplesBehindWriteHead -= advance;
-        grainState.headC.samplesBehindWriteHead -= advance;
-        grainState.headD.samplesBehindWriteHead -= advance;
+        grainState.headA.samplesBehindWriteHead -= grainState.ratio;
+        grainState.headB.samplesBehindWriteHead -= grainState.ratio;
+        grainState.headC.samplesBehindWriteHead -= grainState.ratio;
+        grainState.headD.samplesBehindWriteHead -= grainState.ratio;
 
         const float phaseInc = 1.0f / static_cast<float>(grainLengthSamples);
 
