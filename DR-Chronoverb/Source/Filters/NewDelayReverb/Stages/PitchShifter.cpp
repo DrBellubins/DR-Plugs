@@ -59,12 +59,15 @@ std::pair<float, float> PitchShifter::ProcessSample(float inputSampleL, float in
             (delayTimeSegment.DelayTimeMilliseconds - smoothedCenteredReadDelayMilliseconds);
 
     const float nominalReadMilliseconds = smoothedCenteredReadDelayMilliseconds;
+    constexpr float pitchAlignmentBiasMs = 8.0f;
+    const float pitchReadMilliseconds =
+        std::max(1.0f, nominalReadMilliseconds - pitchAlignmentBiasMs);
 
-    const float nominalTapWetLeft = delayLineLeft->ReadFeedbackBuffer(nominalReadMilliseconds);
-    const float nominalTapWetRight = delayLineRight->ReadFeedbackBuffer(nominalReadMilliseconds);
+    const float nominalTapWetLeft = delayLineLeft->ReadFeedbackBuffer(pitchReadMilliseconds);
+    const float nominalTapWetRight = delayLineRight->ReadFeedbackBuffer(pitchReadMilliseconds);
 
     const float nominalTapDelaySamples =
-        (nominalReadMilliseconds * static_cast<float>(sampleRate)) / 1000.0f;
+        (pitchReadMilliseconds * static_cast<float>(sampleRate)) / 1000.0f;
 
     pitchShifterLeft.SetNominalTapDelaySamples(nominalTapDelaySamples);
     pitchShifterRight.SetNominalTapDelaySamples(nominalTapDelaySamples);
