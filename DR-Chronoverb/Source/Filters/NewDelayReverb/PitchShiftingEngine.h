@@ -25,7 +25,7 @@ public:
     OctaveEchoPitchShifter()
     {
         auto seq = std::make_unique<ProgressiveOctaveSequence>();
-        seq->SetRange(-2, 2);
+        seq->SetRange(-4, 4);
         seq->SetStartOctave(0);
         seq->SetStepOctaves(1);
 

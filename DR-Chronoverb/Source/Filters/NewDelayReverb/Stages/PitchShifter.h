@@ -6,6 +6,10 @@
 #include "../DelayLine.h"
 #include "../../../Utils/PMath.h"
 
+// TODO: Sounds very grainy at anything 24+
+// TODO: Kill myself
+// TODO: Try non-destructive improvements.
+
 class PitchShifter
 {
 public:

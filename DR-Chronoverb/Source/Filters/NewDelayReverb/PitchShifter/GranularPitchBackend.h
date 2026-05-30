@@ -45,6 +45,8 @@ public:
 
     void Reset() override
     {
+        setPRNGSeed(0xC0FFEEu);
+
         std::fill(buffer.begin(), buffer.end(), 0.0f);
         writeIndex = 0;
 
@@ -268,7 +270,8 @@ private:
 
     float generateJitterSamples() const
     {
-        const float u = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * 2.0f - 1.0f;
+        const float u01 = nextUniform01();          // [0, 1)
+        const float u = (u01 * 2.0f) - 1.0f;        // [-1, 1)
         return u * jitterPercent * static_cast<float>(grainLengthSamples);
     }
 
@@ -308,6 +311,30 @@ private:
         const float a3 =  y1;
 
         return ((a0 * frac + a1) * frac + a2) * frac + a3;
+    }
+
+    // Realtime-safe per-instance PRNG (xorshift32).
+    // Deterministic as long as seed is set deterministically.
+    mutable uint32_t prngState = 0x12345678u;
+
+    void setPRNGSeed(uint32_t seed)
+    {
+        // Avoid the all-zero state (xorshift degenerates).
+        prngState = (seed != 0u ? seed : 0x6D2B79F5u);
+    }
+
+    // Returns [0, 1).
+    float nextUniform01() const
+    {
+        uint32_t x = prngState;
+        x ^= x << 13;
+        x ^= x >> 17;
+        x ^= x << 5;
+        prngState = x;
+
+        // Use top 24 bits -> float in [0, 1)
+        const uint32_t mantissa = (x >> 8) & 0x00FFFFFFu;
+        return static_cast<float>(mantissa) * (1.0f / 16777216.0f);
     }
 
     double sampleRate = 48000.0;
