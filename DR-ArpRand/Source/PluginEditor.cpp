@@ -86,16 +86,20 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor(AudioPluginAudi
     updateOctaveRangeLabels();
 
     // Position low label
-    int lowLabelWidth = octaveRangeLowLabel->getFont().getStringWidth(octaveRangeLowLabel->getText());
-    int lowLabelHeight = octaveRangeLowLabel->getFont().getHeight();
+    int lowLabelWidth = juce::GlyphArrangement::getStringWidthInt(
+      octaveRangeLowLabel->getFont(), octaveRangeLowLabel->getText());
+
+    int lowLabelHeight = static_cast<int>(octaveRangeLowLabel->getFont().getHeight());
     int lowLabelX = 100 - (lowLabelWidth / 2);
     int lowLabelY = (getHeight() - 53) - (lowLabelHeight / 2);
 
     octaveRangeLowLabel->setBounds(lowLabelX, lowLabelY, lowLabelWidth, lowLabelHeight);
 
     // Position high label
-    int highLabelWidth = octaveRangeLowLabel->getFont().getStringWidth(octaveRangeLowLabel->getText());
-    int highLabelHeight = octaveRangeLowLabel->getFont().getHeight();
+    int highLabelWidth = juce::GlyphArrangement::getStringWidthInt(
+      octaveRangeHighLabel->getFont(), octaveRangeHighLabel->getText());
+
+    int highLabelHeight = static_cast<int>(octaveRangeLowLabel->getFont().getHeight());
     int highLabelX = (getWidth() - (highLabelWidth / 2)) - 100;
     int highLabelY = (getHeight() - 53) - (highLabelHeight / 2);
 
