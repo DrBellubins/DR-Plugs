@@ -4,7 +4,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "Filters/Chronoverb.h"
-#include "Filters/NewDelayReverb.h"
+//#include "Filters/NewDelayReverb.h"
 #include "Filters/ComputerKeyboardSquareSynth.h"
 #include "Filters/ImpulseClickSynth.h"
 
