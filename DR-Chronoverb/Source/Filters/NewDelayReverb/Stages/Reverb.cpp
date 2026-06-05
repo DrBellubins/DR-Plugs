@@ -52,7 +52,7 @@ std::pair<float, float> Reverb::ProcessSample(float inputSampleL, float inputSam
 
     // 1) Input + feedback
     const float inputFeedbackLeft = inputSampleL + lastFeedbackL;
-    const float inputFeedbackRight = inputSampleR - lastFeedbackR;
+    const float inputFeedbackRight = inputSampleR + lastFeedbackR;
 
     // 2) Diffusion
     const float diffusedLeft = diffusionLeft->ProcessSample(inputFeedbackLeft);
