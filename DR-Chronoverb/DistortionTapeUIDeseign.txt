@@ -1,0 +1,28 @@
+I want an optionally animated oscilliscope UI module, that can have custom options. I want it to mimic RC-20s UI containers, which have the oscilliscope, and the options just beneath them. There will be a global UI container. The container will hold 4 modules. Each module will have its own custom set of options, as this is meant to be a generic UI element that can be used for both my distortion, and tape simulation.
+
+The oscilliscope should also be able to display a fixed-frame waveform (for distortion showing non-animated waveforms that display roughly what the distortion does to a sound)
+For example, in bitwig when I turn up the chebyshev 
+
+Each module option provides an attachment for parameters
+Each module can be colored to its own theme color (module BG is darkened from theme color)
+Each module option is colored based on its parent modules theme (Knobs arc is theme color, but inner part is darkened from theme color)
+Each module option label is colored based on parent module them (slightly darkened, not as much as BG)
+
+Each module can be enabled/disabled by a small rounded rectangular square in the top left of the module. When disabled, the module and all of its options have their opacity reduced to look grayed out.
+
+The module container should provide multiple global theming options, like how far below options labels should be placed, the width of modules (height should just be whatever the container can fit), and a BG color.
+
+I want the container to have a small outline based on container BG color (brightened).
+
+The potential module options include:
+Dropdown - Allows for selection of various types (mainly used for distortion)
+Fully round toggle - A circular toggle with an changeable icon, that simply brightens/darkens the entire element based on the toggle state
+Knobs - Basically the same as ThemedKnob, but with module them-based colors
+
+Each label should have the ability to be contextual. For example, if I have chebyshev distortion with a knob, it could be form 0 - 32, but with heat distortion, it could be 0db - 40db
+
+The module container should expose each module.
+Each module should expose its options.
+Each option should expose its subsidiary elements, like labels.
+
+This allows for further customization after the fact.

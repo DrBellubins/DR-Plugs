@@ -13,6 +13,8 @@
 
 #include "Utils/HorizontalRangeSlider.h"
 
+#include "UI/TabbedPageboxLayout.h"
+
 //==============================================================================
 class AudioPluginAudioProcessorEditor  : public juce::AudioProcessorEditor, public juce::KeyListener
 {
@@ -133,7 +135,9 @@ private:
     std::unique_ptr<RoundedToggle::Attachment> hplpFilterToggleAttachment;
 
     // Tabbed page box
-    std::unique_ptr<TabbedPageBox> bottomTabbedPageBox;
+    TabbedPageBoxLayout PageBoxLayout;
+
+    /*std::unique_ptr<TabbedPageBox> bottomTabbedPageBox;
 
     std::unique_ptr<juce::Component> pitchPage;
     std::unique_ptr<juce::Component> distortionPage;
@@ -159,7 +163,7 @@ private:
 
     std::unique_ptr<ThemedKnob> pitchWetMixKnob;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> pitchWetMixAttachment;
-    std::unique_ptr<juce::Label> pitchWetMixLabel;
+    std::unique_ptr<juce::Label> pitchWetMixLabel;*/
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };

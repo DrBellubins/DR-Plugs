@@ -55,8 +55,6 @@ void Chronoverb::SetDiffusionQuality(int newQualityStages)
 {
     diffusionQualityStages = clampInt(newQualityStages, 1, 8);
 
-    DBG("Quality: " << diffusionQualityStages);
-
     DelayLeftRight->SetDiffusionQuality(diffusionQualityStages);
     ReverbLeftRight->SetDiffusionQuality(diffusionQualityStages);
     PitchShifterLeftRight->SetDiffusionQuality(diffusionQualityStages);

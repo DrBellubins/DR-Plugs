@@ -274,7 +274,7 @@ void UIHelpers::CreateKnobLabel(
 void UIHelpers::CenterKnobLabel(
     std::unique_ptr<juce::Label>& label,
     ThemedKnob& knob,
-    int offsetY)
+    int offsetY) const
 {
     int labelWidth = GetLabelWidth(label);
     int labelHeight = static_cast<int>(label->getFont().getHeight());
@@ -286,7 +286,7 @@ void UIHelpers::CenterKnobLabel(
     label->setBounds(labelX, labelY, labelWidth, labelHeight);
 }
 
-int UIHelpers::GetLabelWidth(const std::unique_ptr<juce::Label>& label)
+int UIHelpers::GetLabelWidth(const std::unique_ptr<juce::Label>& label) const
 {
     return static_cast<int>(
         std::ceil(juce::GlyphArrangement::getStringWidth(label->getFont(), label->getText())

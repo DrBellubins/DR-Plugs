@@ -35,7 +35,7 @@ public:
         int x,
         int y) const;
 
-    static void CreateCheckboxLabel(
+    void CreateCheckboxLabel(
         juce::Component& parentComponent,
         std::unique_ptr<juce::Label>& label,
         ThemedCheckbox& checkbox,
@@ -53,7 +53,7 @@ public:
         int x,
         int y) const;
 
-    static void CreateSliderLabel(
+    void CreateSliderLabel(
         juce::Component& parentComponent,
         std::unique_ptr<juce::Label>& label,
         ThemedSlider& slider,
@@ -61,7 +61,7 @@ public:
         float fontSize,
         int offsetX);
 
-    static void CreateLabel(
+    void CreateLabel(
         juce::Component& parentComponent,
         std::unique_ptr<juce::Label>& label,
         const juce::String& text,
@@ -98,12 +98,12 @@ public:
         float fontSize,
         int offsetY) const;
 
-    static void CenterKnobLabel(
+    void CenterKnobLabel(
         std::unique_ptr<juce::Label>& label,
         ThemedKnob& knob,
-        int offsetY);
+        int offsetY) const;
 
-    static int GetLabelWidth(const std::unique_ptr<juce::Label>& label);
+    int GetLabelWidth(const std::unique_ptr<juce::Label>& label) const;
 
 private:
     juce::AudioProcessorValueTreeState& valueTreeState;

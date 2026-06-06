@@ -198,7 +198,9 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
 
     // ------ TABBED PAGE BOX ------
-    bottomTabbedPageBox = std::make_unique<TabbedPageBox>();
+    PageBoxLayout.CreatePageBoxLayout(*this, uiHelpers, processorRef, 25, 450, 850, 180);
+
+    /*bottomTabbedPageBox = std::make_unique<TabbedPageBox>();
     addAndMakeVisible(*bottomTabbedPageBox);
     bottomTabbedPageBox->setBounds(25, 450, 850, 180);
 
@@ -271,7 +273,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     const int pWetLabelWidth = pitchWetMixLabel->getWidth();
     const int pWetLabelHeight = pitchWetMixLabel->getHeight();
 
-    pitchWetMixLabel->setBounds((750 - (pWetWidth / 2)) + (pWetLabelWidth / 2), 0, pWetLabelWidth, pWetLabelHeight);
+    pitchWetMixLabel->setBounds((750 - (pWetWidth / 2)) + (pWetLabelWidth / 2), 0, pWetLabelWidth, pWetLabelHeight);*/
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
@@ -313,11 +315,11 @@ void AudioPluginAudioProcessorEditor::resized()
     // This is generally where you'll want to lay out the positions of any
     // subcomponents in your editor.
 
-    if (pitchPage != nullptr && horizontalPitchRangeTooltipOverlay != nullptr)
+    /*if (pitchPage != nullptr && horizontalPitchRangeTooltipOverlay != nullptr)
     {
         horizontalPitchRangeTooltipOverlay->setBounds(pitchPage->getLocalBounds());
         horizontalPitchRangeTooltipOverlay->toFront(false);
-    }
+    }*/
 }
 
 // Forward keyboard input to the Keyboard Synth in the processor.
