@@ -1,0 +1,50 @@
+================================================================================
+MODULE CONTAINER THEME (Global Configuration)
+================================================================================
+
+WHAT IT IS:
+A plain data struct or configuration object that holds all the global theming
+and layout parameters for the entire ModuleContainer system. It is passed into
+the ModuleContainer at construction/creation time.
+
+WHY IT'S NEEDED BEFORE THE MODULE CONTAINER:
+The ModuleContainer needs a single place to define global layout rules that apply
+uniformly across all Modules. Without a centralized theme config:
+- Each Module would independently define label offsets, widths, etc.
+- Changing a global style would require editing every Module
+- The "multiple global theming options" requirement wouldn't be met
+
+INDUSTRY STANDARD NAME:
+- "Theme" / "Style Sheet" / "Design Token Set" (general UI)
+- "Layout Configuration" / "Style Configuration" (component libraries)
+- "Skin" (legacy audio plugin term)
+
+DESIGN CONCEPTS:
+The struct contains at minimum:
+
+LAYOUT PROPERTIES:
+- moduleWidth: int — fixed width of each Module panel
+- labelOffsetBelow: int — how far below an option the label is placed (in pixels)
+- optionSpacing: int — horizontal/vertical gap between options within a module
+- oscilloscopeHeight: int — height of the waveform display area
+- modulePadding: int — internal padding within each module panel
+- moduleGap: int — gap between modules within the container
+- enableButtonSize: Size — width/height of the enable toggle
+- enableButtonMargin: int — offset from top-left corner
+
+COLOR PROPERTIES:
+- containerBGColour: Colour — background fill of the overall container
+- containerOutlineColour: Colour — derived as containerBGColour.brighter()
+- containerOutlineThickness: float — stroke width of the container border
+- containerCornerRadius: float — rounded corners of the container itself
+
+DERIVED BEHAVIORS:
+- Module height is calculated as: container height - (2 * container padding)
+  (i.e., modules fill the available vertical space)
+- Module BG = individual module's theme color darkened by a global amount
+- Container outline = containerBGColour.brighter(outlineBrightenAmount)
+
+RELATIONSHIP TO EXISTING CODE:
+- Similar in spirit to how TabbedPageBox has configurable cornerRadius, tabHeight,
+  tabWidth, innerPadding — but collected into a standalone config struct rather
+  than member variables on the container class.

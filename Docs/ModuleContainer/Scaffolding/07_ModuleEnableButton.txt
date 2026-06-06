@@ -1,0 +1,39 @@
+================================================================================
+MODULE ENABLE BUTTON
+================================================================================
+
+WHAT IT IS:
+A small rounded-rectangular toggle button positioned in the top-left corner of
+each Module. It controls whether the Module (and all its child options) are
+active or bypassed.
+
+WHY IT'S NEEDED BEFORE THE MODULE CONTAINER:
+Each Module must be independently enable-able/disable-able. When disabled:
+- The entire Module and all its options reduce opacity (grayed out look)
+- The underlying DSP parameter is set to bypass
+- The enable button itself remains at full opacity so users can re-enable
+
+This is a distinct component from ModuleToggle because:
+- It has a fixed position (top-left of Module)
+- It has a fixed shape (rounded rectangle, not circular)
+- It doesn't have a label
+- It has unique visual behavior (only element NOT affected by the opacity reduction)
+
+INDUSTRY STANDARD NAME:
+- "Bypass Toggle" / "Enable Switch" (audio plugin UI)
+- "Power Button" (hardware analogy)
+- "Active Indicator" (general UI)
+
+DESIGN CONCEPTS:
+- Small fixed size (e.g., 16x16 or 20x14 rounded rect)
+- Positioned absolutely in top-left with small margin
+- ON state: filled with module theme color
+- OFF state: filled with darkened/muted color (gray)
+- Attaches to a bool parameter (moduleXEnabled)
+- When toggled OFF, sets parent Module's opacity to a reduced value (e.g., 0.4)
+- Does NOT reduce its own opacity — always fully visible
+- Corner radius matches the "small rounded rectangular square" description
+
+RELATIONSHIP TO EXISTING CODE:
+- Similar attachment pattern to ThemedCheckbox::Attachment
+- Visually distinct — uses rounded rect, not a square with inner square

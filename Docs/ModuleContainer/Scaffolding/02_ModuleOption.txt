@@ -1,0 +1,43 @@
+================================================================================
+MODULE OPTION (Base Class)
+================================================================================
+
+WHAT IT IS:
+An abstract base class representing any interactive control that lives inside a
+Module. Concrete subclasses include ModuleKnob, ModuleDropdown, and ModuleToggle.
+
+WHY IT'S NEEDED BEFORE THE MODULE CONTAINER:
+Modules need a polymorphic way to own and lay out their options. The base class
+provides the contract for:
+- Parameter attachment
+- Theme-aware coloring (automatically inheriting from parent Module)
+- Contextual labeling (label text that changes based on external state)
+- Consistent sizing/positioning API
+
+Without this abstraction, each Module would need to manually manage heterogeneous
+control types with no shared interface, making the "expose each option" requirement
+impossible to fulfill generically.
+
+INDUSTRY STANDARD NAME:
+- "Control" / "Widget" (general UI)
+- "Parameter Control" (audio plugin UI)
+- "Form Field" (web/app UI)
+
+DESIGN CONCEPTS:
+- Owns a juce::Label for its contextual label text
+- Provides SetLabel(String) for dynamic label changes based on mode/context
+- Provides AttachToParameter(APVTS&, paramID) for audio parameter binding
+- Stores a reference/pointer to its parent Module to query theme colors
+- Exposes SetBounds() matching the JUCE component API
+- Provides GetLabel() so external code can further customize after creation
+- Supports enabled/disabled opacity reduction (inherited from Module state)
+
+CONTEXTUAL LABELING CONCEPT:
+A single knob might display "Harmonics: 0-32" when the parent distortion is set
+to Chebyshev mode, but "Drive: 0-40dB" when set to Heat mode. The ModuleOption
+base class holds the label component and exposes it so the Module or external
+code can swap the text dynamically based on parameter state.
+
+RELATIONSHIP TO EXISTING CODE:
+- Analogous to how PitchPageLayout owns unique_ptr<ThemedKnob> + its attachment
+  + its label, but consolidated into a single self-contained object.

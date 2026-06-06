@@ -1,0 +1,34 @@
+================================================================================
+MODULE TOGGLE (Fully Round Toggle)
+================================================================================
+
+WHAT IT IS:
+A concrete ModuleOption subclass that renders as a fully circular toggle button
+with a changeable icon. It brightens when ON and darkens when OFF.
+
+WHY IT'S NEEDED BEFORE THE MODULE CONTAINER:
+Some module parameters are simple on/off switches (e.g., "LFO Sync", "Stereo",
+"Pre-EQ"). The toggle provides:
+- A compact circular visual distinct from the rectangular enable/disable button
+- Icon-based communication (e.g., a sync icon, a link icon)
+- Theme-aware brightness states
+
+INDUSTRY STANDARD NAME:
+- "Toggle Button" / "Icon Toggle" (general UI)
+- "Latching Switch" / "Bypass Toggle" (audio hardware analogy)
+- "Radio Button" when mutually exclusive (but here it's independent)
+
+DESIGN CONCEPTS:
+- Inherits ModuleOption for label/attachment/theme integration
+- Renders as a filled circle (not rounded rectangle like the enable button)
+- ON state: circle fill = module theme color at full brightness
+- OFF state: circle fill = module theme color significantly darkened
+- Supports a juce::Drawable or Path icon rendered centered within the circle
+- Icon color inverts or adjusts based on toggle state for contrast
+- Attaches to an AudioParameterBool
+- Label below follows same theme-darkened coloring as other options
+- Respects Module enabled/disabled opacity
+
+RELATIONSHIP TO EXISTING CODE:
+- Conceptually similar to ThemedCheckbox but visually circular, not square
+- Uses the same Attachment pattern (AudioProcessorValueTreeState::Listener)

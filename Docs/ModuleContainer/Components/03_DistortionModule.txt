@@ -1,0 +1,75 @@
+================================================================================
+DISTORTION MODULE
+================================================================================
+
+WHAT IT IS:
+A concrete Module subclass representing a distortion effect. Contains a
+waveshape oscilloscope (fixed-frame mode), a type dropdown, and parameter knobs
+that change their contextual labels based on the selected distortion type.
+
+INDUSTRY STANDARD NAME:
+- "Distortion Module" / "Waveshaper Module" (audio plugin)
+- "Drive Section" (guitar amp/pedal analogy)
+
+DESIGN:
+
+    class DistortionModule : public Module
+    {
+    public:
+        void CreateLayout() override
+        {
+            // Oscilloscope in fixed-frame mode (transfer function display)
+            oscilloscope.SetAnimated(false);
+            oscilloscope.SetBounds(...);
+            addAndMakeVisible(oscilloscope);
+
+            // Distortion type selector
+            typeDropdown.SetBounds(...);
+            typeDropdown.AttachToParameter(apvts, "distortionType");
+            addAndMakeVisible(typeDropdown);
+
+            // Drive/Amount knob
+            driveKnob.SetBounds(...);
+            driveKnob.AttachToParameter(apvts, "distortionDrive");
+            addAndMakeVisible(driveKnob);
+
+            // Mix knob
+            mixKnob.SetBounds(...);
+            mixKnob.AttachToParameter(apvts, "distortionMix");
+            addAndMakeVisible(mixKnob);
+        }
+
+        // Exposed options
+        ModuleDropdown typeDropdown;
+        ModuleKnob driveKnob;
+        ModuleKnob mixKnob;
+    };
+
+OSCILLOSCOPE BEHAVIOR (Fixed-Frame):
+- Displays the distortion's transfer function as a static waveform
+- Updates when distortion parameters change (not animated per-frame)
+- Examples by distortion type:
+  * Chebyshev: increasing amount → higher apparent frequency in waveshape
+  * Heat/Tube: increasing drive → square-wave shape with harmonic ripples at
+    top/bottom (showing soft-clipping saturation characteristics)
+  * Bitcrush: staircase quantization pattern
+  * Hard Clip: sharp flat tops/bottoms
+- The transfer function is provided as a lambda: float f(float input)
+  where input is -1..1 and output is -1..1
+
+CONTEXTUAL LABEL BEHAVIOR:
+- When typeDropdown changes to "Chebyshev":
+  * driveKnob label → "Harmonics"
+  * driveKnob range display → "0 - 32"
+- When typeDropdown changes to "Heat":
+  * driveKnob label → "Drive"
+  * driveKnob range display → "0dB - 40dB"
+- When typeDropdown changes to "Bitcrush":
+  * driveKnob label → "Bit Depth"
+  * driveKnob range display → "1 - 16"
+- This is achieved via the typeDropdown's onChange callback updating
+  driveKnob's label and value-to-text function
+
+THEME:
+- Has its own distinct theme color (e.g., orange, red — user configurable)
+- All options inherit this color for arcs, fills, labels

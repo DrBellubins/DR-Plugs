@@ -1,0 +1,36 @@
+================================================================================
+MODULE THEME PROVIDER
+================================================================================
+
+WHAT IT IS:
+A base class/interface that any Module inherits from to declare its theme color.
+It extends the existing DarkeningThemeProvider concept but adds per-module color
+identity rather than just darkening amounts.
+
+WHY IT'S NEEDED BEFORE THE MODULE CONTAINER:
+The ModuleContainer and its child Modules need a uniform way to query "what is
+this module's theme color?" so that all sub-elements (knobs, labels, toggles,
+backgrounds, enable/disable indicators) can derive their colors from a single
+source of truth. Without this, every option widget would need to be manually
+told its color, violating DRY and making retheming painful.
+
+INDUSTRY STANDARD NAME:
+- "Theme Provider" / "Color Scheme Provider" (UI framework pattern)
+- Analogous to CSS custom properties (--module-color) or Flutter's Theme.of()
+
+DESIGN CONCEPTS:
+- Provides a virtual `GetThemeColour()` method returning the module's accent color
+- Provides derived helper methods:
+    - GetDarkenedBackground() — module BG (theme color darkened significantly)
+    - GetOptionArcColour() — full theme color for knob arcs
+    - GetOptionInnerColour() — darkened theme for knob inner fills
+    - GetLabelColour() — slightly darkened theme for text labels
+- Child components walk up the parent hierarchy (like ThemeContext already does)
+  to find the nearest ModuleThemeProvider and auto-color themselves.
+- This mirrors your existing ThemeContext::GetDarkeningAmountForComponent() pattern
+  but generalizes it from a single global pink to per-module colors.
+
+RELATIONSHIP TO EXISTING CODE:
+- Extends/replaces DarkeningThemeProvider from ThemeContext.h
+- All themed widgets (ThemedKnob, ThemedCheckbox, ThemedDropdown) will query this
+  instead of hard-coding ThemePink.

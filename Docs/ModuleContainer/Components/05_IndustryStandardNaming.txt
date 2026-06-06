@@ -1,0 +1,162 @@
+================================================================================
+INDUSTRY STANDARD UI TERMINOLOGY
+================================================================================
+
+This document maps the elements described in the ModuleContainer design to their
+industry-standard names across audio plugin development, general UI/UX, and
+hardware design.
+
+================================================================================
+CONTAINER-LEVEL ELEMENTS
+================================================================================
+
+YOUR TERM                → INDUSTRY STANDARD NAMES
+─────────────────────────────────────────────────────────────────────────────────
+Module Container         → "Effects Rack", "Module Rack", "Panel Strip",
+                           "Card Container", "Horizontal Module Bay"
+                           (RC-20 calls it: "Effects Section")
+
+Container Background     → "Canvas", "Backdrop", "Surface" (Material Design)
+
+Container Outline        → "Border", "Stroke", "Frame", "Bezel" (hardware)
+
+================================================================================
+MODULE-LEVEL ELEMENTS
+================================================================================
+
+YOUR TERM                → INDUSTRY STANDARD NAMES
+─────────────────────────────────────────────────────────────────────────────────
+Module                   → "Module", "Effects Module", "FX Unit", "Card",
+                           "Panel", "Section", "Channel" (modular synth: "Module")
+                           (RC-20 calls each one: "Effect Module")
+
+Module Background        → "Module Surface", "Card Background", "Panel Fill"
+
+Module Theme Color       → "Accent Color", "Brand Color", "Module Tint",
+                           "Hue Identity"
+
+Enable/Disable Button    → "Bypass Toggle", "Power Switch", "Enable Switch",
+                           "Active Indicator", "Module Bypass"
+                           (Hardware: "Footswitch", "Power LED")
+
+Grayed-out/Disabled      → "Bypassed State", "Inactive State", "Dimmed State",
+                           "Muted State" (opacity reduction = "ghosting")
+
+================================================================================
+OSCILLOSCOPE / WAVEFORM DISPLAY
+================================================================================
+
+YOUR TERM                → INDUSTRY STANDARD NAMES
+─────────────────────────────────────────────────────────────────────────────────
+Oscilloscope             → "Oscilloscope", "Scope", "Waveform Display",
+                           "Waveform Monitor", "Signal Display"
+
+Animated Waveform        → "Real-time Scope", "Live Waveform", "Scrolling Scope",
+                           "Time-domain Display"
+
+Fixed-frame Waveform     → "Transfer Function Display", "Waveshaper Curve",
+                           "Static Waveform", "Characteristic Curve",
+                           "I/O Curve" (input/output mapping)
+
+Center Playhead          → "Playhead", "Now Marker", "Trigger Point",
+                           "Center Indicator"
+
+Lookahead                → "Lookahead Buffer", "Preview Window",
+                           "Predictive Display"
+
+Lookback                 → "History Buffer", "Trail", "Lookback Window"
+
+================================================================================
+OPTION-LEVEL ELEMENTS (CONTROLS / WIDGETS)
+================================================================================
+
+YOUR TERM                → INDUSTRY STANDARD NAMES
+─────────────────────────────────────────────────────────────────────────────────
+Module Option            → "Control", "Widget", "Parameter Control",
+                           "UI Element", "Form Control"
+
+Knob                     → "Rotary Encoder", "Dial", "Pot" (potentiometer),
+                           "Rotary Knob", "Rotary Slider" (JUCE term),
+                           "Continuous Controller"
+
+Knob Arc                 → "Value Arc", "Indicator Arc", "Progress Arc",
+                           "Swept Indicator"
+
+Knob Inner Circle        → "Knob Cap", "Knob Face", "Thumb" (some frameworks)
+
+Dropdown                 → "ComboBox", "Select", "Dropdown Menu",
+                           "Mode Selector", "Picker", "Choice Box"
+
+Fully Round Toggle       → "Icon Toggle", "Round Toggle", "Latching Button",
+                           "Toggle Switch" (circular variant),
+                           "LED Button" (hardware analogy)
+
+Label                    → "Caption", "Control Label", "Parameter Label",
+                           "Descriptor"
+
+Contextual Label         → "Dynamic Label", "Context-sensitive Caption",
+                           "Adaptive Label", "Mode-dependent Label"
+
+================================================================================
+THEMING / STYLING TERMS
+================================================================================
+
+YOUR TERM                → INDUSTRY STANDARD NAMES
+─────────────────────────────────────────────────────────────────────────────────
+Theme Color              → "Accent Color", "Primary Color", "Tint",
+                           "Hue" (HSL), "Brand Color"
+
+Darkened from theme      → "Shade" (darker variant), "Dark Variant",
+                           "Tonal Variant" (Material 3)
+
+Brightened from theme    → "Tint" (lighter variant), "Light Variant",
+                           "Highlight"
+
+Theme Provider           → "Theme Context", "Style Provider", "Color Scheme",
+                           "Design Token Provider", "Skin"
+
+Opacity Reduction        → "Alpha Masking", "Ghosting", "Dimming",
+                           "State Layer" (Material Design)
+
+================================================================================
+LAYOUT / STRUCTURE TERMS
+================================================================================
+
+YOUR TERM                → INDUSTRY STANDARD NAMES
+─────────────────────────────────────────────────────────────────────────────────
+CreateLayout()           → "Layout Method", "Compose", "Build" (Flutter),
+                           "Render" (React), "SetupUI" (Qt)
+
+Module Width             → "Column Width", "Cell Width", "Slot Width"
+
+Label Offset Below       → "Label Spacing", "Caption Gap", "Label Margin"
+
+Container Padding        → "Inset", "Content Padding", "Gutter"
+
+Module Gap               → "Spacing", "Gutter", "Gap" (CSS Grid/Flexbox)
+
+================================================================================
+PARAMETER / DATA BINDING TERMS
+================================================================================
+
+YOUR TERM                → INDUSTRY STANDARD NAMES
+─────────────────────────────────────────────────────────────────────────────────
+Parameter Attachment     → "Binding", "Data Binding", "Parameter Link",
+                           "Control Attachment" (JUCE: "SliderAttachment")
+
+Value-to-Text Function   → "Formatter", "Value Formatter", "Display Function",
+                           "String Converter"
+
+Text-to-Value Function   → "Parser", "Value Parser", "Input Converter"
+
+================================================================================
+RC-20 SPECIFIC TERMINOLOGY (for reference)
+================================================================================
+
+RC-20 uses these terms for its similar UI:
+- The horizontal strip of modules = "Effects Chain"
+- Each module panel = "Effect Module" (Noise, Wobble, Distort, Digital, Space, Mag)
+- The waveform at top of each module = "Display" / "Scope"
+- The controls below = "Parameters"
+- The power button per module = "On/Off Switch"
+- The overall look = "Vintage Console" aesthetic

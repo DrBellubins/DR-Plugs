@@ -1,0 +1,80 @@
+================================================================================
+TAPE MODULE
+================================================================================
+
+WHAT IT IS:
+A concrete Module subclass representing a tape simulation/saturation effect.
+Contains an animated oscilloscope showing the LFO-driven wobble waveform with
+lookahead/lookback, plus parameter knobs for tape characteristics.
+
+INDUSTRY STANDARD NAME:
+- "Tape Module" / "Tape Simulation" (audio plugin)
+- "Wow & Flutter Section" (tape machine terminology)
+- "Saturation Module" (when emphasizing harmonic generation)
+
+DESIGN:
+
+    class TapeModule : public Module
+    {
+    public:
+        void CreateLayout() override
+        {
+            // Oscilloscope in animated mode (LFO waveform)
+            oscilloscope.SetAnimated(true);
+            oscilloscope.SetBounds(...);
+            addAndMakeVisible(oscilloscope);
+
+            // Wobble rate knob
+            wobbleRateKnob.SetBounds(...);
+            wobbleRateKnob.AttachToParameter(apvts, "tapeWobbleRate");
+            addAndMakeVisible(wobbleRateKnob);
+
+            // Wobble depth knob
+            wobbleDepthKnob.SetBounds(...);
+            wobbleDepthKnob.AttachToParameter(apvts, "tapeWobbleDepth");
+            addAndMakeVisible(wobbleDepthKnob);
+
+            // Saturation knob
+            saturationKnob.SetBounds(...);
+            saturationKnob.AttachToParameter(apvts, "tapeSaturation");
+            addAndMakeVisible(saturationKnob);
+
+            // Noise toggle (icon: static/noise symbol)
+            noiseToggle.SetBounds(...);
+            noiseToggle.AttachToParameter(apvts, "tapeNoiseEnabled");
+            addAndMakeVisible(noiseToggle);
+        }
+
+        // Exposed options
+        ModuleKnob wobbleRateKnob;
+        ModuleKnob wobbleDepthKnob;
+        ModuleKnob saturationKnob;
+        ModuleToggle noiseToggle;
+    };
+
+OSCILLOSCOPE BEHAVIOR (Animated/LFO):
+- Displays the LFO waveform that drives the tape wobble effect
+- The display is centered on the current playback position:
+  * Center of frame = NOW (current real-time audio position)
+  * Left of center = LOOKBACK (what the LFO was doing moments ago)
+  * Right of center = LOOKAHEAD (what the LFO will do next)
+- The waveform scrolls continuously from right to left as time progresses
+- LFO shape reflects the wobble rate and depth parameters:
+  * Higher rate → more cycles visible in the window
+  * Higher depth → larger amplitude of the waveform
+- A subtle vertical center line or marker indicates the "now" position
+- Frame rate is configurable (30-60fps) and can be disabled to save CPU
+- Waveform color = module theme color
+- Thin playhead indicator at center
+
+DATA FLOW:
+- The DSP thread calculates the LFO values
+- Values are pushed into a lock-free ring buffer
+- The oscilloscope reads from the ring buffer on the GUI thread
+- Lookahead is possible because the LFO is deterministic (we can compute
+  future values from the current phase, rate, and shape)
+
+THEME:
+- Has its own distinct theme color (e.g., cyan, teal — user configurable)
+- All options inherit this color
+- Waveform line drawn in theme color with optional glow/thickness
