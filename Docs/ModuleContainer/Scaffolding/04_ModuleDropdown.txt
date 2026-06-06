@@ -1,0 +1,33 @@
+================================================================================
+MODULE DROPDOWN
+================================================================================
+
+WHAT IT IS:
+A concrete ModuleOption subclass that wraps a combobox/dropdown selector.
+Primarily used for selecting distortion types or algorithm variants within a
+Module.
+
+WHY IT'S NEEDED BEFORE THE MODULE CONTAINER:
+Distortion modules need a way to switch between types (Chebyshev, Heat, Bitcrush,
+etc.). The dropdown:
+- Colors itself based on module theme
+- Attaches to a choice parameter
+- May trigger contextual label changes on sibling options when its value changes
+
+INDUSTRY STANDARD NAME:
+- "Dropdown" / "ComboBox" / "Select" (general UI)
+- "Mode Selector" / "Algorithm Selector" (audio plugin context)
+
+DESIGN CONCEPTS:
+- Inherits ModuleOption for label/attachment/theme integration
+- Internally owns a combobox component (like ThemedDropdown)
+- Background color = module theme darkened
+- Text color = white or light gray
+- Highlight color = module theme color at full brightness
+- Provides an onChange callback so the parent Module can update sibling options'
+  contextual labels when the selection changes
+- The dropdown's popup menu should also be theme-colored
+
+RELATIONSHIP TO EXISTING CODE:
+- Directly evolved from ThemedDropdown in DR-Chronoverb/Source/Utils/
+- Removes global ThemePink dependency, uses ModuleThemeProvider hierarchy instead

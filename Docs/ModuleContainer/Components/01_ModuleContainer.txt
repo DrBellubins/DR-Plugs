@@ -1,0 +1,76 @@
+================================================================================
+MODULE CONTAINER
+================================================================================
+
+WHAT IT IS:
+The top-level UI component that holds and arranges all Modules in a horizontal
+row. It is the single entry point — external code creates the container, and the
+container owns and exposes its child Modules.
+
+INDUSTRY STANDARD NAME:
+- "Container" / "Panel" / "Rack" (general UI)
+- "Module Rack" / "Effects Rack" (audio plugin UI, e.g., RC-20's horizontal strip)
+- "Card Layout" / "Card Container" (material design analogy)
+
+DESIGN (following TabbedPageBoxLayout pattern):
+
+    class ModuleContainer
+    {
+    public:
+        void CreateModuleContainerLayout(
+            juce::Component& parent,
+            AudioPluginAudioProcessor& processorRef,
+            ModuleContainerTheme theme,
+            int x, int y, int width, int height);
+
+        // Exposed modules for external customization
+        DistortionModule distortion;
+        TapeModule tape;
+        // ... other modules
+    };
+
+VISUAL STRUCTURE:
+┌─────────────────────────────────────────────────────────┐  ← Container outline
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────┐ │     (BG brightened)
+│  │ Module 1 │  │ Module 2 │  │ Module 3 │  │Module 4│ │
+│  │          │  │          │  │          │  │        │ │
+│  │[Scope   ]│  │[Scope   ]│  │[Scope   ]│  │[Scope ]│ │
+│  │          │  │          │  │          │  │        │ │
+│  │ Options  │  │ Options  │  │ Options  │  │Options │ │
+│  │          │  │          │  │          │  │        │ │
+│  └──────────┘  └──────────┘  └──────────┘  └────────┘ │
+└─────────────────────────────────────────────────────────┘
+
+RESPONSIBILITIES:
+1. Owns the ModuleContainerTheme configuration
+2. Creates and positions each Module based on theme settings (moduleWidth, moduleGap)
+3. Draws the container background (containerBGColour)
+4. Draws the container outline (containerBGColour.brighter())
+5. Calls each Module's CreateLayout() in its own CreateModuleContainerLayout()
+6. Exposes each Module as a public member for post-creation customization
+7. Calculates module height as: (container height - 2*padding)
+
+LAYOUT ALGORITHM:
+- Modules are arranged left-to-right
+- Each module width = theme.moduleWidth
+- Each module height = container content height
+- Gap between modules = theme.moduleGap
+- Container has internal padding on all sides
+
+PAINT BEHAVIOR:
+- Fill background with containerBGColour
+- Stroke outline with containerBGColour.brighter(outlineBrightenAmount)
+- Corner radius from theme
+- Each Module paints itself (the container just provides bounds)
+
+CLASS HIERARCHY:
+- ModuleContainer : juce::Component
+  - Has-A: ModuleContainerTheme
+  - Has-A: DistortionModule, TapeModule, etc.
+
+DESIGN PATTERN:
+Follows the same "Layout class with CreateLayout method" pattern as
+TabbedPageBoxLayout::CreatePageBoxLayout(), where:
+- The layout method receives a parent, processor reference, and bounds
+- Child components are created and positioned within that method
+- Members are public for external access/customization after creation

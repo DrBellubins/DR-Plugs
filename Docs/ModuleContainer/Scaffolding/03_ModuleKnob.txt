@@ -1,0 +1,34 @@
+================================================================================
+MODULE KNOB
+================================================================================
+
+WHAT IT IS:
+A concrete ModuleOption subclass that wraps a rotary knob control. It is
+essentially a theme-aware version of ThemedKnob that derives its colors from
+the parent Module's theme rather than a global ThemePink.
+
+WHY IT'S NEEDED BEFORE THE MODULE CONTAINER:
+Knobs are the most common option type in the design. They need to:
+- Draw their arc in the module's theme color
+- Draw their inner fill darkened from the theme color
+- Display a contextual label below (colored slightly darkened from theme)
+- Attach to an AudioProcessorValueTreeState parameter
+- Support value-to-text / text-to-value customization (inherited from ThemedKnob)
+
+INDUSTRY STANDARD NAME:
+- "Rotary Encoder" / "Knob" / "Dial" (audio UI)
+- "Rotary Slider" (JUCE terminology)
+
+DESIGN CONCEPTS:
+- Inherits ModuleOption for label/attachment/theme integration
+- Internally owns a rotary slider component (like ThemedKnob)
+- Arc color = Module::GetThemeColour()
+- Inner fill color = Module::GetThemeColour().darker(amount)
+- Label color = Module::GetThemeColour().darker(lesserAmount)
+- Label placement is configurable via ModuleContainerTheme (global offset below knob)
+- Respects enabled/disabled state from parent Module (opacity reduction)
+
+RELATIONSHIP TO EXISTING CODE:
+- Directly evolved from ThemedKnob in DR-Chronoverb/Source/Utils/ThemedKnob.h
+- Removes hard-coded AccentGray fill and replaces with theme-derived colors
+- Keeps the ValueToTextFunction / TextToValueFunction pattern for contextual display

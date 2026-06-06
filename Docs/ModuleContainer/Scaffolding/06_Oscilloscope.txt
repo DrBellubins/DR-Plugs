@@ -1,0 +1,60 @@
+================================================================================
+OSCILLOSCOPE (Waveform Display)
+================================================================================
+
+WHAT IT IS:
+A visual component that renders either an animated real-time waveform or a static
+transfer-function/waveshape display. It sits at the top of each Module, above
+the options.
+
+WHY IT'S NEEDED BEFORE THE MODULE CONTAINER:
+The oscilloscope is the defining visual element of each Module (mimicking RC-20's
+module panels). It needs to be implemented as a standalone component because:
+- It has two distinct rendering modes (animated vs. static)
+- It needs a clean data-input API (audio buffer ring, or static shape function)
+- It must support optional animation enable/disable
+- It needs to be theme-colorable independently
+
+INDUSTRY STANDARD NAMES:
+- "Oscilloscope" — real-time scrolling waveform display
+- "Waveform Display" / "Waveform Monitor" — general term
+- "Transfer Function Display" / "Waveshaper Display" — static distortion curve
+- "Scope" — colloquial shorthand
+
+DESIGN CONCEPTS:
+
+1. ANIMATED MODE (LFO / Real-time audio):
+   - Displays a continuously scrolling or centered waveform
+   - Center of the frame = current playback position (the "playhead")
+   - Left of center = lookback (audio that already played)
+   - Right of center = lookahead (upcoming audio / LFO future)
+   - Uses a circular buffer fed from the audio thread
+   - Renders at a configurable frame rate (e.g., 30-60 fps)
+   - Waveform line color = module theme color
+   - Background = very dark (near black or module BG darkened further)
+   - Can be disabled (frozen) to save CPU
+
+2. FIXED-FRAME MODE (Distortion waveshape):
+   - Displays a static waveform representing the distortion's transfer function
+   - No animation — updates only when distortion parameters change
+   - Examples:
+     * Chebyshev: increasing harmonics parameter shows higher-frequency waveshape
+     * Heat: increasing drive shows square-wave-like shape with harmonic ripples
+     * Bitcrush: staircase/quantized waveform
+   - Input: a function/lambda that maps normalized input (-1..1) to output (-1..1)
+   - The component renders this function as a continuous path
+   - Waveform line color = module theme color
+   - Optional grid lines in very subtle darkened color
+
+3. COMMON PROPERTIES:
+   - SetAnimated(bool) — switches between modes
+   - SetWaveformColour(Colour) — defaults to module theme
+   - SetBackgroundColour(Colour) — defaults to module BG darkened
+   - SetTransferFunction(std::function<float(float)>) — for fixed mode
+   - PushSamples(const float*, int numSamples) — for animated mode
+   - SetLookaheadSamples(int) / SetLookbackSamples(int) — for centered display
+
+RELATIONSHIP TO EXISTING CODE:
+- New component, no direct predecessor in the codebase
+- Will use juce::Path for waveform rendering
+- Timer-based repaint for animated mode (juce::Timer or juce::VBlankAttachment)

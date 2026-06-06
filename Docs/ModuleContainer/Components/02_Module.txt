@@ -1,0 +1,78 @@
+================================================================================
+MODULE (Base Class)
+================================================================================
+
+WHAT IT IS:
+The abstract base class that each specific module type (Distortion, Tape, etc.)
+inherits from. A Module represents a single effects unit within the container,
+complete with its oscilloscope, enable button, and a set of options.
+
+INDUSTRY STANDARD NAME:
+- "Module" / "Effects Module" (audio plugin, modular synth)
+- "Card" (material design)
+- "Panel" / "Section" (general UI)
+- "Channel Strip" (mixing console analogy, though vertical)
+
+DESIGN:
+
+    class Module : public juce::Component, public ModuleThemeProvider
+    {
+    public:
+        virtual void CreateLayout() = 0;
+
+        void SetEnabled(bool enabled);
+        bool IsEnabled() const;
+
+        // Theme
+        void SetThemeColour(juce::Colour colour);
+        juce::Colour GetThemeColour() const override;
+
+        // Exposed sub-components
+        Oscilloscope& GetOscilloscope();
+        ModuleEnableButton& GetEnableButton();
+
+    protected:
+        Oscilloscope oscilloscope;
+        ModuleEnableButton enableButton;
+        std::vector<ModuleOption*> options;  // non-owning refs for iteration
+
+        juce::Colour themeColour;
+    };
+
+VISUAL STRUCTURE (single module):
+┌─[■]──────────────────┐  ← Module background (theme.darker)
+│                       │     [■] = Enable button (top-left)
+│  ┌─────────────────┐  │
+│  │   Oscilloscope   │  │  ← Waveform display area
+│  └─────────────────┘  │
+│                       │
+│  [Knob] [Knob] [Drop] │  ← Options area
+│   Lbl    Lbl    Lbl   │  ← Contextual labels
+│                       │
+└───────────────────────┘
+
+RESPONSIBILITIES:
+1. Inherits ModuleThemeProvider — provides theme color to all children
+2. Owns and positions the Oscilloscope at the top
+3. Owns and positions the ModuleEnableButton at top-left corner
+4. Owns concrete ModuleOption instances (knobs, dropdowns, toggles)
+5. Implements enabled/disabled logic:
+   - When disabled: all children except enableButton get reduced opacity
+   - When enabled: full opacity restored
+6. Paints its own rounded-rectangle background (themeColour.darker())
+7. CreateLayout() positions all internal elements using absolute bounds
+
+PAINT BEHAVIOR:
+- Background fill = themeColour.darker(bgDarkenAmount)
+- Corner radius from ModuleContainerTheme or own setting
+- When disabled: alpha/opacity reduced on the entire module except enable button
+
+ENABLED/DISABLED MECHANISM:
+- ModuleEnableButton toggles a bool parameter
+- Module listens to this parameter and calls setAlpha() on itself
+- The enableButton overrides getAlpha() to always return 1.0f
+- This gives the "grayed out" look while keeping the toggle accessible
+
+DESIGN PATTERN:
+Follows the same "class with CreateLayout()" pattern as PitchPageLayout, where
+each specific module type implements CreateLayout() to position its own options.
