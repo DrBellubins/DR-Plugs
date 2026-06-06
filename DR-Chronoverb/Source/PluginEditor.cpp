@@ -199,81 +199,6 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     // ------ TABBED PAGE BOX ------
     PageBoxLayout.CreatePageBoxLayout(*this, uiHelpers, processorRef, 25, 450, 850, 180);
-
-    /*bottomTabbedPageBox = std::make_unique<TabbedPageBox>();
-    addAndMakeVisible(*bottomTabbedPageBox);
-    bottomTabbedPageBox->setBounds(25, 450, 850, 180);
-
-    pitchPage = std::make_unique<Component>();
-    distortionPage = std::make_unique<Component>();
-    tapePage = std::make_unique<Component>();
-    granularPage = std::make_unique<Component>();
-
-    bottomTabbedPageBox->AddTab("Pitch", pitchPage.get());
-    bottomTabbedPageBox->AddTab("Distortion", distortionPage.get());
-    bottomTabbedPageBox->AddTab("Tape", tapePage.get());
-    bottomTabbedPageBox->AddTab("Granular", granularPage.get());
-
-    // Pitch shifting
-    uiHelpers.CreateCheckbox(*pitchPage, pitchShiftStereoToggle,
-    pitchShiftStereoToggleAttachment,
-    "pitchStereoEnabled",
-    20, 20, 300, 35);
-
-    uiHelpers.CreateCheckboxLabel(*pitchPage, pitchShiftStereoLabel, *pitchShiftStereoToggle,
-        "Stereo", 14.0f, -38);
-
-    // Horizontal slider
-    horizontalPitchRangeSlider = std::make_unique<HorizontalRangeSlider>(-48.0f, 48.0f);
-    horizontalPitchRangeSlider->setMinimumRange(0.0f);
-    horizontalPitchRangeSlider->setSteppingEnabled(true);
-    horizontalPitchRangeSlider->setStepSize(12.0f);
-    horizontalPitchRangeSlider->setRoundness(7.0f);
-
-    pitchPage->addAndMakeVisible(*horizontalPitchRangeSlider);
-    horizontalPitchRangeSlider->setBounds(40, 100, 730, 25);
-
-    horizontalPitchRangeAttachment = std::make_unique<HorizontalRangeSliderAttachment>(
-        processorRef.parameters,
-        "pitchRangeLower",
-        "pitchRangeUpper",
-        *horizontalPitchRangeSlider
-    );
-
-    horizontalPitchRangeTooltipOverlay = std::make_unique<TooltipOverlay>(*horizontalPitchRangeSlider);
-    pitchPage->addAndMakeVisible(*horizontalPitchRangeTooltipOverlay);
-    horizontalPitchRangeTooltipOverlay->setBounds(pitchPage->getLocalBounds());
-    horizontalPitchRangeTooltipOverlay->toFront(false);
-
-    // Pitch mode (sequence)
-    const int sequenceWidth = 180;
-    pitchSequenceDropdown = std::make_unique<ThemedDropdown>();
-    pitchPage->addAndMakeVisible(*pitchSequenceDropdown);
-    pitchSequenceDropdown->setBounds(30, 45, sequenceWidth, 32);
-
-    pitchSequenceAttachment = std::make_unique<ThemedDropdown::Attachment>(
-        processorRef.parameters,
-        "pitchSequence",
-        *pitchSequenceDropdown
-    );
-
-    uiHelpers.CreateLabel(*pitchPage, pitchSequenceLabel,
-        "Sequence", 14.0f, 30 + (sequenceWidth / 2), 22);
-
-    constexpr int pWetWidth = 130;
-
-    uiHelpers.CreateKnobExt(*pitchPage, pitchWetMixKnob, pitchWetMixAttachment, "pitchWetMix",
-        "", pWetWidth, 50, 750, 50);
-
-    pitchWetMixKnob->setTextBoxStyle(juce::Slider::TextBoxRight, false,
-        pitchWetMixKnob->getTextBoxWidth(), pitchWetMixKnob->getTextBoxHeight());
-
-    uiHelpers.CreateLabel(*pitchPage, pitchWetMixLabel, "  Mix  ", 12.0f, 0, 0);
-
-    const int pWetLabelWidth = pitchWetMixLabel->getWidth();
-    const int pWetLabelHeight = pitchWetMixLabel->getHeight();
-
-    pitchWetMixLabel->setBounds((750 - (pWetWidth / 2)) + (pWetLabelWidth / 2), 0, pWetLabelWidth, pWetLabelHeight);*/
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
@@ -290,7 +215,10 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
     //    graphics.drawImageAt(background, 0, 0);
 
     if (logo.isValid())
-        graphics.drawImage(logo, juce::Rectangle<float>(-70, -15, 512.0f, 120.0f), juce::RectanglePlacement::centred);
+    {
+        graphics.drawImage(logo, juce::Rectangle<float>(-70, -15,
+            512.0f, 120.0f), juce::RectanglePlacement::centred);
+    }
 
     // Draw bounding box for this component
     /*graphics.setColour(juce::Colours::red);

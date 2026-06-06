@@ -137,33 +137,5 @@ private:
     // Tabbed page box
     TabbedPageBoxLayout PageBoxLayout;
 
-    /*std::unique_ptr<TabbedPageBox> bottomTabbedPageBox;
-
-    std::unique_ptr<juce::Component> pitchPage;
-    std::unique_ptr<juce::Component> distortionPage;
-    std::unique_ptr<juce::Component> tapePage;
-    std::unique_ptr<juce::Component> granularPage;
-
-    // Pitch shift
-    std::unique_ptr<ThemedCheckbox> pitchShiftStereoToggle;
-    std::unique_ptr<ThemedCheckbox::Attachment> pitchShiftStereoToggleAttachment;
-    std::unique_ptr<juce::Label> pitchShiftStereoLabel;
-
-    std::unique_ptr<HorizontalRangeSlider> horizontalPitchRangeSlider;
-    std::unique_ptr<HorizontalRangeSliderAttachment> horizontalPitchRangeAttachment;
-    std::unique_ptr<TooltipOverlay> horizontalPitchRangeTooltipOverlay;
-
-    std::unique_ptr<ThemedDropdown> pitchSequenceDropdown;
-    std::unique_ptr<ThemedDropdown::Attachment> pitchSequenceAttachment;
-    std::unique_ptr<juce::Label> pitchSequenceLabel;
-
-    std::unique_ptr<ThemedDropdown> pitchAlgorithmDropdown;
-    std::unique_ptr<ThemedDropdown::Attachment> pitchAlgorithmAttachment;
-    std::unique_ptr<juce::Label> pitchAlgorithmLabel;
-
-    std::unique_ptr<ThemedKnob> pitchWetMixKnob;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> pitchWetMixAttachment;
-    std::unique_ptr<juce::Label> pitchWetMixLabel;*/
-
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };
