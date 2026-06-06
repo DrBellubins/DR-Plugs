@@ -1,6 +1,8 @@
 #pragma once
 
 #include "../ModuleSystem/Module.h"
+#include "../Options/ModuleDropdown.h"
+#include "../Options/ModuleKnob.h"
 
 class DistortionModule : public Module
 {
@@ -11,28 +13,21 @@ public:
     void CreateLayout(const RackTheme& newTheme) override;
     void resized() override;
 
-    juce::ComboBox& GetTypeDropdown();
-    juce::Slider& GetDriveKnob();
-    juce::Slider& GetMixKnob();
+    ModuleDropdown& GetTypeDropdown();
+    ModuleKnob& GetDriveKnob();
+    ModuleKnob& GetMixKnob();
 
     juce::Label& GetTitleLabel();
-    juce::Label& GetTypeLabel();
-    juce::Label& GetDriveLabel();
-    juce::Label& GetMixLabel();
+
+    ModuleDropdown typeDropdown;
+    ModuleKnob driveKnob;
+    ModuleKnob mixKnob;
 
 private:
     void ApplyThemeToControls();
     void LayoutControls();
 
     juce::Label titleLabel;
-    juce::ComboBox typeDropdown;
-    juce::Label typeLabel;
-
-    juce::Slider driveKnob;
-    juce::Label driveLabel;
-
-    juce::Slider mixKnob;
-    juce::Label mixLabel;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DistortionModule)
 };
