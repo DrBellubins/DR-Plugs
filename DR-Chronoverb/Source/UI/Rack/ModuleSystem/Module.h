@@ -13,7 +13,7 @@ public:
 
     virtual void CreateLayout(const RackTheme& newTheme) = 0;
 
-    void paint(juce::Graphics& g) override;
+    void paint(juce::Graphics& graphics) override;
     void resized() override;
 
     void SetThemeColour(juce::Colour newThemeColour);

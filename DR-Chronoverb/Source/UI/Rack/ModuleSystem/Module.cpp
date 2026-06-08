@@ -13,15 +13,15 @@ namespace
             repaint();
         }
 
-        void paint(juce::Graphics& g) override
+        void paint(juce::Graphics& graphics) override
         {
             const auto bounds = getLocalBounds().toFloat();
 
-            g.setColour(background);
-            g.fillRoundedRectangle(bounds, 6.0f);
+            graphics.setColour(background.darker(0.5));
+            graphics.fillRoundedRectangle(bounds, 6.0f);
 
-            g.setColour(outline);
-            g.drawRoundedRectangle(bounds.reduced(0.5f), 6.0f, 1.0f);
+            graphics.setColour(outline);
+            graphics.drawRoundedRectangle(bounds.reduced(0.5f), 6.0f, 1.0f);
 
             const auto area = getLocalBounds().reduced(8);
             const int midY = area.getCentreY();
@@ -43,8 +43,8 @@ namespace
                                 static_cast<float>(midY) - y * static_cast<float>(area.getHeight()) * 0.5f);
             }
 
-            g.setColour(wave);
-            g.strokePath(waveform, juce::PathStrokeType(1.5f));
+            graphics.setColour(wave);
+            graphics.strokePath(waveform, juce::PathStrokeType(1.5f));
         }
 
     private:
@@ -73,15 +73,15 @@ Module::Module()
     SetModuleEnabled(true);
 }
 
-void Module::paint(juce::Graphics& g)
+void Module::paint(juce::Graphics& graphics)
 {
     const auto bounds = getLocalBounds().toFloat();
 
-    g.setColour(GetModuleBackgroundColour());
-    g.fillRoundedRectangle(bounds, theme.moduleCornerRadius);
+    graphics.setColour(GetModuleBackgroundColour());
+    graphics.fillRoundedRectangle(bounds, theme.moduleCornerRadius);
 
-    g.setColour(GetModuleOutlineColour());
-    g.drawRoundedRectangle(bounds.reduced(0.5f), theme.moduleCornerRadius, 1.0f);
+    graphics.setColour(GetModuleOutlineColour());
+    graphics.drawRoundedRectangle(bounds.reduced(0.5f), theme.moduleCornerRadius, 1.0f);
 }
 
 void Module::resized()
