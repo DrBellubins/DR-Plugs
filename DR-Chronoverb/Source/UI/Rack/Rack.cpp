@@ -2,13 +2,11 @@
 
 void Rack::CreateRackLayout(juce::Component& parent,
                             AudioPluginAudioProcessor& processorRef,
-                            //const RackTheme& newTheme,
+                            const RackTheme& newTheme,
                             int x, int y, int width, int height)
 {
     processor = &processorRef;
-    theme = RackTheme();
-
-    //theme = newTheme;
+    theme = newTheme;
 
     parent.addAndMakeVisible(*this);
     setBounds(x, y, width, height);

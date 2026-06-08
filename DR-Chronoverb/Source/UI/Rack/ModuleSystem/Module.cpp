@@ -161,13 +161,23 @@ void Module::LayoutBaseChrome()
                            theme.enableButtonWidth,
                            theme.enableButtonHeight);
 
-    const int scopeX = theme.modulePadding;
-    const int scopeY = theme.modulePadding + theme.enableButtonHeight + 8;
-    const int scopeW = getWidth() - (theme.modulePadding * 2);
-    const int scopeH = theme.oscilloscopeHeight;
+    const int contentX = theme.modulePadding;
+    const int contentY = theme.modulePadding;
+    const int contentW = getWidth() - (theme.modulePadding * 2);
+    const int contentH = getHeight() - (theme.modulePadding * 2);
+
+    const int scopeY = contentY + theme.headerHeight + theme.moduleInnerGap;
+
+    const int maxScopeHeight = juce::jmax(24,
+        getHeight() - scopeY - theme.modulePadding);
+
+    const int scopeSide = juce::jmin(theme.scopeSize, maxScopeHeight);
 
     if (oscilloscopePlaceholder != nullptr)
-        oscilloscopePlaceholder->setBounds(scopeX, scopeY, juce::jmax(10, scopeW), scopeH);
+        oscilloscopePlaceholder->setBounds(contentX,
+                                           scopeY,
+                                           juce::jmax(10, scopeSide),
+                                           juce::jmax(10, scopeSide));
 }
 
 juce::Colour Module::GetModuleBackgroundColour() const

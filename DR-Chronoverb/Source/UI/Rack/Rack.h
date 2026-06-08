@@ -13,7 +13,7 @@ public:
 
     void CreateRackLayout(juce::Component& parent,
                           AudioPluginAudioProcessor& processorRef,
-                          //const RackTheme& newTheme,
+                          const RackTheme& newTheme,
                           int x, int y, int width, int height);
 
     void paint(juce::Graphics& g) override;

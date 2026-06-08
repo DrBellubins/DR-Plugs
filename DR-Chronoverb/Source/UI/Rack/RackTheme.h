@@ -7,20 +7,31 @@ struct RackTheme
     // Rack layout
     int rackPadding = 12;
     int moduleGap = 10;
-    int moduleWidth = 180;
+    int moduleWidth = 260;
 
     // Module layout
-    int modulePadding = 10;
+    int modulePadding = 8;
+    int moduleInnerGap = 10;
     int oscilloscopeHeight = 88;
     int optionRowY = 118;
-    int optionSize = 48;
-    int optionSpacing = 12;
-    int labelOffsetBelow = 6;
+
+    // Header
+    int headerHeight = 18;
+    int titleTopOffset = 1;
+
+    // Scope
+    int scopeSize = 64;
+
+    // Controls
+    int dropdownHeight = 22;
+    int optionSize = 42;
+    int optionSpacing = 10;
+    int labelOffsetBelow = 4;
 
     // Enable button
-    int enableButtonWidth = 18;
+    int enableButtonWidth = 14;
     int enableButtonHeight = 14;
-    int enableButtonMargin = 8;
+    int enableButtonMargin = 2;
 
     // Corners / stroke
     float rackCornerRadius = 8.0f;

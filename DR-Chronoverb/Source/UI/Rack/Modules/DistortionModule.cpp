@@ -69,7 +69,7 @@ juce::Label& DistortionModule::GetTitleLabel()
 
 void DistortionModule::ApplyThemeToControls()
 {
-    titleLabel.setColour(juce::Label::textColourId, GetThemeColour());
+    titleLabel.setColour(juce::Label::textColourId, GetModuleLabelColour());
 
     typeDropdown.ApplyTheme(theme);
     driveKnob.ApplyTheme(theme);
@@ -79,40 +79,55 @@ void DistortionModule::ApplyThemeToControls()
 void DistortionModule::LayoutControls()
 {
     const int contentX = theme.modulePadding;
+    const int contentY = theme.modulePadding;
     const int contentW = getWidth() - (theme.modulePadding * 2);
 
-    const int titleY = theme.modulePadding + 2;
-    titleLabel.setBounds(contentX + 28, titleY, juce::jmax(40, contentW - 28), 18);
+    // ----- Header -----
+    const int headerY = contentY + theme.titleTopOffset;
+    const int titleX = contentX + theme.enableButtonWidth + 8;
+    const int titleW = juce::jmax(30, contentW - (theme.enableButtonWidth + 8));
 
-    const int dropdownY =
-        theme.modulePadding
-        + theme.enableButtonHeight
-        + 16
-        + theme.oscilloscopeHeight
-        + 8;
+    titleLabel.setBounds(titleX,
+                         headerY,
+                         titleW,
+                         theme.headerHeight);
 
-    const int dropdownHeight = 24;
-    const int dropdownTotalHeight = dropdownHeight + theme.labelOffsetBelow + 16;
+    // ----- Left scope column -----
+    const auto scopeBounds = GetOscilloscopePlaceholder().getBounds();
 
-    typeDropdown.setBounds(contentX,
+    const int rightColumnX = scopeBounds.getRight() + theme.moduleInnerGap;
+    const int rightColumnW = getWidth() - theme.modulePadding - rightColumnX;
+
+    if (rightColumnW <= 30)
+        return;
+
+    // ----- Dropdown at top-right -----
+    const int dropdownY = scopeBounds.getY();
+    const int dropdownLabelHeight = 14;
+    const int dropdownTotalHeight =
+        theme.dropdownHeight + theme.labelOffsetBelow + dropdownLabelHeight;
+
+    typeDropdown.setBounds(rightColumnX,
                            dropdownY,
-                           contentW,
+                           rightColumnW,
                            dropdownTotalHeight);
 
-    const int knobY = dropdownY + dropdownTotalHeight + 10;
-    const int knobSize = theme.optionSize + 16;
-    const int knobTotalHeight = knobSize + theme.labelOffsetBelow + 16;
-    const int gap = theme.optionSpacing;
+    // ----- Knobs below dropdown -----
+    const int knobY = dropdownY + dropdownTotalHeight + 6;
+    const int knobSize = theme.optionSize;
+    const int knobLabelHeight = 14;
+    const int knobTotalHeight =
+        knobSize + theme.labelOffsetBelow + knobLabelHeight;
 
-    const int totalKnobWidth = (knobSize * 2) + gap;
-    const int knobStartX = contentX + juce::jmax(0, (contentW - totalKnobWidth) / 2);
+    const int totalKnobWidth = (knobSize * 2) + theme.optionSpacing;
+    const int knobStartX = rightColumnX + juce::jmax(0, (rightColumnW - totalKnobWidth) / 2);
 
     driveKnob.setBounds(knobStartX,
                         knobY,
                         knobSize,
                         knobTotalHeight);
 
-    mixKnob.setBounds(knobStartX + knobSize + gap,
+    mixKnob.setBounds(knobStartX + knobSize + theme.optionSpacing,
                       knobY,
                       knobSize,
                       knobTotalHeight);
