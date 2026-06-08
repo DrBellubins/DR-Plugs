@@ -11,6 +11,8 @@
 #include "Utils/TooltipOverlay.h"
 #include "Utils/ThemedDropdown.h"
 
+#include "UI/Rack/Rack.h"
+
 #include "Utils/HorizontalRangeSlider.h"
 
 #include "UI/TabbedPageboxLayout.h"
@@ -133,6 +135,8 @@ private:
     // Pre-Post toggle
     std::unique_ptr<RoundedToggle> hplpFilterToggle;
     std::unique_ptr<RoundedToggle::Attachment> hplpFilterToggleAttachment;
+
+    Rack rack;
 
     // Tabbed page box
     TabbedPageBoxLayout PageBoxLayout;
