@@ -44,7 +44,7 @@ struct RackTheme
 
     // Theme derivation
     float rackOutlineBrightenAmount = 0.25f;
-    float moduleBackgroundDarkenAmount = 0.70f;
+    float moduleBackgroundDarkenAmount = 1.5f;
     float moduleOutlineBrightenAmount = 0.18f;
     float moduleLabelDarkenAmount = 0.15f;
     float moduleSecondaryDarkenAmount = 0.35f;
