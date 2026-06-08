@@ -199,6 +199,8 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     // ------ TABBED PAGE BOX ------
     PageBoxLayout.CreatePageBoxLayout(*this, uiHelpers, processorRef, 25, 450, 850, 180);
+
+    rack.CreateRackLayout(*PageBoxLayout.DistortionPage, processorRef, 0, 0, 830, 140);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()

@@ -14,6 +14,11 @@ file(GLOB_RECURSE FILTERS_SOURCES
         "Filters/*.h"
 )
 
+file(GLOB_RECURSE UI_SOURCES
+        "UI/*.cpp"
+        "UI/*.h"
+)
+
 target_sources("${PROJECT_NAME}"
         PRIVATE
         PluginEditor.h
@@ -22,6 +27,7 @@ target_sources("${PROJECT_NAME}"
         PluginProcessor.cpp
         ${UTILS_SOURCES}
         ${FILTERS_SOURCES}
+        ${UI_SOURCES}
 )
 
 # Add subdirectories with source files, if present
