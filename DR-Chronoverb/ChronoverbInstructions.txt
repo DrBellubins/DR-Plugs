@@ -112,3 +112,14 @@ Will have the option to be applied before or after delay/reverb (denoted by a bi
 
 -- Granular end --
 --------------------------------------------
+
+-------------- [[ RESEARCH ]] --------------
+
+-- Resonant filtering section (frequency blooming) --
+
+Could instead of using basic lowpass and highpass filters to using an EQ, focusing on the Q resonance.
+This EQ can be edited through a sleak UI in its own tab.
+
+-- Resonant filtering end --
+--------------------------------------------
+
