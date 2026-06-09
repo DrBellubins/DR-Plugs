@@ -1,0 +1,150 @@
+#pragma once
+
+#include <algorithm>
+#include <cmath>
+#include <utility>
+
+#include "../Utils/DCBlocker.h"
+
+class Chebyshev
+{
+public:
+    void Prepare(double newSampleRate)
+    {
+        sampleRate = std::max(1.0, newSampleRate);
+        dcBlocker.Prepare(sampleRate);
+        dcBlocker.SetCutoffHz(10.0f);
+        Reset();
+    }
+
+    void Reset()
+    {
+        dcBlocker.Reset();
+    }
+
+    void SetOrder(int newOrder)
+    {
+        order = std::clamp(newOrder, 1, 16);
+    }
+
+    void SetDrive(float newDrive)
+    {
+        drive = std::max(0.0f, newDrive);
+    }
+
+    void SetOutputGain(float newOutputGain)
+    {
+        outputGain = std::max(0.0f, newOutputGain);
+    }
+
+    void SetMix(float newMix)
+    {
+        mix = std::clamp(newMix, 0.0f, 1.0f);
+    }
+
+    void SetInputTrim(float newInputTrim)
+    {
+        inputTrim = std::max(0.0f, newInputTrim);
+    }
+
+    void SetDCBlockEnabled(bool shouldEnable)
+    {
+        dcBlockEnabled = shouldEnable;
+    }
+
+    std::pair<float, float> ProcessSample(float inputL, float inputR)
+    {
+        const float dryL = inputL;
+        const float dryR = inputR;
+
+        float wetL = ProcessMono(inputL);
+        float wetR = ProcessMono(inputR);
+
+        if (dcBlockEnabled)
+        {
+            auto dcBlocked = dcBlocker.ProcessSample(wetL, wetR);
+            wetL = dcBlocked.first;
+            wetR = dcBlocked.second;
+        }
+
+        wetL *= outputGain;
+        wetR *= outputGain;
+
+        const float outL = dryL + (wetL - dryL) * mix;
+        const float outR = dryR + (wetR - dryR) * mix;
+
+        return { outL, outR };
+    }
+
+    // ------------------------------------------------------------------
+    // Oversampling-ready hook:
+    // This is the isolated nonlinear function you'd later run inside an
+    // upsample/process/downsample wrapper.
+    // ------------------------------------------------------------------
+    float ProcessShaperOnly(float inputSample) const
+    {
+        float x = inputSample * inputTrim * drive;
+
+        // Keep the polynomial in a stable region.
+        // Chebyshev behavior is most predictable in [-1, 1].
+        x = std::clamp(x, -1.0f, 1.0f);
+
+        float y = EvaluateChebyshevPolynomial(x, order);
+
+        // Soft containment after polynomial evaluation.
+        // This helps keep output from getting too wild.
+        y = SoftClip(y);
+
+        return y;
+    }
+
+private:
+    float ProcessMono(float inputSample) const
+    {
+        return ProcessShaperOnly(inputSample);
+    }
+
+    static float EvaluateChebyshevPolynomial(float x, int polynomialOrder)
+    {
+        // Stable recurrence:
+        // T0(x) = 1
+        // T1(x) = x
+        // Tn(x) = 2xT(n-1)(x) - T(n-2)(x)
+        if (polynomialOrder <= 0)
+            return 1.0f;
+
+        if (polynomialOrder == 1)
+            return x;
+
+        float t0 = 1.0f;
+        float t1 = x;
+        float tn = x;
+
+        for (int n = 2; n <= polynomialOrder; ++n)
+        {
+            tn = 2.0f * x * t1 - t0;
+            t0 = t1;
+            t1 = tn;
+        }
+
+        return tn;
+    }
+
+    static float SoftClip(float x)
+    {
+        // Simple tanh-style containment without needing std::tanh
+        // You could swap this for std::tanh if preferred.
+        return x / (1.0f + std::abs(x));
+    }
+
+    double sampleRate = 48000.0;
+
+    int order = 3;
+    float drive = 1.0f;
+    float outputGain = 1.0f;
+    float mix = 1.0f;
+    float inputTrim = 0.8f;
+    bool dcBlockEnabled = true;
+
+    DCBlocker dcBlocker;
+};

@@ -14,5 +14,5 @@ public:
         return { outL, outR };
     }
 
-    float Threshold = 1.0f;
+    float Threshold = 1.0f; // TODO: Should be in dB
 };
