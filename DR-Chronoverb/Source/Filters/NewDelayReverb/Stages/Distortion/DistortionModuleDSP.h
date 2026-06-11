@@ -21,7 +21,7 @@ public:
         if (!enabled)
             return std::make_tuple(outDry.first, outDry.second, outWet.first, outWet.second);
 
-        hardClipper.SetDrive(drive);
+        hardClipper.SetDrive(50.0f);
         chebyshev.SetHarmonics(chebyHarmonics);
         chebyshev.SetMix(1.0f); // let this class own the module mix consistently
 
@@ -96,14 +96,14 @@ public:
         drive = newDrive * maxDrive;
         chebyHarmonics = newDrive * maxChebyshev;
 
-        DBG("DSP: Module enabled: " << newDrive);
+        DBG("DSP: Module drive: " << newDrive);
     }
 
     void SetMix(float newMix)
     {
         mix = newMix;
 
-        DBG("DSP: Module enabled: " << newMix);
+        DBG("DSP: Module mix: " << newMix);
     }
 
 private:
