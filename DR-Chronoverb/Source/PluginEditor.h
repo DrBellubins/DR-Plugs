@@ -11,7 +11,7 @@
 #include "Utils/TooltipOverlay.h"
 #include "Utils/ThemedDropdown.h"
 
-#include "UI/Rack/Rack.h"
+#include "UI/Rack/DistortionRackLayout.h"
 
 #include "Utils/HorizontalRangeSlider.h"
 
@@ -136,7 +136,7 @@ private:
     std::unique_ptr<RoundedToggle> hplpFilterToggle;
     std::unique_ptr<RoundedToggle::Attachment> hplpFilterToggleAttachment;
 
-    Rack rack;
+    DistortionRackLayout distortionRackLayout;
 
     // Tabbed page box
     TabbedPageBoxLayout PageBoxLayout;

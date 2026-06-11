@@ -16,17 +16,21 @@ public:
                           const RackTheme& newTheme,
                           int x, int y, int width, int height);
 
-    void paint(juce::Graphics& g) override;
+    void RegisterModule(Module& module);
+
+    void paint(juce::Graphics& graphics) override;
     void resized() override;
 
-    DistortionModule distortionModule;
+    //DistortionModule distortionModule;
 
 private:
     void LayoutModules();
 
     AudioPluginAudioProcessor* processor = nullptr;
     juce::AudioProcessorValueTreeState* apvts = nullptr;
-    
+
+    std::vector<Module*> modules;
+
     RackTheme theme;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Rack)

@@ -7,32 +7,35 @@ void Rack::CreateRackLayout(juce::Component& parent,
 {
     processor = &processorRef;
     apvts = &processorRef.parameters;
-    
+
     theme = newTheme;
 
     parent.addAndMakeVisible(*this);
     setBounds(x, y, width, height);
 
-    if (distortionModule.getParentComponent() != this)
-        addAndMakeVisible(distortionModule);
-
-    distortionModule.CreateLayout(theme);
-
     LayoutModules();
     repaint();
 }
 
-void Rack::paint(juce::Graphics& g)
+void Rack::RegisterModule(Module& module)
+{
+    modules.push_back(&module);
+
+    if (module.getParentComponent() != this)
+        addAndMakeVisible(module);
+
+    LayoutModules();
+}
+
+void Rack::paint(juce::Graphics& graphics)
 {
     const auto bounds = getLocalBounds().toFloat();
 
-    g.setColour(theme.rackBackgroundColour);
-    g.fillRoundedRectangle(bounds, theme.rackCornerRadius);
+    graphics.setColour(theme.rackBackgroundColour);
+    graphics.fillRoundedRectangle(bounds, theme.rackCornerRadius);
 
-    g.setColour(theme.rackBackgroundColour.brighter(theme.rackOutlineBrightenAmount));
-    g.drawRoundedRectangle(bounds.reduced(0.5f),
-                           theme.rackCornerRadius,
-                           theme.rackOutlineThickness);
+    graphics.setColour(theme.rackBackgroundColour.brighter(theme.rackOutlineBrightenAmount));
+    graphics.drawRoundedRectangle(bounds.reduced(0.5f), theme.rackCornerRadius, theme.rackOutlineThickness);
 }
 
 void Rack::resized()
@@ -46,8 +49,18 @@ void Rack::LayoutModules()
     const int contentY = theme.rackPadding;
     const int moduleHeight = getHeight() - (theme.rackPadding * 2);
 
-    distortionModule.setBounds(contentX,
-                               contentY,
-                               theme.moduleWidth,
-                               juce::jmax(40, moduleHeight));
+    int currentX = contentX;
+
+    for (auto* module : modules)
+    {
+        if (module == nullptr)
+            continue;
+
+        module->setBounds(currentX,
+                          contentY,
+                          theme.moduleWidth,
+                          juce::jmax(40, moduleHeight));
+
+        currentX += theme.moduleWidth + theme.moduleGap;
+    }
 }

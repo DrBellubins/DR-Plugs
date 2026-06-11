@@ -202,8 +202,11 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     auto distRackTheme = RackTheme();
 
-    rack.CreateRackLayout(*PageBoxLayout.DistortionPage, processorRef,
+    distortionRackLayout.CreateDistortionRackLayout(*PageBoxLayout.DistortionPage, processorRef,
         distRackTheme, 0, 0, 830, 140);
+
+    /*rack.CreateRackLayout(*PageBoxLayout.DistortionPage, processorRef,
+        distRackTheme, 0, 0, 830, 140);*/
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
