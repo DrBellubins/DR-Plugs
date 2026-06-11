@@ -2,7 +2,7 @@
 
 #include <tuple>
 
-void Distortion::Prepare(float newSampleRate)
+void Distortion::PrepareToPlay(float newSampleRate)
 {
     chebyshev.Prepare(newSampleRate);
 }
@@ -10,11 +10,40 @@ void Distortion::Prepare(float newSampleRate)
 // The master class the holds all of the different types of distortion.
 std::tuple<float, float, float, float> Distortion::ProcessSample(float dryL, float dryR, float wetL, float wetR)
 {
-    auto hardClipperDry = hardClipper.ProcessSample(dryL, dryR);
-    auto hardClipperWet = hardClipper.ProcessSample(wetL, wetR);
+    std::pair<float, float> outDry = std::make_pair(dryL, dryR);
+    std::pair<float, float> outWet = std::make_pair(wetL, wetR);
 
-    //auto chebyshevOut = chebyshev.ProcessSample(wetL, wetR);
+    hardClipper.SetDrive(drive);
+    chebyshev.SetDrive(drive);
 
-    return std::make_tuple(hardClipperDry.first, hardClipperDry.second,
-        hardClipperWet.first, hardClipperWet.second);
+    if (distortionType == 0)
+    {
+        if (distortionTarget == 0 || distortionTarget == 2)
+            outDry = hardClipper.ProcessSample(dryL, dryR);
+
+        if (distortionTarget == 1 || distortionTarget == 2)
+            outWet = hardClipper.ProcessSample(wetL, wetR);
+    }
+    else if (distortionType == 1)
+    {
+        if (distortionTarget == 0 || distortionTarget == 2)
+            outDry = chebyshev.ProcessSample(dryL, dryR);
+
+        if (distortionTarget == 1 || distortionTarget == 2)
+            outWet = chebyshev.ProcessSample(wetL, wetR);
+    }
+
+    return std::make_tuple(outDry.first, outDry.second,
+    outWet.first, outWet.second);
+}
+
+void Distortion::Setup(int newDistortionType, int newDistortionTarget)
+{
+    distortionType = newDistortionType;
+    distortionTarget = newDistortionTarget;
+}
+
+void Distortion::SetDrive(float newDrive)
+{
+    drive = newDrive;
 }

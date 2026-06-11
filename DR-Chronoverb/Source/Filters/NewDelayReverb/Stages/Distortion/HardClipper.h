@@ -8,11 +8,21 @@ class HardClipper
 public:
     std::pair<float, float> ProcessSample(float inputL, float inputR)
     {
-        float wetDistL = std::clamp(inputL, -Threshold, Threshold);
-        float wetDistR = std::clamp(inputR, -Threshold, Threshold);
+        inputL = inputL * drive;
+        inputR = inputR * drive;
+
+        float wetDistL = std::clamp(inputL, -threshold, threshold);
+        float wetDistR = std::clamp(inputR, -threshold, threshold);
 
         return { wetDistL, wetDistR };
     }
 
-    float Threshold = 1.0f; // TODO: Should be in dB
+    void SetDrive(float newDrive)
+    {
+        drive = newDrive;
+    }
+
+private:
+    float drive = 1.0f;
+    float threshold = 1.0f; // TODO: Should be in dB
 };

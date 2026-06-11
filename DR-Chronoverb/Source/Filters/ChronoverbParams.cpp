@@ -86,18 +86,6 @@ void Chronoverb::SetWetVolume(float newWet01)
     wetVolume = clamp01(newWet01);
 }
 
-// TODO
-
-void Chronoverb::SetStereoSpread(float newSpreadMinus1To1)
-{
-    stereoSpread = juce::jlimit(-1.0f, 1.0f, newSpreadMinus1To1);
-}
-
-void Chronoverb::SetHPLPPrePost(float prePost01)
-{
-    hplpPrePost01 = clamp01(prePost01);
-}
-
 void Chronoverb::SetPitchRangeLower(float pitchRangeLowerSemitones)
 {
     pitchRangeLower = juce::jlimit(-48.0f, 48.0f, pitchRangeLowerSemitones);
@@ -124,6 +112,18 @@ void Chronoverb::SetpitchWetMix(float newPitchWetMix)
     pitchWetMix = clamp01(newPitchWetMix);
 
     PitchShifterLeftRight->SetPitchWetMix(pitchWetMix);
+}
+
+// TODO
+
+void Chronoverb::SetStereoSpread(float newSpreadMinus1To1)
+{
+    stereoSpread = juce::jlimit(-1.0f, 1.0f, newSpreadMinus1To1);
+}
+
+void Chronoverb::SetHPLPPrePost(float prePost01)
+{
+    hplpPrePost01 = clamp01(prePost01);
 }
 
 // Pitch shifting

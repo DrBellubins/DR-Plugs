@@ -6,6 +6,7 @@ Chronoverb::Chronoverb()
     DelayLeftRight = std::make_unique<Delay>();
     ReverbLeftRight = std::make_unique<Reverb>();
     PitchShifterLeftRight = std::make_unique<PitchShifter>();
+    DistortionLeftRight = std::make_unique<Distortion>();
 }
 
 void Chronoverb::PrepareToPlay(double newSampleRate)
@@ -19,6 +20,9 @@ void Chronoverb::PrepareToPlay(double newSampleRate)
         *DelayLeftRight->InternalDelayLineRight);
 
     PitchShifterLeftRight->PrepareToPlay(sampleRate);
+
+    DistortionLeftRight->PrepareToPlay(static_cast<float>(sampleRate));
+    DistortionLeftRight->Setup(0, 0);
 }
 
 void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer) const
@@ -57,6 +61,9 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer) const
             PitchShifterLeftRight->ProcessSample(wetLeft, wetRight);
 
         // 5) Distortion
+        // TEST
+        DistortionLeftRight->SetDrive(stereoSpread * 4.0f);
+
         auto [distortionDryLeft, distortionDryRight, distortionWetLeft, distortionWetRight] =
             DistortionLeftRight->ProcessSample(dryLeft, dryRight, pitchLeft, pitchRight);
 
