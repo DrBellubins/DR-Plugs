@@ -15,6 +15,30 @@ public:
 
     std::tuple<float, float, float, float> ProcessSample(float dryL, float dryR, float wetL, float wetR)
     {
+        static int debugCounter = 0;
+
+        if ((debugCounter++ % 48000) == 0)
+        {
+            DBG("ProcessSample enabled=" << static_cast<int>(enabled)
+                << " type=" << distortionType
+                << " target=" << distortionTarget
+                << " mix=" << mix
+                << " dryL=" << dryL
+                << " wetL=" << wetL);
+        }
+
+        const auto clippedDry = hardClipper.ProcessSample(dryL * 100.0f, dryR * 100.0f);
+        const auto clippedWet = hardClipper.ProcessSample(wetL * 100.0f, wetR * 100.0f);
+
+        return std::make_tuple(
+            clippedDry.first,
+            clippedDry.second,
+            clippedWet.first,
+            clippedWet.second);
+    }
+
+    /*std::tuple<float, float, float, float> ProcessSample(float dryL, float dryR, float wetL, float wetR)
+    {
         std::pair<float, float> outDry = std::make_pair(dryL, dryR);
         std::pair<float, float> outWet = std::make_pair(wetL, wetR);
 
@@ -62,7 +86,7 @@ public:
         }
 
         return std::make_tuple(outDry.first, outDry.second, outWet.first, outWet.second);
-    }
+    }*/
 
     void Setup(int newDistortionType, int newDistortionTarget)
     {
@@ -74,21 +98,21 @@ public:
     {
         enabled = newEnabled;
 
-        DBG("DSP: Module enabled: " << static_cast<int>(enabled));
+        //DBG("DSP: Module enabled: " << static_cast<int>(enabled));
     }
 
     void SetType(int newType)
     {
         distortionType = newType;
 
-        DBG("DSP: Module type: " << newType);
+        //DBG("DSP: Module type: " << newType);
     }
 
     void SetTarget(int newTarget)
     {
         distortionTarget = newTarget;
 
-        DBG("DSP: Module target: " << newTarget);
+        //DBG("DSP: Module target: " << newTarget);
     }
 
     void SetDrive(float newDrive)
@@ -96,14 +120,14 @@ public:
         drive = newDrive * maxDrive;
         chebyHarmonics = newDrive * maxChebyshev;
 
-        DBG("DSP: Module drive: " << newDrive);
+        //DBG("DSP: Module drive: " << newDrive);
     }
 
     void SetMix(float newMix)
     {
         mix = newMix;
 
-        DBG("DSP: Module mix: " << newMix);
+        //DBG("DSP: Module mix: " << newMix);
     }
 
 private:
