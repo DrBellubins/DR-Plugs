@@ -10,14 +10,6 @@ public:
     void CreatePitchPageLayout(juce::Component& parentPage, UIHelpers uiHelpers,
         AudioPluginAudioProcessor& processorRef)
     {
-        uiHelpers.CreateCheckbox(parentPage, pitchShiftStereoToggle,
-            pitchShiftStereoToggleAttachment,
-            "pitchStereoEnabled",
-            20, 20, 300, 35);
-
-        uiHelpers.CreateCheckboxLabel(parentPage, pitchShiftStereoLabel, *pitchShiftStereoToggle,
-            "Stereo", 14.0f, -38);
-
         // Horizontal slider
         horizontalPitchRangeSlider = std::make_unique<HorizontalRangeSlider>(-48.0f, 48.0f);
         horizontalPitchRangeSlider->setMinimumRange(0.0f);
