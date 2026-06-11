@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "PluginParameterRegistry.h"
 
 //==============================================================================
 AudioPluginAudioProcessor::AudioPluginAudioProcessor()
@@ -13,8 +14,11 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
                        ),
     parameters(*this, nullptr, "PARAMS", createParameterLayout())
 {
+    PluginParameterRegistry::AddListeners(parameters, this);
+    PluginParameterRegistry::ApplyAll(DelayReverb, parameters);
+
     // IMPORTANT!
-    parameters.addParameterListener("delayTime", this);
+    /*parameters.addParameterListener("delayTime", this);
     parameters.addParameterListener("delayTimeMode", this);
 
     parameters.addParameterListener("feedbackTime", this);
@@ -106,11 +110,12 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
 
     DelayReverb.SetDuckAmount(duckAmount);
     //DelayReverb.SetDuckAttack(duckAttack);
-    //DelayReverb.SetDuckRelease(duckRelease);
+    //DelayReverb.SetDuckRelease(duckRelease);*/
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
 {
+    PluginParameterRegistry::RemoveListeners(parameters, this);
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::createParameterLayout()
@@ -303,6 +308,9 @@ void AudioPluginAudioProcessor::prepareToPlay(double sampleRate, int samplesPerB
     // initialisation that you need.
     juce::ignoreUnused (sampleRate, samplesPerBlock);
 
+    // Re-apply current parameter state before DSP prep.
+    PluginParameterRegistry::ApplyAll(DelayReverb, parameters);
+
     KeyboardSynth.PrepareToPlay(sampleRate);
     ImpulseClick.PrepareToPlay(sampleRate);
 
@@ -341,7 +349,10 @@ bool AudioPluginAudioProcessor::isBusesLayoutSupported(const BusesLayout& layout
 
 void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID, float newValue)
 {
-    if (parameterID == "delayTime") DelayReverb.SetDelayTime(newValue);
+    juce::ignoreUnused(newValue);
+    PluginParameterRegistry::ApplyOneIfMatched(DelayReverb, parameters, parameterID);
+
+    /*if (parameterID == "delayTime") DelayReverb.SetDelayTime(newValue);
 
     if (parameterID == "delayTimeMode")
     {
@@ -387,7 +398,7 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
     }
 
     if (parameterID == "pitchStereoEnabled") DelayReverb.SetPitchStereoEnabled(newValue);
-    if (parameterID == "pitchWetMix") DelayReverb.SetpitchWetMix(newValue);
+    if (parameterID == "pitchWetMix") DelayReverb.SetpitchWetMix(newValue);*/
 }
 
 void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
@@ -510,6 +521,8 @@ void AudioPluginAudioProcessor::setStateInformation(const void* data, int sizeIn
 
     if (xmlState != nullptr)
         parameters.replaceState(juce::ValueTree::fromXml(*xmlState));
+
+    PluginParameterRegistry::ApplyAll(DelayReverb, parameters);
 }
 
 //==============================================================================
