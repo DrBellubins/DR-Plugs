@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+
 #include "PluginParameterRegistry.h"
 
 //==============================================================================
@@ -16,101 +17,6 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
 {
     PluginParameterRegistry::AddListeners(parameters, this);
     PluginParameterRegistry::ApplyAll(DelayReverb, parameters);
-
-    // IMPORTANT!
-    /*parameters.addParameterListener("delayTime", this);
-    parameters.addParameterListener("delayTimeMode", this);
-
-    parameters.addParameterListener("feedbackTime", this);
-    parameters.addParameterListener("diffusionAmount", this);
-    parameters.addParameterListener("diffusionSize", this);
-    parameters.addParameterListener("diffusionQuality", this);
-
-    parameters.addParameterListener("dryVolume", this);
-    parameters.addParameterListener("wetVolume", this);
-
-    // Filters
-    parameters.addParameterListener("stereoSpread", this);
-    parameters.addParameterListener("lowPassCutoff", this);
-    parameters.addParameterListener("highPassCutoff", this);
-    parameters.addParameterListener("hplpPrePost", this);
-
-    // Ducking
-    parameters.addParameterListener("duckAmount", this);
-    parameters.addParameterListener("duckAttack", this);
-    parameters.addParameterListener("duckRelease", this);
-
-    // Pitch shifting
-    parameters.addParameterListener("pitchRangeLower", this);
-    parameters.addParameterListener("pitchRangeUpper", this);
-    parameters.addParameterListener("pitchSequence", this);
-    parameters.addParameterListener("pitchStereoEnabled", this);
-    parameters.addParameterListener("pitchAlgorithm", this);
-    parameters.addParameterListener("pitchWetMix", this);
-
-    // Set delay initial values
-    float delayTime = parameters.getRawParameterValue("delayTime")->load();
-
-    auto* delayModeChoice = dynamic_cast<juce::AudioParameterChoice*>(parameters.getParameter("delayTimeMode"));
-    int delayMode = delayModeChoice->getIndex();
-
-    float feedbackTime = parameters.getRawParameterValue("feedbackTime")->load();
-    float diffusionAmount = parameters.getRawParameterValue("diffusionAmount")->load();
-    float diffusionSize = parameters.getRawParameterValue("diffusionSize")->load();
-    int diffusionQuality = static_cast<int>(parameters.getRawParameterValue("diffusionQuality")->load());
-
-    float dryVolume = parameters.getRawParameterValue("dryVolume")->load();
-    float wetVolume = parameters.getRawParameterValue("wetVolume")->load();
-
-    // Filters
-    float stereoSpread = parameters.getRawParameterValue("stereoSpread")->load();
-    float lowPassCutoff = parameters.getRawParameterValue("lowPassCutoff")->load();
-    float highPassCutoff = parameters.getRawParameterValue("highPassCutoff")->load();
-    float hpLPPrePost = parameters.getRawParameterValue("hplpPrePost")->load();
-
-    // Ducking
-    float duckAmount = parameters.getRawParameterValue("duckAmount")->load();
-    //float duckAttack = parameters.getRawParameterValue("duckAttack")->load();
-    //float duckRelease = parameters.getRawParameterValue("duckRelease")->load();
-
-    // Pitch shifting
-    float pitchRangeLower = parameters.getRawParameterValue("pitchRangeLower")->load();
-    float pitchRangeUpper = parameters.getRawParameterValue("pitchRangeUpper")->load();
-
-    auto* pitchSequenceParameter =
-                dynamic_cast<juce::AudioParameterChoice*>(parameters.getParameter("pitchSequence"));
-
-    int pitchSequence = pitchSequenceParameter->getIndex();
-
-    //float pitchStereoEnabled = parameters.getRawParameterValue("pitchStereoEnabled")->load();
-
-    float pitchWetMix = parameters.getRawParameterValue("pitchWetMix")->load();
-
-    DelayReverb.SetDelayTime(delayTime);
-    DelayReverb.SetDelayMode(delayMode);
-
-    DelayReverb.SetFeedbackTime(feedbackTime);
-    DelayReverb.SetDiffusionAmount(diffusionAmount);
-    DelayReverb.SetDiffusionSize(diffusionSize);
-    DelayReverb.SetDiffusionQuality(diffusionQuality);
-
-    DelayReverb.SetDryVolume(dryVolume);
-    DelayReverb.SetWetVolume(wetVolume);
-
-    DelayReverb.SetStereoSpread(stereoSpread);
-    DelayReverb.SetLowpassCutoff(lowPassCutoff);
-    DelayReverb.SetHighpassCutoff(highPassCutoff);
-    DelayReverb.SetHPLPPrePost(hpLPPrePost);
-
-    DelayReverb.SetPitchRangeLower(pitchRangeLower);
-    DelayReverb.SetPitchRangeUpper(pitchRangeUpper);
-    DelayReverb.SetPitchSequence(pitchSequence);
-    //DelayReverb.SetPitchStereoEnabled(pitchStereoEnabled);
-    DelayReverb.SetpitchWetMix(pitchWetMix);
-
-    DelayReverb.SetDuckAmount(duckAmount);
-    //DelayReverb.SetDuckAttack(duckAttack);
-    //DelayReverb.SetDuckRelease(duckRelease);*/
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
@@ -123,7 +29,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> parameterList;
 
     // Delay time
-    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
+    /*parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
         "delayTime", "Delay Time",
         juce::NormalisableRange(0.0f, 1.0f), 0.3f)); // 300 ms default
 
@@ -231,7 +137,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
 
     parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
         "pitchWetMix", "Pitch Shift Wet Mix",
-        juce::NormalisableRange(0.0f, 1.0f), 0.0f));
+        juce::NormalisableRange(0.0f, 1.0f), 0.0f));*/
 
     return { parameterList.begin(), parameterList.end() };
 }
@@ -351,54 +257,6 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
 {
     juce::ignoreUnused(newValue);
     PluginParameterRegistry::ApplyOneIfMatched(DelayReverb, parameters, parameterID);
-
-    /*if (parameterID == "delayTime") DelayReverb.SetDelayTime(newValue);
-
-    if (parameterID == "delayTimeMode")
-    {
-        auto* delayModeChoice = dynamic_cast<juce::AudioParameterChoice*>(parameters.getParameter("delayTimeMode"));
-        int delayMode = delayModeChoice->getIndex();
-
-        DelayReverb.SetDelayMode(delayMode);
-    }
-
-    if (parameterID == "feedbackTime") DelayReverb.SetFeedbackTime(newValue);
-    if (parameterID == "diffusionAmount") DelayReverb.SetDiffusionAmount(newValue);
-    if (parameterID == "diffusionSize") DelayReverb.SetDiffusionSize(newValue);
-    if (parameterID == "diffusionQuality") DelayReverb.SetDiffusionQuality(static_cast<int>(std::round(newValue)));
-
-    if (parameterID == "dryVolume") DelayReverb.SetDryVolume(newValue);
-    if (parameterID == "wetVolume") DelayReverb.SetWetVolume(newValue);
-
-    // Filters
-    if (parameterID == "stereoSpread") DelayReverb.SetStereoSpread(newValue);
-    if (parameterID == "lowPassCutoff") DelayReverb.SetLowpassCutoff(newValue);
-    if (parameterID == "highPassCutoff") DelayReverb.SetHighpassCutoff(newValue);
-    if (parameterID == "hplpPrePost") DelayReverb.SetHPLPPrePost(newValue);
-
-    // Ducking
-    if (parameterID == "duckAmount") DelayReverb.SetDuckAmount(newValue);
-    //if (parameterID == "duckAttack") DelayReverb.SetDuckAttack(newValue);
-    //if (parameterID == "duckRelease") DelayReverb.SetDuckRelease(newValue);
-
-    // Pitch shifting
-    if (parameterID == "pitchRangeLower") DelayReverb.SetPitchRangeLower(newValue);
-    if (parameterID == "pitchRangeUpper") DelayReverb.SetPitchRangeUpper(newValue);
-
-    if (parameterID == "pitchSequence")
-    {
-        auto* pitchSequenceParameter =
-                dynamic_cast<juce::AudioParameterChoice*>(parameters.getParameter("pitchSequence"));
-
-        if (pitchSequenceParameter != nullptr)
-        {
-            const int selectedSequenceIndex = pitchSequenceParameter->getIndex();
-            DelayReverb.SetPitchSequence(selectedSequenceIndex);
-        }
-    }
-
-    if (parameterID == "pitchStereoEnabled") DelayReverb.SetPitchStereoEnabled(newValue);
-    if (parameterID == "pitchWetMix") DelayReverb.SetpitchWetMix(newValue);*/
 }
 
 void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
