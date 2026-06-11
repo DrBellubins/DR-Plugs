@@ -3,6 +3,9 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "../RackTheme.h"
 #include "ModuleThemeProvider.h"
+#include "juce_audio_processors/utilities/juce_AudioProcessorValueTreeState.h"
+
+using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
 
 class Module : public juce::Component,
                public ModuleThemeProvider
@@ -25,6 +28,9 @@ public:
     juce::Component& GetOscilloscopePlaceholder();
     juce::ToggleButton& GetEnableButton();
 
+    void AttachEnableButton(juce::AudioProcessorValueTreeState& apvts,
+                        const juce::String& parameterID);
+
 protected:
     void ApplyThemeToBaseChrome();
     void LayoutBaseChrome();
@@ -41,6 +47,8 @@ protected:
 
     std::unique_ptr<juce::Component> oscilloscopePlaceholder;
     juce::ToggleButton enableButton;
+
+    std::unique_ptr<ButtonAttachment> enableAttachment;
 
 private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Module)

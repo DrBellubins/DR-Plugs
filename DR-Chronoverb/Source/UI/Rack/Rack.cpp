@@ -6,6 +6,8 @@ void Rack::CreateRackLayout(juce::Component& parent,
                             int x, int y, int width, int height)
 {
     processor = &processorRef;
+    apvts = &processorRef.parameters;
+    
     theme = newTheme;
 
     parent.addAndMakeVisible(*this);

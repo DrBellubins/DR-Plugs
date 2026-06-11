@@ -25,6 +25,8 @@ private:
     void LayoutModules();
 
     AudioPluginAudioProcessor* processor = nullptr;
+    juce::AudioProcessorValueTreeState* apvts = nullptr;
+    
     RackTheme theme;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Rack)
