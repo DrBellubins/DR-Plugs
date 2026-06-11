@@ -8,10 +8,10 @@ class HardClipper
 public:
     std::pair<float, float> ProcessSample(float inputL, float inputR)
     {
-        float outL = std::clamp(inputL, -Threshold, Threshold);
-        float outR = std::clamp(inputR, -Threshold, Threshold);
+        float wetDistL = std::clamp(inputL, -Threshold, Threshold);
+        float wetDistR = std::clamp(inputR, -Threshold, Threshold);
 
-        return { outL, outR };
+        return { wetDistL, wetDistR };
     }
 
     float Threshold = 1.0f; // TODO: Should be in dB

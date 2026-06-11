@@ -10,7 +10,7 @@ class Distortion
 public:
     void Prepare(float newSampleRate);
 
-    std::pair<float, float> ProcessSample(float dryL, float dryR, float wetL, float wetR);
+    std::tuple<float, float, float, float> ProcessSample(float dryL, float dryR, float wetL, float wetR);
 
 private:
     HardClipper hardClipper;

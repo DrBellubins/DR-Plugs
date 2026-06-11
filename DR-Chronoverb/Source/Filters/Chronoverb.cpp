@@ -56,9 +56,13 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer) const
         auto [pitchLeft, pitchRight] =
             PitchShifterLeftRight->ProcessSample(wetLeft, wetRight);
 
-        // 5) Dry + wet volume gain
-        float outputLeft = (dryLeft * dryVolume) + (pitchLeft * wetVolume);
-        float outputRight = (dryRight * dryVolume) + (pitchRight * wetVolume);
+        // 5) Distortion
+        auto [distortionDryLeft, distortionDryRight, distortionWetLeft, distortionWetRight] =
+            DistortionLeftRight->ProcessSample(dryLeft, dryRight, pitchLeft, pitchRight);
+
+        // 6) Dry + wet volume gain
+        float outputLeft = (distortionDryLeft * dryVolume) + (distortionWetLeft * wetVolume);
+        float outputRight = (distortionDryRight * dryVolume) + (distortionWetRight * wetVolume);
 
         // Write to buffer
         leftData[sampleIndex] = outputLeft;

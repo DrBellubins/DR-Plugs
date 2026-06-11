@@ -6,6 +6,7 @@
 #include "NewDelayReverb/Stages/Delay.h"
 #include "NewDelayReverb/Stages/Reverb.h"
 #include "NewDelayReverb/Stages/PitchShifter.h"
+#include "NewDelayReverb/Stages/Distortion.h"
 
 class DelayLine;
 class DampingFilter;
@@ -22,6 +23,7 @@ public:
     std::unique_ptr<Delay> DelayLeftRight;
     std::unique_ptr<Reverb> ReverbLeftRight;
     std::unique_ptr<PitchShifter> PitchShifterLeftRight;
+    std::unique_ptr<Distortion> DistortionLeftRight;
 
     //region Parameter Sets
     void SetHostTempo(float bpm);
