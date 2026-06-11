@@ -52,7 +52,7 @@ public:
 
     // Distortion
     void SetDistortionModuleEnabled(int moduleIndex, bool enabled);
-    void SetDistortionModuleType(int moduleIndex, int typeIndex);
+    void SetDistortionModuleTypeTarget(int moduleIndex, int type, int target);
     void SetDistortionModuleDrive(int moduleIndex, float drive01);
     void SetDistortionModuleMix(int moduleIndex, float mix01);
     //endregion
@@ -64,6 +64,8 @@ private:
 
     float delayTimeNormalized = 0.3f;
     float delayMilliseconds = 300.0f;
+
+    static constexpr int NumDistortionModules = 3;
 
     //region Parameters
     int delayMode = 0;
@@ -90,13 +92,5 @@ private:
     float pitchWetMix = 0.0f;
 
     float duckAmount = 0.0f;
-
-    // Distortion
-    static constexpr int NumDistortionModules = 3;
-
-    bool distortionModuleEnabled[NumDistortionModules] { true, true, true };
-    int distortionModuleType[NumDistortionModules] { 0, 0, 0 };
-    float distortionModuleDrive[NumDistortionModules] { 0.5f, 0.5f, 0.5f };
-    float distortionModuleMix[NumDistortionModules] { 1.0f, 1.0f, 1.0f };
     //endregion
 };

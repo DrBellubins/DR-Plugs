@@ -208,8 +208,9 @@ namespace ParameterEntries
                       juce::AudioProcessorValueTreeState& apvts,
                       const juce::String&)
             {
+                // TODO: Implement target
                 if (auto* parameter = dynamic_cast<juce::AudioParameterChoice*>(apvts.getParameter(prefix + "Type")))
-                    chronoverb.SetDistortionModuleType(moduleIndex - 1, parameter->getIndex());
+                    chronoverb.SetDistortionModuleTypeTarget(moduleIndex - 1, parameter->getIndex(), 0);
             }
         });
 

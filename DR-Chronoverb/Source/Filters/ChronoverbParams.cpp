@@ -115,25 +115,25 @@ void Chronoverb::SetpitchWetMix(float newPitchWetMix)
 void Chronoverb::SetDistortionModuleEnabled(int moduleIndex, bool enabled)
 {
     const int index = juce::jlimit(0, NumDistortionModules - 1, moduleIndex);
-    distortionModuleEnabled[index] = enabled;
+    DistortionLeftRight->SetEnabled(index, enabled);
 }
 
-void Chronoverb::SetDistortionModuleType(int moduleIndex, int typeIndex)
+void Chronoverb::SetDistortionModuleTypeTarget(int moduleIndex, int type, int target)
 {
     const int index = juce::jlimit(0, NumDistortionModules - 1, moduleIndex);
-    distortionModuleType[index] = typeIndex;
+    DistortionLeftRight->SetTypeTarget(index, type, target);
 }
 
 void Chronoverb::SetDistortionModuleDrive(int moduleIndex, float drive01)
 {
     const int index = juce::jlimit(0, NumDistortionModules - 1, moduleIndex);
-    distortionModuleDrive[index] = juce::jlimit(0.0f, 1.0f, drive01);
+    DistortionLeftRight->SetDrive(index, drive01);
 }
 
 void Chronoverb::SetDistortionModuleMix(int moduleIndex, float mix01)
 {
     const int index = juce::jlimit(0, NumDistortionModules - 1, moduleIndex);
-    distortionModuleMix[index] = juce::jlimit(0.0f, 1.0f, mix01);
+    DistortionLeftRight->SetMix(index, mix01);
 }
 
 // TODO
