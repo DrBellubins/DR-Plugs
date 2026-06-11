@@ -15,6 +15,7 @@ std::tuple<float, float, float, float> Distortion::ProcessSample(float dryL, flo
 
     hardClipper.SetDrive(drive);
     chebyshev.SetDrive(drive);
+    chebyshev.SetHarmonics(chebyHarmonics);
 
     if (distortionType == 0)
     {
@@ -46,4 +47,9 @@ void Distortion::Setup(int newDistortionType, int newDistortionTarget)
 void Distortion::SetDrive(float newDrive)
 {
     drive = std::clamp(newDrive, 1.0f, 999.0f);
+}
+
+void Distortion::SetChebyHarmonics(float newHarmonics)
+{
+    chebyHarmonics = newHarmonics;
 }

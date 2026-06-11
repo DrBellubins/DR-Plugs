@@ -66,8 +66,8 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
 
     // Ducking
     float duckAmount = parameters.getRawParameterValue("duckAmount")->load();
-    float duckAttack = parameters.getRawParameterValue("duckAttack")->load();
-    float duckRelease = parameters.getRawParameterValue("duckRelease")->load();
+    //float duckAttack = parameters.getRawParameterValue("duckAttack")->load();
+    //float duckRelease = parameters.getRawParameterValue("duckRelease")->load();
 
     // Pitch shifting
     float pitchRangeLower = parameters.getRawParameterValue("pitchRangeLower")->load();
@@ -78,7 +78,7 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
 
     int pitchSequence = pitchSequenceParameter->getIndex();
 
-    float pitchStereoEnabled = parameters.getRawParameterValue("pitchStereoEnabled")->load();
+    //float pitchStereoEnabled = parameters.getRawParameterValue("pitchStereoEnabled")->load();
 
     float pitchWetMix = parameters.getRawParameterValue("pitchWetMix")->load();
 
@@ -98,13 +98,13 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     DelayReverb.SetHighpassCutoff(highPassCutoff);
     DelayReverb.SetHPLPPrePost(hpLPPrePost);
 
-    //DelayReverb.SetPitchRangeLower(pitchRangeLower);
-    //DelayReverb.SetPitchRangeUpper(pitchRangeUpper);
-    //DelayReverb.SetPitchSequence(pitchSequence);
+    DelayReverb.SetPitchRangeLower(pitchRangeLower);
+    DelayReverb.SetPitchRangeUpper(pitchRangeUpper);
+    DelayReverb.SetPitchSequence(pitchSequence);
     //DelayReverb.SetPitchStereoEnabled(pitchStereoEnabled);
-    //DelayReverb.SetpitchWetMix(pitchWetMix);
+    DelayReverb.SetpitchWetMix(pitchWetMix);
 
-    //DelayReverb.SetDuckAmount(duckAmount);
+    DelayReverb.SetDuckAmount(duckAmount);
     //DelayReverb.SetDuckAttack(duckAttack);
     //DelayReverb.SetDuckRelease(duckRelease);
 }
@@ -366,7 +366,7 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
     if (parameterID == "hplpPrePost") DelayReverb.SetHPLPPrePost(newValue);
 
     // Ducking
-    //if (parameterID == "duckAmount") DelayReverb.SetDuckAmount(newValue);
+    if (parameterID == "duckAmount") DelayReverb.SetDuckAmount(newValue);
     //if (parameterID == "duckAttack") DelayReverb.SetDuckAttack(newValue);
     //if (parameterID == "duckRelease") DelayReverb.SetDuckRelease(newValue);
 

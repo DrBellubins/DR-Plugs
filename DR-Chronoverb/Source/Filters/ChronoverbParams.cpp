@@ -126,6 +126,11 @@ void Chronoverb::SetHPLPPrePost(float prePost01)
     hplpPrePost01 = clamp01(prePost01);
 }
 
+void Chronoverb::SetDuckAmount(float newDuckAmount)
+{
+    duckAmount = clamp01(newDuckAmount);
+}
+
 // Pitch shifting
 
 void Chronoverb::SetPitchStereoEnabled(float enabled01)

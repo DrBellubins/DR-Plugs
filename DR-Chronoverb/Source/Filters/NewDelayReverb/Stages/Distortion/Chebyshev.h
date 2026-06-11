@@ -22,9 +22,16 @@ public:
         dcBlocker.Reset();
     }
 
+    void SetHarmonics(float newHarmonics)
+    {
+        harmonics = std::clamp(newHarmonics, 0.0f, 32.0f);
+    }
+
     void SetOrder(int newOrder)
     {
         order = std::clamp(newOrder, 1, 16);
+        harmonics = ((static_cast<float>(order) - 1.0f)
+            / static_cast<float>(maxPolynomialOrder - 1)) * 32.0f;
     }
 
     void SetDrive(float newDrive)
@@ -84,17 +91,28 @@ public:
     float ProcessShaperOnly(float inputSample) const
     {
         float x = inputSample * inputTrim * drive;
-
-        // Keep the polynomial in a stable region.
-        // Chebyshev behavior is most predictable in [-1, 1].
         x = std::clamp(x, -1.0f, 1.0f);
 
-        float y = EvaluateChebyshevPolynomial(x, order);
+        const float mappedOrder = MapHarmonicsToOrder(harmonics, maxPolynomialOrder);
 
-        // Soft containment after polynomial evaluation.
-        // This helps keep output from getting too wild.
+        const int lowerOrder =
+            std::clamp(static_cast<int>(std::floor(mappedOrder)), 1, maxPolynomialOrder);
+
+        const int upperOrder =
+            std::clamp(lowerOrder + 1, 1, maxPolynomialOrder);
+
+        const float blend = mappedOrder - static_cast<float>(lowerOrder);
+
+        const float yLower = EvaluateChebyshevPolynomial(x, lowerOrder);
+        const float yUpper = EvaluateChebyshevPolynomial(x, upperOrder);
+
+        float y = juce::jmap(blend, yLower, yUpper);
+
+        // Makes harmonics=0 behave closer to clean.
+        const float shapeAmount = std::clamp(harmonics, 0.0f, 1.0f);
+        y = x + (y - x) * shapeAmount;
+
         y = SoftClip(y);
-
         return y;
     }
 
@@ -130,6 +148,13 @@ private:
         return tn;
     }
 
+    static float MapHarmonicsToOrder(float harmonicsValue, int maxOrder)
+    {
+        const float normalized = std::clamp(harmonicsValue / 32.0f, 0.0f, 1.0f);
+        const float curved = std::pow(normalized, 1.35f);
+        return 1.0f + curved * static_cast<float>(maxOrder - 1);
+    }
+
     static float SoftClip(float x)
     {
         // Simple tanh-style containment without needing std::tanh
@@ -140,6 +165,9 @@ private:
     double sampleRate = 48000.0;
 
     int order = 3;
+    float harmonics = 3.0f;
+    int maxPolynomialOrder = 16;
+
     float drive = 1.0f;
     float outputGain = 1.0f;
     float mix = 1.0f;

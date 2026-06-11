@@ -48,15 +48,19 @@ public:
     void SetPitchSequence(int sequenceIndex);                // 0=Up, 1=Down, 2=Random
     void SetPitchStereoEnabled(float enabled01);
     void SetpitchWetMix(float wetVolume);
+
+    void SetDuckAmount(float newDuckAmount);
     //endregion
 
 private:
-    //region Parameters
+
     double sampleRate = 48000.0;
     float hostTempoBpm = 120.0f;
 
     float delayTimeNormalized = 0.3f;
     float delayMilliseconds = 300.0f;
+
+    //region Parameters
     int delayMode = 0;
 
     float feedbackTimeSeconds = 3.0f;
@@ -79,5 +83,7 @@ private:
     int pitchSequence = 0;
     float pitchStereoEnabled01 = 0.0f;
     float pitchWetMix = 0.0f;
+
+    float duckAmount = 0.0f;
     //endregion
 };
