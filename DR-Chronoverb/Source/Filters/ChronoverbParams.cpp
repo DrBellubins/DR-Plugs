@@ -1,6 +1,6 @@
 #include "Chronoverb.h"
 
-void Chronoverb::SetHostTempo(float bpm)
+void Chronoverb::SetHostTempo(float bpm) const
 {
     DelayLeftRight->SetHostTempo(bpm);
     ReverbLeftRight->SetHostTempo(bpm);
@@ -86,32 +86,54 @@ void Chronoverb::SetWetVolume(float newWet01)
     wetVolume = clamp01(newWet01);
 }
 
+// Pitch
 void Chronoverb::SetPitchRangeLower(float pitchRangeLowerSemitones)
 {
     pitchRangeLower = juce::jlimit(-48.0f, 48.0f, pitchRangeLowerSemitones);
-
     PitchShifterLeftRight->SetPitchRangeLower(pitchRangeLower);
 }
 
 void Chronoverb::SetPitchRangeUpper(float pitchRangeUpperSemitones)
 {
     pitchRangeUpper = juce::jlimit(-48.0f, 48.0f, pitchRangeUpperSemitones);
-
     PitchShifterLeftRight->SetPitchRangeUpper(pitchRangeUpper);
 }
 
 void Chronoverb::SetPitchSequence(int sequenceIndex)
 {
     pitchSequence = juce::jlimit(0, 3, sequenceIndex);
-
     PitchShifterLeftRight->SetPitchSequence(pitchSequence);
 }
 
 void Chronoverb::SetpitchWetMix(float newPitchWetMix)
 {
     pitchWetMix = clamp01(newPitchWetMix);
-
     PitchShifterLeftRight->SetPitchWetMix(pitchWetMix);
+}
+
+// Distortion
+void Chronoverb::SetDistortionModuleEnabled(int moduleIndex, bool enabled)
+{
+    const int index = juce::jlimit(0, NumDistortionModules - 1, moduleIndex);
+    distortionModuleEnabled[index] = enabled;
+}
+
+void Chronoverb::SetDistortionModuleType(int moduleIndex, int typeIndex)
+{
+    const int index = juce::jlimit(0, NumDistortionModules - 1, moduleIndex);
+    distortionModuleType[index] = typeIndex;
+}
+
+void Chronoverb::SetDistortionModuleDrive(int moduleIndex, float drive01)
+{
+    const int index = juce::jlimit(0, NumDistortionModules - 1, moduleIndex);
+    distortionModuleDrive[index] = juce::jlimit(0.0f, 1.0f, drive01);
+}
+
+void Chronoverb::SetDistortionModuleMix(int moduleIndex, float mix01)
+{
+    const int index = juce::jlimit(0, NumDistortionModules - 1, moduleIndex);
+    distortionModuleMix[index] = juce::jlimit(0.0f, 1.0f, mix01);
 }
 
 // TODO
@@ -129,30 +151,4 @@ void Chronoverb::SetHPLPPrePost(float prePost01)
 void Chronoverb::SetDuckAmount(float newDuckAmount)
 {
     duckAmount = clamp01(newDuckAmount);
-}
-
-// Pitch shifting
-
-void Chronoverb::SetPitchStereoEnabled(float enabled01)
-{
-    /*const float newValue = clamp01(enabled01);
-    const bool oldStereoEnabled = (pitchStereoEnabled01 >= 0.5f);
-    const bool newStereoEnabled = (newValue >= 0.5f);
-
-    pitchStereoEnabled01 = newValue;
-
-    if (oldStereoEnabled != newStereoEnabled)
-    {
-        echoWriteCounterL = 0;
-        echoWriteCounterR = 0;
-
-        pitchShifterLeft.ResetSequenceAndBackendToCurrentState();
-        pitchShifterRight.ResetSequenceAndBackendToCurrentState();
-
-        if (!newStereoEnabled)
-        {
-            const float leftRatio = pitchShifterLeft.GetCurrentPitchRatio();
-            pitchShifterRight.OnNewEchoBoundaryMirrored(leftRatio);
-        }
-    }*/
 }

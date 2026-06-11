@@ -150,12 +150,6 @@ namespace ParameterEntries
                 0,
                 [](Chronoverb& c, int v) { c.SetPitchSequence(v); }),
 
-            MakeBool(
-                "pitchStereoEnabled",
-                "Pitch Shift Stereo Enabled",
-                false,
-                [](Chronoverb& c, bool v) { c.SetPitchStereoEnabled(v ? 1.0f : 0.0f); }),
-
             MakeFloat(
                 "pitchWetMix",
                 "Pitch Shift Wet Mix",
@@ -187,14 +181,14 @@ namespace ParameterEntries
                     "Distortion Module " + juce::String(prefix.getTrailingIntValue()) + " Enabled",
                     true);
             },
-            [prefix](Chronoverb& chronoverb,
-                     juce::AudioProcessorValueTreeState& apvts,
-                     const juce::String&)
+            [prefix, moduleIndex](Chronoverb& chronoverb,
+                                  juce::AudioProcessorValueTreeState& apvts,
+                                  const juce::String&)
             {
                 juce::ignoreUnused(chronoverb);
 
                 if (auto* raw = apvts.getRawParameterValue(prefix + "Enabled"))
-                    juce::ignoreUnused(raw->load());
+                    chronoverb.SetDistortionModuleEnabled(moduleIndex - 1, raw->load() >= 0.5f);
             }
         });
 
@@ -210,11 +204,12 @@ namespace ParameterEntries
                     juce::StringArray{ "Heat", "Chebyshev", "Hard Clip", "Tube" },
                     0);
             },
-            [prefix](Chronoverb& chronoverb,
-                     juce::AudioProcessorValueTreeState& apvts,
-                     const juce::String&)
+            [prefix, moduleIndex](Chronoverb& chronoverb,
+                      juce::AudioProcessorValueTreeState& apvts,
+                      const juce::String&)
             {
-                juce::ignoreUnused(chronoverb, apvts);
+                if (auto* parameter = dynamic_cast<juce::AudioParameterChoice*>(apvts.getParameter(prefix + "Type")))
+                    chronoverb.SetDistortionModuleType(moduleIndex - 1, parameter->getIndex());
             }
         });
 
@@ -230,11 +225,12 @@ namespace ParameterEntries
                     juce::NormalisableRange<float>(0.0f, 1.0f),
                     0.5f);
             },
-            [prefix](Chronoverb& chronoverb,
-                     juce::AudioProcessorValueTreeState& apvts,
-                     const juce::String&)
+            [prefix, moduleIndex](Chronoverb& chronoverb,
+                                  juce::AudioProcessorValueTreeState& apvts,
+                                  const juce::String&)
             {
-                juce::ignoreUnused(chronoverb, apvts);
+                if (auto* raw = apvts.getRawParameterValue(prefix + "Drive"))
+                    chronoverb.SetDistortionModuleDrive(moduleIndex - 1, raw->load());
             }
         });
 
@@ -250,11 +246,12 @@ namespace ParameterEntries
                     juce::NormalisableRange<float>(0.0f, 1.0f),
                     1.0f);
             },
-            [prefix](Chronoverb& chronoverb,
-                     juce::AudioProcessorValueTreeState& apvts,
-                     const juce::String&)
+            [prefix, moduleIndex](Chronoverb& chronoverb,
+                      juce::AudioProcessorValueTreeState& apvts,
+                      const juce::String&)
             {
-                juce::ignoreUnused(chronoverb, apvts);
+                if (auto* raw = apvts.getRawParameterValue(prefix + "Mix"))
+                    chronoverb.SetDistortionModuleMix(moduleIndex - 1, raw->load());
             }
         });
     }

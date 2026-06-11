@@ -46,10 +46,15 @@ public:
     void SetPitchRangeLower(float pitchRangeLowerSemitones);
     void SetPitchRangeUpper(float pitchRangeUpperSemitones);
     void SetPitchSequence(int sequenceIndex);                // 0=Up, 1=Down, 2=Random
-    void SetPitchStereoEnabled(float enabled01);
     void SetpitchWetMix(float wetVolume);
 
     void SetDuckAmount(float newDuckAmount);
+
+    // Distortion
+    void SetDistortionModuleEnabled(int moduleIndex, bool enabled);
+    void SetDistortionModuleType(int moduleIndex, int typeIndex);
+    void SetDistortionModuleDrive(int moduleIndex, float drive01);
+    void SetDistortionModuleMix(int moduleIndex, float mix01);
     //endregion
 
 private:
@@ -85,5 +90,13 @@ private:
     float pitchWetMix = 0.0f;
 
     float duckAmount = 0.0f;
+
+    // Distortion
+    static constexpr int NumDistortionModules = 3;
+
+    bool distortionModuleEnabled[NumDistortionModules] { true, true, true };
+    int distortionModuleType[NumDistortionModules] { 0, 0, 0 };
+    float distortionModuleDrive[NumDistortionModules] { 0.5f, 0.5f, 0.5f };
+    float distortionModuleMix[NumDistortionModules] { 1.0f, 1.0f, 1.0f };
     //endregion
 };
