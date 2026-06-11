@@ -117,7 +117,7 @@ void Chronoverb::SetDistortionModuleEnabled(int moduleIndex, bool enabled)
     const int index = juce::jlimit(0, NumDistortionModules - 1, moduleIndex);
     DistortionLeftRight->SetEnabled(index, enabled);
 
-    DBG("Dist mod enabled: " << moduleIndex << ", " << static_cast<int>(enabled));
+    //DBG("Dist mod enabled: " << moduleIndex << ", " << static_cast<int>(enabled));
 }
 
 void Chronoverb::SetDistortionModuleTypeTarget(int moduleIndex, int type, int target)
@@ -125,7 +125,7 @@ void Chronoverb::SetDistortionModuleTypeTarget(int moduleIndex, int type, int ta
     const int index = juce::jlimit(0, NumDistortionModules - 1, moduleIndex);
     DistortionLeftRight->SetTypeTarget(index, type, target);
 
-    DBG("Dist mod type/target: " << moduleIndex << ", " << type << ", " << target);
+    //DBG("Dist mod type/target: " << moduleIndex << ", " << type << ", " << target);
 }
 
 void Chronoverb::SetDistortionModuleDrive(int moduleIndex, float drive01)
@@ -133,7 +133,7 @@ void Chronoverb::SetDistortionModuleDrive(int moduleIndex, float drive01)
     const int index = juce::jlimit(0, NumDistortionModules - 1, moduleIndex);
     DistortionLeftRight->SetDrive(index, drive01);
 
-    DBG("Dist mod drive: " << moduleIndex << ", " << drive01);
+    //DBG("Dist mod drive: " << moduleIndex << ", " << drive01);
 }
 
 void Chronoverb::SetDistortionModuleMix(int moduleIndex, float mix01)
@@ -141,7 +141,7 @@ void Chronoverb::SetDistortionModuleMix(int moduleIndex, float mix01)
     const int index = juce::jlimit(0, NumDistortionModules - 1, moduleIndex);
     DistortionLeftRight->SetMix(index, mix01);
 
-    DBG("Dist mod mix: " << moduleIndex << ", " << mix01);
+    //DBG("Dist mod mix: " << moduleIndex << ", " << mix01);
 }
 
 // TODO

@@ -73,27 +73,37 @@ public:
     void SetEnabled(bool newEnabled)
     {
         enabled = newEnabled;
+
+        DBG("DSP: Module enabled: " << static_cast<int>(enabled));
     }
 
     void SetType(int newType)
     {
         distortionType = newType;
+
+        DBG("DSP: Module type: " << newType);
     }
 
     void SetTarget(int newTarget)
     {
         distortionTarget = newTarget;
+
+        DBG("DSP: Module target: " << newTarget);
     }
 
     void SetDrive(float newDrive)
     {
         drive = newDrive * maxDrive;
         chebyHarmonics = newDrive * maxChebyshev;
+
+        DBG("DSP: Module enabled: " << newDrive);
     }
 
     void SetMix(float newMix)
     {
         mix = newMix;
+
+        DBG("DSP: Module enabled: " << newMix);
     }
 
 private:
