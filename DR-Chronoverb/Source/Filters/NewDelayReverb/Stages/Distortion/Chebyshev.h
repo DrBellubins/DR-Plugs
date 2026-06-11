@@ -9,7 +9,7 @@
 class Chebyshev
 {
 public:
-    void Prepare(double newSampleRate)
+    void PrepareToPlay(double newSampleRate)
     {
         sampleRate = std::max(1.0, newSampleRate);
         dcBlocker.Prepare(sampleRate);

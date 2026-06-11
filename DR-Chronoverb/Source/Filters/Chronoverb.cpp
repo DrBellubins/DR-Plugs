@@ -22,7 +22,6 @@ void Chronoverb::PrepareToPlay(double newSampleRate)
     PitchShifterLeftRight->PrepareToPlay(sampleRate);
 
     DistortionLeftRight->PrepareToPlay(static_cast<float>(sampleRate));
-    DistortionLeftRight->Setup(1, 1);
 }
 
 void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer) const
@@ -61,10 +60,6 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer) const
             PitchShifterLeftRight->ProcessSample(wetLeft, wetRight);
 
         // 5) Distortion
-        // TEST
-        DistortionLeftRight->SetDrive(stereoSpread * 10.0f);
-        DistortionLeftRight->SetChebyHarmonics(duckAmount * 32.0f);
-
         auto [distortionDryLeft, distortionDryRight, distortionWetLeft, distortionWetRight] =
             DistortionLeftRight->ProcessSample(dryLeft, dryRight, pitchLeft, pitchRight);
 

@@ -2,8 +2,12 @@
 
 #include <utility>
 
+#include <juce_audio_processors/juce_audio_processors.h>
 #include "Distortion/HardClipper.h"
 #include "Distortion/Chebyshev.h"
+#include "Distortion/DistortionModuleDSP.h"
+
+class DistortionModuleDSP;
 
 class Distortion
 {
@@ -12,18 +16,13 @@ public:
 
     std::tuple<float, float, float, float> ProcessSample(float dryL, float dryR, float wetL, float wetR);
 
-    void Setup(int newDistortionType, int newDistortionTarget);
-
-    void SetDrive(float newDrive);
-    void SetChebyHarmonics(float newHarmonics);
+    void SetEnabled(int index, bool newEnabled);
+    void SetTypeTarget(int index, int newDistortionType, int newDistortionTarget);
+    void SetDrive(int index, float newDrive);
+    void SetMix(int index, float newMix);
 
 private:
-    HardClipper hardClipper;
-    Chebyshev chebyshev;
-
-    float drive = 0.0f; // Pre gain
-    float chebyHarmonics = 3.0f; // Chebyshev harmonics 0..32
-
-    int distortionType = 0 ; // 0 = hard clipper, 1 = chebysehv
-    int distortionTarget = 1; // 0 = dry, 1 = wet, 2 = both
+    DistortionModuleDSP distortionModule1;
+    DistortionModuleDSP distortionModule2;
+    DistortionModuleDSP distortionModule3;
 };
