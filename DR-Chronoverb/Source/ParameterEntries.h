@@ -5,11 +5,13 @@
 
 namespace ParameterEntries
 {
+    inline void AddDistortionModuleEntries(std::vector<PluginParameterRegistry::Entry>& entries, int moduleIndex);
+
     inline const std::vector<PluginParameterRegistry::Entry>& BuildEntries()
     {
         using namespace ParameterEntryTypes;
 
-        static const std::vector<PluginParameterRegistry::Entry> entries =
+        static std::vector<PluginParameterRegistry::Entry> entries =
         {
             // ---- Delay ----
             MakeFloat(
@@ -160,9 +162,6 @@ namespace ParameterEntries
                 juce::NormalisableRange<float>(0.0f, 1.0f),
                 0.0f,
                 [](Chronoverb& c, float v) { c.SetpitchWetMix(v); })
-
-            // ---- Distortion ----
-
         };
 
         AddDistortionModuleEntries(entries, 1);
@@ -172,53 +171,91 @@ namespace ParameterEntries
         return entries;
     }
 
-    inline void AddDistortionModuleEntries(std::vector<PluginParameterRegistry::Entry>& entries,
-                                    int moduleIndex)
+    inline void AddDistortionModuleEntries(std::vector<PluginParameterRegistry::Entry>& entries, int moduleIndex)
     {
         const juce::String index = juce::String(moduleIndex);
         const juce::String prefix = "distortionMod" + index;
 
-        entries.push_back(ParameterEntryTypes::MakeBool(
+        entries.push_back(PluginParameterRegistry::Entry
+        {
             prefix + "Enabled",
             "Distortion Module " + index + " Enabled",
-            true,
-            [](Chronoverb& chronoverb, bool value)
+            [prefix]() -> std::unique_ptr<juce::RangedAudioParameter>
             {
-                juce::ignoreUnused(chronoverb, value);
-                // Hook up later when module-enable DSP behavior exists.
-            }));
+                return std::make_unique<juce::AudioParameterBool>(
+                    prefix + "Enabled",
+                    "Distortion Module " + juce::String(prefix.getTrailingIntValue()) + " Enabled",
+                    true);
+            },
+            [prefix](Chronoverb& chronoverb,
+                     juce::AudioProcessorValueTreeState& apvts,
+                     const juce::String&)
+            {
+                juce::ignoreUnused(chronoverb);
 
-        entries.push_back(ParameterEntryTypes::MakeChoice(
+                if (auto* raw = apvts.getRawParameterValue(prefix + "Enabled"))
+                    juce::ignoreUnused(raw->load());
+            }
+        });
+
+        entries.push_back(PluginParameterRegistry::Entry
+        {
             prefix + "Type",
             "Distortion Module " + index + " Type",
-            juce::StringArray{ "Heat", "Chebyshev", "Hard Clip", "Tube" },
-            0,
-            [](Chronoverb& chronoverb, int value)
+            [prefix, index]() -> std::unique_ptr<juce::RangedAudioParameter>
             {
-                juce::ignoreUnused(chronoverb, value);
-                // Hook up later when per-module distortion type routing exists.
-            }));
+                return std::make_unique<juce::AudioParameterChoice>(
+                    prefix + "Type",
+                    "Distortion Module " + index + " Type",
+                    juce::StringArray{ "Heat", "Chebyshev", "Hard Clip", "Tube" },
+                    0);
+            },
+            [prefix](Chronoverb& chronoverb,
+                     juce::AudioProcessorValueTreeState& apvts,
+                     const juce::String&)
+            {
+                juce::ignoreUnused(chronoverb, apvts);
+            }
+        });
 
-        entries.push_back(ParameterEntryTypes::MakeFloat(
+        entries.push_back(PluginParameterRegistry::Entry
+        {
             prefix + "Drive",
             "Distortion Module " + index + " Drive",
-            juce::NormalisableRange<float>(0.0f, 1.0f),
-            0.5f,
-            [](Chronoverb& chronoverb, float value)
+            [prefix, index]() -> std::unique_ptr<juce::RangedAudioParameter>
             {
-                juce::ignoreUnused(chronoverb, value);
-                // Hook up later when per-module drive DSP exists.
-            }));
+                return std::make_unique<juce::AudioParameterFloat>(
+                    prefix + "Drive",
+                    "Distortion Module " + index + " Drive",
+                    juce::NormalisableRange<float>(0.0f, 1.0f),
+                    0.5f);
+            },
+            [prefix](Chronoverb& chronoverb,
+                     juce::AudioProcessorValueTreeState& apvts,
+                     const juce::String&)
+            {
+                juce::ignoreUnused(chronoverb, apvts);
+            }
+        });
 
-        entries.push_back(ParameterEntryTypes::MakeFloat(
+        entries.push_back(PluginParameterRegistry::Entry
+        {
             prefix + "Mix",
             "Distortion Module " + index + " Mix",
-            juce::NormalisableRange<float>(0.0f, 1.0f),
-            1.0f,
-            [](Chronoverb& chronoverb, float value)
+            [prefix, index]() -> std::unique_ptr<juce::RangedAudioParameter>
             {
-                juce::ignoreUnused(chronoverb, value);
-                // Hook up later when per-module mix DSP exists.
-            }));
+                return std::make_unique<juce::AudioParameterFloat>(
+                    prefix + "Mix",
+                    "Distortion Module " + index + " Mix",
+                    juce::NormalisableRange<float>(0.0f, 1.0f),
+                    1.0f);
+            },
+            [prefix](Chronoverb& chronoverb,
+                     juce::AudioProcessorValueTreeState& apvts,
+                     const juce::String&)
+            {
+                juce::ignoreUnused(chronoverb, apvts);
+            }
+        });
     }
 }
