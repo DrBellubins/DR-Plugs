@@ -60,7 +60,7 @@ Module::Module()
     enableButton.setToggleState(true, juce::dontSendNotification);
     enableButton.setButtonText({});
 
-    enableButton.onClick = [this]()
+    enableButton.onStateChange = [this]()
     {
         SetModuleEnabled(enableButton.getToggleState());
     };
@@ -203,4 +203,11 @@ juce::Colour Module::GetModuleSecondaryColour() const
 juce::Colour Module::GetModuleControlFillColour() const
 {
     return themeColour.darker(theme.moduleControlDarkenAmount);
+}
+
+void Module::AttachEnableButton(juce::AudioProcessorValueTreeState& apvts,
+                                const juce::String& parameterID)
+{
+    enableAttachment = std::make_unique<ButtonAttachment>(apvts, parameterID, enableButton);
+    SetModuleEnabled(enableButton.getToggleState());
 }

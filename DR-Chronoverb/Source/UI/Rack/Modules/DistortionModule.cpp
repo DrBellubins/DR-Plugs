@@ -28,9 +28,16 @@ DistortionModule::DistortionModule()
     addAndMakeVisible(mixKnob);
 }
 
-void DistortionModule::CreateLayout(const RackTheme& newTheme)
+void DistortionModule::CreateLayout(const RackTheme& newTheme,
+                                    juce::AudioProcessorValueTreeState& apvts,
+                                    const DistortionModuleParameterIDs& parameterIDs)
 {
     theme = newTheme;
+
+    AttachEnableButton(apvts, parameterIDs.enabled);
+    typeDropdown.AttachToParameter(apvts, parameterIDs.type);
+    driveKnob.AttachToParameter(apvts, parameterIDs.drive);
+    mixKnob.AttachToParameter(apvts, parameterIDs.mix);
 
     SetThemeColour(juce::Colour::fromRGB(230, 120, 70));
 

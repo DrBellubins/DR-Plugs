@@ -1,9 +1,9 @@
 #pragma once
 
-#include <juce_gui_basics/juce_gui_basics.h>
+#include <juce_audio_processors/juce_audio_processors.h>
+
 #include "../RackTheme.h"
 #include "ModuleThemeProvider.h"
-#include "juce_audio_processors/utilities/juce_AudioProcessorValueTreeState.h"
 
 using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
 
@@ -13,8 +13,6 @@ class Module : public juce::Component,
 public:
     Module();
     ~Module() override = default;
-
-    virtual void CreateLayout(const RackTheme& newTheme) = 0;
 
     void paint(juce::Graphics& graphics) override;
     void resized() override;
@@ -29,7 +27,7 @@ public:
     juce::ToggleButton& GetEnableButton();
 
     void AttachEnableButton(juce::AudioProcessorValueTreeState& apvts,
-                        const juce::String& parameterID);
+                            const juce::String& parameterID);
 
 protected:
     void ApplyThemeToBaseChrome();
@@ -47,7 +45,6 @@ protected:
 
     std::unique_ptr<juce::Component> oscilloscopePlaceholder;
     juce::ToggleButton enableButton;
-
     std::unique_ptr<ButtonAttachment> enableAttachment;
 
 private:

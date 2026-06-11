@@ -20,8 +20,8 @@ public:
 
     void CreateLayout(const RackTheme& newTheme,
                   juce::AudioProcessorValueTreeState& apvts,
-                  const DistortionModuleParameterIDs& parameterIDs) override;
-    
+                  const DistortionModuleParameterIDs& parameterIDs);
+
     void resized() override;
 
     ModuleDropdown& GetTypeDropdown();
