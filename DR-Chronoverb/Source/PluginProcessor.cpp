@@ -13,7 +13,7 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
                        ),
-    parameters(*this, nullptr, "PARAMS", createParameterLayout())
+    parameters(*this, nullptr, "PARAMS", PluginParameterRegistry::CreateLayout())
 {
     PluginParameterRegistry::AddListeners(parameters, this);
     PluginParameterRegistry::ApplyAll(DelayReverb, parameters);
@@ -22,124 +22,6 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
 {
     PluginParameterRegistry::RemoveListeners(parameters, this);
-}
-
-juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::createParameterLayout()
-{
-    std::vector<std::unique_ptr<juce::RangedAudioParameter>> parameterList;
-
-    // Delay time
-    /*parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
-        "delayTime", "Delay Time",
-        juce::NormalisableRange(0.0f, 1.0f), 0.3f)); // 300 ms default
-
-    // Delay mode
-    parameterList.push_back(std::make_unique<juce::AudioParameterChoice>(
-        "delayTimeMode", "Delay Time Mode",
-        juce::StringArray{ "ms", "nrm", "trip", "dot" }, 0));
-
-    // Feedback time
-    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
-        "feedbackTime", "Feedback Time",
-        juce::NormalisableRange(0.0f, 10.0f), 5.0f));
-
-    // Diffusion amount
-    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
-        "diffusionAmount", "Diffusion Amount",
-        juce::NormalisableRange(0.0f, 1.0f), 0.0f));
-
-    // Diffusion size
-    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
-        "diffusionSize", "Diffusion Size",
-        juce::NormalisableRange(0.0f, 1.0f), 0.0f));
-
-    // Diffusion quality
-    parameterList.push_back (std::make_unique<juce::AudioParameterInt>(
-        "diffusionQuality", "Diffusion Quality", 1, 8, 8));
-
-    // Dry/Wet volumes
-    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
-        "dryVolume", "Dry Volume",
-        juce::NormalisableRange(0.0f, 1.0f), 1.0f));
-
-    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
-        "wetVolume", "Wet Volume",
-        juce::NormalisableRange(0.0f, 1.0f), 1.0f));
-
-    // ---- Filters ----
-
-    // Spread (stereo reducing/widening)
-    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
-        "stereoSpread", "Stereo Spread",
-        juce::NormalisableRange(-1.0f, 1.0f), 0.0f));
-
-    // Low pass cutoff
-    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
-        "lowPassCutoff", "Low Pass Cutoff",
-        juce::NormalisableRange(0.0f, 1.0f), 1.0f));
-
-    // High pass cutoff
-    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
-        "highPassCutoff", "High Pass Cutoff",
-        juce::NormalisableRange(0.0f, 1.0f), 0.0f));
-
-    parameterList.push_back(std::make_unique<juce::AudioParameterBool>(
-        "hplpPrePost", "HP/LP Pre/Post", true));
-
-    // ---- Ducking ----
-
-    // Duck amount
-    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
-        "duckAmount", "Duck Amount",
-        juce::NormalisableRange(0.0f, 1.0f), 0.0f));
-
-    // Duck attack
-    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
-        "duckAttack", "Duck Attack",
-        juce::NormalisableRange(0.0f, 1.0f), 0.3f)); // Default 300 ms
-
-    // Duck release
-    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
-        "duckRelease", "Duck Release",
-        juce::NormalisableRange(0.0f, 1.0f), 0.3f)); // Default 300 ms
-
-    // ---- Pitch shifting ----
-    parameterList.push_back(std::make_unique<juce::AudioParameterFloat>(
-        "pitchRangeLower",
-        "Pitch Shift Range Lower",
-        juce::NormalisableRange<float>(-48.0f, 48.0f, 12.0f),
-        -12.0f));
-
-    parameterList.push_back(std::make_unique<juce::AudioParameterFloat>(
-        "pitchRangeUpper",
-        "Pitch Shift Range Upper",
-        juce::NormalisableRange<float>(-48.0f, 48.0f, 12.0f),
-        12.0f));
-
-    parameterList.push_back(std::make_unique<juce::AudioParameterChoice>(
-        "pitchSequence",
-        "Pitch Shift Sequence",
-        juce::StringArray
-        {
-            "Up",
-            "Down",
-            "Random",
-            "Up-Down"
-        },
-        0
-    ));
-
-    parameterList.push_back(std::make_unique<juce::AudioParameterBool>(
-        "pitchStereoEnabled",
-        "Pitch Shift Stereo Enabled",
-        false
-    ));
-
-    parameterList.push_back (std::make_unique<juce::AudioParameterFloat>(
-        "pitchWetMix", "Pitch Shift Wet Mix",
-        juce::NormalisableRange(0.0f, 1.0f), 0.0f));*/
-
-    return { parameterList.begin(), parameterList.end() };
 }
 
 //==============================================================================

@@ -7,10 +7,6 @@
 
 class Chronoverb;
 
-// A single source of truth for plugin parameter definitions.
-// Each entry knows:
-// 1) how to create the APVTS parameter
-// 2) how to apply the parameter value to Chronoverb
 class PluginParameterRegistry
 {
 public:
@@ -38,9 +34,4 @@ public:
     static bool ApplyOneIfMatched(Chronoverb& chronoverb,
                                   juce::AudioProcessorValueTreeState& apvts,
                                   const juce::String& changedParameterID);
-
-private:
-    static float ReadFloat(juce::AudioProcessorValueTreeState& apvts, const juce::String& parameterID);
-    static int ReadChoiceIndex(juce::AudioProcessorValueTreeState& apvts, const juce::String& parameterID);
-    static bool ReadBool(juce::AudioProcessorValueTreeState& apvts, const juce::String& parameterID);
 };

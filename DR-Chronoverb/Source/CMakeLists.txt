@@ -27,6 +27,8 @@ target_sources("${PROJECT_NAME}"
         PluginProcessor.cpp
         PluginParameterRegistry.h
         PluginParameterRegistry.cpp
+        ParameterEntryTypes.h
+        ParameterEntries.h
         ${UTILS_SOURCES}
         ${FILTERS_SOURCES}
         ${UI_SOURCES}

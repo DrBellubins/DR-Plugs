@@ -20,7 +20,6 @@ public:
     ~AudioPluginAudioProcessor() override;
 
     juce::AudioProcessorValueTreeState parameters;
-    static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
     //NewDelayReverb DelayReverb;
     Chronoverb DelayReverb;
