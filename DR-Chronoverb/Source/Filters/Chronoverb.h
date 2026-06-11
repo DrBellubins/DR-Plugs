@@ -26,7 +26,7 @@ public:
     std::unique_ptr<Distortion> DistortionLeftRight;
 
     //region Parameter Sets
-    void SetHostTempo(float bpm);
+    void SetHostTempo(float bpm) const;
     void SetDelayTime(float newDelayTimeNormalized);      // 0..1 -> 0..1000 ms
     void SetDelayMode(int newDelayMode);
 
