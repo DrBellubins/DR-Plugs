@@ -10,40 +10,19 @@ void Distortion::PrepareToPlay(float newSampleRate)
 }
 
 // The master class the holds all of the different types of distortion.
-std::tuple<float, float, float, float> Distortion::ProcessSample(float dryL, float dryR, float wetL, float wetR)
+std::tuple<float, float, float, float> Distortion::ProcessSample(float inputDryL, float inputDryR,
+    float inputWetL, float inputWetR)
 {
-    std::pair<float, float> outDry = std::make_pair(dryL, dryR);
-    std::pair<float, float> outWet = std::make_pair(wetL, wetR);
+    auto [dry1L, dry1R, wet1L, wet1R] =
+        distortionModule1.ProcessSample(inputDryL, inputDryR, inputWetL, inputWetR);
 
-    // Module 1
-    auto [distMod1DryL, distMod1DryR, distMod1WetL, distMod1WetR] =
-        distortionModule1.ProcessSample(dryL, dryR, wetL, wetR);
+    auto [dry2L, dry2R, wet2L, wet2R] =
+        distortionModule2.ProcessSample(dry1L, dry1R, wet1L, wet1R);
 
-    outDry.first += distMod1DryL;
-    outDry.second += distMod1DryR;
-    outWet.first += distMod1WetL;
-    outWet.second += distMod1WetR;
+    auto [dry3L, dry3R, wet3L, wet3R] =
+        distortionModule3.ProcessSample(dry2L, dry2R, wet2L, wet2R);
 
-    // Module 2
-    auto [distMod2DryL, distMod2DryR, distMod2WetL, distMod2WetR] =
-        distortionModule2.ProcessSample(dryL, dryR, wetL, wetR);
-
-    outDry.first += distMod2DryL;
-    outDry.second += distMod2DryR;
-    outWet.first += distMod2WetL;
-    outWet.second += distMod2WetR;
-
-    // Module 3
-    auto [distMod3DryL, distMod3DryR, distMod3WetL, distMod3WetR] =
-        distortionModule3.ProcessSample(dryL, dryR, wetL, wetR);
-
-    outDry.first += distMod3DryL;
-    outDry.second += distMod3DryR;
-    outWet.first += distMod3WetL;
-    outWet.second += distMod3WetR;
-
-    return std::make_tuple(outDry.first, outDry.second,
-    outWet.first, outWet.second);
+    return std::make_tuple(dry3L, dry3R, wet3L, wet3R);
 }
 
 void Distortion::SetEnabled(int index, bool newEnabled)

@@ -14,7 +14,7 @@ class Distortion
 public:
     void PrepareToPlay(float newSampleRate);
 
-    std::tuple<float, float, float, float> ProcessSample(float dryL, float dryR, float wetL, float wetR);
+    std::tuple<float, float, float, float> ProcessSample(float inputDryL, float inputDryR, float inputWetL, float inputWetR);
 
     void SetEnabled(int index, bool newEnabled);
     void SetTypeTarget(int index, int newDistortionType, int newDistortionTarget);
