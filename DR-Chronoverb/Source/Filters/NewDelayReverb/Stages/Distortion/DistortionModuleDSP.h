@@ -18,31 +18,50 @@ public:
         std::pair<float, float> outDry = std::make_pair(dryL, dryR);
         std::pair<float, float> outWet = std::make_pair(wetL, wetR);
 
-        if (enabled)
+        if (!enabled)
+            return std::make_tuple(outDry.first, outDry.second, outWet.first, outWet.second);
+
+        hardClipper.SetDrive(drive);
+        chebyshev.SetHarmonics(chebyHarmonics);
+        chebyshev.SetMix(1.0f); // let this class own the module mix consistently
+
+        auto blendPair = [this](std::pair<float, float> in, std::pair<float, float> processed)
         {
-            hardClipper.SetDrive(drive);
-            chebyshev.SetHarmonics(chebyHarmonics);
+            const float outL = in.first  + (processed.first  - in.first)  * mix;
+            const float outR = in.second + (processed.second - in.second) * mix;
+            return std::make_pair(outL, outR);
+        };
 
-            if (distortionType == 0)
+        if (distortionType == 0)
+        {
+            if (distortionTarget == 0 || distortionTarget == 2)
             {
-                if (distortionTarget == 0 || distortionTarget == 2)
-                    outDry = hardClipper.ProcessSample(dryL, dryR);
-
-                if (distortionTarget == 1 || distortionTarget == 2)
-                    outWet = hardClipper.ProcessSample(wetL, wetR);
+                const auto processed = hardClipper.ProcessSample(dryL, dryR);
+                outDry = blendPair({ dryL, dryR }, processed);
             }
-            else if (distortionType == 1)
-            {
-                if (distortionTarget == 0 || distortionTarget == 2)
-                    outDry = chebyshev.ProcessSample(dryL, dryR);
 
-                if (distortionTarget == 1 || distortionTarget == 2)
-                    outWet = chebyshev.ProcessSample(wetL, wetR);
+            if (distortionTarget == 1 || distortionTarget == 2)
+            {
+                const auto processed = hardClipper.ProcessSample(wetL, wetR);
+                outWet = blendPair({ wetL, wetR }, processed);
+            }
+        }
+        else if (distortionType == 1)
+        {
+            if (distortionTarget == 0 || distortionTarget == 2)
+            {
+                const auto processed = chebyshev.ProcessSample(dryL, dryR);
+                outDry = blendPair({ dryL, dryR }, processed);
+            }
+
+            if (distortionTarget == 1 || distortionTarget == 2)
+            {
+                const auto processed = chebyshev.ProcessSample(wetL, wetR);
+                outWet = blendPair({ wetL, wetR }, processed);
             }
         }
 
-        return std::make_tuple(outDry.first, outDry.second,
-        outWet.first, outWet.second);
+        return std::make_tuple(outDry.first, outDry.second, outWet.first, outWet.second);
     }
 
     void Setup(int newDistortionType, int newDistortionTarget)
