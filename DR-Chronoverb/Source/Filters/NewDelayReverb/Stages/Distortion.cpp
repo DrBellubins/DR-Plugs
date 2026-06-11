@@ -45,5 +45,5 @@ void Distortion::Setup(int newDistortionType, int newDistortionTarget)
 
 void Distortion::SetDrive(float newDrive)
 {
-    drive = newDrive;
+    drive = std::clamp(newDrive, 1.0f, 999.0f);
 }

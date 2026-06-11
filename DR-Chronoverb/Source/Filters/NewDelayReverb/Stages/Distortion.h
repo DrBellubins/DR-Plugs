@@ -13,7 +13,7 @@ public:
     std::tuple<float, float, float, float> ProcessSample(float dryL, float dryR, float wetL, float wetR);
 
     void Setup(int newDistortionType, int newDistortionTarget);
-
+    
     void SetDrive(float newDrive);
 
 private:
