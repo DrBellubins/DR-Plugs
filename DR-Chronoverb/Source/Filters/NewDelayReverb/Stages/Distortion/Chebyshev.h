@@ -106,7 +106,7 @@ public:
         const float yLower = EvaluateChebyshevPolynomial(x, lowerOrder);
         const float yUpper = EvaluateChebyshevPolynomial(x, upperOrder);
 
-        float y = juce::jmap(blend, yLower, yUpper);
+        float y = yLower + (yUpper - yLower) * blend;
 
         // Makes harmonics=0 behave closer to clean.
         const float shapeAmount = std::clamp(harmonics, 0.0f, 1.0f);
