@@ -160,8 +160,65 @@ namespace ParameterEntries
                 juce::NormalisableRange<float>(0.0f, 1.0f),
                 0.0f,
                 [](Chronoverb& c, float v) { c.SetpitchWetMix(v); })
+
+            // ---- Distortion ----
+
         };
 
+        AddDistortionModuleEntries(entries, 1);
+        AddDistortionModuleEntries(entries, 2);
+        AddDistortionModuleEntries(entries, 3);
+
         return entries;
+    }
+
+    inline void AddDistortionModuleEntries(std::vector<PluginParameterRegistry::Entry>& entries,
+                                    int moduleIndex)
+    {
+        const juce::String index = juce::String(moduleIndex);
+        const juce::String prefix = "distortionMod" + index;
+
+        entries.push_back(ParameterEntryTypes::MakeBool(
+            prefix + "Enabled",
+            "Distortion Module " + index + " Enabled",
+            true,
+            [](Chronoverb& chronoverb, bool value)
+            {
+                juce::ignoreUnused(chronoverb, value);
+                // Hook up later when module-enable DSP behavior exists.
+            }));
+
+        entries.push_back(ParameterEntryTypes::MakeChoice(
+            prefix + "Type",
+            "Distortion Module " + index + " Type",
+            juce::StringArray{ "Heat", "Chebyshev", "Hard Clip", "Tube" },
+            0,
+            [](Chronoverb& chronoverb, int value)
+            {
+                juce::ignoreUnused(chronoverb, value);
+                // Hook up later when per-module distortion type routing exists.
+            }));
+
+        entries.push_back(ParameterEntryTypes::MakeFloat(
+            prefix + "Drive",
+            "Distortion Module " + index + " Drive",
+            juce::NormalisableRange<float>(0.0f, 1.0f),
+            0.5f,
+            [](Chronoverb& chronoverb, float value)
+            {
+                juce::ignoreUnused(chronoverb, value);
+                // Hook up later when per-module drive DSP exists.
+            }));
+
+        entries.push_back(ParameterEntryTypes::MakeFloat(
+            prefix + "Mix",
+            "Distortion Module " + index + " Mix",
+            juce::NormalisableRange<float>(0.0f, 1.0f),
+            1.0f,
+            [](Chronoverb& chronoverb, float value)
+            {
+                juce::ignoreUnused(chronoverb, value);
+                // Hook up later when per-module mix DSP exists.
+            }));
     }
 }
