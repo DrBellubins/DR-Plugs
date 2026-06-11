@@ -130,7 +130,7 @@ namespace ParameterEntries
             MakeFloat(
                 "pitchRangeLower",
                 "Pitch Shift Range Lower",
-                juce::NormalisableRange<float>(-48.0f, 48.0f, -12.0f),
+                juce::NormalisableRange<float>(-48.0f, 48.0f, 12.0f),
                 -12.0f,
                 [](Chronoverb& c, float v) { c.SetPitchRangeLower(v); }),
 
