@@ -21,7 +21,6 @@ public:
         if (enabled)
         {
             hardClipper.SetDrive(drive);
-            //chebyshev.SetDrive(drive);
             chebyshev.SetHarmonics(chebyHarmonics);
 
             if (distortionType == 0)

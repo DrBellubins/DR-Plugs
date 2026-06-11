@@ -26,7 +26,7 @@ std::tuple<float, float, float, float> Distortion::ProcessSample(float dryL, flo
 
     // Module 2
     auto [distMod2DryL, distMod2DryR, distMod2WetL, distMod2WetR] =
-        distortionModule1.ProcessSample(dryL, dryR, wetL, wetR);
+        distortionModule2.ProcessSample(dryL, dryR, wetL, wetR);
 
     outDry.first += distMod2DryL;
     outDry.second += distMod2DryR;
@@ -35,7 +35,7 @@ std::tuple<float, float, float, float> Distortion::ProcessSample(float dryL, flo
 
     // Module 3
     auto [distMod3DryL, distMod3DryR, distMod3WetL, distMod3WetR] =
-        distortionModule1.ProcessSample(dryL, dryR, wetL, wetR);
+        distortionModule3.ProcessSample(dryL, dryR, wetL, wetR);
 
     outDry.first += distMod3DryL;
     outDry.second += distMod3DryR;
@@ -81,14 +81,12 @@ void Distortion::SetTypeTarget(int index, int newDistortionType, int newDistorti
 
 void Distortion::SetDrive(int index, float newDrive)
 {
-    float drive = std::clamp(newDrive, 1.0f, 999.0f);
-
     if (index == 0)
-        distortionModule1.SetDrive(drive);
+        distortionModule1.SetDrive(newDrive);
     else if (index == 1)
-        distortionModule2.SetDrive(drive);
+        distortionModule2.SetDrive(newDrive);
     else if (index == 2)
-        distortionModule3.SetDrive(drive);
+        distortionModule3.SetDrive(newDrive);
     else
         DBG("Invalid distortion index: " << index);
 }
