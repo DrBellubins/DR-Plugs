@@ -44,12 +44,12 @@ struct RackTheme
 
     // Theme derivation
     float rackOutlineBrightenAmount = 0.25f;
-    float moduleBackgroundDarkenAmount = 1.5f;
+    float moduleBackgroundDarkenAmount = 0.0f;
     float moduleOutlineBrightenAmount = 0.18f;
     float moduleLabelDarkenAmount = 0.15f;
     float moduleSecondaryDarkenAmount = 0.35f;
-    float moduleControlDarkenAmount = 0.55f;
+    float moduleControlDarkenAmount = 0.35f;
 
     // Disabled-state presentation
-    float disabledAlpha = 0.4f;
+    float disabledAlpha = 0.2f;
 };

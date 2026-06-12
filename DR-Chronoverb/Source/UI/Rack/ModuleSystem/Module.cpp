@@ -77,7 +77,8 @@ void Module::paint(juce::Graphics& graphics)
 {
     const auto bounds = getLocalBounds().toFloat();
 
-    graphics.setColour(GetModuleBackgroundColour());
+    // Main module background color
+    graphics.setColour(juce::Colours::black);
     graphics.fillRoundedRectangle(bounds, theme.moduleCornerRadius);
 
     graphics.setColour(GetModuleOutlineColour());
@@ -142,10 +143,11 @@ void Module::ApplyThemeToBaseChrome()
     enableButton.setColour(juce::ToggleButton::tickColourId, themeColour);
     enableButton.setColour(juce::ToggleButton::textColourId, juce::Colours::transparentBlack);
 
+    // Oscilloscope
     if (auto* scope = dynamic_cast<PlaceholderScopeComponent*>(oscilloscopePlaceholder.get()))
     {
         scope->SetColours(
-            GetModuleControlFillColour().darker(0.35f),
+            juce::Colours::black, // TODO: Temporary
             GetModuleOutlineColour(),
             themeColour);
     }
