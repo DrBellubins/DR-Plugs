@@ -4,8 +4,14 @@ ModuleKnob::ModuleKnob()
     : slider(juce::Slider::RotaryHorizontalVerticalDrag,
              juce::Slider::NoTextBox)
 {
+    slider.setLookAndFeel(&knobLookAndFeel);
     addAndMakeVisible(slider);
     SetLabelVisible(true);
+}
+
+ModuleKnob::~ModuleKnob()
+{
+    slider.setLookAndFeel(nullptr);
 }
 
 void ModuleKnob::AttachToParameter(juce::AudioProcessorValueTreeState& apvts,
@@ -47,7 +53,7 @@ void ModuleKnob::ApplyTheme(const RackTheme& rackTheme)
 
     slider.setColour(juce::Slider::rotarySliderFillColourId, GetOptionAccentColour());
     slider.setColour(juce::Slider::rotarySliderOutlineColourId, GetOptionFillColour(rackTheme));
-    slider.setColour(juce::Slider::thumbColourId, juce::Colours::white);
+    //slider.setColour(juce::Slider::thumbColourId, juce::Colours::white);
 }
 
 void ModuleKnob::resized()

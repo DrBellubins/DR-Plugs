@@ -1,7 +1,9 @@
 #pragma once
 
-#include "ModuleOption.h"
 #include <juce_audio_processors/juce_audio_processors.h>
+
+#include "ModuleOption.h"
+#include "../../../Utils/FlatRotaryLookAndFeel.h"
 
 class ModuleKnob : public ModuleOption
 {
@@ -9,7 +11,7 @@ public:
     using Attachment = juce::AudioProcessorValueTreeState::SliderAttachment;
 
     ModuleKnob();
-    ~ModuleKnob() override = default;
+    ~ModuleKnob() override;
 
     void AttachToParameter(juce::AudioProcessorValueTreeState& apvts,
                            const juce::String& parameterID);
@@ -28,6 +30,7 @@ public:
 private:
     juce::Slider slider;
     std::unique_ptr<Attachment> attachment;
+    FlatRotaryLookAndFeel knobLookAndFeel;
 
     juce::Rectangle<int> sliderBoundsOverride;
     int labelHeight = 16;
