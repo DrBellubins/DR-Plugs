@@ -32,5 +32,4 @@ private:
     float releaseCoefficient = 0.0f;
 
     float detectorEnvelope = 0.0f;
-    float appliedGain = 1.0f;
 };

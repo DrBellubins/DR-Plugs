@@ -10,12 +10,14 @@ void Ducking::PrepareToPlay(double newSampleRate)
 void Ducking::Reset()
 {
     detectorEnvelope = 0.0f;
-    appliedGain = 1.0f;
 }
 
 std::pair<float, float> Ducking::ProcessSample(float dryL, float dryR, float wetL, float wetR)
 {
-    const float dryEnvelope = ComputeEnvelopeFromDry(dryL, dryR);
+    const float peak = std::max(std::abs(dryL), std::abs(dryR));
+
+    // Sensitivity boost so normal input levels actually duck.
+    const float dryEnvelope = std::clamp(peak * 6.0f, 0.0f, 1.0f);
 
     // Fast attack when detector rises, slower release when it falls.
     if (dryEnvelope > detectorEnvelope)
@@ -28,18 +30,10 @@ std::pair<float, float> Ducking::ProcessSample(float dryL, float dryR, float wet
     // Duck depth:
     // amount = 0.0 -> no ducking
     // amount = 1.0 -> up to full attenuation at full detector level
-    const float duckControl = std::clamp(duckAmount * detectorEnvelope, 0.0f, 1.0f);
-    const float targetGain = std::pow(1.0f - duckControl, 2.0f);
+    const float duckControl = std::clamp(detectorEnvelope * duckAmount, 0.0f, 1.0f);
+    const float wetGain = 1.0f - duckControl;
 
-    // Smooth the applied gain too, using same directional timing.
-    if (targetGain < appliedGain)
-        appliedGain += (targetGain - appliedGain) * attackCoefficient;
-    else
-        appliedGain += (targetGain - appliedGain) * releaseCoefficient;
-
-    appliedGain = std::clamp(appliedGain, 0.0f, 1.0f);
-
-    return { wetL * appliedGain, wetR * appliedGain };
+    return { wetL * wetGain, wetR * wetGain };
 }
 
 void Ducking::SetDuckAmount(float newAmount01)
@@ -50,34 +44,20 @@ void Ducking::SetDuckAmount(float newAmount01)
 void Ducking::SetDuckAttack(float newAttackMs)
 {
     attackMs = std::clamp(newAttackMs, 0.0f, 1000.0f);
-
-    DBG("Attack: " << attackMs << " ms");
-
     UpdateTimeCoefficients();
 }
 
 void Ducking::SetDuckRelease(float newReleaseMs)
 {
     releaseMs = std::clamp(newReleaseMs, 0.0f, 1000.0f);
-
-    DBG("Release: " << releaseMs << " ms");
-
     UpdateTimeCoefficients();
 }
 
-static int debugCounter = 0;
 float Ducking::ComputeEnvelopeFromDry(float dryL, float dryR) const
 {
     const float absL = std::abs(dryL);
     const float absR = std::abs(dryR);
     const float peak = std::max(absL, absR);
-
-
-    if (++debugCounter >= 2048)
-    {
-        debugCounter = 0;
-        DBG("duck env=" << detectorEnvelope << " gain=" << appliedGain);
-    }
 
     // Boost and curve so ordinary signals create meaningful ducking.
     const float boosted = std::clamp(peak * 4.0f, 0.0f, 1.0f);
