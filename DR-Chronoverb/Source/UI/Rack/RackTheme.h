@@ -24,8 +24,8 @@ struct RackTheme
 
     // Controls
     int dropdownHeight = 22;
-    int optionSize = 42;
-    int optionSpacing = 10;
+    int knobSize = 60;
+    int knobSpacing = 55;
     int labelOffsetBelow = 4;
 
     // Enable button

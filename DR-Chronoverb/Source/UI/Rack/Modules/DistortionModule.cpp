@@ -142,13 +142,13 @@ void DistortionModule::LayoutControls()
                               segmentedHeight);
 
     // Drive + mix knobs
-    const int knobY = dropdownY + dropdownTotalHeight + 6;
-    const int knobSize = theme.optionSize;
+    const int knobY = dropdownY + dropdownTotalHeight - 12;
+    const int knobSize = theme.knobSize;
     const int knobLabelHeight = 14;
     const int knobTotalHeight =
         knobSize + theme.labelOffsetBelow + knobLabelHeight;
 
-    const int totalKnobWidth = (knobSize * 2) + theme.optionSpacing;
+    const int totalKnobWidth = (knobSize * 2) + theme.knobSpacing;
     const int knobStartX = rightColumnX + juce::jmax(0, (rightColumnW - totalKnobWidth) / 2);
 
     driveKnob.setBounds(knobStartX,
@@ -156,7 +156,7 @@ void DistortionModule::LayoutControls()
                         knobSize,
                         knobTotalHeight);
 
-    mixKnob.setBounds(knobStartX + knobSize + theme.optionSpacing,
+    mixKnob.setBounds(knobStartX + knobSize + theme.knobSpacing,
                       knobY,
                       knobSize,
                       knobTotalHeight);
