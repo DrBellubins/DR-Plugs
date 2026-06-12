@@ -24,6 +24,7 @@ DistortionModule::DistortionModule()
     mixKnob.GetSlider().setValue(1.0, juce::dontSendNotification);
 
     targetSegmented.SetOptions({ "Dry", "Wet", "Both" });
+    targetSegmented.SetLabelVisible(false);
 
     addAndMakeVisible(titleLabel);
     addAndMakeVisible(typeDropdown);
@@ -103,7 +104,7 @@ void DistortionModule::LayoutControls()
     const int contentW = getWidth() - (theme.modulePadding * 2);
 
     const int headerY = contentY + theme.titleTopOffset;
-    const int titleX = contentX + theme.enableButtonWidth + 8;
+    const int titleX = contentX;
     const int titleW = juce::jmax(30, contentW - (theme.enableButtonWidth + 8));
 
     titleLabel.setBounds(titleX,
@@ -131,17 +132,14 @@ void DistortionModule::LayoutControls()
                            dropdownTotalHeight);
 
     // Target segmented button
-    constexpr int segmentedLabelHeight = 12;
     constexpr int segmentedHeight = 15;
-    const int segmentedTotalHeight =
-        segmentedHeight + theme.labelOffsetBelow + segmentedLabelHeight;
 
-    const int segmentedY = headerY;
+    const int segmentedY = contentY + theme.titleTopOffset - 7;
 
     targetSegmented.setBounds(rightColumnX + 80,
                               segmentedY,
                               rightColumnW / 2,
-                              segmentedTotalHeight);
+                              segmentedHeight);
 
     // Drive + mix knobs
     const int knobY = dropdownY + dropdownTotalHeight + 6;

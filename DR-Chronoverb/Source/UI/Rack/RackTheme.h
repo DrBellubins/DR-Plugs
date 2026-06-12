@@ -17,7 +17,7 @@ struct RackTheme
 
     // Header
     int headerHeight = 18;
-    int titleTopOffset = 1;
+    int titleTopOffset = 8;
 
     // Scope
     int scopeSize = 64;
