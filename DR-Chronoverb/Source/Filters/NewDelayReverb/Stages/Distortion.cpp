@@ -37,27 +37,6 @@ void Distortion::SetEnabled(int index, bool newEnabled)
         DBG("Invalid distortion index: " << index);
 }
 
-void Distortion::SetTypeTarget(int index, int newDistortionType, int newDistortionTarget)
-{
-    if (index == 0)
-    {
-        distortionModule1.SetType(newDistortionType);
-        distortionModule1.SetTarget(newDistortionTarget);
-    }
-    else if (index == 1)
-    {
-        distortionModule2.SetType(newDistortionType);
-        distortionModule2.SetTarget(newDistortionTarget);
-    }
-    else if (index == 2)
-    {
-        distortionModule3.SetType(newDistortionType);
-        distortionModule3.SetTarget(newDistortionTarget);
-    }
-    else
-        DBG("Invalid distortion index: " << index);
-}
-
 void Distortion::SetDrive(int index, float newDrive)
 {
     if (index == 0)
@@ -78,6 +57,30 @@ void Distortion::SetMix(int index, float newMix)
         distortionModule2.SetMix(newMix);
     else if (index == 2)
         distortionModule3.SetMix(newMix);
+    else
+        DBG("Invalid distortion index: " << index);
+}
+
+void Distortion::SetType(int index, int newDistortionType)
+{
+    if (index == 0)
+        distortionModule1.SetType(newDistortionType);
+    else if (index == 1)
+        distortionModule2.SetType(newDistortionType);
+    else if (index == 2)
+        distortionModule3.SetType(newDistortionType);
+    else
+        DBG("Invalid distortion index: " << index);
+}
+
+void Distortion::SetTarget(int index, int newDistortionTarget)
+{
+    if (index == 0)
+        distortionModule1.SetTarget(newDistortionTarget);
+    else if (index == 1)
+        distortionModule2.SetTarget(newDistortionTarget);
+    else if (index == 2)
+        distortionModule3.SetTarget(newDistortionTarget);
     else
         DBG("Invalid distortion index: " << index);
 }

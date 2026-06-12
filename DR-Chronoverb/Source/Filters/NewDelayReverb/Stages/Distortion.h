@@ -17,9 +17,11 @@ public:
     std::tuple<float, float, float, float> ProcessSample(float inputDryL, float inputDryR, float inputWetL, float inputWetR);
 
     void SetEnabled(int index, bool newEnabled);
-    void SetTypeTarget(int index, int newDistortionType, int newDistortionTarget);
     void SetDrive(int index, float newDrive);
     void SetMix(int index, float newMix);
+
+    void SetType(int index, int newType);
+    void SetTarget(int index, int newTarget);
 
 private:
     DistortionModuleDSP distortionModule1;

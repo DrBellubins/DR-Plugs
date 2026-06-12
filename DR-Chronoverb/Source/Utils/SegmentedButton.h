@@ -2,6 +2,8 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <juce_audio_processors/juce_audio_processors.h>
+
+#include <utility>
 #include "Theme.h"
 #include "ThemeContext.h"
 
@@ -32,13 +34,21 @@ public:
     SegmentedButton()
     {
         setInterceptsMouseClicks(true, true);
-        labelFont = juce::Font("Liberation Sans", 14.0f, juce::Font::bold);
+
+        auto fontOptions = juce::FontOptions("Liberation Sans",
+            14.0f, juce::Font::bold);
+
+        labelFont = juce::Font(fontOptions);
     }
 
     explicit SegmentedButton(const juce::StringArray& OptionLabels)
     {
         setInterceptsMouseClicks(true, true);
-        labelFont = juce::Font("Liberation Sans", 14.0f, juce::Font::bold);
+
+        auto fontOptions = juce::FontOptions("Liberation Sans",
+            14.0f, juce::Font::bold);
+
+        labelFont = juce::Font(fontOptions);
         setOptions(OptionLabels);
     }
 
@@ -61,12 +71,12 @@ public:
         repaint();
     }
 
-    const juce::StringArray& getOptions() const
+    [[nodiscard]] const juce::StringArray& getOptions() const
     {
         return options;
     }
 
-    int getNumOptions() const
+    [[nodiscard]] int getNumOptions() const
     {
         return options.size();
     }
@@ -108,12 +118,12 @@ public:
         blockSelectionCallback = WasBlocked;
     }
 
-    int getSelectedIndex() const
+    [[nodiscard]] int getSelectedIndex() const
     {
         return selectedIndex;
     }
 
-    juce::String getSelectedText() const
+    [[nodiscard]] juce::String getSelectedText() const
     {
         if (selectedIndex >= 0 && selectedIndex < options.size())
             return options[selectedIndex];
@@ -164,8 +174,8 @@ public:
 
         // Compute segment rectangles
         const int NumberOfOptions = options.size();
-        const float TotalWidth = static_cast<float>(Bounds.getWidth());
-        const float TotalHeight = static_cast<float>(Bounds.getHeight());
+        const auto TotalWidth = static_cast<float>(Bounds.getWidth());
+        const auto TotalHeight = static_cast<float>(Bounds.getHeight());
         const float SegmentWidthFloat = TotalWidth / static_cast<float>(NumberOfOptions);
 
         // Draw each segment
@@ -291,10 +301,10 @@ public:
     {
     public:
         ChoiceAttachment(juce::AudioProcessorValueTreeState& State,
-                         const juce::String& ParameterID,
+                         juce::String  ParameterID,
                          SegmentedButton& SegmentedControl)
             : apvts(State),
-              parameterID(ParameterID),
+              parameterID(std::move(ParameterID)),
               control(SegmentedControl)
         {
             parameter = apvts.getParameter(parameterID);
@@ -319,7 +329,7 @@ public:
             {
                 if (parameter != nullptr)
                 {
-                    const float RawTargetValue = static_cast<float>(NewIndex);
+                    const auto RawTargetValue = static_cast<float>(NewIndex);
                     const float Normalised = parameter->convertTo0to1(RawTargetValue);
                     parameter->setValueNotifyingHost(Normalised);
                 }
@@ -545,7 +555,7 @@ private:
         if (NumberOfOptions <= 0)
             return -1;
 
-        const float TotalWidth = static_cast<float>(getWidth());
+        const auto TotalWidth = static_cast<float>(getWidth());
         const float SegmentWidthFloat = TotalWidth / static_cast<float>(NumberOfOptions);
 
         int Index = static_cast<int>(std::floor(juce::jlimit(0.0f, TotalWidth - 1.0f, XPosition) / SegmentWidthFloat));

@@ -120,13 +120,22 @@ void Chronoverb::SetDistortionModuleEnabled(int moduleIndex, bool enabled)
     //DBG("Dist mod enabled: " << moduleIndex << ", " << static_cast<int>(enabled));
 }
 
-void Chronoverb::SetDistortionModuleTypeTarget(int moduleIndex, int type, int target)
+void Chronoverb::SetDistortionModuleType(int moduleIndex, int type)
 {
     const int index = juce::jlimit(0, NumDistortionModules - 1, moduleIndex);
-    DistortionLeftRight->SetTypeTarget(index, type, target);
+    DistortionLeftRight->SetType(index, type);
 
     //DBG("Dist mod type/target: " << moduleIndex << ", " << type << ", " << target);
 }
+
+void Chronoverb::SetDistortionModuleTarget(int moduleIndex, int target)
+{
+    const int index = juce::jlimit(0, NumDistortionModules - 1, moduleIndex);
+    DistortionLeftRight->SetType(index, target);
+
+    //DBG("Dist mod type/target: " << moduleIndex << ", " << type << ", " << target);
+}
+
 
 void Chronoverb::SetDistortionModuleDrive(int moduleIndex, float drive01)
 {

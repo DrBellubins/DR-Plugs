@@ -9,6 +9,7 @@ DistortionModule::DistortionModule()
     typeDropdown.SetLabelText("Type");
     driveKnob.SetLabelText("Drive");
     mixKnob.SetLabelText("Mix");
+    targetSegmented.SetLabelText("Target");
 
     typeDropdown.GetComboBox().addItem("Heat", 1);
     typeDropdown.GetComboBox().addItem("Chebyshev", 2);
@@ -22,10 +23,13 @@ DistortionModule::DistortionModule()
     mixKnob.GetSlider().setRange(0.0, 1.0, 0.0);
     mixKnob.GetSlider().setValue(1.0, juce::dontSendNotification);
 
+    targetSegmented.SetOptions({ "Dry", "Wet", "Both" });
+
     addAndMakeVisible(titleLabel);
     addAndMakeVisible(typeDropdown);
     addAndMakeVisible(driveKnob);
     addAndMakeVisible(mixKnob);
+    addAndMakeVisible(targetSegmented);
 }
 
 void DistortionModule::CreateLayout(const RackTheme& newTheme,
@@ -38,6 +42,9 @@ void DistortionModule::CreateLayout(const RackTheme& newTheme,
     typeDropdown.AttachToParameter(apvts, parameterIDs.type);
     driveKnob.AttachToParameter(apvts, parameterIDs.drive);
     mixKnob.AttachToParameter(apvts, parameterIDs.mix);
+
+    if (parameterIDs.target.isNotEmpty())
+        targetSegmented.AttachToParameter(apvts, parameterIDs.target);
 
     SetThemeColour(juce::Colour::fromRGB(230, 120, 70));
 
@@ -69,6 +76,11 @@ ModuleKnob& DistortionModule::GetMixKnob()
     return mixKnob;
 }
 
+ModuleSegmentedButton& DistortionModule::GetTargetSegmented()
+{
+    return targetSegmented;
+}
+
 juce::Label& DistortionModule::GetTitleLabel()
 {
     return titleLabel;
@@ -81,6 +93,7 @@ void DistortionModule::ApplyThemeToControls()
     typeDropdown.ApplyTheme(theme);
     driveKnob.ApplyTheme(theme);
     mixKnob.ApplyTheme(theme);
+    targetSegmented.ApplyTheme(theme);
 }
 
 void DistortionModule::LayoutControls()
@@ -89,7 +102,6 @@ void DistortionModule::LayoutControls()
     const int contentY = theme.modulePadding;
     const int contentW = getWidth() - (theme.modulePadding * 2);
 
-    // ----- Header -----
     const int headerY = contentY + theme.titleTopOffset;
     const int titleX = contentX + theme.enableButtonWidth + 8;
     const int titleW = juce::jmax(30, contentW - (theme.enableButtonWidth + 8));
@@ -99,7 +111,6 @@ void DistortionModule::LayoutControls()
                          titleW,
                          theme.headerHeight);
 
-    // ----- Left scope column -----
     const auto scopeBounds = GetOscilloscopePlaceholder().getBounds();
 
     const int rightColumnX = scopeBounds.getRight() + theme.moduleInnerGap;
@@ -108,7 +119,6 @@ void DistortionModule::LayoutControls()
     if (rightColumnW <= 30)
         return;
 
-    // ----- Dropdown at top-right -----
     const int dropdownY = scopeBounds.getY();
     const int dropdownLabelHeight = 14;
     const int dropdownTotalHeight =
@@ -119,8 +129,19 @@ void DistortionModule::LayoutControls()
                            rightColumnW,
                            dropdownTotalHeight);
 
-    // ----- Knobs below dropdown -----
-    const int knobY = dropdownY + dropdownTotalHeight + 6;
+    const int segmentedLabelHeight = 14;
+    const int segmentedHeight = 24;
+    const int segmentedTotalHeight =
+        segmentedHeight + theme.labelOffsetBelow + segmentedLabelHeight;
+
+    const int segmentedY = dropdownY + dropdownTotalHeight + 6;
+
+    targetSegmented.setBounds(rightColumnX,
+                              segmentedY,
+                              rightColumnW,
+                              segmentedTotalHeight);
+
+    const int knobY = segmentedY + segmentedTotalHeight + 10;
     const int knobSize = theme.optionSize;
     const int knobLabelHeight = 14;
     const int knobTotalHeight =

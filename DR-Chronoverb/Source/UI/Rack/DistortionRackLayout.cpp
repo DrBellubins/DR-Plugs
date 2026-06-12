@@ -13,7 +13,9 @@ void DistortionRackLayout::CreateDistortionRackLayout(
         "distortionMod1Enabled",
         "distortionMod1Type",
         "distortionMod1Drive",
-        "distortionMod1Mix"
+        "distortionMod1Mix",
+        "distortionMod1Target",
+        "distortionMod1PrePost"
     };
 
     const DistortionModuleParameterIDs module2IDs
@@ -21,7 +23,9 @@ void DistortionRackLayout::CreateDistortionRackLayout(
         "distortionMod2Enabled",
         "distortionMod2Type",
         "distortionMod2Drive",
-        "distortionMod2Mix"
+        "distortionMod2Mix",
+        "distortionMod2Target",
+        "distortionMod2PrePost"
     };
 
     const DistortionModuleParameterIDs module3IDs
@@ -29,7 +33,9 @@ void DistortionRackLayout::CreateDistortionRackLayout(
         "distortionMod3Enabled",
         "distortionMod3Type",
         "distortionMod3Drive",
-        "distortionMod3Mix"
+        "distortionMod3Mix",
+        "distortionMod3Target",
+        "distortionMod3PrePost"
     };
 
     auto& apvts = processorRef.parameters;

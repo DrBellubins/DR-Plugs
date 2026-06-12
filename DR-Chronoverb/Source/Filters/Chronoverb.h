@@ -52,7 +52,8 @@ public:
 
     // Distortion
     void SetDistortionModuleEnabled(int moduleIndex, bool enabled);
-    void SetDistortionModuleTypeTarget(int moduleIndex, int type, int target);
+    void SetDistortionModuleType(int moduleIndex, int type);
+    void SetDistortionModuleTarget(int moduleIndex, int target);
     void SetDistortionModuleDrive(int moduleIndex, float drive01);
     void SetDistortionModuleMix(int moduleIndex, float mix01);
     //endregion

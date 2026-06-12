@@ -210,7 +210,28 @@ namespace ParameterEntries
             {
                 // TODO: Implement target
                 if (auto* parameter = dynamic_cast<juce::AudioParameterChoice*>(apvts.getParameter(prefix + "Type")))
-                    chronoverb.SetDistortionModuleTypeTarget(moduleIndex - 1, parameter->getIndex(), 1);
+                    chronoverb.SetDistortionModuleType(moduleIndex - 1, parameter->getIndex());
+            }
+        });
+
+        entries.push_back(PluginParameterRegistry::Entry
+        {
+            prefix + "Target",
+            "Distortion Module " + index + " Target",
+            [prefix, index]() -> std::unique_ptr<juce::RangedAudioParameter>
+            {
+                return std::make_unique<juce::AudioParameterChoice>(
+                    prefix + "Target",
+                    "Distortion Module " + index + " Target",
+                    juce::StringArray{ "Dry", "Wet", "Both" },
+                    1);
+            },
+            [prefix, moduleIndex](Chronoverb& chronoverb,
+                      juce::AudioProcessorValueTreeState& apvts,
+                      const juce::String&)
+            {
+                if (auto* parameter = dynamic_cast<juce::AudioParameterChoice*>(apvts.getParameter(prefix + "Target")))
+                    chronoverb.SetDistortionModuleTarget(moduleIndex - 1, parameter->getIndex());
             }
         });
 

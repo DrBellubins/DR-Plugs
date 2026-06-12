@@ -3,6 +3,7 @@
 #include "../ModuleSystem/Module.h"
 #include "../Options/ModuleDropdown.h"
 #include "../Options/ModuleKnob.h"
+#include "../Options/ModuleSegmentedButton.h"
 
 struct DistortionModuleParameterIDs
 {
@@ -10,6 +11,8 @@ struct DistortionModuleParameterIDs
     juce::String type;
     juce::String drive;
     juce::String mix;
+    juce::String target;
+    juce::String prePost;
 };
 
 class DistortionModule : public Module
@@ -19,20 +22,22 @@ public:
     ~DistortionModule() override = default;
 
     void CreateLayout(const RackTheme& newTheme,
-                  juce::AudioProcessorValueTreeState& apvts,
-                  const DistortionModuleParameterIDs& parameterIDs);
+                      juce::AudioProcessorValueTreeState& apvts,
+                      const DistortionModuleParameterIDs& parameterIDs);
 
     void resized() override;
 
     ModuleDropdown& GetTypeDropdown();
     ModuleKnob& GetDriveKnob();
     ModuleKnob& GetMixKnob();
+    ModuleSegmentedButton& GetTargetSegmented();
 
     juce::Label& GetTitleLabel();
 
     ModuleDropdown typeDropdown;
     ModuleKnob driveKnob;
     ModuleKnob mixKnob;
+    ModuleSegmentedButton targetSegmented;
 
 private:
     void ApplyThemeToControls();
