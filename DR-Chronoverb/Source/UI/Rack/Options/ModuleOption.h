@@ -27,6 +27,7 @@ protected:
     juce::Colour GetOptionLabelColour(const RackTheme& rackTheme) const;
     juce::Colour GetOptionOutlineColour(const RackTheme& rackTheme) const;
     juce::Colour GetOptionFillColour(const RackTheme& rackTheme) const;
+    juce::Colour GetOptionUnselectedFillColour(const RackTheme& rackTheme) const;
     juce::Colour GetOptionAccentColour() const;
 
     juce::Rectangle<int> GetLabelBoundsBelow(const juce::Rectangle<int>& controlBounds,

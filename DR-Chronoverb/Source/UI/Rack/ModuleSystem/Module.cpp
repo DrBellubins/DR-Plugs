@@ -78,7 +78,7 @@ void Module::paint(juce::Graphics& graphics)
     const auto bounds = getLocalBounds().toFloat();
 
     // Main module background color
-    graphics.setColour(juce::Colours::black);
+    graphics.setColour(GetModuleBackgroundColour().darker(theme.moduleBackgroundDarkenAmount));
     graphics.fillRoundedRectangle(bounds, theme.moduleCornerRadius);
 
     graphics.setColour(GetModuleOutlineColour());
@@ -199,7 +199,7 @@ juce::Colour Module::GetModuleLabelColour() const
 
 juce::Colour Module::GetModuleSecondaryColour() const
 {
-    return themeColour.darker(theme.moduleSecondaryDarkenAmount);
+    return themeColour.darker(theme.controlOutlineDarkenAmount);
 }
 
 juce::Colour Module::GetModuleControlFillColour() const

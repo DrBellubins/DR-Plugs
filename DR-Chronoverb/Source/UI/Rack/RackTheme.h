@@ -34,21 +34,23 @@ struct RackTheme
     int enableButtonMargin = 2;
 
     // Corners / stroke
-    float rackCornerRadius = 8.0f;
+    float rackCornerRadius = 12.0f;
     float moduleCornerRadius = 8.0f;
     float rackOutlineThickness = 1.0f;
     float enableButtonCornerRadius = 4.0f;
 
     // Rack colours
-    juce::Colour rackBackgroundColour = juce::Colour::fromRGB(34, 34, 38);
+    juce::Colour rackBackgroundColour = juce::Colour::fromRGB(10, 10, 10);
 
     // Theme derivation
-    float rackOutlineBrightenAmount = 0.25f;
-    float moduleBackgroundDarkenAmount = 0.0f;
-    float moduleOutlineBrightenAmount = 0.18f;
+    float rackOutlineBrightenAmount = 0.0f;
+    float moduleBackgroundDarkenAmount = 1.3f;
+    float moduleOutlineBrightenAmount = 0.2f;
     float moduleLabelDarkenAmount = 0.15f;
-    float moduleSecondaryDarkenAmount = 0.35f;
     float moduleControlDarkenAmount = 0.35f;
+
+    float controlUnselectedDarkenAmount = 1.45f;
+    float controlOutlineDarkenAmount = 0.35f;
 
     // Disabled-state presentation
     float disabledAlpha = 0.2f;

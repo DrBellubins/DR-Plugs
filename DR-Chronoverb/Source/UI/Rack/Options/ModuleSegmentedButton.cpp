@@ -138,7 +138,7 @@ void ModuleSegmentedButton::paint(juce::Graphics& graphics)
         return;
 
     const auto accentColour = GetOptionAccentColour();
-    const auto fillColour = GetOptionFillColour(currentTheme);
+    const auto unselectedFillColour = GetOptionUnselectedFillColour(currentTheme);
     const auto outlineColour = GetOptionOutlineColour(currentTheme);
     const auto textColour = juce::Colours::white;
 
@@ -172,7 +172,7 @@ void ModuleSegmentedButton::paint(juce::Graphics& graphics)
                                         isFirst,
                                         isLast);
 
-        graphics.setColour(isSelected ? accentColour : fillColour);
+        graphics.setColour(isSelected ? accentColour : unselectedFillColour);
         graphics.fillPath(segmentPath);
 
         if (isHovered && !isSelected)

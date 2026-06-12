@@ -66,12 +66,17 @@ juce::Colour ModuleOption::GetOptionLabelColour(const RackTheme& rackTheme) cons
 
 juce::Colour ModuleOption::GetOptionOutlineColour(const RackTheme& rackTheme) const
 {
-    return FindThemeColour().darker(rackTheme.moduleSecondaryDarkenAmount);
+    return FindThemeColour().darker(rackTheme.controlOutlineDarkenAmount);
 }
 
 juce::Colour ModuleOption::GetOptionFillColour(const RackTheme& rackTheme) const
 {
     return FindThemeColour().darker(rackTheme.moduleControlDarkenAmount);
+}
+
+juce::Colour ModuleOption::GetOptionUnselectedFillColour(const RackTheme& rackTheme) const
+{
+    return FindThemeColour().darker(rackTheme.controlUnselectedDarkenAmount);
 }
 
 juce::Colour ModuleOption::GetOptionAccentColour() const
