@@ -7,6 +7,9 @@
 #include "Distortion/Chebyshev.h"
 #include "Distortion/DistortionModuleDSP.h"
 
+// TODO: Implement pre-post (applies to wet signal only)
+// TODO: For example, if pre and wet, the signal into wet will be distorted.
+// TODO: If post and wet, the wet signal is distorted, same applies if both (only to wet)
 class DistortionModuleDSP;
 
 class Distortion

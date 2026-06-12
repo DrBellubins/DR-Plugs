@@ -76,12 +76,13 @@ Module::Module()
 void Module::paint(juce::Graphics& graphics)
 {
     const auto bounds = getLocalBounds().toFloat();
+    const float chromeAlpha = moduleEnabled ? 1.0f : theme.disabledAlpha;
 
     // Main module background color
     graphics.setColour(GetModuleBackgroundColour().darker(theme.moduleBackgroundDarkenAmount));
     graphics.fillRoundedRectangle(bounds, theme.moduleCornerRadius);
 
-    graphics.setColour(GetModuleOutlineColour());
+    graphics.setColour(GetModuleOutlineColour().withAlpha(chromeAlpha));
     graphics.drawRoundedRectangle(bounds.reduced(0.5f), theme.moduleCornerRadius, 1.0f);
 }
 
