@@ -4,6 +4,7 @@
 
 #include "../DelayTimeSegment.h"
 
+// TODO: Doesn't sound like haas filter (spread > 0) does anything.
 class Stereo
 {
 public:

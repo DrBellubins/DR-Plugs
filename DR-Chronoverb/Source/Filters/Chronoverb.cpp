@@ -7,6 +7,7 @@ Chronoverb::Chronoverb()
     ReverbLeftRight = std::make_unique<Reverb>();
     PitchShifterLeftRight = std::make_unique<PitchShifter>();
     DistortionLeftRight = std::make_unique<Distortion>();
+    StereoLeftRight = std::make_unique<Stereo>();
 }
 
 void Chronoverb::PrepareToPlay(double newSampleRate)
@@ -65,7 +66,9 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer) const
         auto [distortionDryLeft, distortionDryRight, distortionWetLeft, distortionWetRight] =
             DistortionLeftRight->ProcessSample(dryLeft, dryRight, pitchLeft, pitchRight);
 
-        // 6) Dry + wet volume gain
+        // 6) Ducking
+
+        // 6) Dry/wet volume gain + combine
         float gainedLeft = (distortionDryLeft * dryVolume) + (distortionWetLeft * wetVolume);
         float gainedRight = (distortionDryRight * dryVolume) + (distortionWetRight * wetVolume);
 
