@@ -4,6 +4,7 @@
 #include "Theme.h"
 #include "ThemeContext.h"
 
+// TODO: Implement ability for tabs to have custom colors
 class TabbedPageBox : public juce::Component, public DarkeningThemeProvider
 {
 public:

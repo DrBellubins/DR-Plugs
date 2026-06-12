@@ -3,7 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "ModuleOption.h"
-#include "../../../Utils/FlatRotaryLookAndFeel.h"
+#include "ModuleKnobLookAndFeel.h"
 
 class ModuleKnob : public ModuleOption
 {
@@ -30,7 +30,7 @@ public:
 private:
     juce::Slider slider;
     std::unique_ptr<Attachment> attachment;
-    FlatRotaryLookAndFeel knobLookAndFeel;
+    ModuleKnobLookAndFeel knobLookAndFeel;
 
     juce::Rectangle<int> sliderBoundsOverride;
     int labelHeight = 16;

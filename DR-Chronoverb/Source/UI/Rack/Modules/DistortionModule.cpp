@@ -47,7 +47,7 @@ void DistortionModule::CreateLayout(const RackTheme& newTheme,
     if (parameterIDs.target.isNotEmpty())
         targetSegmented.AttachToParameter(apvts, parameterIDs.target);
 
-    SetThemeColour(juce::Colour::fromRGB(250, 70, 0).brighter(0.1f));
+    SetThemeColour(theme.distortionThemeColor);
 
     ApplyThemeToBaseChrome();
     ApplyThemeToControls();

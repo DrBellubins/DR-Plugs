@@ -63,9 +63,7 @@ void ModuleKnob::resized()
     juce::Rectangle<int> controlBounds;
 
     if (!sliderBoundsOverride.isEmpty())
-    {
         controlBounds = sliderBoundsOverride;
-    }
     else
     {
         const int labelSpace = IsLabelVisible() ? (labelHeight + currentTheme.labelOffsetBelow) : 0;

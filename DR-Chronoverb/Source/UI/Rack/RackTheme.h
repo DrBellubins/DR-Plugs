@@ -24,7 +24,7 @@ struct RackTheme
 
     // Controls
     int dropdownHeight = 22;
-    int knobSize = 60;
+    int knobSize = 50;
     int knobSpacing = 55;
     int labelOffsetBelow = 4;
 
@@ -39,8 +39,11 @@ struct RackTheme
     float rackOutlineThickness = 1.0f;
     float enableButtonCornerRadius = 4.0f;
 
-    // Rack colours
+    // Rack colors
     juce::Colour rackBackgroundColour = juce::Colour::fromRGB(10, 10, 10);
+
+    // Theme colors
+    juce::Colour distortionThemeColor = juce::Colour::fromRGB(250, 70, 0).brighter(0.1f);
 
     // Theme derivation
     float rackOutlineBrightenAmount = 0.0f;
