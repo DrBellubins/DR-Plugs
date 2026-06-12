@@ -14,6 +14,10 @@ public:
         sampleRate = std::max(1.0, newSampleRate);
         dcBlocker.Prepare(sampleRate);
         dcBlocker.SetCutoffHz(10.0f);
+
+        smoothedHarmonics.reset(sampleRate, 0.02); // 20 ms
+        smoothedHarmonics.setCurrentAndTargetValue(harmonics);
+
         Reset();
     }
 
@@ -25,6 +29,7 @@ public:
     void SetHarmonics(float newHarmonics)
     {
         harmonics = std::clamp(newHarmonics, 0.0f, 32.0f);
+        smoothedHarmonics.setTargetValue(harmonics);
     }
 
     void SetOrder(int newOrder)
@@ -88,12 +93,13 @@ public:
     // This is the isolated nonlinear function you'd later run inside an
     // upsample/process/downsample wrapper.
     // ------------------------------------------------------------------
-    float ProcessShaperOnly(float inputSample) const
+    float ProcessShaperOnly(float inputSample)
     {
         float x = inputSample * inputTrim * drive;
         x = std::clamp(x, -1.0f, 1.0f);
 
-        const float mappedOrder = MapHarmonicsToOrder(harmonics, maxPolynomialOrder);
+        const float currentHarmonics = smoothedHarmonics.getNextValue();
+        const float mappedOrder = MapHarmonicsToOrder(currentHarmonics, maxPolynomialOrder);
 
         const int lowerOrder =
             std::clamp(static_cast<int>(std::floor(mappedOrder)), 1, maxPolynomialOrder);
@@ -109,7 +115,7 @@ public:
         float y = yLower + (yUpper - yLower) * blend;
 
         // Makes harmonics=0 behave closer to clean.
-        const float shapeAmount = std::clamp(harmonics, 0.0f, 1.0f);
+        const float shapeAmount = std::clamp(currentHarmonics, 0.0f, 1.0f);
         y = x + (y - x) * shapeAmount;
 
         y = SoftClip(y);
@@ -117,7 +123,7 @@ public:
     }
 
 private:
-    float ProcessMono(float inputSample) const
+    float ProcessMono(float inputSample)
     {
         return ProcessShaperOnly(inputSample);
     }
@@ -173,6 +179,8 @@ private:
     float mix = 1.0f;
     float inputTrim = 0.8f;
     bool dcBlockEnabled = true;
+
+    juce::SmoothedValue<float> smoothedHarmonics;
 
     DCBlocker dcBlocker;
 };
