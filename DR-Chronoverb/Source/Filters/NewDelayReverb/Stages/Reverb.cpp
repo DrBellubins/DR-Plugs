@@ -5,7 +5,7 @@ void Reverb::PrepareToPlay(double newSampleRate)
     sampleRate = newSampleRate;
 
     // Delay time
-    delayTimeSegment.PepareToPlay(sampleRate);
+    delayTimeSegment.PrepareToPlay(sampleRate);
     delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 
     // Diffusion

@@ -22,6 +22,8 @@ void Chronoverb::PrepareToPlay(double newSampleRate)
     PitchShifterLeftRight->PrepareToPlay(sampleRate);
 
     DistortionLeftRight->PrepareToPlay(static_cast<float>(sampleRate));
+
+    StereoLeftRight->PrepareToPlay(sampleRate);
 }
 
 void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer) const
@@ -64,13 +66,17 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer) const
             DistortionLeftRight->ProcessSample(dryLeft, dryRight, pitchLeft, pitchRight);
 
         // 6) Dry + wet volume gain
-        float outputLeft = (distortionDryLeft * dryVolume) + (distortionWetLeft * wetVolume);
-        float outputRight = (distortionDryRight * dryVolume) + (distortionWetRight * wetVolume);
+        float gainedLeft = (distortionDryLeft * dryVolume) + (distortionWetLeft * wetVolume);
+        float gainedRight = (distortionDryRight * dryVolume) + (distortionWetRight * wetVolume);
+
+        // 7) Stereo
+        auto [stereoLeft, stereoRight] =
+            StereoLeftRight->ProcessSample(gainedLeft, gainedRight);
 
         // Write to buffer
-        leftData[sampleIndex] = outputLeft;
+        leftData[sampleIndex] = stereoLeft;
 
         if (rightData != nullptr)
-            rightData[sampleIndex] = outputRight;
+            rightData[sampleIndex] = stereoRight;
     }
 }

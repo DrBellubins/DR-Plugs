@@ -76,41 +76,17 @@ public:
         distortionTarget = newDistortionTarget;
     }
 
-    void SetEnabled(bool newEnabled)
-    {
-        enabled = newEnabled;
-
-        //DBG("DSP: Module enabled: " << static_cast<int>(enabled));
-    }
-
-    void SetType(int newType)
-    {
-        distortionType = newType;
-
-        //DBG("DSP: Module type: " << newType);
-    }
-
-    void SetTarget(int newTarget)
-    {
-        distortionTarget = newTarget;
-
-        //DBG("DSP: Module target: " << newTarget);
-    }
+    void SetEnabled(bool newEnabled) { enabled = newEnabled; }
+    void SetType(int newType) { distortionType = newType;}
+    void SetTarget(int newTarget){ distortionTarget = newTarget; }
 
     void SetDrive(float newDrive)
     {
         drive = newDrive * maxDrive;
         chebyHarmonics = newDrive * maxChebyshev;
-
-        //DBG("DSP: Module drive: " << newDrive);
     }
 
-    void SetMix(float newMix)
-    {
-        mix = newMix;
-
-        //DBG("DSP: Module mix: " << newMix);
-    }
+    void SetMix(float newMix) { mix = newMix; }
 
 private:
     HardClipper hardClipper;

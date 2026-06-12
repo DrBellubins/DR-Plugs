@@ -4,7 +4,7 @@ void Delay::PrepareToPlay(double newSampleRate)
 {
     sampleRate = newSampleRate;
 
-    delayTimeSegment.PepareToPlay(sampleRate);
+    delayTimeSegment.PrepareToPlay(sampleRate);
     delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 
     // Delay line
@@ -153,13 +153,11 @@ void Delay::SetHostTempo(float bpm)
 void Delay::SetDelayTime(float newDelayTime)
 {
     delayTimeSegment.SetDelayTime(newDelayTime);
-    delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 }
 
 void Delay::SetDelayMode(int newDelayMode)
 {
     delayTimeSegment.SetDelayMode(newDelayMode);
-    delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 }
 
 void Delay::SetFeedbackTime(float newFeedbackTime)

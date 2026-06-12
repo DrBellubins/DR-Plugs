@@ -10,7 +10,7 @@ void PitchShifter::PrepareToPlay(double newSampleRate)
     sampleRate = newSampleRate;
 
     // Delay time
-    delayTimeSegment.PepareToPlay(sampleRate);
+    delayTimeSegment.PrepareToPlay(sampleRate);
     delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 
     // Pitch shifter
@@ -115,7 +115,6 @@ void PitchShifter::SetDelayTime(float newDelayTime)
     delayTimeNormalized = newDelayTime;
 
     delayTimeSegment.SetDelayTime(newDelayTime);
-    delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 
     reverb->SetDelayTime(delayTimeNormalized);
 }
@@ -125,7 +124,6 @@ void PitchShifter::SetDelayMode(int newDelayMode)
     delayMode = newDelayMode;
 
     delayTimeSegment.SetDelayMode(newDelayMode);
-    delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
 
     reverb->SetDelayMode(delayMode);
 }

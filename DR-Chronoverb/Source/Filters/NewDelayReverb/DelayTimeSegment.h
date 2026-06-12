@@ -18,7 +18,7 @@ public:
     float DelayTimeMilliseconds = 0.0f;
     float ReadDelaySlewCoefficient = 0.0f;
 
-    void PepareToPlay(double newSampleRate)
+    void PrepareToPlay(double newSampleRate)
     {
         sampleRate = newSampleRate;
 

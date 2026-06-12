@@ -5,6 +5,7 @@ void Chronoverb::SetHostTempo(float bpm) const
     DelayLeftRight->SetHostTempo(bpm);
     ReverbLeftRight->SetHostTempo(bpm);
     PitchShifterLeftRight->SetHostTempo(bpm);
+    StereoLeftRight->SetHostTempo(bpm);
 }
 
 void Chronoverb::SetDelayTime(float newDelayTimeNormalized)
@@ -14,6 +15,7 @@ void Chronoverb::SetDelayTime(float newDelayTimeNormalized)
     DelayLeftRight->SetDelayTime(delayTimeNormalized);
     ReverbLeftRight->SetDelayTime(delayTimeNormalized);
     PitchShifterLeftRight->SetDelayTime(delayTimeNormalized);
+    StereoLeftRight->SetDelayTime(delayTimeNormalized);
 }
 
 void Chronoverb::SetDelayMode(int newDelayMode)
@@ -23,6 +25,7 @@ void Chronoverb::SetDelayMode(int newDelayMode)
     DelayLeftRight->SetDelayMode(delayMode);
     ReverbLeftRight->SetDelayMode(delayMode);
     PitchShifterLeftRight->SetDelayMode(delayMode);
+    StereoLeftRight->SetDelayMode(delayMode);
 }
 
 void Chronoverb::SetFeedbackTime(float newFeedbackTimeSeconds)
@@ -40,6 +43,7 @@ void Chronoverb::SetDiffusionAmount(float newAmount01)
     DelayLeftRight->SetDiffusionAmount(diffusionAmount);
     ReverbLeftRight->SetDiffusionAmount(diffusionAmount);
     PitchShifterLeftRight->SetDiffusionAmount(diffusionAmount);
+    StereoLeftRight->SetDiffusionAmount(diffusionAmount);
 }
 
 void Chronoverb::SetDiffusionSize(float newSize01)
@@ -84,6 +88,12 @@ void Chronoverb::SetDryVolume(float newDry01)
 void Chronoverb::SetWetVolume(float newWet01)
 {
     wetVolume = clamp01(newWet01);
+}
+
+void Chronoverb::SetStereoSpread(float newSpreadMinus1To1)
+{
+    stereoSpread = juce::jlimit(-1.0f, 1.0f, newSpreadMinus1To1);
+    StereoLeftRight->SetStereoSpread(stereoSpread);
 }
 
 // Pitch
@@ -154,11 +164,6 @@ void Chronoverb::SetDistortionModuleMix(int moduleIndex, float mix01)
 }
 
 // TODO
-
-void Chronoverb::SetStereoSpread(float newSpreadMinus1To1)
-{
-    stereoSpread = juce::jlimit(-1.0f, 1.0f, newSpreadMinus1To1);
-}
 
 void Chronoverb::SetHPLPPrePost(float prePost01)
 {
