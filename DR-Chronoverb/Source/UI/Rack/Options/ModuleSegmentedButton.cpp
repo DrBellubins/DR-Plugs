@@ -13,13 +13,9 @@ void ModuleSegmentedButton::SetOptions(const juce::StringArray& newOptions)
     options = newOptions;
 
     if (options.isEmpty())
-    {
         selectedIndex = -1;
-    }
     else if (selectedIndex < 0 || selectedIndex >= options.size())
-    {
         selectedIndex = 0;
-    }
 
     repaint();
 }
@@ -134,9 +130,9 @@ void ModuleSegmentedButton::resized()
         label.setBounds(GetLabelBoundsBelow(controlBounds, labelHeight, currentTheme.labelOffsetBelow));
 }
 
-void ModuleSegmentedButton::paint(juce::Graphics& g)
+void ModuleSegmentedButton::paint(juce::Graphics& graphics)
 {
-    ModuleOption::paint(g);
+    ModuleOption::paint(graphics);
 
     if (options.isEmpty())
         return;
@@ -176,34 +172,34 @@ void ModuleSegmentedButton::paint(juce::Graphics& g)
                                         isFirst,
                                         isLast);
 
-        g.setColour(isSelected ? accentColour : fillColour);
-        g.fillPath(segmentPath);
+        graphics.setColour(isSelected ? accentColour : fillColour);
+        graphics.fillPath(segmentPath);
 
         if (isHovered && !isSelected)
         {
-            g.setColour(juce::Colours::white.withAlpha(0.06f));
-            g.fillPath(segmentPath);
+            graphics.setColour(juce::Colours::white.withAlpha(0.06f));
+            graphics.fillPath(segmentPath);
         }
 
         if (!isLast && dividerThickness > 0.0f)
         {
-            g.setColour(outlineColour);
-            g.fillRect(segmentBounds.getRight() - (dividerThickness * 0.5f),
+            graphics.setColour(outlineColour);
+            graphics.fillRect(segmentBounds.getRight() - (dividerThickness * 0.5f),
                        segmentBounds.getY() + 2.0f,
                        dividerThickness,
                        segmentBounds.getHeight() - 4.0f);
         }
 
-        g.setColour(textColour);
-        g.setFont(buttonFont);
-        g.drawFittedText(options[optionIndex],
+        graphics.setColour(textColour);
+        graphics.setFont(buttonFont);
+        graphics.drawFittedText(options[optionIndex],
                          segmentBounds.toNearestInt().reduced(4, 2),
                          juce::Justification::centred,
                          1);
     }
 
-    g.setColour(outlineColour.brighter(0.15f));
-    g.drawRoundedRectangle(bounds.reduced(0.5f), cornerRadius, 1.0f);
+    graphics.setColour(outlineColour.brighter(0.15f));
+    graphics.drawRoundedRectangle(bounds.reduced(0.5f), cornerRadius, 1.0f);
 }
 
 void ModuleSegmentedButton::mouseMove(const juce::MouseEvent& e)

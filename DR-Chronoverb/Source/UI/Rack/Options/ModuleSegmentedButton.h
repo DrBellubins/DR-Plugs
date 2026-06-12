@@ -36,7 +36,7 @@ public:
 
     void ApplyTheme(const RackTheme& rackTheme) override;
     void resized() override;
-    void paint(juce::Graphics& g) override;
+    void paint(juce::Graphics& graphics) override;
     void mouseMove(const juce::MouseEvent& e) override;
     void mouseExit(const juce::MouseEvent& e) override;
     void mouseDown(const juce::MouseEvent& e) override;

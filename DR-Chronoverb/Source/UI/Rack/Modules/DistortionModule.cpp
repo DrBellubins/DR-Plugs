@@ -119,8 +119,9 @@ void DistortionModule::LayoutControls()
     if (rightColumnW <= 30)
         return;
 
+    // Type dropdown
     const int dropdownY = scopeBounds.getY();
-    const int dropdownLabelHeight = 14;
+    constexpr int dropdownLabelHeight = 14;
     const int dropdownTotalHeight =
         theme.dropdownHeight + theme.labelOffsetBelow + dropdownLabelHeight;
 
@@ -129,19 +130,21 @@ void DistortionModule::LayoutControls()
                            rightColumnW,
                            dropdownTotalHeight);
 
-    const int segmentedLabelHeight = 14;
-    const int segmentedHeight = 24;
+    // Target segmented button
+    constexpr int segmentedLabelHeight = 12;
+    constexpr int segmentedHeight = 15;
     const int segmentedTotalHeight =
         segmentedHeight + theme.labelOffsetBelow + segmentedLabelHeight;
 
-    const int segmentedY = dropdownY + dropdownTotalHeight + 6;
+    const int segmentedY = headerY;
 
-    targetSegmented.setBounds(rightColumnX,
+    targetSegmented.setBounds(rightColumnX + 80,
                               segmentedY,
-                              rightColumnW,
+                              rightColumnW / 2,
                               segmentedTotalHeight);
 
-    const int knobY = segmentedY + segmentedTotalHeight + 10;
+    // Drive + mix knobs
+    const int knobY = dropdownY + dropdownTotalHeight + 6;
     const int knobSize = theme.optionSize;
     const int knobLabelHeight = 14;
     const int knobTotalHeight =
