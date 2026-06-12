@@ -131,7 +131,7 @@ void Chronoverb::SetDistortionModuleType(int moduleIndex, int type)
 void Chronoverb::SetDistortionModuleTarget(int moduleIndex, int target)
 {
     const int index = juce::jlimit(0, NumDistortionModules - 1, moduleIndex);
-    DistortionLeftRight->SetType(index, target);
+    DistortionLeftRight->SetTarget(index, target);
 
     //DBG("Dist mod type/target: " << moduleIndex << ", " << type << ", " << target);
 }
