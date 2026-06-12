@@ -11,7 +11,7 @@ void PitchShifter::PrepareToPlay(double newSampleRate)
 
     // Delay time
     delayTimeSegment.PrepareToPlay(sampleRate);
-    delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
+    delayTimeSegment.UpdateDelayMilliseconds();
 
     // Pitch shifter
     echoWriteCounter = 0;
@@ -105,7 +105,7 @@ void PitchShifter::SetHostTempo(float bpm)
     hostBPM = bpm;
 
     delayTimeSegment.SetHostTempo(hostBPM);
-    delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
+    delayTimeSegment.UpdateDelayMilliseconds();
 
     reverb->SetHostTempo(hostBPM);
 }

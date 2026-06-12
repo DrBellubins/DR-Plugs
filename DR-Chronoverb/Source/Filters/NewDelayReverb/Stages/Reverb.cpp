@@ -6,7 +6,7 @@ void Reverb::PrepareToPlay(double newSampleRate)
 
     // Delay time
     delayTimeSegment.PrepareToPlay(sampleRate);
-    delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
+    delayTimeSegment.UpdateDelayMilliseconds();
 
     // Diffusion
     diffusionLeft = std::make_unique<DiffusionChain>();

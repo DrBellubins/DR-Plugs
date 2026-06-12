@@ -31,7 +31,7 @@ public:
 
     //region Parameter Sets
     void SetHostTempo(float bpm) const;
-    void SetDelayTime(float newDelayTimeNormalized);      // 0..1 -> 0..1000 ms
+    void SetDelayTime(float newDelayTime);      // 0..1 -> 0..1000 ms
     void SetDelayMode(int newDelayMode);
 
     void SetFeedbackTime(float newFeedbackTimeSeconds);   // 0..10 s
@@ -73,7 +73,7 @@ private:
     double sampleRate = 48000.0;
     float hostTempoBpm = 120.0f;
 
-    float delayTimeNormalized = 0.3f;
+    //float delayTimeNormalized = 0.3f;
     float delayMilliseconds = 300.0f;
 
     static constexpr int NumDistortionModules = 3;

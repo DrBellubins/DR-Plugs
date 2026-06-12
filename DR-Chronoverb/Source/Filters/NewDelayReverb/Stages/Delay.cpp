@@ -5,7 +5,7 @@ void Delay::PrepareToPlay(double newSampleRate)
     sampleRate = newSampleRate;
 
     delayTimeSegment.PrepareToPlay(sampleRate);
-    delayTimeSegment.UpdateDelayMillisecondsFromNormalized();
+    delayTimeSegment.UpdateDelayMilliseconds();
 
     // Delay line
     InternalDelayLineLeft = std::make_unique<DelayLine>(delayTimeSegment.MaxDelaySamples);

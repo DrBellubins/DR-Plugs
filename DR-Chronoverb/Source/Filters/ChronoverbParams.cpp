@@ -8,14 +8,14 @@ void Chronoverb::SetHostTempo(float bpm) const
     StereoLeftRight->SetHostTempo(bpm);
 }
 
-void Chronoverb::SetDelayTime(float newDelayTimeNormalized)
+void Chronoverb::SetDelayTime(float newDelayTime)
 {
-    delayTimeNormalized = clamp01(newDelayTimeNormalized);
+    delayMilliseconds = newDelayTime;
 
-    DelayLeftRight->SetDelayTime(delayTimeNormalized);
-    ReverbLeftRight->SetDelayTime(delayTimeNormalized);
-    PitchShifterLeftRight->SetDelayTime(delayTimeNormalized);
-    StereoLeftRight->SetDelayTime(delayTimeNormalized);
+    DelayLeftRight->SetDelayTime(delayMilliseconds);
+    ReverbLeftRight->SetDelayTime(delayMilliseconds);
+    PitchShifterLeftRight->SetDelayTime(delayMilliseconds);
+    StereoLeftRight->SetDelayTime(delayMilliseconds);
 }
 
 void Chronoverb::SetDelayMode(int newDelayMode)

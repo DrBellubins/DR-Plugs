@@ -18,8 +18,8 @@ namespace ParameterEntries
             MakeFloat(
                 "delayTime",
                 "Delay Time",
-                juce::NormalisableRange<float>(0.0f, 1.0f),
-                0.3f,
+                juce::NormalisableRange<float>(0.0f, 1000.0f),
+                300.0f,
                 [](Chronoverb& c, float v) { c.SetDelayTime(v); }),
 
             MakeChoice(

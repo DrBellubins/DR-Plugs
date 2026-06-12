@@ -36,13 +36,24 @@ There are independant volume knobs for the Dry and Wet signal, instead of a sing
 There is an optional Ping-Pong mode.
 Ping-pong can be either Left/Right or Mid-Side ping pong (ping pong between mono and stereo information, which also takes optional haas stereo spread into account).
 
-The various creative options are seperated into 4 tabs:
+The various creative options are seperated into 5 tabs:
+Character - Has a pre & post EQ, as well as ping-pong with L/R & Mid/Side modes
 Pitch - Pitch shifting, with given ranges, and various algorithms and sequence options.
 Distortion - Various distortion algorithms, with responsive and readable displays.
 Tape - Various tape simulation algorithms, with responsive and readable displays.
 Granular - A granular delay/reverb mixed into the input of diffusion.
 
 --------------------------------------------
+-- Character start --
+
+Has one EQ for the signal before delay/reverb
+Has another EQ for the signal after delay/reverb
+
+The UI should be pretty in depth, maybe even close to ableton/bitwig built in EQ.
+Needs research (look for JUCE modules that have an EQ element already made)
+
+-- Character end --
+
 -- Pitch shifting start --
 The pitch shifting is made to be modular, so that various backends and sequences can be plugged in easily. I have a range slider that controls the pitch range of the given sequence. 
 

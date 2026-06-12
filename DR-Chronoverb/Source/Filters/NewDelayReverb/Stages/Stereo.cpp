@@ -9,6 +9,7 @@ void Stereo::PrepareToPlay(double newSampleRate)
     sampleRate = newSampleRate;
 
     delayTimeSegment.PrepareToPlay(sampleRate);
+    delayTimeSegment.UpdateDelayMilliseconds();
 }
 
 std::pair<float, float> Stereo::ProcessSample(float inputL, float inputR)

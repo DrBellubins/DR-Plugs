@@ -34,15 +34,14 @@ public:
     void SetHostTempo(float bpm)
     {
         hostBPM = bpm;
-        UpdateDelayMillisecondsFromNormalized();
+        UpdateDelayMilliseconds();
     }
 
-    void UpdateDelayMillisecondsFromNormalized()
+    void UpdateDelayMilliseconds()
     {
         if (delayMode == 0) // ms — free range 1..1000 ms
         {
-            const float baseMs = map01ToRange(delayTimeNormalized, 1.0f, 1000.0f);
-            DelayTimeMilliseconds = std::max(1.0f, baseMs);
+            DelayTimeMilliseconds = juce::jlimit(0.0f, 1000.0f, delayTimeParamMs);
 
             // ms mode: fixed glide
             ReadDelaySlewCoefficient =
@@ -50,17 +49,16 @@ public:
         }
         else
         {
-            // Beat-synced modes. Knob snaps to:
-            // 0, 0.25, 0.5, 0.75, 1.0 => 1/1, 1/2, 1/4, 1/8, 1/16
-            static constexpr float snapPositions[5] = { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
+            // Beat-synced modes.
+            static constexpr float snapPositionsMs[5] = { 0.0f, 250.0f, 500.0f, 750.0f, 1000.0f };
             static constexpr float beatMultipliers[5] = { 4.0f, 2.0f, 1.0f, 0.5f, 0.25f };
 
             int stepIndex = 0;
-            float smallestDistance = std::abs(delayTimeNormalized - snapPositions[0]);
+            float smallestDistance = std::abs(delayTimeParamMs - snapPositionsMs[0]);
 
             for (int i = 1; i < 5; ++i)
             {
-                const float distance = std::abs(delayTimeNormalized - snapPositions[i]);
+                const float distance = std::abs(delayTimeParamMs - snapPositionsMs[i]);
 
                 if (distance < smallestDistance)
                 {
@@ -94,14 +92,14 @@ public:
     // Parameters
     void SetDelayTime(float newDelayTime)
     {
-        delayTimeNormalized = newDelayTime;
-        UpdateDelayMillisecondsFromNormalized();
+        delayTimeParamMs = newDelayTime;
+        UpdateDelayMilliseconds();
     }
 
     void SetDelayMode(int newDelayMode)
     {
         delayMode = newDelayMode;
-        UpdateDelayMillisecondsFromNormalized();
+        UpdateDelayMilliseconds();
     }
 
 private:
@@ -109,6 +107,6 @@ private:
     float hostBPM = 120.0f;
 
     // Parameters
-    float delayTimeNormalized = 0.0f;
+    float delayTimeParamMs = 300.0f;
     int delayMode = 0;
 };
