@@ -28,8 +28,8 @@ std::pair<float, float> Ducking::ProcessSample(float dryL, float dryR, float wet
     // Duck depth:
     // amount = 0.0 -> no ducking
     // amount = 1.0 -> up to full attenuation at full detector level
-    const float targetGain =
-        1.0f - (duckAmount * detectorEnvelope);
+    const float duckControl = std::clamp(duckAmount * detectorEnvelope, 0.0f, 1.0f);
+    const float targetGain = std::pow(1.0f - duckControl, 2.0f);
 
     // Smooth the applied gain too, using same directional timing.
     if (targetGain < appliedGain)
@@ -65,16 +65,23 @@ void Ducking::SetDuckRelease(float newReleaseMs)
     UpdateTimeCoefficients();
 }
 
+static int debugCounter = 0;
 float Ducking::ComputeEnvelopeFromDry(float dryL, float dryR) const
 {
-    // Linked stereo peak detector from dry signal.
     const float absL = std::abs(dryL);
     const float absR = std::abs(dryR);
     const float peak = std::max(absL, absR);
 
-    // Normalize into a practical control range.
-    // Assumes ordinary plugin audio near +/-1 nominal.
-    return std::clamp(peak, 0.0f, 1.0f);
+
+    if (++debugCounter >= 2048)
+    {
+        debugCounter = 0;
+        DBG("duck env=" << detectorEnvelope << " gain=" << appliedGain);
+    }
+
+    // Boost and curve so ordinary signals create meaningful ducking.
+    const float boosted = std::clamp(peak * 4.0f, 0.0f, 1.0f);
+    return std::pow(boosted, 0.6f);
 }
 
 void Ducking::UpdateTimeCoefficients()

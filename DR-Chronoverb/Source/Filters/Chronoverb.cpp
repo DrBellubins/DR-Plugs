@@ -68,7 +68,7 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer) const
 
         // 6) Ducking (shouldn't duck by distortion signal, since distortion crushes dynamics)
         auto [duckedWetLeft, duckedWetRight] =
-            DuckingLeftRight->ProcessSample(pitchLeft, pitchRight,
+            DuckingLeftRight->ProcessSample(dryLeft, dryRight,
                 distortionWetLeft, distortionWetRight);
 
         // 7) Dry/wet volume gain + combine
