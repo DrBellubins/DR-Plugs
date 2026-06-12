@@ -8,6 +8,7 @@ Chronoverb::Chronoverb()
     PitchShifterLeftRight = std::make_unique<PitchShifter>();
     DistortionLeftRight = std::make_unique<Distortion>();
     StereoLeftRight = std::make_unique<Stereo>();
+    DuckingLeftRight = std::make_unique<Ducking>();
 }
 
 void Chronoverb::PrepareToPlay(double newSampleRate)
@@ -21,10 +22,9 @@ void Chronoverb::PrepareToPlay(double newSampleRate)
         *DelayLeftRight->InternalDelayLineRight);
 
     PitchShifterLeftRight->PrepareToPlay(sampleRate);
-
     DistortionLeftRight->PrepareToPlay(static_cast<float>(sampleRate));
-
     StereoLeftRight->PrepareToPlay(sampleRate);
+    DuckingLeftRight->PrepareToPlay(sampleRate);
 }
 
 void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer) const
@@ -66,13 +66,16 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer) const
         auto [distortionDryLeft, distortionDryRight, distortionWetLeft, distortionWetRight] =
             DistortionLeftRight->ProcessSample(dryLeft, dryRight, pitchLeft, pitchRight);
 
-        // 6) Ducking
+        // 6) Ducking (shouldn't duck by distortion signal, since distortion crushes dynamics)
+        auto [duckedWetLeft, duckedWetRight] =
+            DuckingLeftRight->ProcessSample(pitchLeft, pitchRight,
+                distortionWetLeft, distortionWetRight);
 
-        // 6) Dry/wet volume gain + combine
-        float gainedLeft = (distortionDryLeft * dryVolume) + (distortionWetLeft * wetVolume);
-        float gainedRight = (distortionDryRight * dryVolume) + (distortionWetRight * wetVolume);
+        // 7) Dry/wet volume gain + combine
+        float gainedLeft = (distortionDryLeft * dryVolume) + (duckedWetLeft * wetVolume);
+        float gainedRight = (distortionDryRight * dryVolume) + (duckedWetRight * wetVolume);
 
-        // 7) Stereo
+        // 8) Stereo
         auto [stereoLeft, stereoRight] =
             StereoLeftRight->ProcessSample(gainedLeft, gainedRight);
 

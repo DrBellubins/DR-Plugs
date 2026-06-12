@@ -111,22 +111,16 @@ namespace ParameterEntries
             MakeFloat(
                 "duckAttack",
                 "Duck Attack",
-                juce::NormalisableRange<float>(0.0f, 1.0f),
-                0.3f,
-                [](Chronoverb&, float)
-                {
-                    // TODO: Hook up later when Chronoverb exposes SetDuckAttack(...)
-                }),
+                juce::NormalisableRange<float>(0.0f, 1000.0f),
+                300.0f,
+                [](Chronoverb& c, float v) { c.SetDuckAttack(v); }),
 
             MakeFloat(
                 "duckRelease",
                 "Duck Release",
-                juce::NormalisableRange<float>(0.0f, 1.0f),
-                0.3f,
-                [](Chronoverb&, float)
-                {
-                    // TODO: Hook up later when Chronoverb exposes SetDuckRelease(...)
-                }),
+                juce::NormalisableRange<float>(0.0f, 1000.0f),
+                300.0f,
+                [](Chronoverb& c, float v) { c.SetDuckRelease(v); }),
 
             // ---- Pitch ----
             MakeFloat(

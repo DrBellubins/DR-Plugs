@@ -7,6 +7,7 @@
 #include "NewDelayReverb/Stages/Reverb.h"
 #include "NewDelayReverb/Stages/PitchShifter.h"
 #include "NewDelayReverb/Stages/Distortion.h"
+#include "NewDelayReverb/Stages/Ducking.h"
 #include "NewDelayReverb/Stages/Stereo.h"
 
 class DelayLine;
@@ -26,6 +27,7 @@ public:
     std::unique_ptr<PitchShifter> PitchShifterLeftRight;
     std::unique_ptr<Distortion> DistortionLeftRight;
     std::unique_ptr<Stereo> StereoLeftRight;
+    std::unique_ptr<Ducking> DuckingLeftRight;
 
     //region Parameter Sets
     void SetHostTempo(float bpm) const;
@@ -40,17 +42,13 @@ public:
     void SetDryVolume(float newDryVolume);
     void SetWetVolume(float newWetVolume);
 
-    void SetLowpassCutoff(float newLowpass01);            // 0..1 -> 500..9000 Hz
-    void SetHighpassCutoff(float newHighpass01);          // 0..1 -> 10..2000 Hz
     void SetStereoSpread(float newSpreadMinus1To1);       // -1..1
-    void SetHPLPPrePost(float prePost01);                 // 0 = Pre, 1 = Post
 
+    // Pitch
     void SetPitchRangeLower(float pitchRangeLowerSemitones);
     void SetPitchRangeUpper(float pitchRangeUpperSemitones);
     void SetPitchSequence(int sequenceIndex);                // 0=Up, 1=Down, 2=Random
     void SetpitchWetMix(float wetVolume);
-
-    void SetDuckAmount(float newDuckAmount);
 
     // Distortion
     void SetDistortionModuleEnabled(int moduleIndex, bool enabled);
@@ -58,6 +56,16 @@ public:
     void SetDistortionModuleTarget(int moduleIndex, int target);
     void SetDistortionModuleDrive(int moduleIndex, float drive01);
     void SetDistortionModuleMix(int moduleIndex, float mix01);
+
+    // Ducking
+    void SetDuckAmount(float newDuckAmount);
+    void SetDuckAttack(float newDuckAttack);
+    void SetDuckRelease(float newDuckRelease);
+
+    // Filters
+    void SetLowpassCutoff(float newLowpass01);            // 0..1 -> 500..9000 Hz
+    void SetHighpassCutoff(float newHighpass01);          // 0..1 -> 10..2000 Hz
+    void SetHPLPPrePost(float prePost01);                 // 0 = Pre, 1 = Post
     //endregion
 
 private:
@@ -95,5 +103,7 @@ private:
     float pitchWetMix = 0.0f;
 
     float duckAmount = 0.0f;
+    float duckAttack = 0.0f;
+    float duckRelease = 0.0f;
     //endregion
 };

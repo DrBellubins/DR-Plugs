@@ -64,22 +64,6 @@ void Chronoverb::SetDiffusionQuality(int newQualityStages)
     PitchShifterLeftRight->SetDiffusionQuality(diffusionQualityStages);
 }
 
-void Chronoverb::SetLowpassCutoff(float newLowpass01)
-{
-    lowpassCutoff = clamp01(newLowpass01);
-
-    //DelayLeft->SetLowpassCutoff(lowpassCutoff);
-    //DelayRight->SetLowpassCutoff(lowpassCutoff);
-}
-
-void Chronoverb::SetHighpassCutoff(float newHighpass01)
-{
-    highpassCutoff = clamp01(newHighpass01);
-
-    //DelayLeft->SetHighpassCutoff(highpassCutoff);
-    //DelayRight->SetHighpassCutoff(highpassCutoff);
-}
-
 void Chronoverb::SetDryVolume(float newDry01)
 {
     dryVolume = clamp01(newDry01);
@@ -163,14 +147,45 @@ void Chronoverb::SetDistortionModuleMix(int moduleIndex, float mix01)
     //DBG("Dist mod mix: " << moduleIndex << ", " << mix01);
 }
 
+// Ducking
+void Chronoverb::SetDuckAmount(float newDuckAmount)
+{
+    duckAmount = newDuckAmount;
+    DuckingLeftRight->SetDuckAmount(duckAmount);
+}
+
+void Chronoverb::SetDuckAttack(float newDuckAttack)
+{
+    duckAttack = newDuckAttack;
+    DuckingLeftRight->SetDuckAttack(duckAttack);
+}
+
+void Chronoverb::SetDuckRelease(float newDuckRelease)
+{
+    duckRelease = newDuckRelease;
+    DuckingLeftRight->SetDuckRelease(duckRelease);
+}
+
+// Filters
+void Chronoverb::SetLowpassCutoff(float newLowpass01)
+{
+    lowpassCutoff = clamp01(newLowpass01);
+
+    //DelayLeft->SetLowpassCutoff(lowpassCutoff);
+    //DelayRight->SetLowpassCutoff(lowpassCutoff);
+}
+
+void Chronoverb::SetHighpassCutoff(float newHighpass01)
+{
+    highpassCutoff = clamp01(newHighpass01);
+
+    //DelayLeft->SetHighpassCutoff(highpassCutoff);
+    //DelayRight->SetHighpassCutoff(highpassCutoff);
+}
+
 // TODO
 
 void Chronoverb::SetHPLPPrePost(float prePost01)
 {
     hplpPrePost01 = clamp01(prePost01);
-}
-
-void Chronoverb::SetDuckAmount(float newDuckAmount)
-{
-    duckAmount = clamp01(newDuckAmount);
 }
