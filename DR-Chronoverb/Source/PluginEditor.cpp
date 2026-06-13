@@ -165,7 +165,10 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
         // Push the restored value into the parameter.
         if (auto* DelayParam = processorRef.parameters.getParameter("delayTime"))
-            DelayParam->setValueNotifyingHost(TargetValue);
+        {
+            const float Normalized = DelayParam->convertTo0to1(TargetValue);
+            DelayParam->setValueNotifyingHost(Normalized);
+        }
 
         // Update the knob text display format for the new mode.
         updateDelayKnobDisplay(NewIndex);

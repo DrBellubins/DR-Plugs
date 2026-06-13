@@ -6,6 +6,7 @@
 
 #include "../Utils/DCBlocker.h"
 
+// TODO: Sounds nothing like bitwigs chebyshev :(
 class Chebyshev
 {
 public:

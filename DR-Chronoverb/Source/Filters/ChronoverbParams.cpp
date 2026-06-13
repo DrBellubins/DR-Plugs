@@ -12,8 +12,6 @@ void Chronoverb::SetDelayTime(float newDelayTime)
 {
     delayMilliseconds = newDelayTime;
 
-    DBG("(Chronoverb) Delay time ms: " << delayMilliseconds);
-
     DelayLeftRight->SetDelayTime(delayMilliseconds);
     ReverbLeftRight->SetDelayTime(delayMilliseconds);
     PitchShifterLeftRight->SetDelayTime(delayMilliseconds);

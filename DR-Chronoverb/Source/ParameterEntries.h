@@ -113,7 +113,7 @@ namespace ParameterEntries
                 "duckAttack",
                 "Duck Attack",
                 juce::NormalisableRange<float>(0.0f, 1000.0f),
-                300.0f,
+                20.0f,
                 [](Chronoverb& c, float v) { c.SetDuckAttack(v); }),
 
             MakeFloat(
