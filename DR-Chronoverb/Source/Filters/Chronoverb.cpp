@@ -48,6 +48,7 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer) const
         const float dryRight = (rightData != nullptr ? rightData[sampleIndex] : dryLeft);
 
         // 0) Pre filters
+        // TODO: This doesn't sound any different from post filtering.
         float preFilteredLeft = dryLeft;
         float preFilteredRight = dryRight;
 
@@ -66,7 +67,7 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer) const
 
         // 2) Reverb
         auto [reverbLeft, reverbRight] =
-            ReverbLeftRight->ProcessSample(dryLeft, dryRight);
+            ReverbLeftRight->ProcessSample(preFilteredLeft, preFilteredRight);
 
         // 3) Blend delay -> reverb between diff amt 0.5 -> 1.0
         auto [delayGain, reverbGain] = GetDelayReverbGain(diffusionAmount);
