@@ -167,20 +167,16 @@ void Chronoverb::SetDuckRelease(float newDuckRelease)
 }
 
 // Filters
-void Chronoverb::SetLowpassCutoff(float newLowpass01)
+void Chronoverb::SetLowPassCutoff(float newLowpass)
 {
-    lowpassCutoff = clamp01(newLowpass01);
-
-    //DelayLeft->SetLowpassCutoff(lowpassCutoff);
-    //DelayRight->SetLowpassCutoff(lowpassCutoff);
+    lowpassCutoff = newLowpass;
+    FilterLeftRight->SetLowPassCutoff(lowpassCutoff);
 }
 
-void Chronoverb::SetHighpassCutoff(float newHighpass01)
+void Chronoverb::SetHighPassCutoff(float newHighpass)
 {
-    highpassCutoff = clamp01(newHighpass01);
-
-    //DelayLeft->SetHighpassCutoff(highpassCutoff);
-    //DelayRight->SetHighpassCutoff(highpassCutoff);
+    highpassCutoff = newHighpass;
+    FilterLeftRight->SetHighPassCutoff(highpassCutoff);
 }
 
 // TODO

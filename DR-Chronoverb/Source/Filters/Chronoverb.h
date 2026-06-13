@@ -9,6 +9,7 @@
 #include "NewDelayReverb/Stages/Distortion.h"
 #include "NewDelayReverb/Stages/Ducking.h"
 #include "NewDelayReverb/Stages/Stereo.h"
+#include "NewDelayReverb/Stages/Filters.h"
 
 class DelayLine;
 class DampingFilter;
@@ -28,6 +29,7 @@ public:
     std::unique_ptr<Distortion> DistortionLeftRight;
     std::unique_ptr<Stereo> StereoLeftRight;
     std::unique_ptr<Ducking> DuckingLeftRight;
+    std::unique_ptr<Filters> FilterLeftRight;
 
     //region Parameter Sets
     void SetHostTempo(float bpm) const;
@@ -63,9 +65,9 @@ public:
     void SetDuckRelease(float newDuckRelease);
 
     // Filters
-    void SetLowpassCutoff(float newLowpass01);            // 0..1 -> 500..9000 Hz
-    void SetHighpassCutoff(float newHighpass01);          // 0..1 -> 10..2000 Hz
-    void SetHPLPPrePost(float prePost01);                 // 0 = Pre, 1 = Post
+    void SetLowPassCutoff(float newLowpass);            // 500..9000 Hz
+    void SetHighPassCutoff(float newHighpass);          // 10..2000 Hz
+    void SetHPLPPrePost(float prePost01);               // 0 = Pre, 1 = Post
     //endregion
 
 private:

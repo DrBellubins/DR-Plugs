@@ -84,16 +84,16 @@ namespace ParameterEntries
             MakeFloat(
                 "lowPassCutoff",
                 "Low Pass Cutoff",
-                juce::NormalisableRange<float>(0.0f, 1.0f),
-                1.0f,
-                [](Chronoverb& c, float v) { c.SetLowpassCutoff(v); }),
+                juce::NormalisableRange<float>(500.0f, 9000.0f),
+                9000.0f,
+                [](Chronoverb& c, float v) { c.SetLowPassCutoff(v); }),
 
             MakeFloat(
                 "highPassCutoff",
                 "High Pass Cutoff",
-                juce::NormalisableRange<float>(0.0f, 1.0f),
-                0.0f,
-                [](Chronoverb& c, float v) { c.SetHighpassCutoff(v); }),
+                juce::NormalisableRange<float>(10.0f, 2000.0f),
+                10.0f,
+                [](Chronoverb& c, float v) { c.SetHighPassCutoff(v); }),
 
             MakeBool(
                 "hplpPrePost",
