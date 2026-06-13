@@ -3,15 +3,16 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include <atomic>
 #include <utility>
+#include <vector>
+
 #include "Theme.h"
 #include "ThemeContext.h"
 
-// TODO: Tail is a circle, needs to be rounded rectangle
-// TODO: Animation is too slow
-
 // SegmentedButton
 // - A header-only, rounded segmented control with an arbitrary number of options.
+// - Supports horizontal (default) and vertical orientation.
 // - End segments have rounded corners; inner segments have square edges.
 // - Selected segment uses ThemePink; unselected segments use AccentGray.
 // - Supports parameter attachments via nested Attachment helpers:
@@ -19,53 +20,66 @@
 //     * ExclusiveBooleansAttachment -> attach each segment to a boolean parameter (exclusive/radio behavior).
 //
 // Usage example (Choice):
-//     auto* Seg = new SegmentedButton({"ms", "1/4", "1/8", "1/8T", "1/8."});
-//     choiceAttachment = std::make_unique<SegmentedButton::ChoiceAttachment>(apvts, "delayMode", *Seg);
+//     auto* seg = new SegmentedButton({"ms", "1/4", "1/8", "1/8T", "1/8."});
+//     choiceAttachment = std::make_unique<SegmentedButton::ChoiceAttachment>(apvts, "delayMode", *seg);
+//
+// Usage example (Choice, vertical):
+//     auto* seg = new SegmentedButton({"ms", "1/4", "1/8"}, true);
 //
 // Usage example (Exclusive booleans):
-//     auto* Seg = new SegmentedButton({"A", "B", "C"});
+//     auto* seg = new SegmentedButton({"A", "B", "C"});
 //     exclusiveAttachment = std::make_unique<SegmentedButton::ExclusiveBooleansAttachment>(apvts,
-//         std::vector<juce::String>{ "modeA", "modeB", "modeC" }, *Seg);
+//         std::vector<juce::String>{ "modeA", "modeB", "modeC" }, *seg);
 class SegmentedButton : public juce::Component
 {
 public:
+    enum class Orientation
+    {
+        Horizontal,
+        Vertical
+    };
+
     // ============================ Construction ============================
 
     SegmentedButton()
     {
+        initialiseFont();
         setInterceptsMouseClicks(true, true);
-
-        auto fontOptions = juce::FontOptions("Liberation Sans",
-            14.0f, juce::Font::bold);
-
-        labelFont = juce::Font(fontOptions);
     }
 
-    explicit SegmentedButton(const juce::StringArray& OptionLabels)
+    explicit SegmentedButton(const juce::StringArray& optionLabels,
+                             bool isVertical = false)
+        : orientation(isVertical ? Orientation::Vertical : Orientation::Horizontal)
     {
+        initialiseFont();
         setInterceptsMouseClicks(true, true);
+        setOptions(optionLabels);
+    }
 
-        auto fontOptions = juce::FontOptions("Liberation Sans",
-            14.0f, juce::Font::bold);
-
-        labelFont = juce::Font(fontOptions);
-        setOptions(OptionLabels);
+    SegmentedButton(const juce::StringArray& optionLabels,
+                    Orientation newOrientation)
+        : orientation(newOrientation)
+    {
+        initialiseFont();
+        setInterceptsMouseClicks(true, true);
+        setOptions(optionLabels);
     }
 
     ~SegmentedButton() override = default;
 
     // ============================ Options API ============================
 
-    void setOptions(const juce::StringArray& OptionLabels)
+    void setOptions(const juce::StringArray& optionLabels)
     {
-        options = OptionLabels;
+        options = optionLabels;
 
         if (options.isEmpty())
-            selectedIndex = -1;
-        else
         {
-            if (selectedIndex < 0 || selectedIndex >= options.size())
-                selectedIndex = 0;
+            selectedIndex = -1;
+        }
+        else if (selectedIndex < 0 || selectedIndex >= options.size())
+        {
+            selectedIndex = 0;
         }
 
         repaint();
@@ -84,17 +98,21 @@ public:
     // ============================ Selection API ============================
 
     // Sets the selected index and optionally notifies listeners.
-    void setSelectedIndex(int NewSelectedIndex, juce::NotificationType Notification)
+    void setSelectedIndex(int newSelectedIndex, juce::NotificationType notification)
     {
-        const int ClampedIndex = juce::jlimit(-1, options.size() - 1, NewSelectedIndex);
+        const int clampedIndex = options.isEmpty()
+            ? -1
+            : juce::jlimit(0, options.size() - 1, newSelectedIndex);
 
-        if (selectedIndex == ClampedIndex)
+        if (selectedIndex == clampedIndex)
             return;
 
-        selectedIndex = ClampedIndex;
+        selectedIndex = clampedIndex;
         repaint();
 
-        if (Notification == juce::sendNotificationAsync || Notification == juce::sendNotification)
+        if (!blockSelectionCallback
+            && (notification == juce::sendNotificationAsync
+                || notification == juce::sendNotification))
         {
             if (onSelectionChanged != nullptr)
                 onSelectionChanged(selectedIndex);
@@ -102,20 +120,22 @@ public:
     }
 
     // Sets the selected index without triggering the onSelectionChanged callback.
-    void setSelectedIndexSilently(int NewSelectedIndex)
+    void setSelectedIndexSilently(int newSelectedIndex)
     {
-        const int ClampedIndex = juce::jlimit(-1, options.size() - 1, NewSelectedIndex);
+        const int clampedIndex = options.isEmpty()
+            ? -1
+            : juce::jlimit(0, options.size() - 1, newSelectedIndex);
 
-        if (selectedIndex == ClampedIndex)
+        if (selectedIndex == clampedIndex)
             return;
 
-        const bool WasBlocked = blockSelectionCallback;
+        const bool wasBlocked = blockSelectionCallback;
         blockSelectionCallback = true;
 
-        selectedIndex = ClampedIndex;
+        selectedIndex = clampedIndex;
         repaint();
 
-        blockSelectionCallback = WasBlocked;
+        blockSelectionCallback = wasBlocked;
     }
 
     [[nodiscard]] int getSelectedIndex() const
@@ -131,207 +151,294 @@ public:
         return {};
     }
 
-    // Callback invoked when selection changes via setSelectedIndex (notify) or user interaction.
     std::function<void(int)> onSelectionChanged;
 
     // ============================ Appearance API ============================
 
-    void setCornerRadius(float NewCornerRadius)
+    void setCornerRadius(float newCornerRadius)
     {
-        cornerRadius = std::max(0.0f, NewCornerRadius);
+        cornerRadius = std::max(0.0f, newCornerRadius);
         repaint();
     }
 
-    void setDividerThickness(float NewDividerThickness)
+    void setDividerThickness(float newDividerThickness)
     {
-        dividerThickness = std::max(0.0f, NewDividerThickness);
+        dividerThickness = std::max(0.0f, newDividerThickness);
         repaint();
     }
 
-    void setFont(const juce::Font& NewFont)
+    void setFont(const juce::Font& newFont)
     {
-        labelFont = NewFont;
+        labelFont = newFont;
         repaint();
+    }
+
+    void setOrientation(Orientation newOrientation)
+    {
+        if (orientation == newOrientation)
+            return;
+
+        orientation = newOrientation;
+        repaint();
+    }
+
+    [[nodiscard]] Orientation getOrientation() const
+    {
+        return orientation;
+    }
+
+    [[nodiscard]] bool isVertical() const
+    {
+        return orientation == Orientation::Vertical;
     }
 
     // ============================ JUCE Overrides ============================
 
-    void paint(juce::Graphics& GraphicsContext) override
+    void paint(juce::Graphics& graphicsContext) override
     {
-        const juce::Rectangle<int> Bounds = getLocalBounds();
+        const juce::Rectangle<int> bounds = getLocalBounds();
 
-        const juce::Colour adjustedAccentGray = ThemeContext::GetAdjustedColour(AccentGray, *this);
-        const juce::Colour adjustedFocusedGray = ThemeContext::GetAdjustedColour(FocusedGray, *this);
-        const juce::Colour adjustedBGGray = ThemeContext::GetAdjustedColour(BGGray, *this);
-        const juce::Colour adjustedUnfocusedGray = ThemeContext::GetAdjustedColour(UnfocusedGray, *this);
+        const juce::Colour adjustedAccentGray =
+            ThemeContext::GetAdjustedColour(AccentGray, *this);
 
-        // Background outline (optional subtle border)
-        //GraphicsContext.setColour(UnfocusedGray);
-        //GraphicsContext.fillRoundedRectangle(Bounds.toFloat(), cornerRadius);
+        const juce::Colour adjustedFocusedGray =
+            ThemeContext::GetAdjustedColour(FocusedGray, *this);
+
+        const juce::Colour adjustedBGGray =
+            ThemeContext::GetAdjustedColour(BGGray, *this);
+
+        const juce::Colour adjustedUnfocusedGray =
+            ThemeContext::GetAdjustedColour(UnfocusedGray, *this);
 
         if (options.isEmpty())
             return;
 
-        // Compute segment rectangles
-        const int NumberOfOptions = options.size();
-        const auto TotalWidth = static_cast<float>(Bounds.getWidth());
-        const auto TotalHeight = static_cast<float>(Bounds.getHeight());
-        const float SegmentWidthFloat = TotalWidth / static_cast<float>(NumberOfOptions);
+        const int numberOfOptions = options.size();
+        const bool vertical = isVertical();
 
-        // Draw each segment
-        for (int OptionIndex = 0; OptionIndex < NumberOfOptions; ++OptionIndex)
+        const float totalMajor = vertical
+            ? static_cast<float>(bounds.getHeight())
+            : static_cast<float>(bounds.getWidth());
+
+        const float totalMinor = vertical
+            ? static_cast<float>(bounds.getWidth())
+            : static_cast<float>(bounds.getHeight());
+
+        const float segmentMajorFloat =
+            totalMajor / static_cast<float>(numberOfOptions);
+
+        for (int optionIndex = 0; optionIndex < numberOfOptions; ++optionIndex)
         {
-            const float X = static_cast<float>(Bounds.getX()) + std::floor(SegmentWidthFloat * static_cast<float>(OptionIndex));
-            const float W = (OptionIndex == NumberOfOptions - 1)
-                ? (static_cast<float>(Bounds.getRight()) - X) // last takes remainder
-                : std::floor(SegmentWidthFloat);
+            const float majorPosition =
+                vertical
+                    ? static_cast<float>(bounds.getY())
+                        + std::floor(segmentMajorFloat * static_cast<float>(optionIndex))
+                    : static_cast<float>(bounds.getX())
+                        + std::floor(segmentMajorFloat * static_cast<float>(optionIndex));
 
-            const juce::Rectangle<float> SegmentBounds(X, static_cast<float>(Bounds.getY()), W, TotalHeight);
+            const float majorSize =
+                (optionIndex == numberOfOptions - 1)
+                    ? (vertical
+                        ? static_cast<float>(bounds.getBottom()) - majorPosition
+                        : static_cast<float>(bounds.getRight()) - majorPosition)
+                    : std::floor(segmentMajorFloat);
 
-            const bool IsFirst = (OptionIndex == 0);
-            const bool IsLast = (OptionIndex == NumberOfOptions - 1);
-            const bool IsSelected = (OptionIndex == selectedIndex);
+            const juce::Rectangle<float> segmentBounds =
+                vertical
+                    ? juce::Rectangle<float>(
+                        static_cast<float>(bounds.getX()),
+                        majorPosition,
+                        totalMinor,
+                        majorSize)
+                    : juce::Rectangle<float>(
+                        majorPosition,
+                        static_cast<float>(bounds.getY()),
+                        majorSize,
+                        totalMinor);
 
-            // Fill color
-            const juce::Colour FillColour = IsSelected ? ThemePink : adjustedAccentGray;
+            const bool isFirst = (optionIndex == 0);
+            const bool isLast = (optionIndex == numberOfOptions - 1);
+            const bool isSelected = (optionIndex == selectedIndex);
 
-            // Build path with appropriate corner rounding
-            juce::Path SegmentPath;
+            const juce::Colour fillColour =
+                isSelected ? ThemePink : adjustedAccentGray;
 
-            SegmentPath.addRoundedRectangle(SegmentBounds.getX(), SegmentBounds.getY(),
-                SegmentBounds.getWidth(), SegmentBounds.getHeight(), cornerRadius,
-                cornerRadius, IsFirst, IsLast, IsFirst, IsLast);
+            juce::Path segmentPath;
 
-            // Fill
-            GraphicsContext.setColour(FillColour);
-            GraphicsContext.fillPath(SegmentPath);
-
-            // Hover / focus highlight (optional subtle)
-            if (hoveredIndex == OptionIndex && isEnabled())
+            if (vertical)
             {
-                GraphicsContext.setColour(adjustedFocusedGray.withMultipliedAlpha(0.10f));
-                GraphicsContext.fillPath(SegmentPath);
+                // top segment rounded on top, bottom segment rounded on bottom
+                segmentPath.addRoundedRectangle(segmentBounds.getX(),
+                                                segmentBounds.getY(),
+                                                segmentBounds.getWidth(),
+                                                segmentBounds.getHeight(),
+                                                cornerRadius,
+                                                cornerRadius,
+                                                isFirst,
+                                                isFirst,
+                                                isLast,
+                                                isLast);
+            }
+            else
+            {
+                // left segment rounded on left, right segment rounded on right
+                segmentPath.addRoundedRectangle(segmentBounds.getX(),
+                                                segmentBounds.getY(),
+                                                segmentBounds.getWidth(),
+                                                segmentBounds.getHeight(),
+                                                cornerRadius,
+                                                cornerRadius,
+                                                isFirst,
+                                                isLast,
+                                                isFirst,
+                                                isLast);
             }
 
-            // Divider between segments (skip after last)
-            if (!IsLast && dividerThickness > 0.0f)
+            graphicsContext.setColour(fillColour);
+            graphicsContext.fillPath(segmentPath);
+
+            if (hoveredIndex == optionIndex && isEnabled())
             {
-                GraphicsContext.setColour(adjustedBGGray.darker(0.2f));
-                const float DividerX = SegmentBounds.getRight();
-                GraphicsContext.fillRect(juce::Rectangle<float>(DividerX - (dividerThickness * 0.5f),
-                                                                SegmentBounds.getY() + 2.0f,
-                                                                dividerThickness,
-                                                                SegmentBounds.getHeight() - 4.0f));
+                graphicsContext.setColour(
+                    adjustedFocusedGray.withMultipliedAlpha(0.10f));
+                graphicsContext.fillPath(segmentPath);
             }
 
-            // Text
-            GraphicsContext.setColour(juce::Colours::white);
-            GraphicsContext.setFont(labelFont);
+            if (!isLast && dividerThickness > 0.0f)
+            {
+                graphicsContext.setColour(adjustedBGGray.darker(0.2f));
 
-            const auto TextBounds = SegmentBounds.reduced(6.0f, 4.0f).toNearestInt();
-            GraphicsContext.drawFittedText(options[OptionIndex],
-                                           TextBounds,
+                if (vertical)
+                {
+                    const float dividerY = segmentBounds.getBottom();
+
+                    graphicsContext.fillRect(juce::Rectangle<float>(
+                        segmentBounds.getX() + 2.0f,
+                        dividerY - (dividerThickness * 0.5f),
+                        segmentBounds.getWidth() - 4.0f,
+                        dividerThickness));
+                }
+                else
+                {
+                    const float dividerX = segmentBounds.getRight();
+
+                    graphicsContext.fillRect(juce::Rectangle<float>(
+                        dividerX - (dividerThickness * 0.5f),
+                        segmentBounds.getY() + 2.0f,
+                        dividerThickness,
+                        segmentBounds.getHeight() - 4.0f));
+                }
+            }
+
+            graphicsContext.setColour(juce::Colours::white);
+            graphicsContext.setFont(labelFont);
+
+            const auto textBounds = segmentBounds.reduced(6.0f, 4.0f).toNearestInt();
+
+            graphicsContext.drawFittedText(options[optionIndex],
+                                           textBounds,
                                            juce::Justification::centred,
                                            1);
         }
 
-        // Outline on top for crisp edge
-        GraphicsContext.setColour(adjustedUnfocusedGray.brighter(0.1f));
-        GraphicsContext.drawRoundedRectangle(Bounds.toFloat().reduced(0.5f), cornerRadius, 1.0f);
+        graphicsContext.setColour(adjustedUnfocusedGray.brighter(0.1f));
+        graphicsContext.drawRoundedRectangle(bounds.toFloat().reduced(0.5f),
+                                             cornerRadius,
+                                             1.0f);
     }
 
-    void mouseMove(const juce::MouseEvent& MouseEvent) override
+    void mouseMove(const juce::MouseEvent& mouseEvent) override
     {
-        juce::ignoreUnused(MouseEvent);
-        const int NewHoveredIndex = getIndexFromX(static_cast<float>(MouseEvent.x));
+        const int newHoveredIndex = getIndexFromPosition(
+            isVertical()
+                ? static_cast<float>(mouseEvent.y)
+                : static_cast<float>(mouseEvent.x));
 
-        if (hoveredIndex != NewHoveredIndex)
+        if (hoveredIndex != newHoveredIndex)
         {
-            hoveredIndex = NewHoveredIndex;
+            hoveredIndex = newHoveredIndex;
             repaint();
         }
     }
 
-    void mouseExit(const juce::MouseEvent& MouseEvent) override
+    void mouseExit(const juce::MouseEvent& mouseEvent) override
     {
-        juce::ignoreUnused(MouseEvent);
+        juce::ignoreUnused(mouseEvent);
         hoveredIndex = -1;
         repaint();
     }
 
-    void mouseDown(const juce::MouseEvent& MouseEvent) override
+    void mouseDown(const juce::MouseEvent& mouseEvent) override
     {
         if (!isEnabled() || options.isEmpty())
             return;
 
-        const int ClickedIndex = getIndexFromX(static_cast<float>(MouseEvent.x));
+        const int clickedIndex = getIndexFromPosition(
+            isVertical()
+                ? static_cast<float>(mouseEvent.y)
+                : static_cast<float>(mouseEvent.x));
 
-        if (ClickedIndex >= 0 && ClickedIndex < options.size())
+        if (clickedIndex >= 0 && clickedIndex < options.size())
         {
-            // Begin gesture callback (for attachments)
             if (onGestureBegin != nullptr)
                 onGestureBegin();
 
             if (onGestureCommit != nullptr)
-                onGestureCommit(ClickedIndex);
+                onGestureCommit(clickedIndex);
 
-            // Update selection with notification
-            setSelectedIndex(ClickedIndex, juce::sendNotificationAsync);
+            setSelectedIndex(clickedIndex, juce::sendNotificationAsync);
         }
     }
 
-    void mouseUp(const juce::MouseEvent& MouseEvent) override
+    void mouseUp(const juce::MouseEvent& mouseEvent) override
     {
-        juce::ignoreUnused(MouseEvent);
+        juce::ignoreUnused(mouseEvent);
 
         if (!isEnabled())
             return;
 
-        // End gesture callback (for attachments)
         if (onGestureEnd != nullptr)
             onGestureEnd();
     }
 
     // ============================ Attachments ============================
-    // These helper classes allow the control to be bound to parameters.
 
-    // ChoiceAttachment: binds the SegmentedButton to a single AudioParameterChoice (or other discrete parameter).
-    // It updates the control when the parameter changes, and writes parameter changes when the user clicks a segment.
-    class ChoiceAttachment  : public juce::AudioProcessorValueTreeState::Listener
+    class ChoiceAttachment : public juce::AudioProcessorValueTreeState::Listener
     {
     public:
-        ChoiceAttachment(juce::AudioProcessorValueTreeState& State,
-                         juce::String  ParameterID,
-                         SegmentedButton& SegmentedControl)
-            : apvts(State),
-              parameterID(std::move(ParameterID)),
-              control(SegmentedControl)
+        ChoiceAttachment(juce::AudioProcessorValueTreeState& state,
+                         juce::String parameterId,
+                         SegmentedButton& segmentedControl)
+            : apvts(state),
+              parameterID(std::move(parameterId)),
+              control(segmentedControl)
         {
             parameter = apvts.getParameter(parameterID);
 
             jassert(parameter != nullptr && "ChoiceAttachment: Parameter ID not found!");
 
-            // If this is a choice parameter and the control has no options, adopt the parameter's choice labels.
-            if (auto* ChoiceParameter = dynamic_cast<juce::AudioParameterChoice*>(parameter))
+            if (auto* choiceParameter =
+                    dynamic_cast<juce::AudioParameterChoice*>(parameter))
             {
                 if (control.getNumOptions() == 0)
-                    control.setOptions(ChoiceParameter->choices);
+                    control.setOptions(choiceParameter->choices);
             }
 
-            // Wire control -> parameter
             control.onGestureBegin = [this]()
             {
                 if (parameter != nullptr)
                     parameter->beginChangeGesture();
             };
 
-            control.onGestureCommit = [this](int NewIndex)
+            control.onGestureCommit = [this](int newIndex)
             {
                 if (parameter != nullptr)
                 {
-                    const auto RawTargetValue = static_cast<float>(NewIndex);
-                    const float Normalised = parameter->convertTo0to1(RawTargetValue);
-                    parameter->setValueNotifyingHost(Normalised);
+                    const float rawTargetValue = static_cast<float>(newIndex);
+                    const float normalised =
+                        parameter->convertTo0to1(rawTargetValue);
+
+                    parameter->setValueNotifyingHost(normalised);
                 }
             };
 
@@ -341,14 +448,15 @@ public:
                     parameter->endChangeGesture();
             };
 
-            // Parameter -> control
             apvts.addParameterListener(parameterID, this);
 
-            // Initial sync from parameter
             if (parameter != nullptr)
             {
-                const float RawValue = parameter->convertFrom0to1(parameter->getValue());
-                control.setSelectedIndexSilently(static_cast<int>(std::round(RawValue)));
+                const float rawValue =
+                    parameter->convertFrom0to1(parameter->getValue());
+
+                control.setSelectedIndexSilently(
+                    static_cast<int>(std::round(rawValue)));
             }
         }
 
@@ -356,22 +464,22 @@ public:
         {
             apvts.removeParameterListener(parameterID, this);
 
-            // Detach gesture lambdas to avoid dangling references
             control.onGestureBegin = nullptr;
             control.onGestureCommit = nullptr;
             control.onGestureEnd = nullptr;
         }
 
-        void parameterChanged(const juce::String& ChangedParameterID, float NewValue) override
+        void parameterChanged(const juce::String& changedParameterID,
+                              float newValue) override
         {
-            if (ChangedParameterID != parameterID)
+            if (changedParameterID != parameterID)
                 return;
 
-            const int NewIndex = static_cast<int>(std::round(NewValue));
+            const int newIndex = static_cast<int>(std::round(newValue));
 
-            juce::MessageManager::callAsync([this, NewIndex]()
+            juce::MessageManager::callAsync([this, newIndex]()
             {
-                control.setSelectedIndexSilently(NewIndex);
+                control.setSelectedIndexSilently(newIndex);
                 control.repaint();
             });
         }
@@ -383,59 +491,62 @@ public:
         SegmentedButton& control;
     };
 
-    // ExclusiveBooleansAttachment: binds each segment to a boolean parameter, enforces radio exclusivity.
-    // The number of parameter IDs must equal the number of options in the control.
-    class ExclusiveBooleansAttachment  : public juce::AudioProcessorValueTreeState::Listener
+    class ExclusiveBooleansAttachment : public juce::AudioProcessorValueTreeState::Listener
     {
     public:
-        ExclusiveBooleansAttachment(juce::AudioProcessorValueTreeState& State,
-                                    const std::vector<juce::String>& ParameterIDs,
-                                    SegmentedButton& SegmentedControl)
-            : apvts(State),
-              parameterIDs(ParameterIDs),
-              control(SegmentedControl)
+        ExclusiveBooleansAttachment(juce::AudioProcessorValueTreeState& state,
+                                    const std::vector<juce::String>& parameterIds,
+                                    SegmentedButton& segmentedControl)
+            : apvts(state),
+              parameterIDs(parameterIds),
+              control(segmentedControl)
         {
             jassert(control.getNumOptions() == static_cast<int>(parameterIDs.size())
                     && "ExclusiveBooleansAttachment: Option count must match parameter IDs count.");
 
-            // Collect parameters and validate types
-            for (const auto& Id : parameterIDs)
+            for (const auto& id : parameterIDs)
             {
-                auto* Parameter = apvts.getParameter(Id);
-                jassert(Parameter != nullptr && "ExclusiveBooleansAttachment: Parameter ID not found!");
+                auto* parameter = apvts.getParameter(id);
 
-                auto* BoolParameter = dynamic_cast<juce::AudioParameterBool*>(Parameter);
-                jassert(BoolParameter != nullptr && "ExclusiveBooleansAttachment: All parameters must be AudioParameterBool.");
+                jassert(parameter != nullptr
+                        && "ExclusiveBooleansAttachment: Parameter ID not found!");
 
-                parameters.push_back(BoolParameter);
-                apvts.addParameterListener(Id, this);
+                auto* boolParameter =
+                    dynamic_cast<juce::AudioParameterBool*>(parameter);
+
+                jassert(boolParameter != nullptr
+                        && "ExclusiveBooleansAttachment: All parameters must be AudioParameterBool.");
+
+                parameters.push_back(boolParameter);
+                apvts.addParameterListener(id, this);
             }
 
-            // Control -> parameters
             control.onGestureBegin = [this]()
             {
-                for (auto* P : parameters)
+                for (auto* parameter : parameters)
                 {
-                    if (P != nullptr)
-                        P->beginChangeGesture();
+                    if (parameter != nullptr)
+                        parameter->beginChangeGesture();
                 }
             };
 
-            control.onGestureCommit = [this](int NewIndex)
+            control.onGestureCommit = [this](int newIndex)
             {
                 if (ignoreParameterCallbacks)
                     return;
 
                 ignoreParameterCallbacks = true;
 
-                for (int ParameterIndex = 0; ParameterIndex < static_cast<int>(parameters.size()); ++ParameterIndex)
+                for (int parameterIndex = 0;
+                     parameterIndex < static_cast<int>(parameters.size());
+                     ++parameterIndex)
                 {
-                    auto* P = parameters[static_cast<size_t>(ParameterIndex)];
+                    auto* parameter = parameters[static_cast<size_t>(parameterIndex)];
 
-                    if (P != nullptr)
+                    if (parameter != nullptr)
                     {
-                        const bool ShouldBeOn = (ParameterIndex == NewIndex);
-                        P->setValueNotifyingHost(ShouldBeOn ? 1.0f : 0.0f);
+                        const bool shouldBeOn = (parameterIndex == newIndex);
+                        parameter->setValueNotifyingHost(shouldBeOn ? 1.0f : 0.0f);
                     }
                 }
 
@@ -444,89 +555,97 @@ public:
 
             control.onGestureEnd = [this]()
             {
-                for (auto* P : parameters)
+                for (auto* parameter : parameters)
                 {
-                    if (P != nullptr)
-                        P->endChangeGesture();
+                    if (parameter != nullptr)
+                        parameter->endChangeGesture();
                 }
             };
 
-            // Initial sync: if any parameter is true, select it; otherwise, select the first and set it true.
-            int FoundIndex = -1;
+            int foundIndex = -1;
 
-            for (int ParameterIndex = 0; ParameterIndex < static_cast<int>(parameters.size()); ++ParameterIndex)
+            for (int parameterIndex = 0;
+                 parameterIndex < static_cast<int>(parameters.size());
+                 ++parameterIndex)
             {
-                if (parameters[static_cast<size_t>(ParameterIndex)]->get())
+                if (parameters[static_cast<size_t>(parameterIndex)]->get())
                 {
-                    FoundIndex = ParameterIndex;
+                    foundIndex = parameterIndex;
                     break;
                 }
             }
 
-            if (FoundIndex < 0 && !parameters.empty())
+            if (foundIndex < 0 && !parameters.empty())
             {
                 ignoreParameterCallbacks = true;
 
                 parameters[0]->beginChangeGesture();
                 parameters[0]->setValueNotifyingHost(1.0f);
 
-                for (size_t ParameterIndex = 1; ParameterIndex < parameters.size(); ++ParameterIndex)
-                    parameters[ParameterIndex]->setValueNotifyingHost(0.0f);
+                for (size_t parameterIndex = 1;
+                     parameterIndex < parameters.size();
+                     ++parameterIndex)
+                {
+                    parameters[parameterIndex]->setValueNotifyingHost(0.0f);
+                }
 
                 parameters[0]->endChangeGesture();
 
                 ignoreParameterCallbacks = false;
-                FoundIndex = 0;
+                foundIndex = 0;
             }
 
-            control.setSelectedIndexSilently(FoundIndex);
+            control.setSelectedIndexSilently(foundIndex);
         }
 
         ~ExclusiveBooleansAttachment() override
         {
-            for (const auto& Id : parameterIDs)
-                apvts.removeParameterListener(Id, this);
+            for (const auto& id : parameterIDs)
+                apvts.removeParameterListener(id, this);
 
             control.onGestureBegin = nullptr;
             control.onGestureCommit = nullptr;
             control.onGestureEnd = nullptr;
         }
 
-        void parameterChanged(const juce::String& ChangedParameterID, float NewValue) override
+        void parameterChanged(const juce::String& changedParameterID,
+                              float newValue) override
         {
             if (ignoreParameterCallbacks)
                 return;
 
-            // Determine which boolean is currently set, preferring the one that just changed to 1
-            int Selected = -1;
+            int selected = -1;
 
-            if (NewValue >= 0.5f)
+            if (newValue >= 0.5f)
             {
-                for (size_t ParameterIndex = 0; ParameterIndex < parameterIDs.size(); ++ParameterIndex)
+                for (size_t parameterIndex = 0;
+                     parameterIndex < parameterIDs.size();
+                     ++parameterIndex)
                 {
-                    if (parameterIDs[ParameterIndex] == ChangedParameterID)
+                    if (parameterIDs[parameterIndex] == changedParameterID)
                     {
-                        Selected = static_cast<int>(ParameterIndex);
+                        selected = static_cast<int>(parameterIndex);
                         break;
                     }
                 }
             }
             else
             {
-                // If this one turned off, find any other that is on
-                for (size_t ParameterIndex = 0; ParameterIndex < parameters.size(); ++ParameterIndex)
+                for (size_t parameterIndex = 0;
+                     parameterIndex < parameters.size();
+                     ++parameterIndex)
                 {
-                    if (parameters[ParameterIndex]->get())
+                    if (parameters[parameterIndex]->get())
                     {
-                        Selected = static_cast<int>(ParameterIndex);
+                        selected = static_cast<int>(parameterIndex);
                         break;
                     }
                 }
             }
 
-            juce::MessageManager::callAsync([this, Selected]()
+            juce::MessageManager::callAsync([this, selected]()
             {
-                control.setSelectedIndexSilently(Selected);
+                control.setSelectedIndexSilently(selected);
                 control.repaint();
             });
         }
@@ -539,8 +658,8 @@ public:
         std::atomic<bool> ignoreParameterCallbacks { false };
     };
 
-    // ============================ Gesture bridge ============================
-    // These are used by attachments to wire user gestures to parameter gestures.
+    // ============================ Gesture Bridge ============================
+
     std::function<void()> onGestureBegin;
     std::function<void(int)> onGestureCommit;
     std::function<void()> onGestureEnd;
@@ -548,20 +667,37 @@ public:
 private:
     // ============================ Helpers ============================
 
-    int getIndexFromX(float XPosition) const
+    void initialiseFont()
     {
-        const int NumberOfOptions = options.size();
+        auto fontOptions = juce::FontOptions("Liberation Sans",
+                                             14.0f,
+                                             juce::Font::bold);
 
-        if (NumberOfOptions <= 0)
+        labelFont = juce::Font(fontOptions);
+    }
+
+    int getIndexFromPosition(float position) const
+    {
+        const int numberOfOptions = options.size();
+
+        if (numberOfOptions <= 0)
             return -1;
 
-        const auto TotalWidth = static_cast<float>(getWidth());
-        const float SegmentWidthFloat = TotalWidth / static_cast<float>(NumberOfOptions);
+        const float totalMajor = isVertical()
+            ? static_cast<float>(getHeight())
+            : static_cast<float>(getWidth());
 
-        int Index = static_cast<int>(std::floor(juce::jlimit(0.0f, TotalWidth - 1.0f, XPosition) / SegmentWidthFloat));
-        Index = juce::jlimit(0, NumberOfOptions - 1, Index);
+        if (totalMajor <= 0.0f)
+            return -1;
 
-        return Index;
+        const float segmentMajorFloat =
+            totalMajor / static_cast<float>(numberOfOptions);
+
+        int index = static_cast<int>(std::floor(
+            juce::jlimit(0.0f, totalMajor - 1.0f, position)
+            / segmentMajorFloat));
+
+        return juce::jlimit(0, numberOfOptions - 1, index);
     }
 
     // ============================ State ============================
@@ -575,4 +711,5 @@ private:
     juce::Font labelFont;
 
     bool blockSelectionCallback = false;
+    Orientation orientation = Orientation::Horizontal;
 };

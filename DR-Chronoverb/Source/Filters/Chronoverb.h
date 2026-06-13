@@ -65,9 +65,11 @@ public:
     void SetDuckRelease(float newDuckRelease);
 
     // Filters
+    void SetFiltersOrder(int newOrder);                 // 0 = off, 1 = pre, 2 = post
     void SetLowPassCutoff(float newLowpass);            // 500..9000 Hz
     void SetHighPassCutoff(float newHighpass);          // 10..2000 Hz
-    void SetHPLPPrePost(float prePost01);               // 0 = Pre, 1 = Post
+
+    //void SetHPLPPrePost(float prePost01);             // 0 = Pre, 1 = Post
     //endregion
 
 private:
@@ -96,7 +98,8 @@ private:
     float lowpassCutoff = 0.0f;
     float highpassCutoff = 0.0f;
     float stereoSpread = 0.0f; // -1 - 1 range
-    float hplpPrePost01 = 1.0f;
+    int filtersOrder = 0;
+    //float hplpPrePost01 = 1.0f;
 
     float pitchRangeLower = -12.0f;
     float pitchRangeUpper = 12.0f;

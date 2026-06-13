@@ -48,8 +48,17 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer) const
         const float dryRight = (rightData != nullptr ? rightData[sampleIndex] : dryLeft);
 
         // 0) Pre filters
-        auto [preFilteredLeft, preFilteredRight] =
-            FilterLeftRight->ProcessSample(dryLeft, dryRight);
+        float preFilteredLeft = dryLeft;
+        float preFilteredRight = dryRight;
+
+        if (filtersOrder == 1)
+        {
+            auto [filteredL, filteredR] =
+                FilterLeftRight->ProcessSample(dryLeft, dryRight);
+
+            preFilteredLeft = filteredL;
+            preFilteredRight = filteredR;
+        }
 
         // 1) Delay
         auto [delayLeft, delayRight] =
@@ -74,8 +83,17 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer) const
             DistortionLeftRight->ProcessSample(dryLeft, dryRight, pitchLeft, pitchRight);
 
         // 6) Post filters
-        auto [postFilteredLeft, postFilteredRight] =
-            FilterLeftRight->ProcessSample(distortionWetLeft, distortionWetRight);
+        float postFilteredLeft = distortionWetLeft;
+        float postFilteredRight = distortionWetRight;
+
+        if (filtersOrder == 2)
+        {
+            auto [filteredL, filteredR] =
+                FilterLeftRight->ProcessSample(distortionWetLeft, distortionWetRight);
+
+            postFilteredLeft = filteredL;
+            postFilteredRight = filteredR;
+        }
 
         // 7) Ducking (shouldn't duck by distortion signal, since distortion crushes dynamics)
         auto [duckedWetLeft, duckedWetRight] =

@@ -192,12 +192,21 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
         };
     }
 
+    // Lowpass/Highpass buttons
+    filtersOrderButtons = std::make_unique<SegmentedButton>(juce::StringArray{ "Off", "Pre", "Post" }, true);
+
+    addAndMakeVisible(*delayTimeModeButtons);
+    filtersOrderButtons->setBounds(cX + -275, cY + 50 + nonPitchYOffset, 30, 100);
+
+    filtersOrderButtonsAttachment = std::make_unique<SegmentedButton::ChoiceAttachment>(processorRef.parameters,
+        "filtersOrder", *delayTimeModeButtons);
+
     // ------ Toggles ------
-    uiHelpers.CreateToggle(*this, hplpFilterToggle,
+    /*uiHelpers.CreateToggle(*this, hplpFilterToggle,
         hplpFilterToggleAttachment,
         RoundedToggle::Orientation::Vertical,
         "hplpPrePost",
-        20, 50, cX + -275, cY + 50 + nonPitchYOffset);
+        20, 50, cX + -275, cY + 50 + nonPitchYOffset);*/
 
 
     // ------ TABBED PAGE BOX ------
@@ -232,7 +241,7 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
     }
 
     // Draw bounding box for this component
-    /*graphics.setColour(juce::Colours::red);
+    graphics.setColour(juce::Colours::red);
     graphics.drawRect(getLocalBounds(), 2);
 
     // Draw bounding boxes for children
@@ -246,7 +255,7 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
             graphics.setColour(juce::Colours::green);
             graphics.drawRect(ChildBounds, 2);
         }
-    }*/
+    }
 }
 
 void AudioPluginAudioProcessorEditor::resized()

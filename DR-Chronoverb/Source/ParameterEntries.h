@@ -81,6 +81,13 @@ namespace ParameterEntries
                 0.0f,
                 [](Chronoverb& c, float v) { c.SetStereoSpread(v); }),
 
+            MakeChoice(
+                "filtersOrder",
+                "Filters Order (LP/HP)",
+                juce::StringArray{ "off", "pre", "post" },
+                0,
+                [](Chronoverb& c, int v) { c.SetFiltersOrder(v); }),
+
             MakeFloat(
                 "lowPassCutoff",
                 "Low Pass Cutoff",
@@ -95,11 +102,11 @@ namespace ParameterEntries
                 10.0f,
                 [](Chronoverb& c, float v) { c.SetHighPassCutoff(v); }),
 
-            MakeBool(
-                "hplpPrePost",
-                "HP/LP Pre/Post",
-                true,
-                [](Chronoverb& c, bool v) { c.SetHPLPPrePost(v ? 1.0f : 0.0f); }),
+            //MakeBool(
+            //    "hplpPrePost",
+            //    "HP/LP Pre/Post",
+            //    true,
+            //    [](Chronoverb& c, bool v) { c.SetHPLPPrePost(v ? 1.0f : 0.0f); }),
 
             // ---- Ducking ----
             MakeFloat(

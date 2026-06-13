@@ -14,13 +14,14 @@ public:
     void SetLowPassCutoff(float cutoff);
     void SetHighPassCutoff(float cutoff);
 
+
 private:
     void updateFilters();
 
     double sampleRate = 48000.0f;
 
-    float lowPassCutoff = 1.0f;
-    float highPassCutoff = 0.0f;
+    float lowPassCutoff = 9000.0f;
+    float highPassCutoff = 10.0f;
 
     std::atomic<bool> filterRebuildPending { false };
 

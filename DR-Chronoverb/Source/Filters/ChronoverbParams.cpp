@@ -167,6 +167,11 @@ void Chronoverb::SetDuckRelease(float newDuckRelease)
 }
 
 // Filters
+void Chronoverb::SetFiltersOrder(int newOrder)
+{
+    filtersOrder = juce::jlimit(0, 2, newOrder);
+}
+
 void Chronoverb::SetLowPassCutoff(float newLowpass)
 {
     lowpassCutoff = newLowpass;
@@ -181,7 +186,7 @@ void Chronoverb::SetHighPassCutoff(float newHighpass)
 
 // TODO
 
-void Chronoverb::SetHPLPPrePost(float prePost01)
+/*void Chronoverb::SetHPLPPrePost(float prePost01)
 {
     hplpPrePost01 = clamp01(prePost01);
-}
+}*/
