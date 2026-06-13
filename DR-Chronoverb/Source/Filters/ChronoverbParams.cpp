@@ -170,6 +170,7 @@ void Chronoverb::SetDuckRelease(float newDuckRelease)
 void Chronoverb::SetFiltersOrder(int newOrder)
 {
     filtersOrder = juce::jlimit(0, 2, newOrder);
+    DBG("filters order: " << filtersOrder);
 }
 
 void Chronoverb::SetLowPassCutoff(float newLowpass)

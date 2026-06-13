@@ -7,8 +7,6 @@
 #include "../DampingFilter.h"
 #include "../../ChronoverbUtils.h"
 
-// TODO: Louder than delay
-
 // Multi-channel, handles all reverb feedback, diffusion, damping, etc.
 class Reverb
 {

@@ -2,6 +2,7 @@
 
 #include <utility>
 
+#include "../DelayLine.h"
 #include "../DelayTimeSegment.h"
 
 // TODO: Doesn't sound like haas filter (spread > 0) does anything.
@@ -26,5 +27,6 @@ private:
     float stereoSpread = 0.0f;
     float diffusionAmount = 0.0f;
 
-    DelayTimeSegment delayTimeSegment;
+    DelayTimeSegment delayTimeSegment; // Used for ping-pong
+    std::unique_ptr<DelayLine> delayLine;
 };
