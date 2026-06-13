@@ -131,10 +131,6 @@ private:
 
     std::unordered_set<int> lastHeldKeyCodes;
 
-    // Pre-Post toggle
-    /*std::unique_ptr<RoundedToggle> hplpFilterToggle;
-    std::unique_ptr<RoundedToggle::Attachment> hplpFilterToggleAttachment;*/
-
     std::unique_ptr<SegmentedButton> filtersOrderButtons;
     std::unique_ptr<SegmentedButton::ChoiceAttachment> filtersOrderButtonsAttachment;
 
