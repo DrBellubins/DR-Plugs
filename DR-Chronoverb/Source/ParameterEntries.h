@@ -14,7 +14,7 @@ namespace ParameterEntries
         static std::vector<PluginParameterRegistry::Entry> entries =
         {
             // ---- Delay ----
-            // TODO: make range from 0..1000
+            // TODO: make range from 1..1000
             MakeFloat(
                 "delayTime",
                 "Delay Time",

@@ -46,17 +46,16 @@ private:
     UIHelpers uiHelpers;
 
     // Beat subdivision knob snap points (5 entries: Whole, Half, Quarter, Eighth, Sixteenth)
-    // Linear mapping: index / (Count - 1) -> {0.0, 0.25, 0.5, 0.75, 1.0}
-    static constexpr float DelaySyncNormalizedPositions[5] =
+    static constexpr float DelaySyncParameterPositions[5] =
     {
         0.0f,
-        1.0f / 4.0f,
-        2.0f / 4.0f,
-        3.0f / 4.0f,
-        1.0f
+        250.0f,
+        500.0f,
+        750.0f,
+        1000.0f
     };
 
-    float perModeLastDelayValue[4] = { 0.3f, 0.5f, 0.5f, 0.5f };
+    float perModeLastDelayValue[4] = { 300.0f, 500.0f, 500.0f, 500.0f };
     int lastDelayModeIndex = 0;
 
     void snapDelayKnobToNearestStep();

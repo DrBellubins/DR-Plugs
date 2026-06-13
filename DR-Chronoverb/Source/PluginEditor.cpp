@@ -146,10 +146,10 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
         // Snap to the nearest step when entering any beat-synced mode.
         if (NewIndex != 0)
         {
-            float Nearest = DelaySyncNormalizedPositions[0];
+            float Nearest = DelaySyncParameterPositions[0];
             float SmallestDistance = std::abs(TargetValue - Nearest);
 
-            for (float StepValue : DelaySyncNormalizedPositions)
+            for (float StepValue : DelaySyncParameterPositions)
             {
                 const float Distance = std::abs(TargetValue - StepValue);
 
@@ -334,15 +334,14 @@ void AudioPluginAudioProcessorEditor::updateDelayKnobDisplay(int ModeIndex)
     if (delayTimeKnob == nullptr)
         return;
 
-    static constexpr float SnapPositions[5] = { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
+    static constexpr float SnapPositions[5] = { 0.0f, 250.0f, 500.0f, 750.0f, 1000.0f };
     static const char* BeatNames[5] = { "1/1", "1/2", "1/4", "1/8", "1/16" };
 
-    if (ModeIndex == 0) // ms mode — map 0..1 -> 1..1000 ms
+    if (ModeIndex == 0) // ms mode 1..1000 ms
     {
-        delayTimeKnob->setValueToTextFunction([](double NormalizedValue) -> juce::String
+        delayTimeKnob->setValueToTextFunction([](double Value) -> juce::String
         {
-            const float Ms = 1.0f + static_cast<float>(NormalizedValue) * (1000.0f - 1.0f);
-            return juce::String(static_cast<int>(std::round(Ms))) + " ms";
+            return juce::String(static_cast<int>(std::round(Value))) + " ms";
         });
     }
     else
@@ -398,10 +397,10 @@ void AudioPluginAudioProcessorEditor::snapDelayKnobToNearestStep()
     float CurrentValue = delayTimeKnob->getValue();
 
     // Find nearest discrete normalized position
-    float Nearest = DelaySyncNormalizedPositions[0];
+    float Nearest = DelaySyncParameterPositions[0];
     float SmallestDistance = std::abs(CurrentValue - Nearest);
 
-    for (float StepValue : DelaySyncNormalizedPositions)
+    for (float StepValue : DelaySyncParameterPositions)
     {
         float Distance = std::abs(CurrentValue - StepValue);
 
