@@ -1,5 +1,5 @@
 ## Core
-- [ ] [CRITICAL] Using chronoverb after anything other than raw audio blasts volume into oblivion
+- [ ] [CRITICAL] Delay/reverb has a ringing feedback
 - [x] Implement pre/post lowpass/highpass filters
 - [ ] Implement ping-pong (L/R & Mid-Side modes)
 

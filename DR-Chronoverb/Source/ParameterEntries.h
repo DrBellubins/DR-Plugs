@@ -175,7 +175,7 @@ namespace ParameterEntries
                 return std::make_unique<juce::AudioParameterBool>(
                     prefix + "Enabled",
                     "Distortion Module " + juce::String(prefix.getTrailingIntValue()) + " Enabled",
-                    true);
+                    false);
             },
             [prefix, moduleIndex](Chronoverb& chronoverb,
                                   juce::AudioProcessorValueTreeState& apvts,
