@@ -1,8 +1,9 @@
 #include "Delay.h"
 
-void Delay::PrepareToPlay(double newSampleRate)
+void Delay::PrepareToPlay(double newSampleRate, Filters& filters)
 {
     sampleRate = newSampleRate;
+    filtersInput = &filters;
 
     delayTimeSegment.PrepareToPlay(sampleRate);
     delayTimeSegment.UpdateDelayMilliseconds();
@@ -63,21 +64,34 @@ void Delay::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
 std::pair<float, float> Delay::ProcessSample(float inputSampleL, float inputSampleR)
 {
-    diffusionReadLeft->UpdateSize(diffusionSize);
-    diffusionReadRight->UpdateSize(diffusionSize);
+    const float timeScale = juce::jlimit(0.05f, 1.0f,
+    delayTimeSegment.DelayTimeMilliseconds / 1000.0f); // normalize to max ms range
 
-    diffusionWriteLeft->UpdateSize(diffusionSize);
-    diffusionWriteRight->UpdateSize(diffusionSize);
+    diffusionReadLeft->UpdateSize(diffusionSize * timeScale);
+    diffusionReadRight->UpdateSize(diffusionSize * timeScale);
+
+    diffusionWriteLeft->UpdateSize(diffusionSize * timeScale);
+    diffusionWriteRight->UpdateSize(diffusionSize * timeScale);
 
     // 1) Input + feedback
-    const float inputFeedbackLeft = inputSampleL + lastFeedbackL;
-    const float inputFeedbackRight = inputSampleR + lastFeedbackR;
+    float inputFeedbackLeft = inputSampleL + lastFeedbackL;
+    float inputFeedbackRight = inputSampleR + lastFeedbackR;
 
-    // 2) Pre write diffusion
+    // 2) Pre-filters (optional)
+    if (filtersOrder == 1)
+    {
+        auto [filteredL, filteredR] =
+            filtersInput->ProcessSample(inputFeedbackLeft, inputFeedbackRight);
+
+        inputFeedbackLeft = filteredL;
+        inputFeedbackRight = filteredR;
+    }
+
+    // 3) Pre write diffusion
     const float diffusedWriteLeft = diffusionWriteLeft->ProcessSample(inputFeedbackLeft);
     const float diffusedWriteRight = diffusionWriteRight->ProcessSample(inputFeedbackRight);
 
-    // 3) Write-side blend between clean tap -> diffused tap (diff amt 0.0 -> 0.5)
+    // 4) Write-side blend between clean tap -> diffused tap (diff amt 0.0 -> 0.5)
     const float writeBlend01 =
         juce::jlimit(0.0f, 1.0f, diffusionAmount * 2.0f);
 
@@ -93,11 +107,11 @@ std::pair<float, float> Delay::ProcessSample(float inputSampleL, float inputSamp
     const float feedbackWriteRight =
         (inputFeedbackRight * writeCleanGain) + (diffusedWriteRight * writeDiffusionGain);
 
-    // 4) Write to delay line
+    // 5) Write to delay line
     InternalDelayLineLeft->PushSample(feedbackWriteLeft);
     InternalDelayLineRight->PushSample(feedbackWriteRight);
 
-    // 5) Read nominal and early tap
+    // 6) Read nominal and early tap
     smoothedCenteredReadDelayMilliseconds += readDelaySlewCoefficient *
         (delayTimeSegment.DelayTimeMilliseconds - smoothedCenteredReadDelayMilliseconds);
 
@@ -112,11 +126,11 @@ std::pair<float, float> Delay::ProcessSample(float inputSampleL, float inputSamp
     const float earlyTapLeft = InternalDelayLineLeft->ReadFeedbackBuffer(earlyReadMilliseconds);
     const float earlyTapRight = InternalDelayLineRight->ReadFeedbackBuffer(earlyReadMilliseconds);
 
-    // 6) Diffuse the early tap (second pass)
+    // 7) Diffuse the early tap (second pass)
     const float diffusedEarlyLeft = diffusionReadLeft->ProcessSample(earlyTapLeft);
     const float diffusedEarlyRight = diffusionReadRight->ProcessSample(earlyTapRight);
 
-    // 7) Read-side blend between nominal tap -> early tap (diff amt 0.0 -> 0.5)
+    // 8) Read-side blend between nominal tap -> early tap (diff amt 0.0 -> 0.5)
     const float lowerHalf01 =
         juce::jlimit(0.0f, 1.0f, diffusionAmount * 2.0f);
 
@@ -131,11 +145,11 @@ std::pair<float, float> Delay::ProcessSample(float inputSampleL, float inputSamp
     const float hybridTapRight =
         ((nominalTapRight * nominalGain) + (diffusedEarlyRight * earlyGain)) * lowerHalfMakeupGain;
 
-    // 8) Damping
+    // 9) Damping
     const float dampedLeft = dampingLeft->ProcessSample(hybridTapLeft, 7000.0f);
     const float dampedRight = dampingRight->ProcessSample(hybridTapRight, 7000.0f);
 
-    // 9) Recirculation
+    // 10) Recirculation
     lastFeedbackL = dampedLeft * feedbackGain;
     lastFeedbackR = dampedRight * feedbackGain;
 
@@ -180,6 +194,11 @@ void Delay::SetDiffusionQuality(int newDiffusionQuality)
 {
     diffusionQualityStages = newDiffusionQuality;
     diffusionRebuildPending.store(true, std::memory_order_release);
+}
+
+void Delay::SetFiltersOrder(int newOrder)
+{
+    filtersOrder = newOrder;
 }
 
 //endregion

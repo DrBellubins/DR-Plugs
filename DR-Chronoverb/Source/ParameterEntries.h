@@ -98,7 +98,7 @@ namespace ParameterEntries
             MakeFloat(
                 "highPassCutoff",
                 "High Pass Cutoff",
-                juce::NormalisableRange<float>(10.0f, 2000.0f),
+                juce::NormalisableRange<float>(10.0f, 1000.0f),
                 10.0f,
                 [](Chronoverb& c, float v) { c.SetHighPassCutoff(v); }),
 

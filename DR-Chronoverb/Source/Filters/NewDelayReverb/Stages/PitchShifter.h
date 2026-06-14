@@ -16,7 +16,7 @@ class PitchShifter
 public:
     PitchShifter();
 
-    void PrepareToPlay(double newSampleRate);
+    void PrepareToPlay(double newSampleRate, Filters& filters);
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
 
     std::pair<float, float> ProcessSample(float inputSampleL, float inputSampleR);
@@ -95,6 +95,8 @@ private:
     DelayTimeSegment delayTimeSegment;
 
     std::unique_ptr<Reverb> reverb;
+
+    Filters* filtersInput = nullptr;
 
     std::atomic<bool> pitchSequenceRebuildPending { false };
 };

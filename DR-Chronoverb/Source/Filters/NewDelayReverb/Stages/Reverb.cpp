@@ -1,8 +1,9 @@
 #include "Reverb.h"
 
-void Reverb::PrepareToPlay(double newSampleRate)
+void Reverb::PrepareToPlay(double newSampleRate, Filters& filters)
 {
     sampleRate = newSampleRate;
+    filtersInput = &filters;
 
     // Delay time
     delayTimeSegment.PrepareToPlay(sampleRate);
@@ -51,18 +52,33 @@ std::pair<float, float> Reverb::ProcessSample(float inputSampleL, float inputSam
     diffusionRight->UpdateSize(diffusionSize * timeScale);
 
     // 1) Input + feedback
-    const float inputFeedbackLeft = inputSampleL + lastFeedbackL;
-    const float inputFeedbackRight = inputSampleR + lastFeedbackR;
+    float inputFeedbackLeft = inputSampleL + lastFeedbackL;
+    float inputFeedbackRight = inputSampleR + lastFeedbackR;
 
-    // 2) Diffusion
+    // 2) Pre-filters (optional)
+    if (filtersOrder == 1)
+    {
+        auto [filteredL, filteredR] =
+            filtersInput->ProcessSample(inputFeedbackLeft, inputFeedbackRight);
+
+        inputFeedbackLeft = filteredL;
+        inputFeedbackRight = filteredR;
+    }
+
+    // 3) Diffusion
     const float diffusedLeft = diffusionLeft->ProcessSample(inputFeedbackLeft);
     const float diffusedRight = diffusionRight->ProcessSample(inputFeedbackRight);
 
-    // 3) Damping
+    // 4) Damping
     const float dampedLeft = dampingLeft->ProcessSample(diffusedLeft, 7000.0f);
     const float dampedRight = dampingRight->ProcessSample(diffusedRight, 7000.0f);
 
-    // 4) Recirculation
+    // 5) Recirculation
+
+    // Compensate feedback so RT60 stays constant as chain length shrinks.
+    //const float scaledFeedback = std::pow(feedbackGain, 1.0f / std::max(0.01f, timeScale));
+    //const float clampedFeedback = juce::jlimit(0.0f, 0.97f, scaledFeedback);
+
     lastFeedbackL = dampedLeft * feedbackGain;
     lastFeedbackR = dampedRight * feedbackGain;
 

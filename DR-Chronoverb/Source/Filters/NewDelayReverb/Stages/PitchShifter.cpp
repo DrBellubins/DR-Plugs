@@ -5,9 +5,10 @@ PitchShifter::PitchShifter()
     reverb = std::make_unique<Reverb>();
 }
 
-void PitchShifter::PrepareToPlay(double newSampleRate)
+void PitchShifter::PrepareToPlay(double newSampleRate, Filters& filters)
 {
     sampleRate = newSampleRate;
+    filtersInput = &filters;
 
     // Delay time
     delayTimeSegment.PrepareToPlay(sampleRate);
@@ -26,7 +27,7 @@ void PitchShifter::PrepareToPlay(double newSampleRate)
     pitchShifterRight.CommitPendingSequenceNow();
 
     // Reverb line
-    reverb->PrepareToPlay(sampleRate);
+    reverb->PrepareToPlay(sampleRate, *filtersInput);
 
     // Various
     smoothedCenteredReadDelayMilliseconds = delayTimeSegment.DelayTimeMilliseconds;

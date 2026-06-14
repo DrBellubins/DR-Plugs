@@ -2,6 +2,7 @@
 
 #include <vector>
 
+#include "Filters.h"
 #include "../DelayTimeSegment.h"
 #include "../DiffusionChain.h"
 #include "../DampingFilter.h"
@@ -16,7 +17,7 @@ public:
         29.0, 37.0, 43.0, 53.0, 71.0, 89.0, 113.0, 149.0
     };
 
-    void PrepareToPlay(double newSampleRate);
+    void PrepareToPlay(double newSampleRate, Filters& filters);
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
 
     std::pair<float, float> ProcessSample(float inputSampleL, float inputSampleR);
@@ -30,6 +31,8 @@ public:
     void SetDiffusionAmount(float newDiffusionAmount);
     void SetDiffusionSize(float newDiffusionSize);
     void SetDiffusionQuality(int newDiffusionQuality);
+
+    void SetFiltersOrder(int newOrder);
 
 private:
     void rebuildDiffusionIfNeeded();
@@ -61,6 +64,8 @@ private:
     float diffusionSize = 0.0f;
     int diffusionQualityStages = 8;
 
+    int filtersOrder = 0;
+
     // Data
     DelayTimeSegment delayTimeSegment;
 
@@ -69,6 +74,8 @@ private:
 
     std::unique_ptr<DampingFilter> dampingLeft;
     std::unique_ptr<DampingFilter> dampingRight;
+
+    Filters* filtersInput = nullptr;
 
     std::atomic<bool> diffusionRebuildPending { false };
 };

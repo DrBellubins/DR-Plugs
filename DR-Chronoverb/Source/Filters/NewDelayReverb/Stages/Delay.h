@@ -4,12 +4,14 @@
 #include <memory>
 #include <vector>
 
+#include "Filters.h"
 #include "../DelayLine.h"
 #include "../DampingFilter.h"
 #include "../DiffusionChain.h"
 #include "../DelayTimeSegment.h"
 #include "../../ChronoverbUtils.h"
 
+// TODO: Delay time doesn't seem to affect the diffusion decay time
 // TODO: Use Lissajous Stereo Rotation instead of static tuning decorrelation.
 
 // Single-channel, handles all delay feedback, diffusion, damping, etc.
@@ -26,7 +28,7 @@ public:
         //5.0, 11.0, 17.0, 23.0, 47.0, 67.0, 71.0, 73.0     // Also bad.
     };
 
-    void PrepareToPlay(double newSampleRate);
+    void PrepareToPlay(double newSampleRate, Filters& filters);
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
 
     std::pair<float, float> ProcessSample(float inputSampleL, float inputSampleR);
@@ -40,6 +42,8 @@ public:
     void SetDiffusionAmount(float newDiffusionAmount);
     void SetDiffusionSize(float newDiffusionSize);
     void SetDiffusionQuality(int newDiffusionQuality);
+
+    void SetFiltersOrder(int newOrder);
 
     std::unique_ptr<DelayLine> InternalDelayLineLeft;
     std::unique_ptr<DelayLine> InternalDelayLineRight;
@@ -84,6 +88,8 @@ private:
     float diffusionSize = 0.0f;
     int diffusionQualityStages = 8;
 
+    int filtersOrder = 0;
+
     //float lowpassCutoff = 0.0f;
     //float highpassCutoff = 0.0f;
 
@@ -98,6 +104,8 @@ private:
 
     std::unique_ptr<DampingFilter> dampingLeft;
     std::unique_ptr<DampingFilter> dampingRight;
+
+    Filters* filtersInput = nullptr;
 
     std::atomic<bool> diffusionRebuildPending { false };
 };

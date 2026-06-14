@@ -16,13 +16,13 @@ void Chronoverb::PrepareToPlay(double newSampleRate)
 {
     sampleRate = newSampleRate;
 
-    DelayLeftRight->PrepareToPlay(sampleRate);
-    ReverbLeftRight->PrepareToPlay(sampleRate);
+    DelayLeftRight->PrepareToPlay(sampleRate, *FilterLeftRight);
+    ReverbLeftRight->PrepareToPlay(sampleRate, *FilterLeftRight);
 
     PitchShifterLeftRight->SetDelayLines(*DelayLeftRight->InternalDelayLineLeft,
         *DelayLeftRight->InternalDelayLineRight);
 
-    PitchShifterLeftRight->PrepareToPlay(sampleRate);
+    PitchShifterLeftRight->PrepareToPlay(sampleRate, *FilterLeftRight);
     DistortionLeftRight->PrepareToPlay(static_cast<float>(sampleRate));
     StereoLeftRight->PrepareToPlay(sampleRate);
     DuckingLeftRight->PrepareToPlay(sampleRate);
