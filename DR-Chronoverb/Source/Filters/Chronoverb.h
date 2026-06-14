@@ -21,7 +21,7 @@ public:
     Chronoverb();
 
     void PrepareToPlay(double sampleRate);
-    void ProcessBlock(juce::AudioBuffer<float>& audioBuffer) const;
+    void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
 
     std::unique_ptr<Delay> DelayLeftRight;
     std::unique_ptr<Reverb> ReverbLeftRight;
@@ -68,14 +68,14 @@ public:
     void SetFiltersOrder(int newOrder);                 // 0 = off, 1 = pre, 2 = post
     void SetLowPassCutoff(float newLowpass);            // 500..9000 Hz
     void SetHighPassCutoff(float newHighpass);          // 10..2000 Hz
-
-    //void SetHPLPPrePost(float prePost01);             // 0 = Pre, 1 = Post
     //endregion
 
 private:
 
     double sampleRate = 48000.0;
     float hostTempoBpm = 120.0f;
+
+    juce::AudioBuffer<float> drySnapshot;
 
     //float delayTimeNormalized = 0.3f;
     float delayMilliseconds = 300.0f;
@@ -99,7 +99,6 @@ private:
     float highpassCutoff = 0.0f;
     float stereoSpread = 0.0f; // -1 - 1 range
     int filtersOrder = 0;
-    //float hplpPrePost01 = 1.0f;
 
     float pitchRangeLower = -12.0f;
     float pitchRangeUpper = 12.0f;

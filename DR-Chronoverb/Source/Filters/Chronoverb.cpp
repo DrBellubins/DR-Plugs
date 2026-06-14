@@ -16,6 +16,10 @@ void Chronoverb::PrepareToPlay(double newSampleRate)
 {
     sampleRate = newSampleRate;
 
+    // Pre-allocate dry snapshot buffer — avoids heap allocation on the audio thread.
+    // 2 channels, 4096 samples covers all typical DAW block sizes.
+    drySnapshot.setSize(2, 4096, false, true, false);
+
     DelayLeftRight->PrepareToPlay(sampleRate, *FilterLeftRight);
     ReverbLeftRight->PrepareToPlay(sampleRate, *FilterLeftRight);
 
@@ -29,10 +33,17 @@ void Chronoverb::PrepareToPlay(double newSampleRate)
     FilterLeftRight->PrepareToPlay(sampleRate);
 }
 
-void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer) const
+void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 {
     const int numChannels = audioBuffer.getNumChannels();
     const int numSamples  = audioBuffer.getNumSamples();
+
+    // Snapshot dry input before any writes — prevents re-processing own output.
+    for (int ch = 0; ch < std::min(numChannels, 2); ++ch)
+        drySnapshot.copyFrom(ch, 0, audioBuffer, ch, 0, numSamples);
+
+    const float* drySnapL = drySnapshot.getReadPointer(0);
+    const float* drySnapR = drySnapshot.getReadPointer(numChannels > 1 ? 1 : 0);
 
     float* leftData  = audioBuffer.getWritePointer(0);
     float* rightData = (numChannels > 1 ? audioBuffer.getWritePointer(1) : nullptr);
@@ -44,11 +55,11 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer) const
 
     for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
     {
-        const float dryLeft = leftData[sampleIndex];
-        const float dryRight = (rightData != nullptr ? rightData[sampleIndex] : dryLeft);
+        const float dryLeft = drySnapL[sampleIndex];
+        const float dryRight = drySnapR[sampleIndex];
 
         // 0) Pre filters
-        // TODO: This doesn't sound any different from post filtering.
+        // TODO: (breaks if removed) Don't know why this is needed when it exists in delay/reverb
         float preFilteredLeft = dryLeft;
         float preFilteredRight = dryRight;
 
