@@ -26,7 +26,7 @@ void Chronoverb::PrepareToPlay(double newSampleRate)
     PitchShifterLeftRight->SetDelayLines(*DelayLeftRight->InternalDelayLineLeft,
         *DelayLeftRight->InternalDelayLineRight);
 
-    PitchShifterLeftRight->PrepareToPlay(sampleRate, *DelayLeftRight, *FilterLeftRight);
+    PitchShifterLeftRight->PrepareToPlay(sampleRate, *FilterLeftRight);
     DistortionLeftRight->PrepareToPlay(static_cast<float>(sampleRate));
     StereoLeftRight->PrepareToPlay(sampleRate);
     DuckingLeftRight->PrepareToPlay(sampleRate);
