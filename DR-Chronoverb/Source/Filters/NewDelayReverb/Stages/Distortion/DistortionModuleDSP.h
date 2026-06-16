@@ -77,6 +77,8 @@ public:
     }
 
     void SetEnabled(bool newEnabled) { enabled = newEnabled; }
+    bool GetEnabled() const { return enabled; }
+
     void SetType(int newType) { distortionType = newType;}
     void SetTarget(int newTarget){ distortionTarget = newTarget; }
 

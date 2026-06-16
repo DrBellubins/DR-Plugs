@@ -13,14 +13,44 @@ void Distortion::PrepareToPlay(float newSampleRate)
 std::tuple<float, float, float, float> Distortion::ProcessSample(float inputDryL, float inputDryR,
     float inputWetL, float inputWetR)
 {
-    auto [dry1L, dry1R, wet1L, wet1R] =
+    float dry1L = inputDryL, dry1R = inputDryR, wet1L = inputWetL, wet1R = inputWetR;
+
+    if (!distortionModule1.GetEnabled())
+    {
+        auto dist1 =
         distortionModule1.ProcessSample(inputDryL, inputDryR, inputWetL, inputWetR);
 
-    auto [dry2L, dry2R, wet2L, wet2R] =
-        distortionModule2.ProcessSample(dry1L, dry1R, wet1L, wet1R);
+        dry1L = std::get<0>(dist1);
+        dry1R = std::get<1>(dist1);
+        wet1L = std::get<2>(dist1);
+        wet1R = std::get<3>(dist1);
+    }
 
-    auto [dry3L, dry3R, wet3L, wet3R] =
-        distortionModule3.ProcessSample(dry2L, dry2R, wet2L, wet2R);
+    float dry2L = dry1L, dry2R = dry1R, wet2L = wet1L, wet2R = wet1R;
+
+    if (!distortionModule2.GetEnabled())
+    {
+        auto dist2 =
+            distortionModule2.ProcessSample(dry1L, dry1R, wet1L, wet1R);
+
+        dry2L = std::get<0>(dist2);
+        dry2R = std::get<1>(dist2);
+        wet2L = std::get<2>(dist2);
+        wet2R = std::get<3>(dist2);
+    }
+
+    float dry3L = dry2L, dry3R = dry2R, wet3L = wet2L, wet3R = wet2R;
+
+    if (!distortionModule3.GetEnabled())
+    {
+        auto dist3 =
+            distortionModule3.ProcessSample(dry1L, dry1R, wet1L, wet1R);
+
+        dry3L = std::get<0>(dist3);
+        dry3R = std::get<1>(dist3);
+        wet3L = std::get<2>(dist3);
+        wet3R = std::get<3>(dist3);
+    }
 
     return std::make_tuple(dry3L, dry3R, wet3L, wet3R);
 }
