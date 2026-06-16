@@ -47,7 +47,6 @@ public:
     void SetStereoSpread(float newSpreadMinus1To1);       // -1..1
 
     // Pitch
-    void SetPitchRate(float newPitchRate);
     void SetPitchRangeLower(float pitchRangeLowerSemitones);
     void SetPitchRangeUpper(float pitchRangeUpperSemitones);
     void SetPitchSequence(int sequenceIndex);                // 0=Up, 1=Down, 2=Random
@@ -101,7 +100,6 @@ private:
     float stereoSpread = 0.0f; // -1 - 1 range
     int filtersOrder = 0;
 
-    float pitchRateMs = 300.0f;
     float pitchRangeLower = -12.0f;
     float pitchRangeUpper = 12.0f;
     int pitchSequence = 0;
