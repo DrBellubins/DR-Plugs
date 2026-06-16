@@ -56,46 +56,15 @@ public:
         jitterDepthPercent.assign(effectiveStages, jitterPercent);
         jitterRateHz.assign(effectiveStages, jitterRate * random01());
 
+        // Cache jitter alpha
+        jitterAlpha.resize(effectiveStages);
+
+        for (int i = 0; i < effectiveStages; ++i)
+            jitterAlpha[i] = computeNoiseAlpha(jitterRateHz[i]);
+
         tpdfNoiseSeedA.assign(effectiveStages, static_cast<unsigned int>(rand()));
         tpdfNoiseSeedB.assign(effectiveStages, static_cast<unsigned int>(rand()));
     }
-
-    /*void ConfigureAsReverb(int numberOfStages, float size01, const std::vector<float>& reverbTunings)
-    {
-        cachedStageCount = std::max(1, numberOfStages);
-        cachedSize01 = std::max(0.0f, std::min(1.0f, size01));
-
-        stages.clear();
-        stages.reserve(static_cast<size_t>(cachedStageCount));
-        perStageDelayMs.clear();
-
-        const std::vector<float> finalDelays =
-            BuildQualityDistributedStageDelays(reverbTunings, cachedStageCount, cachedSize01);
-
-        baseStageDelayMsAtFullSize =
-            BuildQualityDistributedStageDelays(reverbTunings, cachedStageCount, 1.0f);
-
-        for (float stageDelayMilliseconds : finalDelays)
-        {
-            auto diffusionStage = std::make_unique<DiffusionAllpass>();
-            diffusionStage->Prepare(sampleRate);
-            diffusionStage->Configure(stageDelayMilliseconds, 0.7f);
-            stages.push_back(std::move(diffusionStage));
-            perStageDelayMs.push_back(stageDelayMilliseconds);
-        }
-
-        // Initialize the live scaled delay — starts equal to the configured delay.
-        currentScaledDelayMs = perStageDelayMs;
-
-        const int effectiveStages = static_cast<int>(perStageDelayMs.size());
-
-        jitterLPState.assign(effectiveStages, 0.0f);
-        jitterDepthPercent.assign(effectiveStages, 0.003f);
-        jitterRateHz.assign(effectiveStages, 0.10f + 0.20f * random01());
-
-        tpdfNoiseSeedA.assign(effectiveStages, static_cast<unsigned int>(rand()));
-        tpdfNoiseSeedB.assign(effectiveStages, static_cast<unsigned int>(rand()));
-    }*/
 
     float ProcessSample(float inputSample)
     {
@@ -112,10 +81,9 @@ public:
             const float liveBaseDelayMs = currentScaledDelayMs[stageIndex];
 
             const float tpdf  = generateTPDF(stageIndex);
-            const float alpha = computeNoiseAlpha(jitterRateHz[stageIndex]);
+            const float alpha = jitterAlpha[stageIndex];
 
-            jitterLPState[stageIndex] +=
-                alpha * (tpdf - jitterLPState[stageIndex]);
+            jitterLPState[stageIndex] += alpha * (tpdf - jitterLPState[stageIndex]);
 
             const float depthPercent = jitterDepthPercent[stageIndex];
             const float jitterMs     = liveBaseDelayMs * depthPercent * jitterLPState[stageIndex];
@@ -182,6 +150,9 @@ private:
     std::vector<float> jitterLPState;
     std::vector<float> jitterDepthPercent;
     std::vector<float> jitterRateHz;
+
+    std::vector<float> jitterAlpha;
+
     std::vector<unsigned int> tpdfNoiseSeedA;
     std::vector<unsigned int> tpdfNoiseSeedB;
 
