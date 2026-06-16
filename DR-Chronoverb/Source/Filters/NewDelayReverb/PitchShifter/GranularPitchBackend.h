@@ -38,7 +38,7 @@ public:
         SetGrainLengthMilliseconds(50.0f);
         SetJitterPercent(0.12f);
         SetLookbackMultiplier(4.0f);
-        SetBoundaryCrossfadeMilliseconds(4.0f);
+        //SetBoundaryCrossfadeMilliseconds(4.0f);
 
         Reset();
     }
@@ -50,23 +50,19 @@ public:
         std::fill(buffer.begin(), buffer.end(), 0.0f);
         writeIndex = 0;
 
-        stateA = {};
-        stateB = {};
+        grainState = {};
+        grainState.phaseA = 0.0f;
+        grainState.phaseB = 0.25f;
+        grainState.phaseC = 0.5f;
+        grainState.phaseD = 0.75f;
+        grainState.ratioA = 1.0f;
+        grainState.ratioB = 1.0f;
+        grainState.ratioC = 1.0f;
+        grainState.ratioD = 1.0f;
+        grainState.pendingRatio = 1.0f;
+        grainState.hasPending = false;
 
-        stateA.phaseA = 0.0f;
-        stateA.phaseB = 0.25f;
-        stateA.phaseC = 0.5f;
-        stateA.phaseD = 0.75f;
-        stateA.ratio  = 1.0f;
-        stateB = stateA;
-
-        anchorStateToWrite(stateA);
-        anchorStateToWrite(stateB);
-
-        crossfadeRemainingSamples = 0;
-        crossfadeTotalSamples = boundaryCrossfadeSamples;
-        activeIsA = true;
-        pendingFlipAfterFade = false;
+        anchorStateToWrite(grainState);
     }
 
     // ------------------------------------------------------------------
@@ -88,24 +84,19 @@ public:
     // ------------------------------------------------------------------
     void SetInitialRatio(float ratio) override
     {
-        stateA.ratio = ratio;
-        stateB.ratio = ratio;
+        grainState.ratioA = ratio;
+        grainState.ratioB = ratio;
+        grainState.ratioC = ratio;
+        grainState.ratioD = ratio;
+        grainState.pendingRatio = ratio;
+        grainState.hasPending = false;
 
-        stateA.phaseA = 0.0f;
-        stateA.phaseB = 0.25f;
-        stateA.phaseC = 0.5f;
-        stateA.phaseD = 0.75f;
-        stateB.phaseA = 0.0f;
-        stateB.phaseB = 0.25f;
-        stateB.phaseC = 0.5f;
-        stateB.phaseD = 0.75f;
+        grainState.phaseA = 0.0f;
+        grainState.phaseB = 0.25f;
+        grainState.phaseC = 0.5f;
+        grainState.phaseD = 0.75f;
 
-        anchorStateToWrite(stateA);
-        anchorStateToWrite(stateB);
-
-        crossfadeRemainingSamples = 0;
-        pendingFlipAfterFade = false;
-        activeIsA = true;
+        anchorStateToWrite(grainState);
     }
 
     // pitchRatio is intentionally unused — ratio is now managed via OnEchoBoundary.
@@ -114,36 +105,10 @@ public:
         if (buffer.empty())
             return inputSample;
 
-        buffer[static_cast<size_t>(writeIndex)] = inputSample;
+        buffer[static_cast<int>(writeIndex)] = inputSample;
         writeIndex = (writeIndex + 1) % static_cast<int>(buffer.size());
 
-        GrainState& active   = (activeIsA ? stateA : stateB);
-        GrainState& inactive = (activeIsA ? stateB : stateA);
-
-        const float outActive = processStateOneSample(active);
-
-        if (crossfadeRemainingSamples > 0)
-        {
-            const float outInactive = processStateOneSample(inactive);
-            const int done = crossfadeTotalSamples - crossfadeRemainingSamples;
-            const float t  = static_cast<float>(done)
-                           / static_cast<float>(std::max(1, crossfadeTotalSamples));
-
-            const float gOld = std::cos(t * juce::MathConstants<float>::halfPi);
-            const float gNew = std::sin(t * juce::MathConstants<float>::halfPi);
-
-            --crossfadeRemainingSamples;
-
-            if (crossfadeRemainingSamples == 0 && pendingFlipAfterFade)
-            {
-                activeIsA = !activeIsA;
-                pendingFlipAfterFade = false;
-            }
-
-            return outActive * gOld + outInactive * gNew;
-        }
-
-        return outActive;
+        return processStateOneSample(grainState);
     }
 
     void SetGrainLengthMilliseconds(float ms)
@@ -159,16 +124,14 @@ public:
 
     float GetLatencyMilliseconds() const override
     {
-        const GrainState& active = (activeIsA ? stateA : stateB);
+        const float averageRatio = (grainState.ratioA + grainState.ratioB
+                                  + grainState.ratioC + grainState.ratioD) * 0.25f;
+
         const float grainMs = static_cast<float>(grainLengthSamples) * 1000.0f
                               / static_cast<float>(sampleRate);
 
-        // Effective latency varies with ratio. At phase 0.5 (steady-state average
-        // across 4 interleaved heads), the read head has consumed:
-        //   0.5 * grainLength * (ratio - 1)
-        // samples of the lookback, reducing the effective age of the output.
         const float effectiveLatencyMs = grainMs
-            * (lookbackMultiplier + 0.5f * (1.0f - active.ratio));
+            * (lookbackMultiplier + 0.5f * (1.0f - averageRatio));
 
         return std::max(1.0f, effectiveLatencyMs);
     }

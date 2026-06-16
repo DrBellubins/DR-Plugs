@@ -7,7 +7,6 @@
 #include "../DelayLine.h"
 #include "../../../Utils/PMath.h"
 
-// TODO: Make pitch shifting trigger based on dry dB (should prevent mid-echo pitch shifts?)
 // TODO: Research potential envelope (AR) each echo window
 
 // TODO: Sounds very grainy at anything 24+
