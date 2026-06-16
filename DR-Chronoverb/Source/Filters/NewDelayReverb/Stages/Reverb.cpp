@@ -26,6 +26,9 @@ void Reverb::PrepareToPlay(double newSampleRate, Filters& filters)
     dampingLeft->Prepare(sampleRate);
     dampingRight->Prepare(sampleRate);
 
+    dampingLeft->SetCutoffHz(7000.0f);
+    dampingRight->SetCutoffHz(7000.0f);
+
     // Various
     lastBuiltQualityStages = -1;
     lastBuiltSize = -1.0f;
@@ -70,8 +73,8 @@ std::pair<float, float> Reverb::ProcessSample(float inputSampleL, float inputSam
     const float diffusedRight = diffusionRight->ProcessSample(inputFeedbackRight);
 
     // 4) Damping
-    const float dampedLeft = dampingLeft->ProcessSample(diffusedLeft, 7000.0f);
-    const float dampedRight = dampingRight->ProcessSample(diffusedRight, 7000.0f);
+    const float dampedLeft = dampingLeft->ProcessSample(diffusedLeft);
+    const float dampedRight = dampingRight->ProcessSample(diffusedRight);
 
     // 5) Recirculation
 

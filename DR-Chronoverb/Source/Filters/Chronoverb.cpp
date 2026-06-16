@@ -72,17 +72,32 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             preFilteredRight = filteredR;
         }
 
-        // 1) Delay
-        auto [delayLeft, delayRight] =
-            DelayLeftRight->ProcessSample(preFilteredLeft, preFilteredRight);
-
-        // 2) Reverb
-        auto [reverbLeft, reverbRight] =
-            ReverbLeftRight->ProcessSample(preFilteredLeft, preFilteredRight);
-
-        // 3) Blend delay -> reverb between diff amt 0.5 -> 1.0
         auto [delayGain, reverbGain] = GetDelayReverbGain(diffusionAmount);
 
+        // 1) Delay
+        float delayLeft = 0, delayRight = 0;
+
+        if (delayGain > 0.0001f)
+        {
+            auto delayPair =
+                DelayLeftRight->ProcessSample(preFilteredLeft, preFilteredRight);
+
+            delayLeft = delayPair.first;
+            delayRight = delayPair.second;
+        }
+
+        // 2) Reverb
+        float reverbLeft = 0, reverbRight = 0;
+
+        if (reverbGain > 0.0001f)
+        {
+            auto reverbPair = ReverbLeftRight->ProcessSample(preFilteredLeft, preFilteredRight);
+
+            reverbLeft = reverbPair.first;
+            reverbRight = reverbPair.second;
+        }
+
+        // 3) Blend delay -> reverb between diff amt 0.5 -> 1.0
         const float wetLeft = (delayLeft * delayGain) + (reverbLeft * reverbGain);
         const float wetRight = (delayRight * delayGain) + (reverbRight * reverbGain);
 

@@ -1,4 +1,5 @@
 ## Core
+- [ ] [CRITICAL] High cpu usage, even with pitch shifting disabled!
 - [ ] [CRITICAL] Delay/reverb has a ringing feedback
 - [ ] Implement ping-pong (L/R & Mid-Side modes)
 

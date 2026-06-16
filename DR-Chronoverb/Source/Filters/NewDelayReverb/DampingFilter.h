@@ -1,43 +1,53 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 
-// DampingFilter
-// One-pole lowpass for spectral decay in the feedback path.
-// input: wet sample (delayed)
-// control: lowpass01 (0..1) mapped to cutoff range externally
-//
-// Implementation uses simple one-pole accumulator form with alpha derived from cutoff.
-// We rely on external mapping to cutoff; here, we compute alpha from cutoff to give
-// reasonable smoothing.
 class DampingFilter
 {
 public:
-    static constexpr float kPiF = 3.14159265358979323846f;
-
-    DampingFilter()
-    {
-    }
-
     void Prepare(double newSampleRate)
     {
-        sampleRate = newSampleRate;
+        sampleRate = std::max(1.0, newSampleRate);
+        Reset();
+        UpdateCoefficient();
+    }
+
+    void Reset()
+    {
         z1 = 0.0f;
     }
 
-    float ProcessSample(float inputSample, float cutoffHz)
+    void SetCutoffHz(float newCutoffHz)
     {
-        // Map lowpass01 to cutoff; if you prefer alternative mapping, adjust in NewDelayReverb::updateFilters.
-        // Here, we keep it simple and derive alpha from an approximate RC filter coefficient.
-        const float x = std::exp(-2.0f * kPiF * cutoffHz / static_cast<float>(sampleRate));
-        const float alpha = 1.0f - x;
+        const float clamped = std::clamp(newCutoffHz, 20.0f, 20000.0f);
 
-        const float y = alpha * inputSample + (1.0f - alpha) * z1;
-        z1 = y;
-        return y;
+        if (std::abs(clamped - cutoffHz) < 0.001f)
+            return;
+
+        cutoffHz = clamped;
+        UpdateCoefficient();
+    }
+
+    float ProcessSample(float inputSample)
+    {
+        z1 = a0 * inputSample + b1 * z1;
+        return z1;
     }
 
 private:
+    void UpdateCoefficient()
+    {
+        constexpr float kPi = 3.14159265358979323846f;
+        const float x = std::exp(-2.0f * kPi * cutoffHz / static_cast<float>(sampleRate));
+        a0 = 1.0f - x;
+        b1 = x;
+    }
+
     double sampleRate = 48000.0;
+    float cutoffHz = 7000.0f;
+
+    float a0 = 0.0f;
+    float b1 = 0.0f;
     float z1 = 0.0f;
 };
