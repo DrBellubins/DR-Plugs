@@ -42,6 +42,12 @@ void Reverb::PrepareToPlay(double newSampleRate, Filters& filters)
 
 void Reverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 {
+    const float timeScale = juce::jlimit(0.1f,
+        3.0f, delayTimeSegment.DelayTimeMilliseconds / irLengthMs);
+
+    diffusionLeft->UpdateSize(diffusionSize * timeScale);
+    diffusionRight->UpdateSize(diffusionSize * timeScale);
+
     if (diffusionRebuildPending.exchange(false, std::memory_order_acq_rel))
         rebuildDiffusionIfNeeded();
 }
@@ -115,12 +121,6 @@ void Reverb::SetDiffusionAmount(float newDiffusionAmount)
 void Reverb::SetDiffusionSize(float newDiffusionSize)
 {
     diffusionSize = newDiffusionSize * tuningLengthMultiplier;
-
-    const float timeScale = juce::jlimit(0.1f,
-        3.0f, delayTimeSegment.DelayTimeMilliseconds / irLengthMs);
-
-    diffusionLeft->UpdateSize(diffusionSize * timeScale);
-    diffusionRight->UpdateSize(diffusionSize * timeScale);
 }
 
 void Reverb::SetDiffusionQuality(int newDiffusionQuality)
