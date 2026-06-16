@@ -10,15 +10,15 @@ class GranularPitchBackend : public IPitchShifterBackend
 
     struct GrainState
     {
-        ReadHead headA;
-        ReadHead headB;
-        ReadHead headC;
-        ReadHead headD;
-        float phaseA = 0.0f;
-        float phaseB = 0.25f;
-        float phaseC = 0.5f;
-        float phaseD = 0.75f;
-        float ratio  = 1.0f;
+        ReadHead headA, headB, headC, headD;
+        float phaseA = 0.0f, phaseB = 0.25f, phaseC = 0.5f, phaseD = 0.75f;
+
+        // Per-head target ratios — committed on next grain reset for each head
+        float ratioA = 1.0f, ratioB = 1.0f, ratioC = 1.0f, ratioD = 1.0f;
+
+        // The pending ratio waiting to be picked up at each head's next reset
+        float pendingRatio = 1.0f;
+        bool hasPending = false;
     };
 
 public:
@@ -75,31 +75,11 @@ public:
     // ------------------------------------------------------------------
     void OnEchoBoundary(float newRatio) override
     {
-        GrainState& active = (activeIsA ? stateA : stateB);
-        GrainState& inactive = (activeIsA ? stateB : stateA);
-
-        if (std::abs(newRatio - active.ratio) < 1.0e-6f)
+        if (std::abs(newRatio - grainState.ratioA) < 1.0e-6f)
             return;
 
-        inactive = active;
-        inactive.ratio = newRatio;
-
-        if (boundaryCrossfadeSamples <= 0)
-        {
-            // No crossfade configured — swap instantly.
-            // Grain phases and read heads are identical to the old state;
-            // only the advancement rate changes from here, which is smooth.
-            activeIsA = !activeIsA;
-            pendingFlipAfterFade = false;
-            crossfadeRemainingSamples = 0;
-            crossfadeTotalSamples = 0;
-        }
-        else
-        {
-            crossfadeTotalSamples = boundaryCrossfadeSamples;
-            crossfadeRemainingSamples = crossfadeTotalSamples;
-            pendingFlipAfterFade = true;
-        }
+        grainState.pendingRatio = newRatio;
+        grainState.hasPending = true;
     }
 
     // ------------------------------------------------------------------
@@ -177,14 +157,6 @@ public:
     void SetJitterPercent(float percent) { jitterPercent = juce::jlimit(0.0f, 0.5f, percent); }
     void SetLookbackMultiplier(float multiplier){ lookbackMultiplier = juce::jlimit(2.0f, 6.0f, multiplier); }
 
-    void SetBoundaryCrossfadeMilliseconds(float ms)
-    {
-        const float clamped = juce::jlimit(0.0f, 30.0f, ms);
-
-        boundaryCrossfadeSamples = std::max(0, static_cast<int>(
-            std::round((clamped * sampleRate) / 1000.0)));
-    }
-
     float GetLatencyMilliseconds() const override
     {
         const GrainState& active = (activeIsA ? stateA : stateB);
@@ -202,52 +174,78 @@ public:
     }
 
 private:
-    float processStateOneSample(GrainState& grainState)
+    float processStateOneSample(GrainState& newGrainState)
     {
-        const float sampleA = readCubic(grainState.headA.readIndex);
-        const float sampleB = readCubic(grainState.headB.readIndex);
-        const float sampleC = readCubic(grainState.headC.readIndex);
-        const float sampleD = readCubic(grainState.headD.readIndex);
+        const float sampleA = readCubic(newGrainState.headA.readIndex);
+        const float sampleB = readCubic(newGrainState.headB.readIndex);
+        const float sampleC = readCubic(newGrainState.headC.readIndex);
+        const float sampleD = readCubic(newGrainState.headD.readIndex);
 
-        grainState.headA.readIndex = wrapReadIndex(grainState.headA.readIndex + grainState.ratio);
-        grainState.headB.readIndex = wrapReadIndex(grainState.headB.readIndex + grainState.ratio);
-        grainState.headC.readIndex = wrapReadIndex(grainState.headC.readIndex + grainState.ratio);
-        grainState.headD.readIndex = wrapReadIndex(grainState.headD.readIndex + grainState.ratio);
+        grainState.headA.readIndex = wrapReadIndex(grainState.headA.readIndex + grainState.ratioA);
+        grainState.headB.readIndex = wrapReadIndex(grainState.headB.readIndex + grainState.ratioB);
+        grainState.headC.readIndex = wrapReadIndex(grainState.headC.readIndex + grainState.ratioC);
+        grainState.headD.readIndex = wrapReadIndex(grainState.headD.readIndex + grainState.ratioD);
 
         const float phaseInc = 1.0f / static_cast<float>(grainLengthSamples);
 
-        grainState.phaseA += phaseInc;
-        if (grainState.phaseA >= 1.0f)
+        newGrainState.phaseA += phaseInc;
+        if (newGrainState.phaseA >= 1.0f)
         {
             grainState.phaseA -= 1.0f;
+
+            if (grainState.hasPending)
+                grainState.ratioA = grainState.pendingRatio;
+
             anchorHeadToWrite(grainState.headA, generateJitterSamples());
         }
 
-        grainState.phaseB += phaseInc;
-        if (grainState.phaseB >= 1.0f)
+        newGrainState.phaseB += phaseInc;
+        if (newGrainState.phaseB >= 1.0f)
         {
             grainState.phaseB -= 1.0f;
+
+            if (grainState.hasPending)
+                grainState.ratioB = grainState.pendingRatio;
+
             anchorHeadToWrite(grainState.headB, generateJitterSamples());
         }
 
-        grainState.phaseC += phaseInc;
-        if (grainState.phaseC >= 1.0f)
+        newGrainState.phaseC += phaseInc;
+        if (newGrainState.phaseC >= 1.0f)
         {
             grainState.phaseC -= 1.0f;
+
+            if (grainState.hasPending)
+                grainState.ratioC = grainState.pendingRatio;
+
             anchorHeadToWrite(grainState.headC, generateJitterSamples());
         }
 
-        grainState.phaseD += phaseInc;
-        if (grainState.phaseD >= 1.0f)
+        newGrainState.phaseD += phaseInc;
+        if (newGrainState.phaseD >= 1.0f)
         {
             grainState.phaseD -= 1.0f;
+
+            if (grainState.hasPending)
+                grainState.ratioD = grainState.pendingRatio;
+
             anchorHeadToWrite(grainState.headD, generateJitterSamples());
         }
 
-        const float wA = hannWindow(grainState.phaseA);
-        const float wB = hannWindow(grainState.phaseB);
-        const float wC = hannWindow(grainState.phaseC);
-        const float wD = hannWindow(grainState.phaseD);
+        // Clear hasPending once all four heads have committed:
+        if (grainState.hasPending
+            && grainState.ratioA == grainState.pendingRatio
+            && grainState.ratioB == grainState.pendingRatio
+            && grainState.ratioC == grainState.pendingRatio
+            && grainState.ratioD == grainState.pendingRatio)
+        {
+            grainState.hasPending = false;
+        }
+
+        const float wA = hannWindow(newGrainState.phaseA);
+        const float wB = hannWindow(newGrainState.phaseB);
+        const float wC = hannWindow(newGrainState.phaseC);
+        const float wD = hannWindow(newGrainState.phaseD);
 
         // Divide by 2 to compensate: 4 sqrt-Hann heads summing to ~2.0 at any point.
         return (sampleA * wA + sampleB * wB + sampleC * wC + sampleD * wD) * 0.5f;
@@ -345,12 +343,14 @@ private:
     float jitterPercent = 0.12f;
     float lookbackMultiplier = 3.0f;
 
-    GrainState stateA;
-    GrainState stateB;
-    bool activeIsA = true;
+    //GrainState stateA;
+    //GrainState stateB;
+    //bool activeIsA = true;
 
-    int boundaryCrossfadeSamples = 0;
-    int crossfadeTotalSamples = 0;
-    int crossfadeRemainingSamples = 0;
-    bool pendingFlipAfterFade = false;
+    GrainState grainState;
+
+    //int boundaryCrossfadeSamples = 0;
+    //int crossfadeTotalSamples = 0;
+    //int crossfadeRemainingSamples = 0;
+    //bool pendingFlipAfterFade = false;
 };
