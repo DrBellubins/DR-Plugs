@@ -5,9 +5,11 @@ PitchShifter::PitchShifter()
     delay = std::make_unique<Delay>();
 }
 
-void PitchShifter::PrepareToPlay(double newSampleRate, Filters& filters)
+void PitchShifter::PrepareToPlay(double newSampleRate, Delay& newDelay, Filters& filters)
 {
     sampleRate = newSampleRate;
+
+    mainDelay = &newDelay;
     filtersInput = &filters;
 
     // Delay time
@@ -26,7 +28,7 @@ void PitchShifter::PrepareToPlay(double newSampleRate, Filters& filters)
     pitchShifterLeft.CommitPendingSequenceNow();
     pitchShifterRight.CommitPendingSequenceNow();
 
-    // Reverb line
+    // Delay line
     delay->PrepareToPlay(sampleRate, *filtersInput);
 
     // Various
@@ -56,10 +58,7 @@ std::pair<float, float> PitchShifter::ProcessSample(float inputSampleL, float in
         return std::make_pair(inputSampleL, inputSampleR);
 
     // 1) Pre-read latency compensation.
-    smoothedCenteredReadDelayMilliseconds += readDelaySlewCoefficient *
-            (delayTimeSegment.DelayTimeMilliseconds - smoothedCenteredReadDelayMilliseconds);
-
-    const float nominalReadMilliseconds = smoothedCenteredReadDelayMilliseconds;
+    const float nominalReadMilliseconds = mainDelay->GetSmoothedReadDelayMs();
     const float preReadMs = std::max(1.0f, nominalReadMilliseconds - pitchShifterLatencyMs);
 
     const float preReadWetLeft = delayLineLeft->ReadFeedbackBuffer(preReadMs);

@@ -17,7 +17,7 @@ class PitchShifter
 public:
     PitchShifter();
 
-    void PrepareToPlay(double newSampleRate, Filters& filters);
+    void PrepareToPlay(double newSampleRate, Delay& newDelay, Filters& filters);
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
 
     std::pair<float, float> ProcessSample(float inputSampleL, float inputSampleR);
@@ -101,6 +101,7 @@ private:
 
     std::unique_ptr<Delay> delay;
 
+    Delay* mainDelay = nullptr; // Only used for SmoothedDelayTime
     Filters* filtersInput = nullptr;
 
     std::atomic<bool> pitchSequenceRebuildPending { false };

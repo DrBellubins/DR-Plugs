@@ -45,6 +45,9 @@ public:
 
     void SetFiltersOrder(int newOrder);
 
+    // Utils
+    float GetSmoothedReadDelayMs() const { return smoothedCenteredReadDelayMilliseconds; }
+
     std::unique_ptr<DelayLine> InternalDelayLineLeft;
     std::unique_ptr<DelayLine> InternalDelayLineRight;
 
