@@ -1,10 +1,10 @@
 ## Core
 - [ ] [CRITICAL] Delay/reverb has a ringing feedback
-- [x] Implement pre/post lowpass/highpass filters
 - [ ] Implement ping-pong (L/R & Mid-Side modes)
 
 ## Stereo
-- [ ] Implement proper haas filter
+- [ ] Changing stereo > 0.5 crackles
+- [x] Implement proper haas filter
 
 ## UI
 - [x] Implement vertical SegmentedButton (for pre/post filters & ping-pong)
