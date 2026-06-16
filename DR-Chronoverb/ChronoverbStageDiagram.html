@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chronoverb Signal Diagram</title>
+    <style>
+        :root
+        {
+            --bg: #0f1117;
+            --panel: #171a22;
+            --panel2: #1f2430;
+            --panel3: #262d3d;
+            --text: #e8ecf3;
+            --muted: #aab4c5;
+            --accent: #7cc7ff;
+            --accent2: #9dffb0;
+            --accent3: #ffce73;
+            --accent4: #ff8fa3;
+            --accent5: #c6a0ff;
+            --border: #364055;
+            --line: #4a5775;
+            --danger: #ff6b6b;
+            --shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+        }
+
+        *
+        {
+            box-sizing: border-box;
+        }
+
+        body
+        {
+            margin: 0;
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: linear-gradient(180deg, #0d1016 0%, #10141d 100%);
+            color: var(--text);
+        }
+
+        .page
+        {
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 32px 24px 64px;
+        }
+
+        h1, h2, h3, h4
+        {
+            margin-top: 0;
+        }
+
+        h1
+        {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        h2
+        {
+            margin-top: 36px;
+            font-size: 1.4rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
+        }
+
+        h3
+        {
+            font-size: 1.05rem;
+            margin-bottom: 10px;
+        }
+
+        p, li
+        {
+            color: var(--muted);
+            line-height: 1.55;
+        }
+
+        .hero
+        {
+            background: linear-gradient(180deg, rgba(124,199,255,0.12), rgba(198,160,255,0.08));
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 24px;
+            box-shadow: var(--shadow);
+        }
+
+        .hero p
+        {
+            max-width: 1200px;
+        }
+
+        .legend
+        {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .chip
+        {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            padding: 8px 12px;
+            border-radius: 999px;
+            color: var(--text);
+            font-size: 0.92rem;
+        }
+
+        .dot
+        {
+            width: 12px;
+            height: 12px;
+            border-radius: 999px;
+            display: inline-block;
+        }
+
+        .dot.input { background: var(--accent); }
+        .dot.core { background: var(--accent2); }
+        .dot.mod  { background: var(--accent3); }
+        .dot.mix  { background: var(--accent4); }
+        .dot.note { background: var(--accent5); }
+
+        .diagram
+        {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .row
+        {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 12px;
+            align-items: stretch;
+        }
+
+        .box
+        {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 14px;
+            box-shadow: var(--shadow);
+            min-height: 100px;
+            position: relative;
+        }
+
+        .box.core { background: linear-gradient(180deg, rgba(157,255,176,0.10), rgba(23,26,34,1)); }
+        .box.input { background: linear-gradient(180deg, rgba(124,199,255,0.10), rgba(23,26,34,1)); }
+        .box.mod { background: linear-gradient(180deg, rgba(255,206,115,0.10), rgba(23,26,34,1)); }
+        .box.mix { background: linear-gradient(180deg, rgba(255,143,163,0.10), rgba(23,26,34,1)); }
+        .box.note { background: linear-gradient(180deg, rgba(198,160,255,0.10), rgba(23,26,34,1)); }
+
+        .span-1  { grid-column: span 1; }
+        .span-2  { grid-column: span 2; }
+        .span-3  { grid-column: span 3; }
+        .span-4  { grid-column: span 4; }
+        .span-5  { grid-column: span 5; }
+        .span-6  { grid-column: span 6; }
+        .span-7  { grid-column: span 7; }
+        .span-8  { grid-column: span 8; }
+        .span-9  { grid-column: span 9; }
+        .span-10 { grid-column: span 10; }
+        .span-11 { grid-column: span 11; }
+        .span-12 { grid-column: span 12; }
+
+        .label
+        {
+            display: inline-block;
+            font-size: 0.78rem;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 4px 8px;
+            margin-bottom: 8px;
+            background: rgba(255,255,255,0.03);
+        }
+
+        .title
+        {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .mini
+        {
+            font-size: 0.9rem;
+            color: var(--muted);
+        }
+
+        .arrow
+        {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--line);
+            font-size: 1.6rem;
+            min-height: 100px;
+        }
+
+        .subgrid
+        {
+            display: grid;
+            gap: 10px;
+        }
+
+        .subgrid.two
+        {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .subgrid.three
+        {
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+
+        .callout
+        {
+            margin-top: 10px;
+            padding: 10px 12px;
+            border-left: 3px solid var(--accent3);
+            background: rgba(255,255,255,0.03);
+            border-radius: 8px;
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
+        .mono
+        {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 0.9rem;
+            color: #d7e3ff;
+        }
+
+        .stage-list
+        {
+            margin: 0;
+            padding-left: 18px;
+        }
+
+        .section-note
+        {
+            margin: 16px 0 0;
+            padding: 14px 16px;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: rgba(255,255,255,0.03);
+        }
+
+        .flowline
+        {
+            margin: 8px 0;
+            padding: 12px 14px;
+            background: var(--panel2);
+            border: 1px dashed var(--border);
+            border-radius: 12px;
+            color: var(--text);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+
+        .footer
+        {
+            margin-top: 28px;
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
+        @media (max-width: 1100px)
+        {
+            .row
+            {
+                grid-template-columns: 1fr;
+            }
+
+            .span-1, .span-2, .span-3, .span-4, .span-5, .span-6,
+            .span-7, .span-8, .span-9, .span-10, .span-11, .span-12
+            {
+                grid-column: span 1;
+            }
+
+            .arrow
+            {
+                min-height: 40px;
+                transform: rotate(90deg);
+            }
+
+            .subgrid.two,
+            .subgrid.three
+            {
+                grid-template-columns: 1fr;
+            }
+
+            .flowline
+            {
+                white-space: normal;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+    <section class="hero">
+        <h1>Chronoverb Signal Diagram</h1>
+        <p>
+            This page documents the signal flow of the current Chronoverb codebase as attached in the conversation.
+            It is based specifically on the current implementation in <span class="mono">Chronoverb::ProcessBlock()</span>,
+            the Delay/Reverb stage internals, and the parameter propagation paths from
+            <span class="mono">PluginParameterRegistry</span> → <span class="mono">Chronoverb</span> → individual DSP stages.
+        </p>
+        <p>
+            The diagram reflects the architecture as it exists now, while also annotating places where your design
+            document clearly indicates intended behavior beyond the current implementation.
+        </p>
+
+        <div class="legend">
+            <div class="chip"><span class="dot input"></span> Input / source</div>
+            <div class="chip"><span class="dot core"></span> Core time-domain DSP</div>
+            <div class="chip"><span class="dot mod"></span> Modulation / shaping / utility DSP</div>
+            <div class="chip"><span class="dot mix"></span> Blend / gain / summing stage</div>
+            <div class="chip"><span class="dot note"></span> Notes / implementation details</div>
+        </div>
+    </section>
+
+    <h2>1. Top-Level Plugin Signal Flow</h2>
+    <div class="flowline">
+        Dry Input Snapshot → Delay Stage → Reverb Stage → Delay/Reverb Blend → Pitch Shifter → Distortion → Post Filter (optional) → Ducking → Dry/Wet Gain Sum → Stereo Stage → Output
+    </div>
+
+    <div class="diagram">
+        <div class="row">
+            <div class="box input span-3">
+                <div class="label">Input</div>
+                <div class="title">Incoming Audio Buffer</div>
+                <ul class="stage-list">
+                    <li>Host provides stereo buffer</li>
+                    <li>Dry signal copied into <span class="mono">drySnapshot</span></li>
+                    <li>Snapshot prevents re-processing already-written output</li>
+                </ul>
+            </div>
+
+            <div class="arrow span-1">→</div>
+
+            <div class="box core span-4">
+                <div class="label">Core</div>
+                <div class="title">Parallel Wet Generators</div>
+                <ul class="stage-list">
+                    <li><span class="mono">DelayLeftRight->ProcessSample()</span></li>
+                    <li><span class="mono">ReverbLeftRight->ProcessSample()</span></li>
+                    <li>Both use the same dry input per sample</li>
+                    <li>Delay and reverb are later blended by diffusion amount</li>
+                </ul>
+            </div>
+
+            <div class="arrow span-1">→</div>
+
+            <div class="box mix span-3">
+                <div class="label">Blend</div>
+                <div class="title">Delay/Reverb Crossfade</div>
+                <ul class="stage-list">
+                    <li>Uses <span class="mono">GetDelayReverbGain(diffusionAmount)</span></li>
+                    <li>At lower diffusion: delay dominates</li>
+                    <li>At higher diffusion: reverb dominates</li>
+                    <li>Equal-power style blend</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="box mod span-3">
+                <div class="label">Pitch</div>
+                <div class="title">Pitch Shifter Stage</div>
+                <ul class="stage-list">
+                    <li>Processes blended wet signal</li>
+                    <li>Intended to quantize pitch changes to echo boundaries</li>
+                    <li>Design spec: never change pitch mid-echo</li>
+                    <li>Affects both delay and reverb contributions after their blend</li>
+                </ul>
+            </div>
+
+            <div class="arrow span-1">→</div>
+
+            <div class="box mod span-3">
+                <div class="label">Drive</div>
+                <div class="title">Distortion Stage</div>
+                <ul class="stage-list">
+                    <li>Receives dry + pitch-shifted wet</li>
+                    <li>Returns distorted dry and distorted wet independently</li>
+                    <li>Three serial distortion modules</li>
+                    <li>Each module can target dry/wet/both depending on module DSP</li>
+                </ul>
+            </div>
+
+            <div class="arrow span-1">→</div>
+
+            <div class="box mod span-4">
+                <div class="label">Filter / Dynamics</div>
+                <div class="title">Post Wet Conditioning</div>
+                <ul class="stage-list">
+                    <li>Optional post HP/LP filter if <span class="mono">filtersOrder == 2</span></li>
+                    <li>Ducking uses dry input as detector</li>
+                    <li>Ducking attenuates wet only</li>
+                    <li>Distorted dry path is intentionally not ducked</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="box mix span-4">
+                <div class="label">Mix</div>
+                <div class="title">Dry/Wet Gain Sum</div>
+                <ul class="stage-list">
+                    <li><span class="mono">distortionDry * dryVolume</span></li>
+                    <li><span class="mono">duckedWet * wetVolume</span></li>
+                    <li>Independent dry and wet level controls</li>
+                    <li>No single crossfade mix knob</li>
+                </ul>
+            </div>
+
+            <div class="arrow span-1">→</div>
+
+            <div class="box mod span-3">
+                <div class="label">Stereo</div>
+                <div class="title">Stereo Spread Stage</div>
+                <ul class="stage-list">
+                    <li>Negative spread narrows toward mono</li>
+                    <li>Positive spread uses Haas-like delayed-mid widening</li>
+                    <li>Final stage before writing to output buffer</li>
+                </ul>
+            </div>
+
+            <div class="arrow span-1">→</div>
+
+            <div class="box input span-3">
+                <div class="label">Output</div>
+                <div class="title">Final Stereo Output</div>
+                <ul class="stage-list">
+                    <li>Written sample-by-sample to host buffer</li>
+                    <li>Later sanitized in plugin processor output pass</li>
+                    <li>NaN/Inf protection and clamping handled after Chronoverb</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-note">
+        <strong>Top-level ordering from current code:</strong>
+        <div class="flowline">
+            drySnapshot → pre-filter branch (optional, inside stage) → delay + reverb (parallel) → delay/reverb blend → pitch → distortion → optional post-filter → ducking → dry/wet gain sum → stereo
+        </div>
+    </div>
+
+    <h2>2. Chronoverb::ProcessBlock Detailed Execution Model</h2>
+    <div class="diagram">
+        <div class="row">
+            <div class="box note span-12">
+                <div class="label">Per-block / per-sample model</div>
+                <div class="title">Execution pattern</div>
+                <div class="subgrid two">
+                    <div>
+                        <h4>Per block</h4>
+                        <ul class="stage-list">
+                            <li>Dry input copied into <span class="mono">drySnapshot</span></li>
+                            <li><span class="mono">DelayLeftRight->ProcessBlock()</span></li>
+                            <li><span class="mono">ReverbLeftRight->ProcessBlock()</span></li>
+                            <li><span class="mono">PitchShifterLeftRight->ProcessBlock()</span></li>
+                            <li><span class="mono">FilterLeftRight->ProcessBlock()</span></li>
+                            <li>These allow deferred rebuilds / coefficient updates</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4>Per sample</h4>
+                        <ul class="stage-list">
+                            <li>Read dry sample from snapshot</li>
+                            <li>Optional pre-filter path for wet generators</li>
+                            <li>Delay sample generation</li>
+                            <li>Reverb sample generation</li>
+                            <li>Blend, pitch, distort, filter, duck, sum, stereo</li>
+                            <li>Write final L/R sample to output</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="callout">
+                    Important architectural note: the current code computes the wet path from the preserved dry snapshot,
+                    not from already processed output. That is the correct structure for keeping stage interactions intentional.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h2>3. Delay Stage Internal Signal Diagram</h2>
+    <div class="flowline">
+        Input + Feedback → Optional Pre-Filter → Write Diffusion → Write Blend (clean vs diffused) → Delay Line Write → Read Nominal Tap + Read Early Tap → Early Tap Diffusion → Read Blend → Damping → Feedback Recirculation + Wet Output
+    </div>
+
+    <div class="diagram">
+        <div class="row">
+            <div class="box input span-2">
+                <div class="label">Delay Input</div>
+                <div class="title">Dry L/R In</div>
+                <p class="mini">
+                    Receives the current per-sample dry input from Chronoverb.
+                </p>
+            </div>
+
+            <div class="arrow span-1">→</div>
+
+            <div class="box mix span-3">
+                <div class="label">Feedback Sum</div>
+                <div class="title">Input + Last Feedback</div>
+                <ul class="stage-list">
+                    <li><span class="mono">inputFeedback = input + lastFeedback</span></li>
+                    <li>Separate L/R feedback accumulators</li>
+                </ul>
+            </div>
+
+            <div class="arrow span-1">→</div>
+
+            <div class="box mod span-2">
+                <div class="label">Filter</div>
+                <div class="title">Optional Pre HP/LP</div>
+                <ul class="stage-list">
+                    <li>Only if <span class="mono">filtersOrder == 1</span></li>
+                    <li>Applies to feedback/input entering delay structure</li>
+                </ul>
+            </div>
+
+            <div class="arrow span-1">→</div>
+
+            <div class="box core span-2">
+                <div class="label">Diffuse</div>
+                <div class="title">Write Diffusion Chain</div>
+                <ul class="stage-list">
+                    <li>8-stage-capable allpass chain</li>
+                    <li>Diffuses the signal before delay-line write</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="box mix span-4">
+                <div class="label">Write Blend</div>
+                <div class="title">Clean Write vs Diffused Write</div>
+                <ul class="stage-list">
+                    <li>Controlled by lower half of <span class="mono">diffusionAmount</span></li>
+                    <li><span class="mono">writeBlend01 = clamp(diffusionAmount * 2)</span></li>
+                    <li>Uses cosine/sine equal-power-style blend</li>
+                    <li>At 0.0: mostly clean write</li>
+                    <li>At 0.5: fully diffused write</li>
+                </ul>
+            </div>
+
+            <div class="arrow span-1">→</div>
+
+            <div class="box core span-3">
+                <div class="label">Delay Memory</div>
+                <div class="title">Delay Line Write</div>
+                <ul class="stage-list">
+                    <li>Written into <span class="mono">InternalDelayLineLeft/Right</span></li>
+                    <li>Fractional read support</li>
+                    <li>Circular buffer structure</li>
+                </ul>
+            </div>
+
+            <div class="arrow span-1">→</div>
+
+            <div class="box core span-3">
+                <div class="label">Tap Read</div>
+                <div class="title">Nominal + Early Tap Reads</div>
+                <ul class="stage-list">
+                    <li>Nominal read at smoothed delay time</li>
+                    <li>Early read = nominal minus diffusion compensation</li>
+                    <li>Creates the “swell into tap” concept</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="box core span-3">
+                <div class="label">Diffuse</div>
+                <div class="title">Early Tap Read Diffusion</div>
+                <ul class="stage-list">
+                    <li>Early tap passes through second diffusion chain</li>
+                    <li>This is the “blur before nominal tap” path</li>
+                    <li>Central to your stated Deelay-like behavior</li>
+                </ul>
+            </div>
+
+            <div class="arrow span-1">→</div>
+
+            <div class="box mix span-4">
+                <div class="label">Read Blend</div>
+                <div class="title">Nominal Tap vs Diffused Early Tap</div>
+                <ul class="stage-list">
+                    <li>Again uses lower-half diffusion behavior</li>
+                    <li>Nominal tap fades out with a curved law</li>
+                    <li>Diffused early tap fades in with sine weighting</li>
+                    <li>Includes makeup gain for perceived fullness</li>
+                </ul>
+            </div>
+
+            <div class="arrow span-1">→</div>
+
+            <div class="box mod span-2">
+                <div class="label">Tone</div>
+                <div class="title">Damping Filter</div>
+                <ul class="stage-list">
+                    <li>Currently hardcoded around 7000 Hz in stage call</li>
+                    <li>Shapes repeats before recirculation/output</li>
+                </ul>
+            </div>
+
+            <div class="arrow span-1">→</div>
+
+            <div class="box mix span-1">
+                <div class="label">FB</div>
+                <div class="title">↺</div>
+                <p class="mini">Recirculate</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-note">
+        <strong>Why this delay design matters for your stated goals:</strong>
+        <ul class="stage-list">
+            <li>Your design doc says the delay diffusion must create a swell into the nominal tap and smear both before and after it.</li>
+            <li>The current implementation achieves that with <span class="mono">write diffusion</span> plus <span class="mono">early read diffusion</span>.</li>
+            <li>The nominal tap and diffused early tap are blended, not abruptly swapped.</li>
+            <li>This is consistent with your “clean tap disappears by 0.5 diffusion amount” requirement.</li>
+        </ul>
+    </div>
+
+    <h2>4. Delay Stage Parameter Influence Map</h2>
+    <div class="diagram">
+        <div class="row">
+            <div class="box note span-12">
+                <div class="label">Parameter map</div>
+                <div class="title">Delay stage controls</div>
+                <div class="subgrid three">
+                    <div>
+                        <h4>delayTime / delayMode / host tempo</h4>
+                        <ul class="stage-list">
+                            <li>Drive delayTimeSegment timing</li>
+                            <li>ms mode: free 1–1000 ms</li>
+                            <li>nrm / trip / dot modes: snapped musical values</li>
+                            <li>Read timing is smoothed for pitch-warp behavior</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4>diffusionAmount</h4>
+                        <ul class="stage-list">
+                            <li>Controls write clean/diffused blend</li>
+                            <li>Controls nominal/early-diffused read blend</li>
+                            <li>Lower half strongly shapes tap character</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4>diffusionSize / diffusionQuality</h4>
+                        <ul class="stage-list">
+                            <li>Set allpass chain delay scaling and stage count</li>
+                            <li>Size is updated continuously</li>
+                            <li>Quality rebuilds chains when changed</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h2>5. Reverb Stage Internal Signal Diagram</h2>
+    <div class="flowline">
+        Input + Feedback → Optional Pre-Filter → Reverb Diffusion Chain → Damping → Feedback Recirculation → Reverb Wet Output
+    </div>
+
+    <div class="diagram">
+        <div class="row">
+            <div class="box input span-2">
+                <div class="label">Reverb Input</div>
+                <div class="title">Dry L/R In</div>
+                <p class="mini">
+                    Receives the same dry per-sample input as the delay stage.
+                </p>
+            </div>
+
+            <div class="arrow span-1">→</div>
+
+            <div class="box mix span-3">
+                <div class="label">Feedback Sum</div>
+                <div class="title">Input + Last Feedback</div>
+                <ul class="stage-list">
+                    <li>Classic recirculating input</li>
+                    <li>Independent left/right feedback state</li>
+                </ul>
+            </div>
+
+            <div class="arrow span-1">→</div>
+
+            <div class="box mod span-2">
+                <div class="label">Filter</div>
+                <div class="title">Optional Pre HP/LP</div>
+                <ul class="stage-list">
+                    <li>Only if <span class="mono">filtersOrder == 1</span></li>
+                    <li>Conditions what enters the diffuse field</li>
+                </ul>
+            </div>
+
+            <div class="arrow span-1">→</div>
+
+            <div class="box core span-2">
+                <div class="label">Diffuse</div>
+                <div class="title">Reverb Diffusion Chain</div>
+                <ul class="stage-list">
+                    <li>Multi-stage allpass network</li>
+                    <li>Longer tunings than delay path</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="box mod span-3">
+                <div class="label">Tone</div>
+                <div class="title">Damping</div>
+                <ul class="stage-list">
+                    <li>Post-diffusion damping</li>
+                    <li>Shapes high-frequency decay</li>
+                    <li>Feeds both output and recirculation</li>
+                </ul>
+            </div>
+
+            <div class="arrow span-1">→</div>
+
+            <div class="box mix span-3">
+                <div class="label">Feedback</div>
+                <div class="title">Recirculation</div>
+                <ul class="stage-list">
+                    <li><span class="mono">lastFeedback = damped * feedbackGain</span></li>
+                    <li>Feedback gain derived from feedback time</li>
+                </ul>
+            </div>
+
+            <div class="arrow span-1">→</div>
+
+            <div class="box core span-4">
+                <div class="label">Wet Output</div>
+                <div class="title">Reverb Contribution</div>
+                <ul class="stage-list">
+                    <li>Returned separately from delay contribution</li>
+                    <li>Later blended by top-level diffusion amount logic</li>
+                    <li>Designed to dominate as diffusion approaches 1.0</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-note">
+        <strong>Delay vs Reverb distinction in your implementation:</strong>
+        <ul class="stage-list">
+            <li>The delay stage preserves a nominal tap identity with diffusion around it.</li>
+            <li>The reverb stage is a more fully diffuse recirculating field.</li>
+            <li>Top-level mixing transitions between these behaviors using <span class="mono">GetDelayReverbGain()</span>.</li>
+            <li>This matches your design requirement that the 0.5 → 1.0 region morphs from blurred echoes toward continuous reverb wash.</li>
+        </ul>
+    </div>
+
+    <h2>6. DiffusionChain Internal Model</h2>
+    <div class="flowline">
+        Sample In → Stage 1 Allpass → Stage 2 Allpass → ... → Stage N Allpass → Sample Out
+    </div>
+
+    <div class="diagram">
+        <div class="row">
+            <div class="box core span-8">
+                <div class="label">Allpass Network</div>
+                <div class="title">Per-stage behavior</div>
+                <ul class="stage-list">
+                    <li>Each stage is a diffusion allpass with configurable delay and gain</li>
+                    <li>Stage delays come from tuning tables interpolated by quality stage count</li>
+                    <li>Diffusion size scales the tuning lengths</li>
+                    <li>UpdateSize() slews the effective stage delays over time</li>
+                    <li>This intentional slew causes the pitch-warp effect when size changes</li>
+                </ul>
+            </div>
+
+            <div class="box note span-4">
+                <div class="label">Jitter</div>
+                <div class="title">Micro-modulation</div>
+                <ul class="stage-list">
+                    <li>TPDF noise per stage</li>
+                    <li>Low-pass filtered jitter state</li>
+                    <li>Jitter depth in percent of base stage delay</li>
+                    <li>Used to slightly animate the diffusion field</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="box note span-12">
+                <div class="label">Design alignment</div>
+                <div class="title">Why this is important relative to your design document</div>
+                <ul class="stage-list">
+                    <li>You explicitly require diffusion size smoothing that causes pitch warping; <span class="mono">UpdateSize()</span> is doing exactly that conceptually.</li>
+                    <li>You explicitly require quality changes that do not shorten tails in a naive way; your quality-based interpolation of tunings supports that direction.</li>
+                    <li>You explicitly require 8 carefully tuned allpass filters; current code supports up to 8 stages and uses tuning lists accordingly.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <h2>7. Pitch Shifter Placement and Conceptual Role</h2>
+    <div class="flowline">
+        [Delay/Reverb Blended Wet] → Pitch Shifter → Distortion
+    </div>
+
+    <div class="diagram">
+        <div class="row">
+            <div class="box mod span-4">
+                <div class="label">Placement</div>
+                <div class="title">Pitch operates after delay/reverb blend</div>
+                <ul class="stage-list">
+                    <li>Pitch does not process the untouched dry input directly in Chronoverb</li>
+                    <li>It processes the already-generated wet field</li>
+                    <li>This means both delay-like and reverb-like content are pitch-processed together</li>
+                </ul>
+            </div>
+
+            <div class="box note span-4">
+                <div class="label">Design intent</div>
+                <div class="title">Echo-boundary pitch changes</div>
+                <ul class="stage-list">
+                    <li>Your instructions require pitch to change only at echo boundaries</li>
+                    <li>Attached pitch code includes boundary-aware interfaces:
+                        <span class="mono">OnEchoBoundary()</span>,
+                        <span class="mono">SetInitialRatio()</span>
+                    </li>
+                    <li>This is aligned with your requirement not to retune mid-echo</li>
+                </ul>
+            </div>
+
+            <div class="box note span-4">
+                <div class="label">Sequence modes</div>
+                <div class="title">Implemented sequence building blocks</div>
+                <ul class="stage-list">
+                    <li>Progressive up/down style logic</li>
+                    <li>Ping-pong octave sequence</li>
+                    <li>Random octave sequence</li>
+                    <li>Granular backend prepared for quantized boundary changes</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <h2>8. Distortion Stage Internal Diagram</h2>
+    <div class="flowline">
+        [Dry In, Wet In] → Distortion Module 1 → Distortion Module 2 → Distortion Module 3 → [Dry Out, Wet Out]
+    </div>
+
+    <div class="diagram">
+        <div class="row">
+            <div class="box mod span-12">
+                <div class="label">Serial rack</div>
+                <div class="title">Three distortion module pipeline</div>
+                <div class="subgrid three">
+                    <div class="box mod">
+                        <div class="title">Module 1</div>
+                        <ul class="stage-list">
+                            <li>Enable/disable</li>
+                            <li>Drive</li>
+                            <li>Mix</li>
+                            <li>Type</li>
+                            <li>Target</li>
+                        </ul>
+                    </div>
+                    <div class="box mod">
+                        <div class="title">Module 2</div>
+                        <ul class="stage-list">
+                            <li>Processes output of module 1</li>
+                            <li>Same control structure</li>
+                            <li>Serial coloration stack</li>
+                        </ul>
+                    </div>
+                    <div class="box mod">
+                        <div class="title">Module 3</div>
+                        <ul class="stage-list">
+                            <li>Processes output of module 2</li>
+                            <li>Final dry/wet-distorted signals returned</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="callout">
+                    Current architecture is already compatible with your “multiple distortion algorithms,
+                    pre/post style targeting, and dry/wet/both targeting” concept, even if not every planned mode is fully realized yet.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h2>9. Filter Stage Placement</h2>
+    <div class="flowline">
+        filtersOrder = 0: disabled
+        | filtersOrder = 1: pre-filter inside delay/reverb input path
+        | filtersOrder = 2: post-filter after distortion wet path
+    </div>
+
+    <div class="diagram">
+        <div class="row">
+            <div class="box mod span-4">
+                <div class="label">Mode 0</div>
+                <div class="title">Off</div>
+                <p class="mini">
+                    No intentional filter insertion in the Chronoverb routing.
+                </p>
+            </div>
+
+            <div class="box mod span-4">
+                <div class="label">Mode 1</div>
+                <div class="title">Pre</div>
+                <p class="mini">
+                    High-pass then low-pass applied to input/feedback entering delay and reverb structures.
+                </p>
+            </div>
+
+            <div class="box mod span-4">
+                <div class="label">Mode 2</div>
+                <div class="title">Post</div>
+                <p class="mini">
+                    High-pass then low-pass applied after distortion, on wet path only, before ducking.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <h2>10. Ducking Stage</h2>
+    <div class="flowline">
+        Dry Input Detector → Envelope Follower → Duck Control = Envelope × Duck Amount → Wet Gain Reduction
+    </div>
+
+    <div class="diagram">
+        <div class="row">
+            <div class="box mod span-3">
+                <div class="label">Detector</div>
+                <div class="title">Dry-Signal Peak Detection</div>
+                <ul class="stage-list">
+                    <li>Uses max(abs(L), abs(R))</li>
+                    <li>Boosted internally for sensitivity</li>
+                </ul>
+            </div>
+
+            <div class="arrow span-1">→</div>
+
+            <div class="box mod span-3">
+                <div class="label">Envelope</div>
+                <div class="title">Attack / Release Smoothing</div>
+                <ul class="stage-list">
+                    <li>Fast-ish rise, slower fall based on parameters</li>
+                    <li>Realtime envelope follower</li>
+                </ul>
+            </div>
+
+            <div class="arrow span-1">→</div>
+
+            <div class="box mix span-4">
+                <div class="label">Gain Control</div>
+                <div class="title">Wet-Only Attenuation</div>
+                <ul class="stage-list">
+                    <li><span class="mono">wetGain = 1 - (detectorEnvelope * duckAmount)</span></li>
+                    <li>Dry signal remains unaffected</li>
+                    <li>Distorted dry path remains intact</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <h2>11. Stereo Stage</h2>
+    <div class="flowline">
+        If spread < 0: narrow toward mono
+        | If spread > 0: Haas-like widen by delaying derived mid into right side
+    </div>
+
+    <div class="diagram">
+        <div class="row">
+            <div class="box mod span-6">
+                <div class="label">Negative spread</div>
+                <div class="title">Stereo Narrowing</div>
+                <ul class="stage-list">
+                    <li>Crossfades both channels toward mono sum</li>
+                    <li>Useful for collapsing image</li>
+                </ul>
+            </div>
+
+            <div class="box mod span-6">
+                <div class="label">Positive spread</div>
+                <div class="title">Haas-style Widening</div>
+                <ul class="stage-list">
+                    <li>Builds mid = 0.5 * (L + R)</li>
+                    <li>Reads delayed mid from delay line</li>
+                    <li>Blends delayed mid into right channel</li>
+                    <li>Intended as widening stage, though code comment notes it needs improvement</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <h2>12. Parameter Propagation Architecture</h2>
+    <div class="flowline">
+        APVTS Parameter Change → PluginParameterRegistry → Chronoverb Setter → Stage Setter → Stage Internal State / Deferred Rebuild
+    </div>
+
+    <div class="diagram">
+        <div class="row">
+            <div class="box note span-3">
+                <div class="label">Source</div>
+                <div class="title">APVTS</div>
+                <ul class="stage-list">
+                    <li>Central parameter state storage</li>
+                    <li>Used by UI attachments and processor</li>
+                </ul>
+            </div>
+
+            <div class="arrow span-1">→</div>
+
+            <div class="box note span-3">
+                <div class="label">Dispatch</div>
+                <div class="title">PluginParameterRegistry</div>
+                <ul class="stage-list">
+                    <li>Maps parameter ID to apply function</li>
+                    <li>Applies state to Chronoverb</li>
+                </ul>
+            </div>
+
+            <div class="arrow span-1">→</div>
+
+            <div class="box note span-4">
+                <div class="label">Target</div>
+                <div class="title">Chronoverb + DSP stage setters</div>
+                <ul class="stage-list">
+                    <li>Chronoverb stores top-level state</li>
+                    <li>Then forwards to delay / reverb / pitch / stereo / ducking / filters / distortion</li>
+                    <li>Some updates are immediate, some mark rebuild flags for next block</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <h2>13. Design-Constrained Interpretation</h2>
+    <div class="diagram">
+        <div class="row">
+            <div class="box note span-12">
+                <div class="label">Important</div>
+                <div class="title">How the current implementation aligns with your ChronoverbInstructions</div>
+                <ul class="stage-list">
+                    <li><strong>Delay diffusion swell into the tap:</strong> supported by early-read diffusion plus blended nominal tap.</li>
+                    <li><strong>Blur before and after nominal tap:</strong> supported by write diffusion and read diffusion.</li>
+                    <li><strong>Diffusion size pitch-warp when changed:</strong> intentionally reflected by slewed allpass delay changes.</li>
+                    <li><strong>Beat-sync snapping with smoothed timing:</strong> reflected by delay mode UI + DelayTimeSegment timing logic.</li>
+                    <li><strong>Independent dry/wet volumes:</strong> explicitly implemented in top-level mix stage.</li>
+                    <li><strong>Pitch changes only at echo boundaries:</strong> present as an architectural rule in pitch backend interfaces.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <h2>14. Compact Single-Line Reference Diagram</h2>
+    <div class="flowline">
+        INPUT → drySnapshot → [Delay(input, feedback, optional pre-filter, write diffusion, delay line, early/nominal tap blend, damping)] || [Reverb(input, feedback, optional pre-filter, diffusion, damping)] → diffusion-based delay/reverb crossfade → Pitch → Distortion(3 modules) → optional post filter → Ducking(dry-keyed, wet-only) → Dry/Wet level sum → Stereo spread → OUTPUT
+    </div>
+
+    <div class="footer">
+        Generated from the attached DR-Chronoverb code context. This page intentionally reflects the current architecture rather than inventing a different one.
+    </div>
+</div>
+</body>
+</html>
