@@ -14,7 +14,7 @@ void Chronoverb::SetDelayTime(float newDelayTime)
 
     DelayLeftRight->SetDelayTime(delayMilliseconds);
     ReverbLeftRight->SetDelayTime(delayMilliseconds);
-    PitchShifterLeftRight->SetDelayTime(delayMilliseconds);
+    //PitchShifterLeftRight->SetDelayTime(delayMilliseconds);
     StereoLeftRight->SetDelayTime(delayMilliseconds);
 }
 
@@ -81,6 +81,12 @@ void Chronoverb::SetStereoSpread(float newSpreadMinus1To1)
 }
 
 // Pitch
+void Chronoverb::SetPitchRate(float newPitchRate)
+{
+    pitchRateMs = newPitchRate;
+    PitchShifterLeftRight->SetPitchRate(pitchRateMs);
+}
+
 void Chronoverb::SetPitchRangeLower(float pitchRangeLowerSemitones)
 {
     pitchRangeLower = juce::jlimit(-48.0f, 48.0f, pitchRangeLowerSemitones);

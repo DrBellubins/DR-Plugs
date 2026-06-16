@@ -26,7 +26,7 @@ public:
 
     void SetDelayLines(DelayLine& newDelayLineLeft, DelayLine& newDelayLineRight); // From Delay.cpp
 
-    void SetDelayTime(float newDelayTime);
+    //void SetDelayTime(float newDelayTime);
     void SetDelayMode(int newDelaymode);
     void SetFeebackTime(float newFeebackTime);
 
@@ -35,6 +35,7 @@ public:
     void SetDiffusionQuality(int newDiffusionQuality);
     void SetFiltersOrder(int newFiltersOrder);
 
+    void SetPitchRate(float newPitchRate);
     void SetPitchRangeLower(float pitchRangeLowerSemitones);
     void SetPitchRangeUpper(float pitchRangeUpperSemitones);
     void SetPitchSequence(int sequenceIndex);
@@ -70,8 +71,8 @@ private:
     float pitchShifterLatencyMs = 0.0f;
 
     // Parameters
-    float delayTimeNormalized = 0.3f;
-    float delayMilliseconds = 300.0f;
+    //float delayTimeNormalized = 0.3f;
+    //float delayMilliseconds = 300.0f;
 
     int delayMode = 0;
 
@@ -82,6 +83,7 @@ private:
     int diffusionQualityStages = 8;
     int filtersOrder = 0;
 
+    float pitchRateMs = 300.0f;
     float pitchRangeLower = -12.0f;
     float pitchRangeUpper = 12.0f;
     int pitchSequence = 0;

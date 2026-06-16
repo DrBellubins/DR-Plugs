@@ -124,13 +124,13 @@ void PitchShifter::SetHostTempo(float bpm)
     delay->SetHostTempo(hostBPM);
 }
 
-void PitchShifter::SetDelayTime(float newDelayTime)
+/*void PitchShifter::SetDelayTime(float newDelayTime)
 {
     delayTimeNormalized = newDelayTime;
     delayTimeSegment.SetDelayTime(newDelayTime);
 
     delay->SetDelayTime(delayTimeNormalized);
-}
+}*/
 
 void PitchShifter::SetDelayMode(int newDelayMode)
 {
@@ -167,6 +167,15 @@ void PitchShifter::SetFiltersOrder(int newFiltersOrder)
 {
     filtersOrder = newFiltersOrder;
     delay->SetFiltersOrder(filtersOrder);
+}
+
+void PitchShifter::SetPitchRate(float newPitchRate)
+{
+    pitchRateMs = newPitchRate;
+    delayTimeSegment.SetDelayTime(pitchRateMs);
+    delayTimeSegment.UpdateDelayMilliseconds();
+
+    delay->SetDelayTime(pitchRateMs);
 }
 
 void PitchShifter::SetPitchRangeLower(float pitchRangeLowerSemitones)
