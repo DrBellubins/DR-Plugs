@@ -126,6 +126,11 @@ void Reverb::SetDiffusionQuality(int newDiffusionQuality)
     diffusionRebuildPending.store(true, std::memory_order_release);
 }
 
+void Reverb::SetFiltersOrder(int newOrder)
+{
+    filtersOrder = newOrder;
+}
+
 //endregion
 
 //region Update Functions

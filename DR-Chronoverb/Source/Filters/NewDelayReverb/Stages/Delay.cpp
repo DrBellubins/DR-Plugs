@@ -225,10 +225,10 @@ void Delay::rebuildDiffusionIfNeeded()
 
     if (diffusionReadRight != nullptr)
     {
-        auto decorrelatedTunings = DecorrelateTunings(Tunings);
+        //auto decorrelatedTunings = DecorrelateTunings(Tunings);
 
         diffusionReadRight->Configure(diffusionQualityStages,
-            diffusionSize, 0.0f, 0.5f, decorrelatedTunings);
+            diffusionSize, 0.0f, 0.5f, Tunings);
     }
 
     // Write
@@ -264,17 +264,5 @@ void Delay::updateFeedbackGainFromFeedbackTime()
     const float curved = std::sqrt(normalized);
     feedbackGain = std::max(0.0f, std::min(0.85f * curved, 0.95f));
 }
-
-/*void Delay::updateFilters() const
-{
-    const float lpHz = map01ToRange(lowpassCutoff,  500.0f, 9000.0f);
-    const float hpHz = map01ToRange(highpassCutoff,  10.0f, 2000.0f);
-
-    auto lpCoeffs = juce::dsp::IIR::Coefficients<float>::makeLowPass(sampleRate,  lpHz);
-    auto hpCoeffs = juce::dsp::IIR::Coefficients<float>::makeHighPass(sampleRate, hpHz);
-
-    *lowpass.coefficients = *lpCoeffs;
-    *highpass.coefficients = *hpCoeffs;
-}*/
 
 // endregion

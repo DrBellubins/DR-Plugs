@@ -90,9 +90,6 @@ private:
 
     int filtersOrder = 0;
 
-    //float lowpassCutoff = 0.0f;
-    //float highpassCutoff = 0.0f;
-
     // Data
     DelayTimeSegment delayTimeSegment;
 

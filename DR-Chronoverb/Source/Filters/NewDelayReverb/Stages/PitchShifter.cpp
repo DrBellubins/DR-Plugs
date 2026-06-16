@@ -2,7 +2,7 @@
 
 PitchShifter::PitchShifter()
 {
-    reverb = std::make_unique<Reverb>();
+    delay = std::make_unique<Delay>();
 }
 
 void PitchShifter::PrepareToPlay(double newSampleRate, Filters& filters)
@@ -27,7 +27,7 @@ void PitchShifter::PrepareToPlay(double newSampleRate, Filters& filters)
     pitchShifterRight.CommitPendingSequenceNow();
 
     // Reverb line
-    reverb->PrepareToPlay(sampleRate, *filtersInput);
+    delay->PrepareToPlay(sampleRate, *filtersInput);
 
     // Various
     smoothedCenteredReadDelayMilliseconds = delayTimeSegment.DelayTimeMilliseconds;
@@ -42,7 +42,7 @@ void PitchShifter::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
     if (pitchSequenceRebuildPending.exchange(false, std::memory_order_acq_rel))
         rebuildPitchSequences();
 
-    reverb->ProcessBlock(audioBuffer);
+    delay->ProcessBlock(audioBuffer);
 
     pitchShifterLatencyMs = pitchShifterLeft.GetLatencyMilliseconds();
 
@@ -75,10 +75,23 @@ std::pair<float, float> PitchShifter::ProcessSample(float inputSampleL, float in
         pitchedRight = pitchShifterRight.ProcessSample(preReadWetRight);
 
         auto [diffPitchedLeft, diffPitchedRight] =
-            reverb->ProcessSample(pitchedLeft, pitchedRight);
+            delay->ProcessSample(pitchedLeft, pitchedRight);
 
-        pitchedLeft = PMath::EqualPowerCrossfade(pitchedLeft, diffPitchedLeft, diffusionAmount);
-        pitchedRight = PMath::EqualPowerCrossfade(pitchedRight, diffPitchedRight, diffusionAmount);
+        // Blend clean and diffused  diffusion amount to 0 -> 0.5
+        const float lowerHalf01 = juce::jlimit(0.0f, 1.0f, diffusionAmount * 2.0f);
+
+        const float cleanGain = std::pow(1.0f - lowerHalf01, 3.0f);
+        const float diffusedGain = std::sin(lowerHalf01 * juce::MathConstants<float>::halfPi) * 0.75f;
+
+        const float makeupGain =
+            1.0f + (0.12f * std::sin(lowerHalf01 * juce::MathConstants<float>::pi));
+
+        // Blend
+        pitchedLeft =
+            ((pitchedLeft * cleanGain) + (diffPitchedLeft * diffusedGain)) * makeupGain;
+
+        pitchedRight =
+            ((pitchedRight * cleanGain) + (diffPitchedRight * diffusedGain)) * makeupGain;
     }
 
     // 3) Advance echo boundary counters (needed regardless of pitch enable state)
@@ -108,51 +121,52 @@ void PitchShifter::SetHostTempo(float bpm)
     delayTimeSegment.SetHostTempo(hostBPM);
     delayTimeSegment.UpdateDelayMilliseconds();
 
-    reverb->SetHostTempo(hostBPM);
+    delay->SetHostTempo(hostBPM);
 }
 
 void PitchShifter::SetDelayTime(float newDelayTime)
 {
     delayTimeNormalized = newDelayTime;
-
     delayTimeSegment.SetDelayTime(newDelayTime);
 
-    reverb->SetDelayTime(delayTimeNormalized);
+    delay->SetDelayTime(delayTimeNormalized);
 }
 
 void PitchShifter::SetDelayMode(int newDelayMode)
 {
     delayMode = newDelayMode;
-
     delayTimeSegment.SetDelayMode(newDelayMode);
 
-    reverb->SetDelayMode(delayMode);
+    delay->SetDelayMode(delayMode);
 }
 
 void PitchShifter::SetFeebackTime(float newFeedbackTime)
 {
-    reverb->SetFeedbackTime(newFeedbackTime);
+    delay->SetFeedbackTime(newFeedbackTime);
 }
 
 void PitchShifter::SetDiffusionAmount(float newDiffusionAmount)
 {
     diffusionAmount = newDiffusionAmount;
-
-    reverb->SetDiffusionAmount(diffusionAmount);
+    delay->SetDiffusionAmount(diffusionAmount);
 }
 
 void PitchShifter::SetDiffusionSize(float newDiffusionSize)
 {
     diffusionSize = newDiffusionSize;
-
-    reverb->SetDiffusionSize(diffusionSize);
+    delay->SetDiffusionSize(diffusionSize);
 }
 
 void PitchShifter::SetDiffusionQuality(int newDiffusionQuality)
 {
     diffusionQualityStages = newDiffusionQuality;
+    delay->SetDiffusionQuality(diffusionQualityStages);
+}
 
-    reverb->SetDiffusionQuality(diffusionQualityStages);
+void PitchShifter::SetFiltersOrder(int newFiltersOrder)
+{
+    filtersOrder = newFiltersOrder;
+    delay->SetFiltersOrder(filtersOrder);
 }
 
 void PitchShifter::SetPitchRangeLower(float pitchRangeLowerSemitones)

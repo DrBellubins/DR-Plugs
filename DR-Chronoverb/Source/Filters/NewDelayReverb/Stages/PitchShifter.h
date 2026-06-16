@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Delay.h"
 #include "../PitchShiftingEngine.h"
 #include "Reverb.h"
 #include "../DelayTimeSegment.h"
@@ -32,6 +33,7 @@ public:
     void SetDiffusionAmount(float newDiffusionAmount);
     void SetDiffusionSize(float newDiffusionSize);
     void SetDiffusionQuality(int newDiffusionQuality);
+    void SetFiltersOrder(int newFiltersOrder);
 
     void SetPitchRangeLower(float pitchRangeLowerSemitones);
     void SetPitchRangeUpper(float pitchRangeUpperSemitones);
@@ -78,6 +80,7 @@ private:
     float diffusionAmount = 0.0f;
     float diffusionSize = 0.0f;
     int diffusionQualityStages = 8;
+    int filtersOrder = 0;
 
     float pitchRangeLower = -12.0f;
     float pitchRangeUpper = 12.0f;
@@ -94,7 +97,7 @@ private:
 
     DelayTimeSegment delayTimeSegment;
 
-    std::unique_ptr<Reverb> reverb;
+    std::unique_ptr<Delay> delay;
 
     Filters* filtersInput = nullptr;
 
