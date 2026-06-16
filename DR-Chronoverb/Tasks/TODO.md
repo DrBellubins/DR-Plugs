@@ -10,5 +10,4 @@
 - [x] Implement vertical SegmentedButton (for pre/post filters & ping-pong)
 
 ## Pitch shifting
-- [ ] Make diffuse signal max at diffusion amt 0.5
-- [ ] Make separate pitch shift rate time (with ms, nrm, trip, dot modes)
+- [ ] Random sequence isn't synced between L/R channels

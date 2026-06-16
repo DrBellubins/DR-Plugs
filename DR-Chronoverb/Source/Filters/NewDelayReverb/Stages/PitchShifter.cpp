@@ -222,6 +222,7 @@ void PitchShifter::rebuildPitchSequences()
         }
         else if (pitchSequence == 2) // Random
         {
+            // TODO: Random isn't synced between L/R channels
             auto randomSequence = std::make_unique<RandomOctaveSequence>();
             randomSequence->SetRange(lowerOctave, upperOctave);
             shifter.SetSequence(std::move(randomSequence));
