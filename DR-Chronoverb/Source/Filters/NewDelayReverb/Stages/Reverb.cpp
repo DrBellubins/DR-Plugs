@@ -48,12 +48,6 @@ void Reverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
 std::pair<float, float> Reverb::ProcessSample(float inputSampleL, float inputSampleR)
 {
-    const float timeScale = juce::jlimit(0.1f,
-        3.0f, delayTimeSegment.DelayTimeMilliseconds / irLengthMs);
-
-    diffusionLeft->UpdateSize(diffusionSize * timeScale);
-    diffusionRight->UpdateSize(diffusionSize * timeScale);
-
     // 1) Input + feedback
     float inputFeedbackLeft = inputSampleL + lastFeedbackL;
     float inputFeedbackRight = inputSampleR + lastFeedbackR;
@@ -121,6 +115,12 @@ void Reverb::SetDiffusionAmount(float newDiffusionAmount)
 void Reverb::SetDiffusionSize(float newDiffusionSize)
 {
     diffusionSize = newDiffusionSize * tuningLengthMultiplier;
+
+    const float timeScale = juce::jlimit(0.1f,
+        3.0f, delayTimeSegment.DelayTimeMilliseconds / irLengthMs);
+
+    diffusionLeft->UpdateSize(diffusionSize * timeScale);
+    diffusionRight->UpdateSize(diffusionSize * timeScale);
 }
 
 void Reverb::SetDiffusionQuality(int newDiffusionQuality)

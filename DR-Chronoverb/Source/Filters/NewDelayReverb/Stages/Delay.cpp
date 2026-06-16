@@ -61,15 +61,6 @@ void Delay::PrepareToPlay(double newSampleRate, Filters& filters)
 
 void Delay::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 {
-    const float timeScale = juce::jlimit(0.05f, 1.0f,
-    delayTimeSegment.DelayTimeMilliseconds / 1000.0f); // normalize to max ms range
-
-    diffusionReadLeft->UpdateSize(diffusionSize * timeScale);
-    diffusionReadRight->UpdateSize(diffusionSize * timeScale);
-
-    diffusionWriteLeft->UpdateSize(diffusionSize * timeScale);
-    diffusionWriteRight->UpdateSize(diffusionSize * timeScale);
-
     if (diffusionRebuildPending.exchange(false, std::memory_order_acq_rel))
         rebuildDiffusionIfNeeded();
 }
@@ -203,6 +194,15 @@ void Delay::SetDiffusionAmount(float newDiffusionAmount)
 void Delay::SetDiffusionSize(float newDiffusionSize)
 {
     diffusionSize = newDiffusionSize * tuningLengthMultiplier;
+
+    const float timeScale = juce::jlimit(0.05f, 1.0f,
+    delayTimeSegment.DelayTimeMilliseconds / 1000.0f); // normalize to max ms range
+
+    diffusionReadLeft->UpdateSize(diffusionSize * timeScale);
+    diffusionReadRight->UpdateSize(diffusionSize * timeScale);
+
+    diffusionWriteLeft->UpdateSize(diffusionSize * timeScale);
+    diffusionWriteRight->UpdateSize(diffusionSize * timeScale);
 }
 
 void Delay::SetDiffusionQuality(int newDiffusionQuality)
