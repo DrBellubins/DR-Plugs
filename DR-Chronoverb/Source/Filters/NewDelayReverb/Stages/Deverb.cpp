@@ -22,8 +22,10 @@ void Deverb::PrepareToPlay(double newSampleRate)
     dampingLeft->Prepare(sampleRate);
     dampingRight->Prepare(sampleRate);
 
-    dampingLeft->SetCutoffHz(7000.0f);
-    dampingRight->SetCutoffHz(7000.0f);
+    constexpr float InitialDampingCutoffHz = 4200.0f;
+
+    dampingLeft->SetCutoffHz(InitialDampingCutoffHz);
+    dampingRight->SetCutoffHz(InitialDampingCutoffHz);
 
     diffusionLeft.Prepare(sampleRate);
     diffusionRight.Prepare(sampleRate);

@@ -40,11 +40,11 @@ private:
     float size01 = 1.0f;
     float totalChainDelayMs = 0.0f;
 
-    static constexpr float MaxAllpassGain = 0.58f;
+    static constexpr float MaxAllpassGain = 0.7f;
 
     const std::array<float, MaxStages> stageTuningsMs =
     {
-        7.0f, 11.0f, 16.0f, 24.0f, 36.0f, 54.0f, 81.0f, 122.0f
+        11.0f, 13.0f, 23.0f, 31.0f, 43.0f, 53.0f, 73.0f, 83.0f
     };
 
     std::array<DiffusionAllpass, MaxStages> allpasses {};

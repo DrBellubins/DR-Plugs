@@ -73,6 +73,22 @@ void DeverbDiffusionChain::rebuildStageDelays()
 
 void DeverbDiffusionChain::updateStageGains()
 {
+    const float gainDrive = std::min(1.0f, diffusionAmount * 2.0f);
+    const float baseGain = gainDrive * MaxAllpassGain;
+
+    for (int stageIndex = 0; stageIndex < MaxStages; ++stageIndex)
+    {
+        const float stageTaper =
+            juce::jmap(static_cast<float>(stageIndex),
+                       0.0f, static_cast<float>(MaxStages - 1),
+                       1.00f, 0.82f);
+
+        allpasses[stageIndex].SetGain(baseGain * stageTaper);
+    }
+}
+
+/*void DeverbDiffusionChain::updateStageGains()
+{
     // Gain saturates by amount=0.5 so the chain character is largely established
     // in the lower half, while the upper half behaves more like stronger path exposure.
     const float gainDrive = std::min(1.0f, diffusionAmount * 2.0f);
@@ -80,4 +96,4 @@ void DeverbDiffusionChain::updateStageGains()
 
     for (int stageIndex = 0; stageIndex < MaxStages; ++stageIndex)
         allpasses[stageIndex].SetGain(gain);
-}
+}*/
