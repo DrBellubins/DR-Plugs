@@ -42,8 +42,8 @@ void Reverb::PrepareToPlay(double newSampleRate, Filters& filters)
 
 void Reverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 {
-    const float timeScale = juce::jlimit(0.1f,
-        3.0f, delayTimeSegment.DelayTimeMilliseconds / irLengthMs);
+    const float timeScale = std::clamp(delayTimeSegment.DelayTimeMilliseconds / irLengthMs,
+        0.1f, 3.0f);
 
     diffusionLeft->UpdateSize(diffusionSize * timeScale);
     diffusionRight->UpdateSize(diffusionSize * timeScale);
@@ -77,11 +77,6 @@ std::pair<float, float> Reverb::ProcessSample(float inputSampleL, float inputSam
     const float dampedRight = dampingRight->ProcessSample(diffusedRight);
 
     // 5) Recirculation
-
-    // Compensate feedback so RT60 stays constant as chain length shrinks.
-    //const float scaledFeedback = std::pow(feedbackGain, 1.0f / std::max(0.01f, timeScale));
-    //const float clampedFeedback = juce::jlimit(0.0f, 0.97f, scaledFeedback);
-
     lastFeedbackL = dampedLeft * feedbackGain;
     lastFeedbackR = dampedRight * feedbackGain;
 
@@ -167,7 +162,7 @@ void Reverb::rebuildDiffusionIfNeeded()
 
 void Reverb::updateFeedbackGainFromFeedbackTime()
 {
-    const float normalized = juce::jlimit(0.0f, 1.0f, feedbackTimeSeconds / 10.0f);
+    const float normalized = std::clamp(feedbackTimeSeconds / 10.0f, 0.0f, 1.0f);
     const float curved = std::sqrt(normalized);
     feedbackGain = std::max(0.0f, std::min(0.85f * curved, 0.95f));
 }

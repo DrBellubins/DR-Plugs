@@ -61,8 +61,8 @@ void Delay::PrepareToPlay(double newSampleRate, Filters& filters)
 
 void Delay::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 {
-    const float timeScale = juce::jlimit(0.05f, 1.0f,
-    delayTimeSegment.DelayTimeMilliseconds / 1000.0f); // normalize to max ms range
+    const float timeScale = std::clamp(delayTimeSegment.DelayTimeMilliseconds / 1000.0f,
+    0.05f, 1.0f); // normalize to max ms range
 
     diffusionReadLeft->UpdateSize(diffusionSize * timeScale);
     diffusionReadRight->UpdateSize(diffusionSize * timeScale);
@@ -101,7 +101,7 @@ std::pair<float, float> Delay::ProcessSample(float inputSampleL, float inputSamp
 
         // 4) Write-side blend between clean tap -> diffused tap (diff amt 0.0 -> 0.5)
         const float writeBlend01 =
-            juce::jlimit(0.0f, 1.0f, diffusionAmount * 2.0f);
+            std::clamp(diffusionAmount * 2.0f, 0.0f, 1.0f);
 
         const float writeCleanGain =
             std::cos(writeBlend01 * juce::MathConstants<float>::halfPi);
@@ -146,7 +146,7 @@ std::pair<float, float> Delay::ProcessSample(float inputSampleL, float inputSamp
 
         // 8) Read-side blend between nominal tap -> early tap (diff amt 0.0 -> 0.5)
         const float lowerHalf01 =
-            juce::jlimit(0.0f, 1.0f, diffusionAmount * 2.0f);
+            std::clamp(diffusionAmount * 2.0f, 0.0f, 1.0f);
 
         const float nominalGain = std::pow(1.0f - lowerHalf01, 3.0f);
         const float earlyGain = std::sin(lowerHalf01 * juce::MathConstants<float>::halfPi) * 0.75f;
@@ -208,7 +208,7 @@ void Delay::SetDiffusionSize(float newDiffusionSize)
 void Delay::SetDiffusionQuality(int newDiffusionQuality)
 {
     // Limit quality to save on CPU usage.
-    diffusionQualityStages = juce::jlimit(1, 5, newDiffusionQuality);;
+    diffusionQualityStages = std::max(newDiffusionQuality / 2, 1);
     diffusionRebuildPending.store(true, std::memory_order_release);
 }
 
@@ -276,7 +276,7 @@ void Delay::rebuildDiffusionIfNeeded()
 
 void Delay::updateFeedbackGainFromFeedbackTime()
 {
-    const float normalized = juce::jlimit(0.0f, 1.0f, feedbackTimeSeconds / 10.0f);
+    const float normalized = std::clamp(feedbackTimeSeconds / 10.0f, 0.0f, 1.0f);
     const float curved = std::sqrt(normalized);
     feedbackGain = std::max(0.0f, std::min(0.85f * curved, 0.95f));
 }

@@ -20,7 +20,7 @@ void Chronoverb::SetDelayTime(float newDelayTime)
 
 void Chronoverb::SetDelayMode(int newDelayMode)
 {
-    delayMode = juce::jlimit(0, 3, newDelayMode);
+    delayMode = std::clamp(newDelayMode, 0, 3);
 
     DelayLeftRight->SetDelayMode(delayMode);
     ReverbLeftRight->SetDelayMode(delayMode);
@@ -76,26 +76,26 @@ void Chronoverb::SetWetVolume(float newWet01)
 
 void Chronoverb::SetStereoSpread(float newSpreadMinus1To1)
 {
-    stereoSpread = juce::jlimit(-1.0f, 1.0f, newSpreadMinus1To1);
+    stereoSpread = std::clamp(newSpreadMinus1To1, -1.0f, 1.0f);
     StereoLeftRight->SetStereoSpread(stereoSpread);
 }
 
 // Pitch
 void Chronoverb::SetPitchRangeLower(float pitchRangeLowerSemitones)
 {
-    pitchRangeLower = juce::jlimit(-48.0f, 48.0f, pitchRangeLowerSemitones);
+    pitchRangeLower = std::clamp(pitchRangeLowerSemitones, -48.0f, 48.0f);
     PitchShifterLeftRight->SetPitchRangeLower(pitchRangeLower);
 }
 
 void Chronoverb::SetPitchRangeUpper(float pitchRangeUpperSemitones)
 {
-    pitchRangeUpper = juce::jlimit(-48.0f, 48.0f, pitchRangeUpperSemitones);
+    pitchRangeUpper = std::clamp(pitchRangeUpperSemitones, -48.0f, 48.0f);
     PitchShifterLeftRight->SetPitchRangeUpper(pitchRangeUpper);
 }
 
 void Chronoverb::SetPitchSequence(int sequenceIndex)
 {
-    pitchSequence = juce::jlimit(0, 3, sequenceIndex);
+    pitchSequence = std::clamp(sequenceIndex, 0, 3);
     PitchShifterLeftRight->SetPitchSequence(pitchSequence);
 }
 
@@ -108,7 +108,7 @@ void Chronoverb::SetpitchWetMix(float newPitchWetMix)
 // Distortion
 void Chronoverb::SetDistortionModuleEnabled(int moduleIndex, bool enabled)
 {
-    const int index = juce::jlimit(0, NumDistortionModules - 1, moduleIndex);
+    const int index = std::clamp(moduleIndex, 0, NumDistortionModules - 1);
     DistortionLeftRight->SetEnabled(index, enabled);
 
     //DBG("Dist mod enabled: " << moduleIndex << ", " << static_cast<int>(enabled));
@@ -116,7 +116,7 @@ void Chronoverb::SetDistortionModuleEnabled(int moduleIndex, bool enabled)
 
 void Chronoverb::SetDistortionModuleType(int moduleIndex, int type)
 {
-    const int index = juce::jlimit(0, NumDistortionModules - 1, moduleIndex);
+    const int index = std::clamp(moduleIndex, 0, NumDistortionModules - 1);
     DistortionLeftRight->SetType(index, type);
 
     //DBG("Dist mod type/target: " << moduleIndex << ", " << type << ", " << target);
@@ -124,7 +124,7 @@ void Chronoverb::SetDistortionModuleType(int moduleIndex, int type)
 
 void Chronoverb::SetDistortionModuleTarget(int moduleIndex, int target)
 {
-    const int index = juce::jlimit(0, NumDistortionModules - 1, moduleIndex);
+    const int index = std::clamp(moduleIndex, 0, NumDistortionModules - 1);
     DistortionLeftRight->SetTarget(index, target);
 
     //DBG("Dist mod type/target: " << moduleIndex << ", " << type << ", " << target);
@@ -133,7 +133,7 @@ void Chronoverb::SetDistortionModuleTarget(int moduleIndex, int target)
 
 void Chronoverb::SetDistortionModuleDrive(int moduleIndex, float drive01)
 {
-    const int index = juce::jlimit(0, NumDistortionModules - 1, moduleIndex);
+    const int index = std::clamp(moduleIndex, 0, NumDistortionModules - 1);
     DistortionLeftRight->SetDrive(index, drive01);
 
     //DBG("Dist mod drive: " << moduleIndex << ", " << drive01);
@@ -141,7 +141,7 @@ void Chronoverb::SetDistortionModuleDrive(int moduleIndex, float drive01)
 
 void Chronoverb::SetDistortionModuleMix(int moduleIndex, float mix01)
 {
-    const int index = juce::jlimit(0, NumDistortionModules - 1, moduleIndex);
+    const int index = std::clamp(moduleIndex, 0, NumDistortionModules - 1);
     DistortionLeftRight->SetMix(index, mix01);
 
     //DBG("Dist mod mix: " << moduleIndex << ", " << mix01);
@@ -169,7 +169,7 @@ void Chronoverb::SetDuckRelease(float newDuckRelease)
 // Filters
 void Chronoverb::SetFiltersOrder(int newOrder)
 {
-    filtersOrder = juce::jlimit(0, 2, newOrder);
+    filtersOrder = std::clamp(newOrder, 0, 2);
     DelayLeftRight->SetFiltersOrder(filtersOrder);
 }
 

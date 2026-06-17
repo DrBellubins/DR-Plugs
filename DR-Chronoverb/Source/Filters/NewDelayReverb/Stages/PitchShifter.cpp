@@ -87,7 +87,7 @@ std::pair<float, float> PitchShifter::ProcessSample(float inputSampleL, float in
     auto [diffPitchedLeft, diffPitchedRight] =
         reverb->ProcessSample(pitchedLeft, pitchedRight);
 
-    const float lowerHalf01 = juce::jlimit(0.0f, 1.0f, diffusionAmount * 2.0f);
+    const float lowerHalf01 = std::clamp(diffusionAmount * 2.0f, 0.0f, 1.0f);
     const float cleanGain = std::pow(1.0f - lowerHalf01, 3.0f);
     const float diffusedGain = std::sin(lowerHalf01 * juce::MathConstants<float>::halfPi) * 0.75f;
     const float makeupGain =
@@ -99,7 +99,7 @@ std::pair<float, float> PitchShifter::ProcessSample(float inputSampleL, float in
         ((pitchedRight * cleanGain) + (diffPitchedRight * diffusedGain)) * makeupGain;
 
     // 3) Blend input wet with pitched signal
-    const float dryWetPitch = juce::jlimit(0.0f, 1.0f, pitchWetMix);
+    const float dryWetPitch = std::clamp(pitchWetMix, 0.0f, 1.0f);
 
     const float outLeft =
         (inputSampleL * (1.0f - dryWetPitch)) + (pitchedLeft * dryWetPitch);
@@ -158,7 +158,7 @@ void PitchShifter::SetDiffusionSize(float newDiffusionSize)
 void PitchShifter::SetDiffusionQuality(int newDiffusionQuality)
 {
     // Limit quality to save on CPU usage.
-    diffusionQualityStages = juce::jlimit(1, 3, newDiffusionQuality);
+    diffusionQualityStages = std::clamp(newDiffusionQuality, 1, 3);
     reverb->SetDiffusionQuality(diffusionQualityStages);
 }
 

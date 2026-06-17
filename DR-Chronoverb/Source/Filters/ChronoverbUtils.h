@@ -4,7 +4,7 @@
 
 inline float clamp01(float value)
 {
-    return juce::jlimit(0.0f, 1.0f, value);
+    return std::clamp(value, 0.0f, 1.0f);
 }
 
 inline float map01ToRange(float value01, float minValue, float maxValue)
@@ -24,8 +24,7 @@ inline int semitonesToOctaveIndex(float semitones)
 
 inline std::pair<float, float> GetDelayReverbGain(float diffusionAmount)
 {
-    const float delayReverbBlend = juce::jlimit(0.0f, 1.0f,
-        (diffusionAmount - 0.5f) * 2.0f);
+    const float delayReverbBlend = std::clamp((diffusionAmount - 0.5f) * 2.0f, 0.0f, 1.0f);
 
     float delayGain = std::cos(delayReverbBlend * juce::MathConstants<float>::halfPi);
     float reverbGain = std::sin(delayReverbBlend * juce::MathConstants<float>::halfPi);
@@ -43,7 +42,7 @@ inline std::pair<float, float> GetDelayReverbGain(float diffusionAmount)
 inline std::pair<float, float> GetDelayDiffusedTapGain(float diffusionAmount,
                                                         float crossfadeSpeed = 1.0f)
 {
-    const float driven = juce::jlimit(0.0f, 1.0f, diffusionAmount * crossfadeSpeed);
+    const float driven = std::clamp(diffusionAmount * crossfadeSpeed, 0.0f, 1.0f);
 
     const float nominalTapGain  = std::pow(1.0f - driven, 4.0f);
     const float diffusedTapGain = std::sin(driven * juce::MathConstants<float>::halfPi);
