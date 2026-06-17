@@ -1,0 +1,161 @@
+================================================================================
+IMPLEMENTATION 1: Single Serial Chain with Allpass Gain Ramp
+================================================================================
+
+OVERVIEW
+--------
+The simplest interpretation of the developer's email: a single chain of 8
+allpass filters in series, where "diffusion amount" controls the allpass
+coefficient (gain) of each stage. The output of this chain is blended with
+(or replaces) the dry delay tap.
+
+At gain = 0, each allpass becomes a pure delay (pass-through with latency),
+preserving discrete echoes. At gain = 0.7, the chain scatters phase maximally,
+producing a dense reverb-like tail.
+
+SIGNAL FLOW
+-----------
+    Input + Feedback
+         |
+         v
+    [Allpass 1] -> [Allpass 2] -> ... -> [Allpass 8]
+         |
+         v
+    [Delay Line: User-set delay time MINUS total allpass latency]
+         |
+         v
+    Output Tap (Wet)
+         |
+         v
+    [Damping Filter] -> [Feedback Gain] -> Loop back
+
+DIFFUSION AMOUNT MAPPING (0.0 - 1.0)
+-------------------------------------
+    Amount 0.0:
+        - Allpass gain g = 0.0 (each stage is a pure delay)
+        - Result: clean discrete delay (echoes spaced by delay time)
+        - Total allpass latency creates a "pre-delay" that gets compensated
+
+    Amount 0.0 - 0.5 (Swell into nominal tap):
+        - g ramps from 0.0 to ~0.5 (e.g. g = amount * 1.0)
+        - The allpass chain begins to smear the impulse
+        - Because the chain sits BEFORE the delay line, its spread precedes
+          the nominal tap, creating a "swell" or build-up
+        - The delay line length is shortened by a fraction of the allpass
+          spread to center the energy around the nominal tap time
+
+    Amount 0.5 - 1.0 (Lush reverb tail):
+        - g ramps from ~0.5 to ~0.7
+        - Above g=0.5, allpass scattering becomes dense enough to sound
+          reverb-like
+        - The impulse response of the chain transitions from sparse scattered
+          taps to a smooth exponential decay
+
+DELAY COMPENSATION
+------------------
+The total group delay of the allpass chain at g=0 equals the sum of all
+stage delays:
+
+    totalAllpassDelay = sum(stageTunings[0..7]) * sizeMultiplier
+
+When diffusion amount > 0, the chain spreads energy both before and after
+its group delay center. To maintain nominal tap alignment:
+
+    effectiveDelayMs = userDelayMs - (totalAllpassDelay * centeredRatio)
+
+Where centeredRatio (~0.5) places the energy peak at the user's delay time.
+
+CODE EXAMPLE
+------------
+```cpp
+class SingleChainDiffusion
+{
+public:
+    static constexpr int MaxStages = 8;
+
+    // Prime-spaced tunings in milliseconds
+    float stageTuningsMs[MaxStages] = { 10.0f, 15.0f, 22.0f, 33.0f, 50.0f, 75.0f, 113.0f, 170.0f };
+
+    void SetDiffusionAmount(float amount01)
+    {
+        // Map amount to allpass gain
+        // 0.0 -> g=0 (pure delay), 1.0 -> g=0.7 (max scatter)
+        float targetGain = amount01 * 0.7f;
+
+        for (int i = 0; i < activeStages; ++i)
+            allpassStages[i].SetGain(targetGain);
+    }
+
+    void SetQuality(int stages)
+    {
+        activeStages = std::clamp(stages, 1, MaxStages);
+    }
+
+    float ProcessSample(float input)
+    {
+        float sample = input;
+
+        for (int i = 0; i < activeStages; ++i)
+            sample = allpassStages[i].ProcessSample(sample);
+
+        return sample;
+    }
+
+private:
+    DiffusionAllpass allpassStages[MaxStages];
+    int activeStages = 8;
+};
+
+// In the main delay processor:
+void ProcessSample(float dryInput)
+{
+    float preWithFeedback = dryInput + lastFeedback;
+
+    // Diffuse BEFORE writing to delay line
+    float diffused = diffusionChain.ProcessSample(preWithFeedback);
+
+    // Write diffused signal to delay line
+    delayLine.PushSample(diffused);
+
+    // Read from compensated position
+    float compensatedDelayMs = userDelayMs - (totalChainDelayMs * 0.5f * diffusionAmount);
+    float wet = delayLine.ReadAt(compensatedDelayMs);
+
+    // Feedback path
+    float damped = dampingFilter.ProcessSample(wet);
+    lastFeedback = damped * feedbackGain;
+
+    output = (dryInput * dryVol) + (wet * wetVol);
+}
+```
+
+PROS
+----
++ Extremely simple — one chain of 8 allpass filters per channel (16 total stereo)
++ Minimal CPU: only 8 allpass operations per sample per channel
++ Matches the developer's description almost literally
++ Smooth transition from delay to reverb by simply changing gain coefficient
++ No crossfading between separate chains = no phase cancellation artifacts
++ Allpass at g=0 is energy-preserving (just a delay), so no volume jump
+
+CONS
+----
+- At g=0, the chain still has latency equal to sum of tunings (~488ms at
+  size=1). This must be compensated, limiting minimum delay time.
+- The swell effect may be subtle at low amounts because allpass scattering
+  at low gain is gentle — might not produce the dramatic build-up heard
+  in Deelay
+- Single gain parameter for all stages means uniform scattering — may lack
+  the "carefully tuned" character mentioned by the developer
+- At intermediate amounts, the reverb quality depends entirely on tuning
+  ratios. Poor tunings produce metallic coloration.
+- No independent control over "swell shape" vs "tail density"
+
+TUNING CONSIDERATIONS
+---------------------
+- Stage delays should be mutually prime or use exponentially growing ratios
+  (e.g., 1:1.5:2.25:3.4:5:7.5:11.3:17) to avoid comb filtering
+- "Size" parameter scales all stage delays proportionally
+- Quality (1-8) enables/disables stages from the chain
+- With fewer stages, the remaining ones should be re-selected to span the
+  full range (not just truncated from one end)

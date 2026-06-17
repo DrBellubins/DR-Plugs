@@ -1,0 +1,252 @@
+================================================================================
+IMPLEMENTATION 4: Single Chain with Wet/Dry Blend and Dynamic Compensation
+================================================================================
+
+OVERVIEW
+--------
+The most literal interpretation: always run all 8 allpass filters at a FIXED
+high gain (g=0.7), and "diffusion amount" is simply a crossfade between the
+undiffused (clean) path and the diffused (allpass chain output) path. This
+matches the developer's exact words: "a blend between the diffused delay path
+and the normal delay path."
+
+The swell effect comes from the delay compensation: as blend increases, the
+read position shifts to reveal more of the allpass chain's pre-tap scatter.
+
+SIGNAL FLOW
+-----------
+    Input + Feedback
+         |
+         +--------+
+         |        |
+         v        v
+    [Clean Path]  [Allpass Chain (8 stages, g=0.7 fixed)]
+         |        |
+         v        v
+    [Crossfade: (1-amount) * clean + amount * diffused]
+         |
+         v
+    [Delay Line] (write)
+         |
+         |--- Read at: userDelay - compensation(amount)
+         v
+    [Output Tap]
+         |
+         v
+    [Damping] -> [Feedback] -> loop
+
+    Alternative (blend AFTER delay line):
+
+    Input + Feedback
+         |
+         v
+    [Allpass Chain (always active, g=0.7)]
+         |
+         v
+    [Delay Line] (write)
+         |
+         |--- Read "diffused" at: userDelay - chainDelay * swellBias
+         |--- Read "clean" at: userDelay
+         v
+    [Crossfade: amount blends between clean tap and diffused tap]
+         |
+         v
+    [Damping] -> [Feedback] -> loop
+
+DIFFUSION AMOUNT MAPPING
+-------------------------
+    Amount 0.0:
+        Output = 100% clean path
+        No allpass processing heard (though chain may still run for
+        consistency, or be bypassed for CPU savings)
+
+    Amount 0.0 - 0.5 (Swell):
+        Blend increases linearly or with equal-power curve
+        The diffused signal's pre-tap scatter becomes increasingly audible
+        Compensation offset increases: reveals allpass chain's temporal
+        spread before the nominal tap
+        Result: swell builds ahead of the echo
+
+    Amount 0.5:
+        50/50 blend between clean and diffused
+        The clean tap provides punch, diffused adds density
+        This is the "crossfade midpoint" — possibly what Deelay sounds
+        like at its amount=0.5 setting
+
+    Amount 0.5 - 1.0 (Reverb):
+        Blend continues toward 100% diffused
+        Clean tap fades out entirely
+        Only the scattered allpass output remains
+        Result: full reverb-like tail with no discrete echo
+
+    Amount 1.0:
+        Output = 100% diffused path
+        Pure allpass reverb character
+
+CODE EXAMPLE
+------------
+```cpp
+class BlendDiffusion
+{
+public:
+    static constexpr int MaxStages = 8;
+
+    float stageTunings[MaxStages] = { 10.0f, 15.0f, 22.0f, 33.0f, 50.0f, 75.0f, 113.0f, 170.0f };
+
+    void Prepare(double sampleRate)
+    {
+        totalChainDelayMs = 0.0f;
+        for (int i = 0; i < MaxStages; ++i)
+        {
+            allpass[i].Prepare(sampleRate);
+            allpass[i].Configure(stageTunings[i], 0.7f); // Fixed gain!
+            totalChainDelayMs += stageTunings[i];
+        }
+    }
+
+    void SetDiffusionAmount(float amount01)
+    {
+        diffusionAmount = amount01;
+    }
+
+    void SetSize(float size01)
+    {
+        float scale = 0.25f + 0.75f * size01;
+        totalChainDelayMs = 0.0f;
+
+        for (int i = 0; i < activeStages; ++i)
+        {
+            float delayMs = stageTunings[i] * scale;
+            allpass[i].SetDelayMilliseconds(delayMs);
+            totalChainDelayMs += delayMs;
+        }
+    }
+
+    void SetQuality(int stages)
+    {
+        activeStages = std::clamp(stages, 1, MaxStages);
+    }
+
+    // Returns both clean and diffused signals
+    struct DualOutput
+    {
+        float clean;
+        float diffused;
+    };
+
+    DualOutput ProcessSample(float input)
+    {
+        float diffused = input;
+        for (int i = 0; i < activeStages; ++i)
+            diffused = allpass[i].ProcessSample(diffused);
+
+        return { input, diffused };
+    }
+
+    float GetBlendedSample(float clean, float diffused) const
+    {
+        // Equal-power crossfade
+        float cleanGain = std::cos(diffusionAmount * 3.14159f * 0.5f);
+        float diffGain = std::sin(diffusionAmount * 3.14159f * 0.5f);
+        return clean * cleanGain + diffused * diffGain;
+    }
+
+    float GetCompensationMs() const
+    {
+        // Full compensation at amount=0 (chain is just latency)
+        // Partial at amount=1 (reveal spread for reverb)
+        // The 0.5 bias centers energy at nominal tap
+        float revealFactor = diffusionAmount;
+        return totalChainDelayMs * (1.0f - revealFactor * 0.5f);
+    }
+
+private:
+    DiffusionAllpass allpass[MaxStages];
+    int activeStages = 8;
+    float diffusionAmount = 0.0f;
+    float totalChainDelayMs = 0.0f;
+};
+
+// Main loop usage:
+void ProcessSampleMain(float dryInput)
+{
+    float preWithFeedback = dryInput + lastFeedback;
+
+    // Always process through the chain
+    auto [clean, diffused] = blendDiffusion.ProcessSample(preWithFeedback);
+
+    // Blend based on amount
+    float blended = blendDiffusion.GetBlendedSample(clean, diffused);
+
+    // Write to delay
+    delayLine.PushSample(blended);
+
+    // Read with dynamic compensation
+    float compensationMs = blendDiffusion.GetCompensationMs();
+    float readMs = std::max(1.0f, userDelayMs - compensationMs);
+    float wet = delayLine.ReadAt(readMs);
+
+    // Feedback
+    float damped = dampingFilter.Process(wet);
+    lastFeedback = damped * feedbackGain;
+
+    output = dryInput * dryVol + wet * wetVol;
+}
+```
+
+PROS
+----
++ MOST LITERAL interpretation of "blend between diffused and normal delay path"
++ Fixed allpass gain means consistent, predictable chain behavior
++ The blend is a simple crossfade — trivial to implement and understand
++ No gain coefficient animation = no zipper noise or state discontinuities
++ At amount=0, can optionally skip allpass processing entirely (if using
+  the pre-delay-line blend variant) for zero CPU overhead on clean delay
++ Clear separation of concerns: chain = fixed reverb quality,
+  amount = how much reverb you hear
+
+CONS
+----
+- If the chain always runs at g=0.7, it has FIXED reverb character —
+  the only thing that changes is how much you hear
+- This means the swell at amount=0.3 is just "quiet reverb mixed with
+  loud clean delay" rather than a qualitatively different effect
+- The transition may sound like a volume crossfade rather than a
+  structural change in the delay character
+- At amount=0, if the chain still processes (for latency consistency),
+  it wastes CPU
+- If the chain is bypassed at amount=0, toggling diffusion causes a
+  state discontinuity (cold chain produces transients)
+- The "swell" quality is less pronounced than in implementations where
+  the allpass character itself changes with amount
+- May not produce the smooth "delay becoming reverb" feel — instead
+  sounds like "delay + reverb mixed together"
+
+MITIGATION FOR THE "CROSSFADE" PROBLEM
+---------------------------------------
+To make the blend sound more like a structural transition rather than a
+volume mix, the compensation offset is critical:
+
+    - At amount 0.0-0.3: compensation places energy peak at nominal tap
+      (diffused signal's swell aligns with clean tap)
+    - At amount 0.3-0.7: compensation shifts, revealing pre-tap scatter
+      (swell becomes the dominant feature)
+    - At amount 0.7-1.0: compensation reduces further, tail extends past
+      nominal tap (reverb character dominates)
+
+This dynamic compensation is what transforms a simple crossfade into the
+subjective "delay morphing into reverb" experience.
+
+ALTERNATIVE: BLEND IN FEEDBACK PATH
+------------------------------------
+Instead of blending before write, blend in the feedback path:
+
+    wet -> [damping] -> [blend: (1-amt)*direct + amt*diffused] -> feedback
+
+This means the diffusion accumulates with each feedback iteration:
+- 1st echo: slight diffusion
+- 2nd echo: more diffusion (signal passed through chain twice)
+- 3rd echo: even more (three passes)
+
+This naturally creates increasing reverb density in later echoes, which
+is a very musical behavior and may match Deelay's gradual tail buildup.

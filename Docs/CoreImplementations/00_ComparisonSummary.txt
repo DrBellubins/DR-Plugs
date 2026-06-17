@@ -1,0 +1,109 @@
+================================================================================
+COMPARISON SUMMARY: All Implementations
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         PERFORMANCE COMPARISON                               │
+├───────────────────────────┬──────────────────────────────────────────────────┤
+│ Implementation            │ Allpass ops/sample/channel                       │
+├───────────────────────────┼──────────────────────────────────────────────────┤
+│ YOUR CURRENT CODE         │ 8 (write) + 8 (read) + 8 (reverb) = 24 MAX     │
+│                           │ (6 DiffusionChain instances for stereo)          │
+├───────────────────────────┼──────────────────────────────────────────────────┤
+│ 1. Gain Ramp              │ 8                                                │
+│ 2. Delay-Offset           │ 8                                                │
+│ 3. Per-Stage Cascade      │ 8                                                │
+│ 4. Wet/Dry Blend          │ 8                                                │
+│ 5. Feedback Path          │ 8                                                │
+│ 6. Hybrid (Recommended)   │ 8                                                │
+├───────────────────────────┼──────────────────────────────────────────────────┤
+│ DEELAY (stated)           │ 8                                                │
+└───────────────────────────┴──────────────────────────────────────────────────┘
+
+Your current implementation processes UP TO 3x as many allpass stages as
+Deelay per sample. This is the primary source of the performance gap.
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      FEATURE COMPARISON MATRIX                                │
+├──────────┬────────────┬──────────┬──────────┬──────────┬──────────┬─────────┤
+│ Feature  │ 1.GainRamp │ 2.Offset │ 3.Cascad │ 4.Blend  │ 5.FBPath │ 6.Hybrd │
+├──────────┼────────────┼──────────┼──────────┼──────────┼──────────┼─────────┤
+│ Swell    │ Moderate   │ Strong   │ Strong   │ Moderate │ Weak*    │ Strong  │
+│ Reverb   │ Good       │ Good     │ Good     │ Good     │ Excellent│ Good    │
+│ Simplty  │ Simplest   │ Simple   │ Medium   │ Simple   │ Simple   │ Medium  │
+│ CPU      │ Lowest     │ Lowest   │ Lowest   │ Lowest   │ Lowest   │ Lowest  │
+│ Artfcts  │ Low metal  │ Low      │ Med metal│ None     │ None     │ Low     │
+│ DevMatch │ Partial    │ High     │ Partial  │ Highest  │ Partial  │ Highest │
+└──────────┴────────────┴──────────┴──────────┴──────────┴──────────┴─────────┘
+
+* Implementation 5 has weak first-tap swell but excellent cumulative reverb
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        DEVELOPER QUOTE ALIGNMENT                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ "Just a series of carefully tuned all pass delay lines"                      │
+│   → ALL implementations satisfy this (single serial chain of 8)             │
+│                                                                              │
+│ "Diffusion quality controls number of those delay lines (up to 8)"          │
+│   → ALL implementations: quality = activeStages (1..8)                      │
+│                                                                              │
+│ "Diffusion amount is basically a blend between the diffused delay path      │
+│  and the normal delay path"                                                  │
+│   → Implementations 4 and 6 match EXACTLY (explicit crossfade)             │
+│   → Implementations 1, 2, 3 approximate via gain ramping (implicit)        │
+│   → Implementation 5 uses feedback-path blending (different mechanism)      │
+│                                                                              │
+│ "No feedback matrix like you would have in an FDN"                           │
+│   → ALL implementations: no FDN, no matrix, just serial allpass            │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+RECOMMENDATION
+================================================================================
+
+PRIMARY: Implementation 6 (Hybrid Pre-Write with Blend)
+  - Best match to developer's description
+  - Produces swell + reverb from single chain
+  - 8 allpass operations per sample (3x faster than current code)
+  - Blend between clean and diffused path matches developer's exact words
+
+SECONDARY: Implementation 2 (Delay-Offset) if 6 is too complex
+  - Simplest possible version that still produces good swell
+  - Gain ramp alone (no explicit blend) may be sufficient
+
+FALLBACK: Implementation 4 (Pure Wet/Dry Blend)
+  - If the swell effect isn't critical and you just need the blend behavior
+  - Most literal reading of "blend between diffused and normal"
+  - Easiest to implement but swell quality depends entirely on compensation
+
+================================================================================
+KEY ARCHITECTURAL CHANGE FROM CURRENT CODE
+================================================================================
+
+CURRENT (your code):
+  - 3 separate DiffusionChain pairs (delayWrite, delayRead, reverb)
+  - Up to 24 allpass stages processed per sample per channel
+  - Complex crossfading logic between chains
+  - Separate tunings for delay vs reverb modes
+
+PROPOSED (any of the above):
+  - 1 DiffusionChain per channel
+  - Exactly 8 allpass stages per sample per channel
+  - Single parameter (gain or blend) controls the effect
+  - One set of tunings
+
+The performance improvement is approximately 3x fewer allpass operations,
+plus elimination of crossfade math and dual-path processing overhead.
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+1. Prototype Implementation 6 (or 2 as simpler alternative)
+2. A/B test against Deelay's IR captures at amounts 0, 0.25, 0.5, 0.75, 1.0
+3. Tune the compensation curve to match Deelay's swell onset
+4. Tune the gain curve to match Deelay's reverb density
+5. Adjust stage delay tunings if metallic coloration is heard
+6. Profile CPU: confirm the 3x improvement materializes in practice

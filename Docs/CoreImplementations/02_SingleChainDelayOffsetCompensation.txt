@@ -1,0 +1,233 @@
+================================================================================
+IMPLEMENTATION 2: Single Chain with Delay-Offset Compensation (Deelay Model)
+================================================================================
+
+OVERVIEW
+--------
+This is the most likely interpretation of Deelay's architecture based on the
+developer's email and the IR analysis. A single series of 8 allpass filters
+sits in the feedback path. The diffusion amount parameter simultaneously:
+
+  1. Controls the allpass gain (scattering intensity)
+  2. Adjusts the main delay line read position to compensate for the allpass
+     chain's temporal spread
+
+The key insight is that at amount=0, the allpass chain with g=0 acts as a
+pure delay, so the read position is at (userDelay - chainDelay). As amount
+increases, the allpass chain smears energy BEFORE its nominal output point,
+creating the "swell" effect naturally.
+
+SIGNAL FLOW
+-----------
+    Input
+      |
+      v
+    [+] <-- Feedback
+      |
+      v
+    [Allpass 1 (g)] -> [Allpass 2 (g)] -> ... -> [Allpass N (g)]
+      |
+      v
+    [Main Delay Line] (write)
+      |
+      |--- Read at: userDelayMs - chainSpread * (1 - amount) * bias
+      v
+    [Output Tap]
+      |
+      v
+    [Damping] -> [Feedback Gain] -> back to [+]
+
+KEY MECHANISM: THE SWELL
+-------------------------
+When an allpass filter has gain g > 0, its impulse response is:
+
+    h[n] = -g * delta[n] + (1 - g^2) * sum(g^k * delta[n - (k+1)*D])
+
+This means energy appears BEFORE the group delay center (the -g*delta[n] term
+passes immediately) and AFTER (the decaying tail). The total spread increases
+with g.
+
+By placing the allpass chain BEFORE the delay write point and reading at
+a compensated position:
+
+    readPosition = userDelay - allpassGroupDelay * compensationFactor
+
+The early scattered energy from the allpass chain arrives BEFORE the nominal
+tap time, creating a natural "swell" or build-up into the echo.
+
+As diffusion amount increases:
+- More scattering = wider spread = more pre-tap energy = more swell
+- The compensation factor adjusts to keep the peak energy at nominal time
+
+DIFFUSION AMOUNT MAPPING
+-------------------------
+    Amount 0.0:
+        g = 0.0
+        Chain = pure delay of sum(tunings) ms
+        Read offset = userDelay (chain delay is fully compensated)
+        Result: clean echo
+
+    Amount 0.0 - 0.5:
+        g = amount * 1.4 (ramps 0 to 0.7)
+        Chain begins scattering, spread grows
+        Read offset shifts: less compensation reveals pre-tap energy
+        Result: swell builds ahead of tap, echo becomes "washy"
+
+    Amount 0.5 - 1.0:
+        g = 0.7 (maxed, or slight further increase to 0.75)
+        Chain at maximum scatter
+        Read offset shifts further: more of the tail is exposed
+        Energy distribution becomes reverb-like exponential decay
+        Result: lush reverb tail dominates
+
+    The blend between "swell into tap" (0-0.5) and "reverb tail" (0.5-1.0)
+    happens naturally through the combination of:
+    - Increasing g (more scatter)
+    - Shifting read position (revealing more of the temporal spread)
+
+CODE EXAMPLE
+------------
+```cpp
+class DeelayStyleDiffusion
+{
+public:
+    static constexpr int MaxStages = 8;
+
+    // Carefully tuned delays (ms) — exponentially growing, mutually prime-ish
+    float stageTunings[MaxStages] = { 10.0f, 15.0f, 22.0f, 33.0f, 50.0f, 75.0f, 113.0f, 170.0f };
+
+    void Prepare(double sampleRate)
+    {
+        for (int i = 0; i < MaxStages; ++i)
+        {
+            allpass[i].Prepare(sampleRate);
+            allpass[i].Configure(stageTunings[i], 0.0f);
+        }
+
+        totalChainDelayMs = 0.0f;
+        for (int i = 0; i < MaxStages; ++i)
+            totalChainDelayMs += stageTunings[i];
+    }
+
+    void SetDiffusionAmount(float amount01)
+    {
+        diffusionAmount = amount01;
+
+        // Gain curve: fast rise in 0-0.5, plateau in 0.5-1.0
+        float gainCurve = std::min(1.0f, amount01 * 2.0f); // Saturates at 0.5
+        float gain = gainCurve * 0.7f;
+
+        for (int i = 0; i < activeStages; ++i)
+            allpass[i].SetGain(gain);
+    }
+
+    void SetSize(float size01)
+    {
+        float scale = 0.25f + 0.75f * size01;
+        totalChainDelayMs = 0.0f;
+
+        for (int i = 0; i < activeStages; ++i)
+        {
+            float delayMs = stageTunings[i] * scale;
+            allpass[i].SetDelayMilliseconds(delayMs);
+            totalChainDelayMs += delayMs;
+        }
+    }
+
+    void SetQuality(int stages)
+    {
+        activeStages = std::clamp(stages, 1, MaxStages);
+    }
+
+    float ProcessSample(float input)
+    {
+        float sample = input;
+        for (int i = 0; i < activeStages; ++i)
+            sample = allpass[i].ProcessSample(sample);
+        return sample;
+    }
+
+    // How much to subtract from user delay to center the swell
+    float GetDelayCompensationMs() const
+    {
+        // At amount=0, full compensation (chain is transparent delay)
+        // At amount=1, partial compensation (reveal the full spread)
+        float revealFactor = diffusionAmount;
+        float compensatedMs = totalChainDelayMs * (1.0f - revealFactor * 0.5f);
+        return compensatedMs;
+    }
+
+private:
+    DiffusionAllpass allpass[MaxStages];
+    int activeStages = 8;
+    float diffusionAmount = 0.0f;
+    float totalChainDelayMs = 0.0f;
+};
+
+// Main processor:
+void ProcessSampleMain(float dryInput)
+{
+    float inputWithFeedback = dryInput + lastFeedback;
+
+    // Single diffusion pass
+    float diffused = chain.ProcessSample(inputWithFeedback);
+
+    // Write to delay line
+    delayLine.PushSample(diffused);
+
+    // Read with compensation that varies with diffusion amount
+    float compensationMs = chain.GetDelayCompensationMs();
+    float readMs = std::max(1.0f, userDelayMs - compensationMs);
+    float wet = delayLine.ReadAt(readMs);
+
+    // Feedback
+    float damped = dampingFilter.Process(wet);
+    lastFeedback = damped * feedbackGain;
+
+    output = dryInput * dryVol + wet * wetVol;
+}
+```
+
+PROS
+----
++ Only 8 allpass filters per channel — matches Deelay's stated architecture
++ Single processing path — no crossfading, no dual chains
++ The swell effect is a NATURAL consequence of allpass physics + delay
+  compensation, not an artificial blend
++ The transition from delay to reverb is continuous and artifact-free
++ CPU cost is minimal: 8 allpass operations + 1 delay line read per sample
++ "Diffusion quality" maps directly to number of active stages
++ "Diffusion size" maps directly to stage delay scaling
++ Very close to what the developer described
+
+CONS
+----
+- The total chain delay at full size (~488ms with the given tunings) limits
+  minimum usable delay time to ~500ms unless tunings are shortened
+- At size=1, the chain's temporal spread may be too long for short delay
+  settings (e.g., 50ms delay with 488ms chain doesn't work)
+- The "swell" characteristic is entirely determined by tuning ratios —
+  getting the right subjective feel requires careful empirical tuning
+- At high amounts with feedback, the reverb tail character depends heavily
+  on the interaction between allpass ringing and feedback gain
+- Less independent control over swell shape vs reverb density compared
+  to dual-chain approaches
+
+CRITICAL TUNING NOTES
+----------------------
+1. The developer said "carefully tuned" — this is where the magic lies.
+   The specific delay ratios determine the density buildup profile.
+
+2. For a good swell, shorter stages should be at the front (fast initial
+   scatter) and longer stages at the back (building density over time).
+
+3. The total chain delay should be sized relative to the maximum delay
+   time. For a 1000ms max delay, keeping the chain at ~200-400ms
+   (at size=1) is reasonable.
+
+4. Exponentially growing delays (each ~1.5x previous) produce natural
+   density buildup without metallic coloration.
+
+5. The compensation offset should be tuned so that at amount=0.5, the
+   swell peak aligns with the nominal delay time. This is the "sweet
+   spot" where the effect transitions from delay-like to reverb-like.
