@@ -4,6 +4,7 @@
 #include <memory>
 
 #include "NewDelayReverb/Stages/Delay.h"
+#include "NewDelayReverb/Stages/Deverb.h"
 #include "NewDelayReverb/Stages/Reverb.h"
 #include "NewDelayReverb/Stages/PitchShifter.h"
 #include "NewDelayReverb/Stages/Distortion.h"
@@ -23,8 +24,9 @@ public:
     void PrepareToPlay(double sampleRate);
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
 
-    std::unique_ptr<Delay> DelayLeftRight;
-    std::unique_ptr<Reverb> ReverbLeftRight;
+    std::unique_ptr<Deverb> DeverbLeftRight;
+    //std::unique_ptr<Delay> DelayLeftRight;
+    //std::unique_ptr<Reverb> ReverbLeftRight;
     std::unique_ptr<PitchShifter> PitchShifterLeftRight;
     std::unique_ptr<Distortion> DistortionLeftRight;
     std::unique_ptr<Stereo> StereoLeftRight;

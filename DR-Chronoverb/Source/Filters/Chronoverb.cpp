@@ -3,8 +3,10 @@
 Chronoverb::Chronoverb()
 {
     // Must happen at class construction
-    DelayLeftRight = std::make_unique<Delay>();
-    ReverbLeftRight = std::make_unique<Reverb>();
+    DeverbLeftRight = std::make_unique<Deverb>();
+
+    //DelayLeftRight = std::make_unique<Delay>();
+    //ReverbLeftRight = std::make_unique<Reverb>();
     PitchShifterLeftRight = std::make_unique<PitchShifter>();
     DistortionLeftRight = std::make_unique<Distortion>();
     StereoLeftRight = std::make_unique<Stereo>();
@@ -20,8 +22,10 @@ void Chronoverb::PrepareToPlay(double newSampleRate)
     // 2 channels, 4096 samples covers all typical DAW block sizes.
     drySnapshot.setSize(2, 4096, false, true, false);
 
-    DelayLeftRight->PrepareToPlay(sampleRate, *FilterLeftRight);
-    ReverbLeftRight->PrepareToPlay(sampleRate, *FilterLeftRight);
+    DeverbLeftRight->PrepareToPlay(newSampleRate);
+
+    //DelayLeftRight->PrepareToPlay(sampleRate, *FilterLeftRight);
+    //ReverbLeftRight->PrepareToPlay(sampleRate, *FilterLeftRight);
 
     PitchShifterLeftRight->PrepareToPlay(sampleRate, *FilterLeftRight);
     DistortionLeftRight->PrepareToPlay(static_cast<float>(sampleRate));
@@ -45,8 +49,11 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
     float* leftData  = audioBuffer.getWritePointer(0);
     float* rightData = (numChannels > 1 ? audioBuffer.getWritePointer(1) : nullptr);
 
-    DelayLeftRight->ProcessBlock(audioBuffer);
-    ReverbLeftRight->ProcessBlock(audioBuffer);
+    DeverbLeftRight->ProcessBlock(audioBuffer);
+
+    //DelayLeftRight->ProcessBlock(audioBuffer);
+    //ReverbLeftRight->ProcessBlock(audioBuffer);
+
     PitchShifterLeftRight->ProcessBlock(audioBuffer);
     FilterLeftRight->ProcessBlock(audioBuffer);
 
@@ -69,7 +76,11 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             preFilteredRight = filteredR;
         }
 
-        auto [delayGain, reverbGain] = GetDelayReverbGain(diffusionAmount);
+        // 1) Deverb test
+        auto [deverbLeft, deverbRight] =
+            DeverbLeftRight->ProcessSample(preFilteredLeft, preFilteredRight);
+
+        /*auto [delayGain, reverbGain] = GetDelayReverbGain(diffusionAmount);
 
         // 1) Delay
         float delayLeft = 0, delayRight = 0;
@@ -96,11 +107,11 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
         // 3) Blend delay -> reverb between diff amt 0.5 -> 1.0
         const float wetLeft = (delayLeft * delayGain) + (reverbLeft * reverbGain);
-        const float wetRight = (delayRight * delayGain) + (reverbRight * reverbGain);
+        const float wetRight = (delayRight * delayGain) + (reverbRight * reverbGain);*/
 
         // 4) Pitch shifter
         auto [pitchLeft, pitchRight] =
-            PitchShifterLeftRight->ProcessSample(wetLeft, wetRight);
+            PitchShifterLeftRight->ProcessSample(deverbLeft, deverbRight);
 
         // 5) Distortion
         auto [distortionDryLeft, distortionDryRight, distortionWetLeft, distortionWetRight] =
