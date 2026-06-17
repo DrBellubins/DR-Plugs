@@ -58,22 +58,9 @@ std::pair<float, float> PitchShifter::ProcessSample(float inputSampleL, float in
     if (pitchWetMix <= 0.0001f)
         return std::make_pair(inputSampleL, inputSampleR);
 
-    // Push incoming wet into alignment line
-    delayLineLeft->PushSample(inputSampleL);
-    delayLineRight->PushSample(inputSampleR);
-
-    // Backend latency in ms
-    const float alignMs = std::max(1.0f, pitchShifterLatencyMs);
-
-    // Delayed unpitched reference, aligned to backend output timing
-    const float alignedInputL = delayLineLeft->ReadFeedbackBuffer(alignMs);
-    const float alignedInputR = delayLineRight->ReadFeedbackBuffer(alignMs);
-
-    // Process current wet directly through pitch backend
     float pitchedLeft = pitchShifterLeft.ProcessSample(inputSampleL);
     float pitchedRight = pitchShifterRight.ProcessSample(inputSampleR);
 
-    // Quantize sequence changes to echo boundaries
     ++echoWriteCounter;
     if (echoWriteCounter >= writePeriodSamples)
     {
@@ -82,7 +69,6 @@ std::pair<float, float> PitchShifter::ProcessSample(float inputSampleL, float in
         pitchShifterRight.OnNewEchoBoundary();
     }
 
-    // Optional diffusion on pitched result
     auto [diffPitchedLeft, diffPitchedRight] =
         reverb->ProcessSample(pitchedLeft, pitchedRight);
 
@@ -97,11 +83,16 @@ std::pair<float, float> PitchShifter::ProcessSample(float inputSampleL, float in
     pitchedRight =
         ((pitchedRight * cleanGain) + (diffPitchedRight * diffusedGain)) * makeupGain;
 
-    // Crossfade against aligned unpitched wet, not the immediate wet
-    pitchedLeft = PMath::EqualPowerCrossfade(alignedInputL, pitchedLeft, pitchWetMix);
-    pitchedRight = PMath::EqualPowerCrossfade(alignedInputR, pitchedRight, pitchWetMix);
+    // Parallel blend, not replacement crossfade
+    const float dryWetPitch = juce::jlimit(0.0f, 1.0f, pitchWetMix);
 
-    return std::make_pair(pitchedLeft, pitchedRight);
+    const float outLeft =
+        (inputSampleL * (1.0f - dryWetPitch)) + (pitchedLeft * dryWetPitch);
+
+    const float outRight =
+        (inputSampleR * (1.0f - dryWetPitch)) + (pitchedRight * dryWetPitch);
+
+    return std::make_pair(outLeft, outRight);
 }
 
 //region Parameters
