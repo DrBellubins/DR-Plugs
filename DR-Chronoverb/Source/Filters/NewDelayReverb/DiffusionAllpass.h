@@ -1,199 +1,140 @@
 #pragma once
 
 #include <vector>
+#include <algorithm>
 #include <cmath>
 
+#include <juce_core/juce_core.h>
+
 // DiffusionAllpass
-// Simple delay-based allpass:
-// y[n] = -g * x[n] + x[n - D] + g * y[n - D]
-// We implement using a circular buffer with per-sample push, and fractional D support via linear interpolation.
+// Cheap single-buffer Schroeder-style delay-line allpass:
 //
-// NOTE: The classical Schroeder allpass form varies by sign and exact implementation.
-// Here we pick a stable form with |g| < 1.0.
+//   d = delayed sample
+//   v = x + g * d
+//   y = d - g * v
+//   buffer[write] = v
+//
+// This is much cheaper than the previous dual-buffer fractional-read version.
+// It is intended as a test replacement to evaluate whether the old allpass
+// topology was the main CPU bottleneck.
+//
+// Notes:
+// - Uses one circular buffer
+// - One delayed read
+// - One write
+// - Two multiplies + a few adds per sample
+// - Supports integer delay directly
+// - SetCurrentDelaySamples() is kept for compatibility with existing callers,
+//   but this test implementation rounds to the nearest integer sample delay.
 class DiffusionAllpass
 {
 public:
-    DiffusionAllpass()
-    {
-    }
+    DiffusionAllpass() = default;
 
-    void Prepare(double sampleRate)
+    void Prepare(double newSampleRate)
     {
-        smapleRate = sampleRate;
-        SetDelayMilliseconds(50.0f); // default
-        SetGain(0.65f);              // default
+        sampleRate = std::max(1.0, newSampleRate);
+        SetDelayMilliseconds(50.0f);
+        SetGain(0.65f);
+        ensureBufferSize();
         Clear();
     }
 
-    void Configure(float delayMilliseconds, float gain)
+    void Configure(float delayMilliseconds, float newGain)
     {
         SetDelayMilliseconds(delayMilliseconds);
-        SetGain(gain);
+        SetGain(newGain);
         ensureBufferSize();
-        currentDelaySamples = static_cast<float>(delaySamples); // Initialize before Clear()
+        currentDelaySamples = delaySamplesInteger;
         Clear();
     }
 
     float ProcessSample(float inputSample)
     {
-        // Read delayed values using current fractional delay
-        const float xDelayed = readDelaySamplesFractional(currentDelaySamples);
-        const float yDelayed = readOutputDelaySamplesFractional(currentDelaySamples);
+        const int size = static_cast<int>(buffer.size());
 
-        // Allpass equation
-        const float y = -gain * inputSample + xDelayed + gain * yDelayed;
+        int readIndex = writeIndex - currentDelaySamples;
 
-        // Push input and output
-        pushInput(inputSample);
-        pushOutput(y);
+        while (readIndex < 0)
+            readIndex += size;
+
+        while (readIndex >= size)
+            readIndex -= size;
+
+        const float delayed = buffer[static_cast<size_t>(readIndex)];
+
+        // Canonical Schroeder allpass
+        const float v = inputSample + gain * delayed;
+        const float y = delayed - gain * v;
+
+        buffer[static_cast<size_t>(writeIndex)] = v;
+
+        ++writeIndex;
+        if (writeIndex >= size)
+            writeIndex = 0;
 
         return y;
     }
 
     void SetGain(float newGain)
     {
-        gain = std::max(-0.99f, std::min(0.99f, newGain));
+        gain = juce::jlimit(-0.99f, 0.99f, newGain);
     }
 
-    // Set a base delay in milliseconds once (Configure calls this).
     void SetBaseDelayMilliseconds(float newDelayMs)
     {
-        delayMs = std::max(1.0f, newDelayMs);
-        delaySamplesInteger = static_cast<int>(std::floor((delayMs * smapleRate) / 1000.0));
-        ensureBufferSize();
-        currentDelaySamples = static_cast<float>(delaySamplesInteger);
+        SetDelayMilliseconds(newDelayMs);
+        currentDelaySamples = delaySamplesInteger;
     }
 
-    // Update the current fractional delay in samples without reallocating/clearing buffers.
-    // Use this per-sample for jitter modulation.
+    // Compatibility path for existing DiffusionChain modulation calls.
+    // For this cheap test version, we quantize to integer samples.
     void SetCurrentDelaySamples(float newDelaySamples)
     {
-        // Slew-limit to avoid zipper noise in fractional interpolation
-        const float maxDelta = 0.05f; // Slower slewing for smoother changes
-        const float delta = juce::jlimit<float>(-maxDelta, maxDelta, newDelaySamples - currentDelaySamples);
-        currentDelaySamples += delta;
-
-        // Bound between 1 and buffer size - 3
-        const float minD = 1.0f;
-        const float maxD = static_cast<float>(std::max(4, static_cast<int>(inputBuffer.size()) - 3));
-        currentDelaySamples = juce::jlimit<float>(minD, maxD, currentDelaySamples);
+        const int newDelayInt = std::max(1, static_cast<int>(std::round(newDelaySamples)));
+        currentDelaySamples = std::min(newDelayInt, maxUsableDelaySamples());
     }
 
     void SetDelayMilliseconds(float newDelayMs)
     {
         delayMs = std::max(1.0f, newDelayMs);
-        delaySamples = static_cast<int>(std::round((delayMs * smapleRate) / 1000.0));
+
+        delaySamplesInteger = std::max(
+            1,
+            static_cast<int>(std::round((delayMs * static_cast<float>(sampleRate)) / 1000.0f)));
+
         ensureBufferSize();
+
+        currentDelaySamples = std::min(delaySamplesInteger, maxUsableDelaySamples());
     }
 
     void Clear()
     {
-        std::fill(inputBuffer.begin(), inputBuffer.end(), 0.0f);
-        std::fill(outputBuffer.begin(), outputBuffer.end(), 0.0f);
-        inputWrite = 0;
-        outputWrite = 0;
+        std::fill(buffer.begin(), buffer.end(), 0.0f);
+        writeIndex = 0;
     }
 
 private:
-    double smapleRate = 48000.0;
+    void ensureBufferSize()
+    {
+        const int minSize = std::max(4, delaySamplesInteger + 2);
+
+        if (static_cast<int>(buffer.size()) < minSize)
+            buffer.resize(static_cast<size_t>(minSize), 0.0f);
+    }
+
+    int maxUsableDelaySamples() const
+    {
+        return std::max(1, static_cast<int>(buffer.size()) - 1);
+    }
+
+    double sampleRate = 48000.0;
     float delayMs = 50.0f;
     float gain = 0.65f;
 
-    std::vector<float> inputBuffer;
-    std::vector<float> outputBuffer;
+    std::vector<float> buffer;
+    int writeIndex = 0;
 
-    int inputWrite = 0;
-    int outputWrite = 0;
-
-    int delaySamples = 2400; // keep legacy path if needed
-    int delaySamplesInteger = 2400;
-    float currentDelaySamples = 2400.0f;
-
-    float readDelaySamplesFractional(float delaySamplesFloat) const
-    {
-        const int size = static_cast<int>(inputBuffer.size());
-        const float readIndexFloat = static_cast<float>(inputWrite) - delaySamplesFloat;
-
-        float wrapped = readIndexFloat;
-
-        while (wrapped < 0.0f)
-            wrapped += static_cast<float>(size);
-
-        // Also clamp upper bound — previously missing, causes frac blow-up when wrapped >= size
-        while (wrapped >= static_cast<float>(size))
-            wrapped -= static_cast<float>(size);
-
-        const float floorWrapped = std::floor(wrapped);
-        const float frac = wrapped - floorWrapped;  // always in [0, 1)
-
-        int indexA = static_cast<int>(floorWrapped) % size;
-        int indexB = (indexA + 1) % size;
-
-        return inputBuffer[indexA] * (1.0f - frac) + inputBuffer[indexB] * frac;
-    }
-
-    float readOutputDelaySamplesFractional(float delaySamplesFloat) const
-    {
-        const int size = static_cast<int>(outputBuffer.size());
-        const float readIndexFloat = static_cast<float>(outputWrite) - delaySamplesFloat;
-
-        float wrapped = readIndexFloat;
-
-        while (wrapped < 0.0f)
-            wrapped += static_cast<float>(size);
-
-        // Also clamp upper bound — previously missing, causes frac blow-up when wrapped >= size
-        while (wrapped >= static_cast<float>(size))
-            wrapped -= static_cast<float>(size);
-
-        const float floorWrapped = std::floor(wrapped);
-        const float frac = wrapped - floorWrapped;  // always in [0, 1)
-
-        int indexA = static_cast<int>(floorWrapped) % size;
-        int indexB = (indexA + 1) % size;
-
-        return outputBuffer[indexA] * (1.0f - frac) + outputBuffer[indexB] * frac;
-    }
-
-    void ensureBufferSize()
-    {
-        const int minSize = std::max(4, delaySamples + 4);
-
-        if (static_cast<int>(inputBuffer.size()) < minSize)
-            inputBuffer.resize(minSize, 0.0f);
-
-        if (static_cast<int>(outputBuffer.size()) < minSize)
-            outputBuffer.resize(minSize, 0.0f);
-    }
-
-    void pushInput(float x)
-    {
-        inputBuffer[inputWrite] = x;
-        inputWrite = (inputWrite + 1) % static_cast<int>(inputBuffer.size());
-    }
-
-    void pushOutput(float y)
-    {
-        outputBuffer[outputWrite] = y;
-        outputWrite = (outputWrite + 1) % static_cast<int>(outputBuffer.size());
-    }
-
-    float readDelaySamples(int d) const
-    {
-        const int size = static_cast<int>(inputBuffer.size());
-        int index = inputWrite - d;
-        while (index < 0) index += size;
-        index %= size;
-        return inputBuffer[index];
-    }
-
-    float readOutputDelaySamples(int d) const
-    {
-        const int size = static_cast<int>(outputBuffer.size());
-        int index = outputWrite - d;
-        while (index < 0) index += size;
-        index %= size;
-
-        return outputBuffer[index];
-    }
+    int delaySamplesInteger = 1;
+    int currentDelaySamples = 1;
 };
