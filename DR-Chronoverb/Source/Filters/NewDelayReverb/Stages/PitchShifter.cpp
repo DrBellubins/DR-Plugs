@@ -2,7 +2,6 @@
 
 PitchShifter::PitchShifter()
 {
-    //delay = std::make_unique<Delay>();
     reverb = std::make_unique<Reverb>();
 }
 
@@ -15,6 +14,10 @@ void PitchShifter::PrepareToPlay(double newSampleRate, Filters& filters)
     delayTimeSegment.PrepareToPlay(sampleRate);
     delayTimeSegment.UpdateDelayMilliseconds();
 
+    // Delay line
+    delayLineLeft = std::make_unique<DelayLine>(delayTimeSegment.MaxDelaySamples);
+    delayLineRight = std::make_unique<DelayLine>(delayTimeSegment.MaxDelaySamples);
+
     // Pitch shifter
     echoWriteCounter = 0;
 
@@ -24,6 +27,7 @@ void PitchShifter::PrepareToPlay(double newSampleRate, Filters& filters)
     pitchShifterLeft.SetEnabled(true);
     pitchShifterRight.SetEnabled(true);
 
+    rebuildPitchSequences();
     pitchShifterLeft.CommitPendingSequenceNow();
     pitchShifterRight.CommitPendingSequenceNow();
 
@@ -34,8 +38,6 @@ void PitchShifter::PrepareToPlay(double newSampleRate, Filters& filters)
     smoothedCenteredReadDelayMilliseconds = delayTimeSegment.DelayTimeMilliseconds;
     readDelaySlewCoefficient = delayTimeSegment.ReadDelaySlewCoefficient;
     writePeriodSamples = delayTimeSegment.WritePeriodSamples;
-
-    rebuildPitchSequences();
 }
 
 void PitchShifter::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
@@ -53,8 +55,8 @@ void PitchShifter::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
 std::pair<float, float> PitchShifter::ProcessSample(float inputSampleL, float inputSampleR)
 {
-    if (pitchWetMix <= 0.0001f || delayLineLeft == nullptr || delayLineRight == nullptr)
-        return std::make_pair(inputSampleL, inputSampleR);
+    //if (pitchWetMix <= 0.0001f || delayLineLeft == nullptr || delayLineRight == nullptr)
+    //    return std::make_pair(inputSampleL, inputSampleR);
 
     // 1) Pre-read latency compensation.
     smoothedCenteredReadDelayMilliseconds += readDelaySlewCoefficient *
@@ -124,10 +126,10 @@ void PitchShifter::SetHostTempo(float bpm)
 
 void PitchShifter::SetDelayTime(float newDelayTime)
 {
-    delayTimeNormalized = newDelayTime;
+    delayTimeMs = newDelayTime;
     delayTimeSegment.SetDelayTime(newDelayTime);
 
-    reverb->SetDelayTime(delayTimeNormalized);
+    reverb->SetDelayTime(delayTimeMs);
 }
 
 void PitchShifter::SetDelayMode(int newDelayMode)
@@ -193,12 +195,6 @@ void PitchShifter::SetPitchWetMix(float newPitchWetMix)
 //endregion
 
 //region Update Functions
-
-void PitchShifter::SetDelayLines(DelayLine& newDelayLineLeft, DelayLine& newDelayLineRight)
-{
-    delayLineLeft = &newDelayLineLeft;
-    delayLineRight = &newDelayLineRight;
-}
 
 void PitchShifter::rebuildPitchSequences()
 {

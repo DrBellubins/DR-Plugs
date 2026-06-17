@@ -24,8 +24,6 @@ public:
 
     void SetHostTempo(float bpm);
 
-    void SetDelayLines(DelayLine& newDelayLineLeft, DelayLine& newDelayLineRight); // From Delay.cpp
-
     void SetDelayTime(float newDelayTime);
     void SetDelayMode(int newDelaymode);
     void SetFeebackTime(float newFeebackTime);
@@ -70,8 +68,7 @@ private:
     float pitchShifterLatencyMs = 0.0f;
 
     // Parameters
-    float delayTimeNormalized = 0.3f;
-    float delayMilliseconds = 300.0f;
+    float delayTimeMs = 0.3f;
 
     int delayMode = 0;
 
@@ -92,10 +89,10 @@ private:
     OctaveEchoPitchShifter pitchShifterLeft;
     OctaveEchoPitchShifter pitchShifterRight;
 
-    DelayLine* delayLineLeft = nullptr;
-    DelayLine* delayLineRight = nullptr;
-
     DelayTimeSegment delayTimeSegment;
+
+    std::unique_ptr<DelayLine> delayLineLeft;
+    std::unique_ptr<DelayLine> delayLineRight;
 
     std::unique_ptr<Reverb> reverb;
 
