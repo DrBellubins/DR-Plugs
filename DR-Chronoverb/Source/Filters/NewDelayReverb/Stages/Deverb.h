@@ -12,16 +12,14 @@
 
 // Deverb = Delay/Reverb hybrid experiment.
 //
-// Design:
-// 1) input + feedback
-// 2) serial allpass diffusion chain BEFORE delay write
-// 3) amount-controlled clean/diffused write blend
-// 4) amount-controlled read compensation to reveal the swell
-// 5) damping after delay read
-// 6) feedback unchanged by diffusion amount
+// Revised patch:
+// - keeps serial allpass diffusion BEFORE delay write
+// - keeps amount-controlled clean/diffused write blend
+// - removes amount-driven read compensation entirely
+// - delay time remains the only thing that slews the read position
 //
-// This is intentionally separate from the current Delay / Reverb stages
-// so it can be auditioned temporarily without disturbing the existing path.
+// This preserves the experiment while avoiding pitch slewing when
+// changing diffusionAmount live.
 class Deverb
 {
 public:
@@ -59,11 +57,9 @@ private:
     float lastFeedbackR = 0.0f;
 
     float smoothedBlend = 0.0f;
-    float smoothedCompensationMs = 0.0f;
     float smoothedReadDelayMs = 1.0f;
 
     float blendSlewCoefficient = 0.0f;
-    float compensationSlewCoefficient = 0.0f;
     float readDelaySlewCoefficient = 0.0f;
 
     DelayTimeSegment delayTimeSegment;

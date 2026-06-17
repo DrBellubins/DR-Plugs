@@ -7,13 +7,11 @@
 #include "DiffusionAllpass.h"
 
 // A dedicated diffusion chain for the Deverb experiment.
-// This is intentionally simpler than the existing DiffusionChain:
-// - no jitter
-// - no modulation
-// - fixed serial allpass topology
-// - quality = active stage count
-// - size = uniform delay scaling
-// - amount drives per-stage gain saturation externally
+// This version keeps the experiment intact while ensuring that
+// diffusionAmount does NOT modulate any time-domain read position.
+// Amount only controls:
+// 1) per-stage allpass gain
+// 2) clean/diffused write blend amount
 class DeverbDiffusionChain
 {
 public:
@@ -29,7 +27,6 @@ public:
     float ProcessSample(float inputSample);
 
     float GetBlendAmount() const;
-    float GetCompensationMs() const;
     float GetTotalChainDelayMs() const { return totalChainDelayMs; }
 
 private:
@@ -45,8 +42,6 @@ private:
 
     static constexpr float MaxAllpassGain = 0.7f;
 
-    // Tunings from the proposed design.
-    // These are kept fixed and scaled by size.
     const std::array<float, MaxStages> stageTuningsMs =
     {
         10.0f, 15.0f, 22.0f, 33.0f, 50.0f, 75.0f, 113.0f, 170.0f

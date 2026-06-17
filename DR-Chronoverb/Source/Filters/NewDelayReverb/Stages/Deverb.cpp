@@ -40,14 +40,9 @@ void Deverb::PrepareToPlay(double newSampleRate)
     updateFeedbackGainFromFeedbackTime();
 
     smoothedBlend = diffusionLeft.GetBlendAmount();
-    smoothedCompensationMs = diffusionLeft.GetCompensationMs();
     smoothedReadDelayMs = delayTimeSegment.DelayTimeMilliseconds;
 
-    // Separate smoothing domains:
-    // - blend/compensation respond fairly quickly
-    // - read delay smoothing should preserve pitch-warp behavior
-    blendSlewCoefficient = 1.0f / (0.01f * static_cast<float>(sampleRate));         // ~10 ms
-    compensationSlewCoefficient = 1.0f / (0.01f * static_cast<float>(sampleRate));  // ~10 ms
+    blendSlewCoefficient = 1.0f / (0.01f * static_cast<float>(sampleRate)); // ~10 ms
     readDelaySlewCoefficient = delayTimeSegment.ReadDelaySlewCoefficient;
 
     Reset();
@@ -70,18 +65,12 @@ std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSam
     const float diffusedL = diffusionLeft.ProcessSample(inputWithFeedbackL);
     const float diffusedR = diffusionRight.ProcessSample(inputWithFeedbackR);
 
-    // 3) Smooth amount-driven blend + compensation
+    // 3) Smooth only the clean/diffused write blend
     const float targetBlend = diffusionLeft.GetBlendAmount();
-    const float targetCompensationMs = diffusionLeft.GetCompensationMs();
-
     smoothedBlend += blendSlewCoefficient * (targetBlend - smoothedBlend);
-    smoothedCompensationMs += compensationSlewCoefficient
-        * (targetCompensationMs - smoothedCompensationMs);
-
     smoothedBlend = std::clamp(smoothedBlend, 0.0f, 1.0f);
-    smoothedCompensationMs = std::max(0.0f, smoothedCompensationMs);
 
-    // 4) Blend normal delay path + diffused delay path BEFORE delay write
+    // 4) Blend clean path and diffused path BEFORE delay write
     const float writeSignalL =
         (inputWithFeedbackL * (1.0f - smoothedBlend)) + (diffusedL * smoothedBlend);
 
@@ -92,9 +81,10 @@ std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSam
     delayLineLeft->PushSample(writeSignalL);
     delayLineRight->PushSample(writeSignalR);
 
-    // 6) Read from compensated position
+    // 6) Read only at the user delay time
+    // This means diffusionAmount no longer changes timing -> no pitch slewing from amount.
     const float targetReadDelayMs =
-        std::max(1.0f, delayTimeSegment.DelayTimeMilliseconds - smoothedCompensationMs);
+        std::max(1.0f, delayTimeSegment.DelayTimeMilliseconds);
 
     smoothedReadDelayMs += readDelaySlewCoefficient
         * (targetReadDelayMs - smoothedReadDelayMs);
@@ -121,7 +111,6 @@ void Deverb::Reset()
     lastFeedbackR = 0.0f;
 
     smoothedBlend = diffusionLeft.GetBlendAmount();
-    smoothedCompensationMs = diffusionLeft.GetCompensationMs();
     smoothedReadDelayMs = std::max(1.0f, delayTimeSegment.DelayTimeMilliseconds);
 
     if (delayLineLeft != nullptr)

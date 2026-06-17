@@ -49,22 +49,14 @@ float DeverbDiffusionChain::ProcessSample(float inputSample)
 
 float DeverbDiffusionChain::GetBlendAmount() const
 {
-    // Equal-power style reveal/blend curve.
+    // Equal-power style write-blend curve.
+    // amount=0   -> clean path only
+    // amount=1   -> fully diffused write path
     return std::sin(diffusionAmount * juce::MathConstants<float>::halfPi);
-}
-
-float DeverbDiffusionChain::GetCompensationMs() const
-{
-    // At amount=0 -> full compensation
-    // At amount=1 -> no compensation
-    const float reveal = GetBlendAmount();
-    return totalChainDelayMs * (1.0f - reveal);
 }
 
 void DeverbDiffusionChain::rebuildStageDelays()
 {
-    // Keep the same scaling concept you wanted:
-    // tight at low size, wide at high size.
     const float scale = 0.25f + (0.75f * size01);
 
     totalChainDelayMs = 0.0f;
@@ -81,7 +73,8 @@ void DeverbDiffusionChain::rebuildStageDelays()
 
 void DeverbDiffusionChain::updateStageGains()
 {
-    // Gain saturates by amount=0.5, matching your proposed design.
+    // Gain saturates by amount=0.5 so the chain character is largely established
+    // in the lower half, while the upper half behaves more like stronger path exposure.
     const float gainDrive = std::min(1.0f, diffusionAmount * 2.0f);
     const float gain = gainDrive * MaxAllpassGain;
 
