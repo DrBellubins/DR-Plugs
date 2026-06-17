@@ -1,0 +1,98 @@
+
+<h2 class="sr-only">C++ std math operations ranked by approximate CPU cycle cost, from fabs at 1 cycle to tgamma at ~300 cycles</h2>
+<div style="padding: 1rem 0;">
+  <div style="display: flex; flex-wrap: wrap; gap: 10px 18px; margin-bottom: 18px; font-size: 12px; color: var(--color-text-secondary);">
+    <span style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:2px;background:#1D9E75;"></span>Trivial (1–5 cy)</span>
+    <span style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:2px;background:#378ADD;"></span>Basic arithmetic (4–10 cy)</span>
+    <span style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:2px;background:#BA7517;"></span>Division-class (12–50 cy)</span>
+    <span style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:2px;background:#D85A30;"></span>Transcendental (25–60 cy)</span>
+    <span style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:2px;background:#E24B4A;"></span>Trig / power (65–100 cy)</span>
+    <span style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:2px;background:#791F1F;"></span>Special functions (130–300+ cy)</span>
+  </div>
+  <div id="cw" style="position:relative;width:100%;height:880px;">
+    <canvas id="mc" role="img" aria-label="Horizontal bar chart ranking C++ std math operations by CPU cycles. fabs and min/max are cheapest at 1-2 cycles. tgamma is most expensive at ~300 cycles.">Ranked fastest to slowest: fabs (1 cy), min/max (2 cy), add/sub (4 cy), mul (5 cy), fma (5 cy), div float (12 cy), sqrt float (13 cy), sqrt double (20 cy), fmod (30 cy), exp2/log2 (28 cy), exp/log (42 cy), hypot (45 cy), cbrt (55 cy), sin/cos (65 cy), atan/atan2 (75 cy), pow (80 cy), asin/acos (100 cy), sinh/tanh (130 cy), erf/erfc (200 cy), tgamma (~300 cy).</canvas>
+  </div>
+  <p style="font-size:11px;color:var(--color-text-tertiary);margin-top:10px;">Approximate scalar latency on Zen 3 / Skylake-class CPUs at -O2. Values vary by compiler, operand type, and input range. Transcendentals use libm (software path), not deprecated x87 FSIN/FCOS. Log scale.</p>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const teal='#1D9E75',blue='#378ADD',amber='#BA7517',coral='#D85A30',red='#E24B4A',darkred='#791F1F';
+const ops=[
+  {l:'fabs / abs',        cy:1,   c:teal},
+  {l:'min / max',         cy:2,   c:teal},
+  {l:'copysign',          cy:2,   c:teal},
+  {l:'clamp',             cy:3,   c:teal},
+  {l:'add / sub  (+/-)',  cy:4,   c:blue},
+  {l:'mul  (*)',          cy:5,   c:blue},
+  {l:'fma',               cy:5,   c:blue},
+  {l:'ldexp / scalbn',    cy:6,   c:blue},
+  {l:'div  (float, /)',   cy:12,  c:amber},
+  {l:'sqrt  (float)',     cy:13,  c:amber},
+  {l:'sqrt  (double)',    cy:20,  c:amber},
+  {l:'div  (double, /)',  cy:22,  c:amber},
+  {l:'exp2 / log2',       cy:28,  c:coral},
+  {l:'fmod',              cy:32,  c:amber},
+  {l:'exp / log',         cy:42,  c:coral},
+  {l:'hypot',             cy:46,  c:amber},
+  {l:'cbrt',              cy:55,  c:coral},
+  {l:'sin / cos',         cy:65,  c:red},
+  {l:'atan / atan2',      cy:75,  c:red},
+  {l:'pow',               cy:82,  c:red},
+  {l:'asin / acos',       cy:100, c:red},
+  {l:'sinh / cosh / tanh',cy:130, c:darkred},
+  {l:'erf / erfc',        cy:200, c:darkred},
+  {l:'tgamma / lgamma',   cy:280, c:darkred},
+];
+const sorted=[...ops].sort((a,b)=>a.cy-b.cy);
+const dark=matchMedia('(prefers-color-scheme: dark)').matches;
+const tc=dark?'#B4B2A9':'#888780';
+const gc=dark?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.07)';
+new Chart(document.getElementById('mc'),{
+  type:'bar',
+  data:{
+    labels:sorted.map(o=>o.l),
+    datasets:[{
+      data:sorted.map(o=>o.cy),
+      backgroundColor:sorted.map(o=>o.c),
+      borderWidth:0,
+      borderRadius:3,
+      barPercentage:0.7,
+    }]
+  },
+  options:{
+    indexAxis:'y',
+    responsive:true,
+    maintainAspectRatio:false,
+    plugins:{
+      legend:{display:false},
+      tooltip:{
+        callbacks:{
+          label:ctx=>`  ~${ctx.raw} cycles`
+        },
+        bodyFont:{size:12},
+        padding:8,
+      }
+    },
+    scales:{
+      x:{
+        type:'logarithmic',
+        min:0.7,
+        max:450,
+        title:{display:true,text:'approx. latency (cycles) — log scale',font:{size:11},color:tc},
+        ticks:{
+          font:{size:11},
+          color:tc,
+          callback(val){
+            return [1,2,5,10,20,50,100,200,300].includes(val)?val:null;
+          }
+        },
+        grid:{color:gc}
+      },
+      y:{
+        ticks:{font:{size:12},color:dark?'#D3D1C7':'#5F5E5A'},
+        grid:{display:false}
+      }
+    }
+  }
+});
+</script>
