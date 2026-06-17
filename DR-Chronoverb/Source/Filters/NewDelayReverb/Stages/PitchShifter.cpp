@@ -55,56 +55,38 @@ void PitchShifter::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
 std::pair<float, float> PitchShifter::ProcessSample(float inputSampleL, float inputSampleR)
 {
-    //if (pitchWetMix <= 0.0001f || delayLineLeft == nullptr || delayLineRight == nullptr)
-    //    return std::make_pair(inputSampleL, inputSampleR);
+    if (pitchWetMix <= 0.0001f)
+        return std::make_pair(inputSampleL, inputSampleR);
 
-    // 1) Pre-read latency compensation.
-    smoothedCenteredReadDelayMilliseconds += readDelaySlewCoefficient *
-            (delayTimeSegment.DelayTimeMilliseconds - smoothedCenteredReadDelayMilliseconds);
+    float pitchedLeft = pitchShifterLeft.ProcessSample(inputSampleL);
+    float pitchedRight = pitchShifterRight.ProcessSample(inputSampleR);
 
-    const float nominalReadMilliseconds = smoothedCenteredReadDelayMilliseconds;
-    const float preReadMs = std::max(1.0f, nominalReadMilliseconds - pitchShifterLatencyMs);
+    // keep sequence changes quantized to echo boundaries
+    ++echoWriteCounter;
+    if (echoWriteCounter >= writePeriodSamples)
+    {
+        echoWriteCounter = 0;
+        pitchShifterLeft.OnNewEchoBoundary();
+        pitchShifterRight.OnNewEchoBoundary();
+    }
 
-    const float preReadWetLeft = delayLineLeft->ReadFeedbackBuffer(preReadMs);
-    const float preReadWetRight = delayLineRight->ReadFeedbackBuffer(preReadMs);
-
-    // 2) Process pitch shifter
-    float pitchedLeft = inputSampleL;
-    float pitchedRight = inputSampleR;
-
-    pitchedLeft = pitchShifterLeft.ProcessSample(preReadWetLeft);
-    pitchedRight = pitchShifterRight.ProcessSample(preReadWetRight);
-
+    // optional internal diffusion/reverb stage
     auto [diffPitchedLeft, diffPitchedRight] =
         reverb->ProcessSample(pitchedLeft, pitchedRight);
 
-    // Blend clean and diffused  diffusion amount to 0 -> 0.5
+    // same lower-half diffusion blend you already had
     const float lowerHalf01 = juce::jlimit(0.0f, 1.0f, diffusionAmount * 2.0f);
 
     const float cleanGain = std::pow(1.0f - lowerHalf01, 3.0f);
     const float diffusedGain = std::sin(lowerHalf01 * juce::MathConstants<float>::halfPi) * 0.75f;
-
     const float makeupGain =
         1.0f + (0.12f * std::sin(lowerHalf01 * juce::MathConstants<float>::pi));
 
-    // Blend
     pitchedLeft =
         ((pitchedLeft * cleanGain) + (diffPitchedLeft * diffusedGain)) * makeupGain;
 
     pitchedRight =
         ((pitchedRight * cleanGain) + (diffPitchedRight * diffusedGain)) * makeupGain;
-
-    // 3) Advance echo boundary counters (needed regardless of pitch enable state)
-    {
-        ++echoWriteCounter;
-        if (echoWriteCounter >= writePeriodSamples)
-        {
-            echoWriteCounter = 0;
-
-            pitchShifterLeft.OnNewEchoBoundary();
-            pitchShifterRight.OnNewEchoBoundary();
-        }
-    }
 
     pitchedLeft = PMath::EqualPowerCrossfade(inputSampleL, pitchedLeft, pitchWetMix);
     pitchedRight = PMath::EqualPowerCrossfade(inputSampleR, pitchedRight, pitchWetMix);
