@@ -2,7 +2,8 @@
 
 PitchShifter::PitchShifter()
 {
-    delay = std::make_unique<Delay>();
+    //delay = std::make_unique<Delay>();
+    reverb = std::make_unique<Reverb>();
 }
 
 void PitchShifter::PrepareToPlay(double newSampleRate, Filters& filters)
@@ -27,7 +28,7 @@ void PitchShifter::PrepareToPlay(double newSampleRate, Filters& filters)
     pitchShifterRight.CommitPendingSequenceNow();
 
     // Reverb line
-    delay->PrepareToPlay(sampleRate, *filtersInput);
+    reverb->PrepareToPlay(sampleRate, *filtersInput);
 
     // Various
     smoothedCenteredReadDelayMilliseconds = delayTimeSegment.DelayTimeMilliseconds;
@@ -42,7 +43,7 @@ void PitchShifter::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
     if (pitchSequenceRebuildPending.exchange(false, std::memory_order_acq_rel))
         rebuildPitchSequences();
 
-    delay->ProcessBlock(audioBuffer);
+    reverb->ProcessBlock(audioBuffer);
 
     pitchShifterLatencyMs = pitchShifterLeft.GetLatencyMilliseconds();
 
@@ -73,7 +74,7 @@ std::pair<float, float> PitchShifter::ProcessSample(float inputSampleL, float in
     pitchedRight = pitchShifterRight.ProcessSample(preReadWetRight);
 
     auto [diffPitchedLeft, diffPitchedRight] =
-        delay->ProcessSample(pitchedLeft, pitchedRight);
+        reverb->ProcessSample(pitchedLeft, pitchedRight);
 
     // Blend clean and diffused  diffusion amount to 0 -> 0.5
     const float lowerHalf01 = juce::jlimit(0.0f, 1.0f, diffusionAmount * 2.0f);
@@ -118,7 +119,7 @@ void PitchShifter::SetHostTempo(float bpm)
     delayTimeSegment.SetHostTempo(hostBPM);
     delayTimeSegment.UpdateDelayMilliseconds();
 
-    delay->SetHostTempo(hostBPM);
+    reverb->SetHostTempo(hostBPM);
 }
 
 void PitchShifter::SetDelayTime(float newDelayTime)
@@ -126,7 +127,7 @@ void PitchShifter::SetDelayTime(float newDelayTime)
     delayTimeNormalized = newDelayTime;
     delayTimeSegment.SetDelayTime(newDelayTime);
 
-    delay->SetDelayTime(delayTimeNormalized);
+    reverb->SetDelayTime(delayTimeNormalized);
 }
 
 void PitchShifter::SetDelayMode(int newDelayMode)
@@ -134,36 +135,36 @@ void PitchShifter::SetDelayMode(int newDelayMode)
     delayMode = newDelayMode;
     delayTimeSegment.SetDelayMode(newDelayMode);
 
-    delay->SetDelayMode(delayMode);
+    reverb->SetDelayMode(delayMode);
 }
 
 void PitchShifter::SetFeebackTime(float newFeedbackTime)
 {
-    delay->SetFeedbackTime(newFeedbackTime);
+    reverb->SetFeedbackTime(newFeedbackTime);
 }
 
 void PitchShifter::SetDiffusionAmount(float newDiffusionAmount)
 {
     diffusionAmount = newDiffusionAmount;
-    delay->SetDiffusionAmount(diffusionAmount);
+    reverb->SetDiffusionAmount(diffusionAmount);
 }
 
 void PitchShifter::SetDiffusionSize(float newDiffusionSize)
 {
     diffusionSize = newDiffusionSize;
-    delay->SetDiffusionSize(diffusionSize);
+    reverb->SetDiffusionSize(diffusionSize);
 }
 
 void PitchShifter::SetDiffusionQuality(int newDiffusionQuality)
 {
     diffusionQualityStages = newDiffusionQuality;
-    delay->SetDiffusionQuality(diffusionQualityStages);
+    reverb->SetDiffusionQuality(diffusionQualityStages);
 }
 
 void PitchShifter::SetFiltersOrder(int newFiltersOrder)
 {
     filtersOrder = newFiltersOrder;
-    delay->SetFiltersOrder(filtersOrder);
+    reverb->SetFiltersOrder(filtersOrder);
 }
 
 void PitchShifter::SetPitchRangeLower(float pitchRangeLowerSemitones)

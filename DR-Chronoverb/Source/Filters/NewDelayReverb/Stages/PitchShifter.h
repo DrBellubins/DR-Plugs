@@ -97,7 +97,7 @@ private:
 
     DelayTimeSegment delayTimeSegment;
 
-    std::unique_ptr<Delay> delay;
+    std::unique_ptr<Reverb> reverb;
 
     Filters* filtersInput = nullptr;
 
