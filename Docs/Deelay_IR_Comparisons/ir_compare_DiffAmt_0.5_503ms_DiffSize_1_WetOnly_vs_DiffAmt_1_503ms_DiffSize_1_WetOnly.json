@@ -1,0 +1,101 @@
+{
+  "_info": {
+    "description": "Impulse response comparison \u2014 compact LLM-ready metrics",
+    "interpretation": {
+      "pre_delay_ms": "Time from IR start to first peak (wet signal onset)",
+      "rt60_broadband_s": "Broadband RT60: time for 60 dB decay (200 Hz \u2013 8 kHz)",
+      "rt60_bands_s": "Per-octave-band RT60 in seconds",
+      "band_levels_db": "Average magnitude per octave band (from FFT)",
+      "clarity_c80_db": "C80: ratio of early (< 80 ms) to late energy. Higher = clearer/more direct",
+      "definition_d50_pct": "D50: % of total energy arriving in first 50 ms. Higher = drier",
+      "spectral_centroid_hz": "Frequency center of mass (higher = brighter overall tone)"
+    }
+  },
+  "DiffAmt_0.5_503ms_DiffSize_1_WetOnly": {
+    "duration_s": 10.0,
+    "sample_rate": 48000,
+    "pre_delay_ms": 503.4,
+    "peak_amplitude_db": -12.46,
+    "rt60_broadband_s": 4.808,
+    "rt60_bands_s": {
+      "125Hz": 6.137,
+      "250Hz": 5.917,
+      "500Hz": 5.47,
+      "1kHz": 5.276,
+      "2kHz": 5.177,
+      "4kHz": 4.624,
+      "8kHz": 3.426,
+      "16kHz": 2.004
+    },
+    "band_levels_db": {
+      "125Hz": 14.81,
+      "250Hz": 14.73,
+      "500Hz": 13.42,
+      "1kHz": 11.62,
+      "2kHz": 11.27,
+      "4kHz": 10.36,
+      "8kHz": 6.01,
+      "16kHz": -8.14
+    },
+    "clarity_c80_db": -43.89,
+    "definition_d50_pct": 0.0,
+    "spectral_centroid_hz": 4506.7
+  },
+  "DiffAmt_1_503ms_DiffSize_1_WetOnly": {
+    "duration_s": 10.0,
+    "sample_rate": 48000,
+    "pre_delay_ms": 0.25,
+    "peak_amplitude_db": -5.34,
+    "rt60_broadband_s": 6.559,
+    "rt60_bands_s": {
+      "125Hz": 8.859,
+      "250Hz": 7.583,
+      "500Hz": 7.186,
+      "1kHz": 7.051,
+      "2kHz": 7.114,
+      "4kHz": 6.282,
+      "8kHz": 4.2,
+      "16kHz": 2.77
+    },
+    "band_levels_db": {
+      "125Hz": 15.18,
+      "250Hz": 14.73,
+      "500Hz": 13.78,
+      "1kHz": 12.28,
+      "2kHz": 11.05,
+      "4kHz": 10.12,
+      "8kHz": 6.74,
+      "16kHz": -1.89
+    },
+    "clarity_c80_db": -8.05,
+    "definition_d50_pct": 9.92,
+    "spectral_centroid_hz": 5809.9
+  },
+  "diff (B minus A)": {
+    "pre_delay_ms": -503.15,
+    "rt60_broadband_s": 1.751,
+    "rt60_bands_s": {
+      "125Hz": 2.722,
+      "250Hz": 1.666,
+      "500Hz": 1.716,
+      "1kHz": 1.775,
+      "2kHz": 1.937,
+      "4kHz": 1.658,
+      "8kHz": 0.774,
+      "16kHz": 0.766
+    },
+    "band_levels_db": {
+      "125Hz": 0.37,
+      "250Hz": 0.0,
+      "500Hz": 0.36,
+      "1kHz": 0.66,
+      "2kHz": -0.22,
+      "4kHz": -0.24,
+      "8kHz": 0.73,
+      "16kHz": 6.25
+    },
+    "clarity_c80_db": 35.84,
+    "definition_d50_pct": 9.92,
+    "spectral_centroid_hz": 1303.2
+  }
+}
