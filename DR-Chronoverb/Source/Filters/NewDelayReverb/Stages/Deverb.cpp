@@ -22,10 +22,8 @@ void Deverb::PrepareToPlay(double newSampleRate)
     dampingLeft->Prepare(sampleRate);
     dampingRight->Prepare(sampleRate);
 
-    constexpr float InitialDampingCutoffHz = 4200.0f;
-
-    dampingLeft->SetCutoffHz(InitialDampingCutoffHz);
-    dampingRight->SetCutoffHz(InitialDampingCutoffHz);
+    dampingLeft->SetCutoffHz(7000.0f);
+    dampingRight->SetCutoffHz(7000.0f);
 
     diffusionLeft.Prepare(sampleRate);
     diffusionRight.Prepare(sampleRate);
@@ -53,13 +51,6 @@ void Deverb::PrepareToPlay(double newSampleRate)
 void Deverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 {
     juce::ignoreUnused(audioBuffer);
-
-    const float dampingCutoffHz =
-    juce::jmap(diffusionAmount, 0.0f, 1.0f,
-               6200.0f, 3200.0f);
-
-    dampingLeft->SetCutoffHz(dampingCutoffHz);
-    dampingRight->SetCutoffHz(dampingCutoffHz);
 
     readDelaySlewCoefficient = delayTimeSegment.ReadDelaySlewCoefficient;
 }
@@ -108,22 +99,10 @@ std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSam
     const float dampedR = dampingRight->ProcessSample(wetR);
 
     // 8) Recirculation
-    const float directDiffuseMix =
-    (diffusionAmount <= 0.5f)
-        ? 0.0f
-        : std::sin(((diffusionAmount - 0.5f) / 0.5f)
-            * juce::MathConstants<float>::halfPi) * 0.22f;
-
-    const float combinedWetL =
-        (dampedL * (1.0f - directDiffuseMix)) + (diffusedL * directDiffuseMix);
-
-    const float combinedWetR =
-        (dampedR * (1.0f - directDiffuseMix)) + (diffusedR * directDiffuseMix);
-
     lastFeedbackL = dampedL * feedbackGain;
     lastFeedbackR = dampedR * feedbackGain;
 
-    return { combinedWetL, combinedWetR };
+    return { dampedL, dampedR };
 }
 
 void Deverb::Reset()
@@ -200,5 +179,5 @@ void Deverb::updateFeedbackGainFromFeedbackTime()
 {
     const float normalized = std::clamp(feedbackTimeSeconds / 10.0f, 0.0f, 1.0f);
     const float curved = std::sqrt(normalized);
-    feedbackGain = juce::jlimit(0.0f, 0.82f, 0.78f * curved);
+    feedbackGain = std::max(0.0f, std::min(0.85f * curved, 0.95f));
 }
