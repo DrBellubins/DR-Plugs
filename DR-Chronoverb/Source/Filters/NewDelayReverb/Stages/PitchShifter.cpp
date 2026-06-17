@@ -2,6 +2,7 @@
 
 PitchShifter::PitchShifter()
 {
+    //delay = std::make_unique<Delay>();
     reverb = std::make_unique<Reverb>();
 }
 
@@ -52,7 +53,7 @@ void PitchShifter::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
 std::pair<float, float> PitchShifter::ProcessSample(float inputSampleL, float inputSampleR)
 {
-    if (delayLineLeft == nullptr || delayLineRight == nullptr)
+    if (pitchWetMix <= 0.0001f || delayLineLeft == nullptr || delayLineRight == nullptr)
         return std::make_pair(inputSampleL, inputSampleR);
 
     // 1) Pre-read latency compensation.
@@ -69,30 +70,27 @@ std::pair<float, float> PitchShifter::ProcessSample(float inputSampleL, float in
     float pitchedLeft = inputSampleL;
     float pitchedRight = inputSampleR;
 
-    if (pitchWetMix > 0.0001f)
-    {
-        pitchedLeft = pitchShifterLeft.ProcessSample(preReadWetLeft);
-        pitchedRight = pitchShifterRight.ProcessSample(preReadWetRight);
+    pitchedLeft = pitchShifterLeft.ProcessSample(preReadWetLeft);
+    pitchedRight = pitchShifterRight.ProcessSample(preReadWetRight);
 
-        auto [diffPitchedLeft, diffPitchedRight] =
-            reverb->ProcessSample(pitchedLeft, pitchedRight);
+    auto [diffPitchedLeft, diffPitchedRight] =
+        reverb->ProcessSample(pitchedLeft, pitchedRight);
 
-        // Blend clean and diffused  diffusion amount to 0 -> 0.5
-        const float lowerHalf01 = juce::jlimit(0.0f, 1.0f, diffusionAmount * 2.0f);
+    // Blend clean and diffused  diffusion amount to 0 -> 0.5
+    const float lowerHalf01 = juce::jlimit(0.0f, 1.0f, diffusionAmount * 2.0f);
 
-        const float cleanGain = std::pow(1.0f - lowerHalf01, 3.0f);
-        const float diffusedGain = std::sin(lowerHalf01 * juce::MathConstants<float>::halfPi) * 0.75f;
+    const float cleanGain = std::pow(1.0f - lowerHalf01, 3.0f);
+    const float diffusedGain = std::sin(lowerHalf01 * juce::MathConstants<float>::halfPi) * 0.75f;
 
-        const float makeupGain =
-            1.0f + (0.12f * std::sin(lowerHalf01 * juce::MathConstants<float>::pi));
+    const float makeupGain =
+        1.0f + (0.12f * std::sin(lowerHalf01 * juce::MathConstants<float>::pi));
 
-        // Blend
-        pitchedLeft =
-            ((pitchedLeft * cleanGain) + (diffPitchedLeft * diffusedGain)) * makeupGain;
+    // Blend
+    pitchedLeft =
+        ((pitchedLeft * cleanGain) + (diffPitchedLeft * diffusedGain)) * makeupGain;
 
-        pitchedRight =
-            ((pitchedRight * cleanGain) + (diffPitchedRight * diffusedGain)) * makeupGain;
-    }
+    pitchedRight =
+        ((pitchedRight * cleanGain) + (diffPitchedRight * diffusedGain)) * makeupGain;
 
     // 3) Advance echo boundary counters (needed regardless of pitch enable state)
     {
@@ -222,6 +220,7 @@ void PitchShifter::rebuildPitchSequences()
         }
         else if (pitchSequence == 2) // Random
         {
+            // TODO: Random isn't synced between L/R channels
             auto randomSequence = std::make_unique<RandomOctaveSequence>();
             randomSequence->SetRange(lowerOctave, upperOctave);
             shifter.SetSequence(std::move(randomSequence));
