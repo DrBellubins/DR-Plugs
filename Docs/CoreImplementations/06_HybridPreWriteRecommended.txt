@@ -1,0 +1,299 @@
+================================================================================
+IMPLEMENTATION 6: Hybrid Pre-Write Chain with Amount-Driven Read Compensation
+(RECOMMENDED — Most Likely Deelay Architecture)
+================================================================================
+
+OVERVIEW
+--------
+This is the synthesis of all previous implementations and represents what is
+most likely happening in Deelay based on:
+  1. Developer's words: "series of allpass delay lines"
+  2. Developer's words: "blend between the diffused delay path and the normal
+     delay path"
+  3. IR analysis: swell builds BEFORE the nominal tap
+  4. IR analysis: at amount=1.0, energy is dispersed (no discrete tap visible)
+  5. Fixed RT60 across all amounts (feedback gain unchanged)
+  6. Only 8 allpass filters maximum
+
+ARCHITECTURE
+------------
+One chain of up to 8 allpass filters processes the signal BEFORE it enters
+the main delay line. The diffusion amount simultaneously controls:
+
+  A) The allpass chain gain (0 -> 0.7) — controls scatter intensity
+  B) A wet/dry blend between clean input and chain output
+  C) The delay line read offset — reveals chain's temporal spread
+
+The "swell" emerges because:
+  - The allpass chain spreads an impulse over time (before AND after its
+    center of energy)
+  - By writing the diffused signal to the delay line and reading at a
+    compensated position, the spread's rising edge appears before the
+    nominal tap time
+  - As amount increases, more spread is revealed -> more swell
+
+The "reverb at 1.0" emerges because:
+  - At maximum gain (0.7), the 8-stage chain produces a dense, decaying
+    impulse response spanning hundreds of milliseconds
+  - Combined with feedback, this creates a full reverb tail
+  - The clean blend component is gone -> no discrete echo
+
+SIGNAL FLOW (DETAILED)
+-----------------------
+```
+Input ─┬─────────────────────────────────── "Normal delay path" (clean)
+       │                                         │
+       ├─► [+Feedback] ─► [AP1]─►[AP2]─►...─►[AP8] ─── "Diffused delay path"
+       │                                         │
+       │              amount                     │
+       │                │                        │
+       │                ▼                        │
+       │         ┌─────────────┐                 │
+       │         │  Crossfade  │◄────────────────┘
+       │         │ (1-a)*clean │
+       │         │  + a*diff   │◄────────────────┘
+       │         └──────┬──────┘
+       │                │
+       │                ▼
+       │         [Delay Line Write]
+       │                │
+       │                │  Read at: delayMs - compensation(amount, chainDelay)
+       │                ▼
+       │         [Delay Line Read] ──► wetOutput
+       │                │
+       │                ▼
+       │         [Damping Filter]
+       │                │
+       │                ▼
+       │         [× feedbackGain] ──► back to [+Feedback]
+       │
+       └─► [× dryVolume] ──► mixed with wetOutput for final output
+```
+
+MATHEMATICAL DETAIL
+-------------------
+Let:
+    a = diffusionAmount (0..1)
+    g = allpassGain = min(0.7, a * 1.4)  // Saturates at a=0.5
+    D_chain = sum of all active stage delays (ms)
+    D_user = user-set delay time (ms)
+
+Write signal:
+    write = (1 - blendCurve(a)) * (input + feedback)
+          + blendCurve(a) * allpassChain(input + feedback)
+
+Where blendCurve(a) could be:
+    - Linear: blendCurve = a
+    - Equal power: blendCurve = sin(a * pi/2)
+    - Developer's "diffusion amount": likely sin or squared curve
+
+Read position:
+    readMs = D_user - D_chain * compensationCurve(a)
+
+Where compensationCurve(a):
+    - At a=0: compensationCurve = 1.0 (full compensation, chain is pure delay)
+    - At a=0.5: compensationCurve = 0.5 (reveal half the spread = swell)
+    - At a=1.0: compensationCurve = 0.0 (no compensation, full spread exposed)
+
+    Simple: compensationCurve(a) = 1.0 - a
+    Better: compensationCurve(a) = cos(a * pi/2) (matches equal-power)
+
+CODE EXAMPLE
+------------
+```cpp
+class RecommendedDiffusion
+{
+public:
+    static constexpr int MaxStages = 8;
+    static constexpr float MaxGain = 0.7f;
+
+    // Exponentially growing, carefully tuned delays
+    float stageTunings[MaxStages] = { 10.0f, 15.0f, 22.0f, 33.0f, 50.0f, 75.0f, 113.0f, 170.0f };
+
+    void Prepare(double sampleRate)
+    {
+        this->sampleRate = sampleRate;
+        totalChainDelayMs = 0.0f;
+
+        for (int i = 0; i < MaxStages; ++i)
+        {
+            allpass[i].Prepare(sampleRate);
+            allpass[i].Configure(stageTunings[i], 0.0f);
+            totalChainDelayMs += stageTunings[i];
+        }
+    }
+
+    void SetDiffusionAmount(float amount01)
+    {
+        diffusionAmount = amount01;
+
+        // Gain: ramps quickly to max, saturates by amount=0.5
+        // This means the chain character is "set" by 0.5 —
+        // the rest of the range is purely about the blend ratio
+        float gainDrive = std::min(1.0f, amount01 * 2.0f);
+        float gain = gainDrive * MaxGain;
+
+        for (int i = 0; i < activeStages; ++i)
+            allpass[i].SetGain(gain);
+    }
+
+    void SetSize(float size01)
+    {
+        float scale = 0.25f + 0.75f * size01;
+        totalChainDelayMs = 0.0f;
+
+        for (int i = 0; i < activeStages; ++i)
+        {
+            float delayMs = stageTunings[i] * scale;
+            allpass[i].SetDelayMilliseconds(delayMs);
+            totalChainDelayMs += delayMs;
+        }
+    }
+
+    void SetQuality(int stages)
+    {
+        activeStages = std::clamp(stages, 1, MaxStages);
+
+        // Recalculate total delay for active stages only
+        totalChainDelayMs = 0.0f;
+        for (int i = 0; i < activeStages; ++i)
+            totalChainDelayMs += stageTunings[i]; // Will be re-scaled by SetSize
+    }
+
+    float ProcessChain(float input)
+    {
+        float sample = input;
+        for (int i = 0; i < activeStages; ++i)
+            sample = allpass[i].ProcessSample(sample);
+        return sample;
+    }
+
+    float GetBlendAmount() const
+    {
+        // Equal-power blend curve
+        return std::sin(diffusionAmount * 3.14159265f * 0.5f);
+    }
+
+    float GetCompensationMs() const
+    {
+        // How much to subtract from the user's delay time
+        // At amount=0: subtract full chain delay (chain is transparent)
+        // At amount=1: subtract nothing (full spread exposed)
+        float revealFactor = std::sin(diffusionAmount * 3.14159265f * 0.5f);
+        return totalChainDelayMs * (1.0f - revealFactor);
+    }
+
+    float GetTotalChainDelayMs() const { return totalChainDelayMs; }
+
+private:
+    DiffusionAllpass allpass[MaxStages];
+    int activeStages = 8;
+    float diffusionAmount = 0.0f;
+    float totalChainDelayMs = 0.0f;
+    double sampleRate = 48000.0;
+};
+
+// ─── MAIN PROCESSOR ───
+class MainProcessor
+{
+    RecommendedDiffusion diffusion;
+    DelayLine delayLine;
+    DampingFilter damping;
+
+    float lastFeedback = 0.0f;
+    float feedbackGain = 0.5f;
+    float userDelayMs = 500.0f;
+
+    float smoothedCompensation = 0.0f;
+    float smoothedBlend = 0.0f;
+    float slewCoeff = 0.001f; // ~10ms slew at 48kHz
+
+public:
+    void ProcessSample(float dryInput)
+    {
+        float inputWithFeedback = dryInput + lastFeedback;
+
+        // Process through allpass chain
+        float diffused = diffusion.ProcessChain(inputWithFeedback);
+
+        // Smooth the blend and compensation to avoid clicks
+        float targetBlend = diffusion.GetBlendAmount();
+        smoothedBlend += slewCoeff * (targetBlend - smoothedBlend);
+
+        float targetComp = diffusion.GetCompensationMs();
+        smoothedCompensation += slewCoeff * (targetComp - smoothedCompensation);
+
+        // Blend between clean path and diffused path
+        float writeSignal = inputWithFeedback * (1.0f - smoothedBlend)
+                          + diffused * smoothedBlend;
+
+        // Write to delay line
+        delayLine.PushSample(writeSignal);
+
+        // Read from compensated position
+        float readMs = std::max(1.0f, userDelayMs - smoothedCompensation);
+        float wet = delayLine.ReadAt(readMs);
+
+        // Damping and feedback
+        float damped = damping.ProcessSample(wet);
+        lastFeedback = damped * feedbackGain;
+
+        // Final output
+        float output = dryInput * dryVolume + wet * wetVolume;
+    }
+};
+```
+
+PROS
+----
++ Matches developer's description: "blend between diffused and normal path"
++ Only 8 allpass filters per channel (16 stereo) — minimal CPU
++ Single processing path, single chain instance per channel
++ The swell emerges naturally from allpass physics + read compensation
++ Continuous, artifact-free transition from delay to reverb
++ Fixed feedback gain produces consistent RT60 regardless of amount
++ "Quality" = number of stages, "Size" = stage delay scaling — simple mapping
++ Compensation curve ensures nominal tap alignment at all amounts
++ At amount=0, can early-exit the blend (write = inputWithFeedback directly)
+  for zero CPU overhead on clean delay
+
+CONS
+----
+- Total chain delay (~488ms at size=1, 8 stages) sets a minimum useful
+  delay time. For short delays (< 500ms), either reduce size or accept
+  that the chain delay wraps around.
+- Requires careful tuning of compensation curve to match perceived swell
+  center — too much compensation = swell behind tap, too little = swell
+  ahead of tap
+- The allpass chain still runs even at amount=0 if you want latency
+  consistency (alternative: bypass and accept the state cold-start)
+- Tuning ratios determine reverb quality — bad ratios = metallic
+
+WHY THIS IS MOST LIKELY DEELAY
+-------------------------------
+1. "Series of allpass delay lines" = single serial chain
+2. "Diffusion amount controls blend" = wet/dry between chain and clean
+3. "Diffusion quality = number of lines (up to 8)" = quality parameter
+4. The IR shows swell building into tap = compensation + chain spread
+5. The IR shows reverb at 1.0 = chain fully engaged, no clean component
+6. Constant RT60 across amounts = only the write signal changes, not gain
+7. Minimal CPU (developer didn't describe any complex routing)
+
+TUNING GUIDE
+------------
+To replicate Deelay's subjective character:
+
+1. STAGE DELAYS: Use ratios approximately 1.0 : 1.5 : 2.2 : 3.3 : 5 : 7.5 : 11.3 : 17
+   (each about 1.5x the previous). Scale the base so total spans 200-500ms.
+
+2. COMPENSATION BIAS: Start with compensationCurve = (1 - amount). If the
+   swell peaks too early, use (1 - amount^0.7). If too late, (1 - amount^1.5).
+
+3. GAIN CURVE: The developer likely saturates gain at amount=0.5 so that
+   the entire 0.5-1.0 range is purely about blend ratio, not chain character.
+
+4. BLEND CURVE: Equal-power (sin/cos) prevents the volume dip at 0.5 that
+   linear crossfade would cause.
+
+5. SIZE: Scaling all delays uniformly by 0.25-1.75x (i.e., 0.25 + 0.75*size)
+   maps size=0 to tight clusters and size=1 to wide spread.

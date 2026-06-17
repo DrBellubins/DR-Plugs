@@ -1,0 +1,208 @@
+================================================================================
+IMPLEMENTATION 3: Single Chain with Per-Stage Gain Cascade
+================================================================================
+
+OVERVIEW
+--------
+A variation where the 8 allpass filters use DIFFERENT gains per stage,
+controlled by diffusion amount through a cascade mapping. Early stages
+(short delays) activate first at low amounts, later stages (long delays)
+activate at higher amounts. This creates a natural progression from subtle
+tap-blur to full reverb.
+
+The key difference from Implementation 1: instead of uniform gain across
+all stages, gains are staggered so that:
+  - Amount 0.0-0.5: Only stages 1-4 have significant gain (short delays
+    = subtle smear = swell)
+  - Amount 0.5-1.0: Stages 5-8 also activate (long delays = dense scatter
+    = reverb tail)
+
+This creates two perceptually distinct zones from a single chain.
+
+SIGNAL FLOW
+-----------
+    Input + Feedback
+         |
+         v
+    [AP1: g1] -> [AP2: g2] -> [AP3: g3] -> [AP4: g4] ->
+    [AP5: g5] -> [AP6: g6] -> [AP7: g7] -> [AP8: g8]
+         |
+         v
+    [Delay Line] (compensated read)
+         |
+         v
+    [Output] -> [Damping] -> [Feedback] -> loop
+
+PER-STAGE GAIN MAPPING
+-----------------------
+Each stage has an "activation threshold" based on its position:
+
+    stage[i].threshold = i / (numStages - 1)  // 0.0, 0.14, 0.28, ...1.0
+
+The gain for each stage is:
+
+    activationAmount = (diffusionAmount - threshold * 0.5) / (1.0 - threshold * 0.5)
+    activationAmount = clamp(activationAmount, 0.0, 1.0)
+    stageGain = activationAmount * maxGain  // maxGain ~ 0.7
+
+This means:
+    - Stage 1 (threshold=0.0): activates immediately, full gain by amount=0.5
+    - Stage 4 (threshold=0.43): starts at amount~0.2, full by amount~0.7
+    - Stage 8 (threshold=1.0): starts at amount~0.5, full by amount=1.0
+
+DIFFUSION AMOUNT BEHAVIOR
+--------------------------
+    Amount 0.0:
+        All gains = 0. Pure delay (chain = series of pure delays).
+
+    Amount 0.0 - 0.25:
+        Stages 1-3 begin scattering (short delays: 10, 15, 22 ms)
+        Creates subtle pre-echo smear — beginning of swell
+        Stages 4-8 still at g≈0 (transparent)
+
+    Amount 0.25 - 0.5:
+        Stages 1-4 at moderate-high gain
+        Stages 5-6 beginning to activate
+        Swell is pronounced — energy builds before nominal tap
+
+    Amount 0.5 - 0.75:
+        All 8 stages active with varying gains
+        Long-delay stages (75, 113, 170ms) now scattering
+        Creates dense reverb-like tail
+        Total temporal spread greatly increased
+
+    Amount 0.75 - 1.0:
+        All stages at or near maximum gain (0.7)
+        Maximum density and scatter
+        Full reverb character
+
+CODE EXAMPLE
+------------
+```cpp
+class CascadeGainDiffusion
+{
+public:
+    static constexpr int MaxStages = 8;
+    static constexpr float MaxGain = 0.7f;
+
+    float stageTunings[MaxStages] = { 10.0f, 15.0f, 22.0f, 33.0f, 50.0f, 75.0f, 113.0f, 170.0f };
+
+    void SetDiffusionAmount(float amount01)
+    {
+        diffusionAmount = amount01;
+
+        for (int i = 0; i < activeStages; ++i)
+        {
+            // Each stage has a progressively later activation point
+            float stagePosition = static_cast<float>(i) / static_cast<float>(activeStages - 1);
+
+            // Threshold: when this stage starts activating
+            // Early stages start immediately, later stages delayed
+            float activationStart = stagePosition * 0.5f;
+
+            // Normalized activation: how "on" is this stage?
+            float activation = (amount01 - activationStart) / (1.0f - activationStart);
+            activation = std::clamp(activation, 0.0f, 1.0f);
+
+            // Apply curve for smoother onset
+            activation = activation * activation; // Quadratic ease-in
+
+            float stageGain = activation * MaxGain;
+            allpass[i].SetGain(stageGain);
+        }
+    }
+
+    float GetTemporalSpreadMs() const
+    {
+        // Estimate the active spread for delay compensation
+        float spread = 0.0f;
+        for (int i = 0; i < activeStages; ++i)
+        {
+            float stagePosition = static_cast<float>(i) / static_cast<float>(activeStages - 1);
+            float activationStart = stagePosition * 0.5f;
+            float activation = (diffusionAmount - activationStart) / (1.0f - activationStart);
+            activation = std::clamp(activation, 0.0f, 1.0f);
+
+            // Temporal contribution proportional to gain and delay
+            spread += stageTunings[i] * activation;
+        }
+        return spread;
+    }
+
+    float ProcessSample(float input)
+    {
+        float sample = input;
+        for (int i = 0; i < activeStages; ++i)
+            sample = allpass[i].ProcessSample(sample);
+        return sample;
+    }
+
+private:
+    DiffusionAllpass allpass[MaxStages];
+    int activeStages = 8;
+    float diffusionAmount = 0.0f;
+};
+
+// Usage in main loop:
+void ProcessSampleMain(float dryInput)
+{
+    float preWithFeedback = dryInput + lastFeedback;
+
+    float diffused = cascade.ProcessSample(preWithFeedback);
+
+    delayLine.PushSample(diffused);
+
+    // Dynamic compensation based on how much of the chain is active
+    float activeSpreadMs = cascade.GetTemporalSpreadMs();
+    float compensationMs = activeSpreadMs * 0.5f; // Center the energy
+    float readMs = std::max(1.0f, userDelayMs - compensationMs);
+
+    float wet = delayLine.ReadAt(readMs);
+
+    float damped = dampingFilter.Process(wet);
+    lastFeedback = damped * feedbackGain;
+
+    output = dryInput * dryVol + wet * wetVol;
+}
+```
+
+PROS
+----
++ Single chain of 8 allpasses — same CPU as Implementation 1
++ Creates two distinct perceptual zones (swell vs reverb) from ONE chain
+  without any crossfading or dual processing paths
++ The progressive activation naturally produces the swell-to-reverb
+  transition described in the Deelay behavior
++ At low amounts, only short-delay stages are active = minimal temporal
+  spread = subtle effect
++ At high amounts, long-delay stages add density = reverb character
++ The "carefully tuned" aspect aligns with per-stage activation curves
++ No volume discontinuities — allpass at g=0 is unity gain
+
+CONS
+----
+- More complex gain mapping logic (though trivially cheap computationally)
+- The perceptual transition depends heavily on tuning the activation
+  thresholds — requires empirical adjustment
+- At intermediate amounts, some stages are at low gain which may produce
+  subtle metallic coloration (allpass at low g has strong comb character)
+- Less mathematically elegant than uniform-gain approach
+- The temporal spread calculation for compensation is an approximation —
+  true allpass spread depends non-linearly on gain
+- May not perfectly match Deelay if the developer uses uniform gain
+  (his email says "series of allpass delay lines" without mentioning
+  different gains)
+
+VARIATIONS
+----------
+1. SIGMOID ACTIVATION: Instead of linear thresholds, use sigmoid functions
+   per stage for smoother onset/offset curves
+
+2. GROUPED ACTIVATION: Stages 1-4 as "swell group" and 5-8 as "reverb
+   group" with a hard split at amount=0.5
+
+3. REVERSE CASCADE: Later stages activate FIRST (creates the tail before
+   the swell), then early stages fill in the pre-tap energy
+
+4. FEEDBACK-DEPENDENT: The cascade threshold shifts based on feedback
+   gain — higher feedback = earlier activation of later stages

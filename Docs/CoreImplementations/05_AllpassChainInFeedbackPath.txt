@@ -1,0 +1,209 @@
+================================================================================
+IMPLEMENTATION 5: Allpass Chain INSIDE Delay Line Feedback (Post-Read)
+================================================================================
+
+OVERVIEW
+--------
+Instead of placing the allpass chain before the delay line write, place it
+AFTER the delay line read, in the feedback path. This means:
+
+  - The first echo is always clean (read directly from delay line)
+  - Each subsequent echo passes through the allpass chain one more time
+  - Diffusion amount controls the allpass gain
+  - Progressive echoes become increasingly diffuse/reverberant
+
+This creates a natural evolution from "clean first tap" to "reverby later
+taps" which is extremely musical and may explain why Deelay sounds so natural.
+
+The swell effect comes from reading the delay line at an EARLIER position
+(before the nominal tap) and passing that through the allpass chain, whose
+output temporal spread naturally creates density leading up to the main tap.
+
+SIGNAL FLOW
+-----------
+    Input
+      |
+      v
+    [+] <-- Feedback (already diffused by N passes through chain)
+      |
+      v
+    [Delay Line] (write: clean input + diffused feedback)
+      |
+      |--- Read at nominal delay time
+      v
+    [Allpass Chain (8 stages)] <-- gain controlled by diffusion amount
+      |
+      v
+    [Output Tap / Mix point]
+      |
+      +--- [Damping] -> [Feedback Gain] -> back to [+]
+      |
+      v
+    Final Output
+
+DIFFUSION AMOUNT BEHAVIOR
+--------------------------
+    Amount 0.0:
+        Allpass gains = 0 (chain is transparent delay)
+        First echo = clean, subsequent echoes = clean
+        Result: standard delay with clean repeats
+
+    Amount 0.0 - 0.5 (Swell):
+        Allpass gains increase (g = amount * 1.4, capped at 0.7)
+        First echo: passes through chain once -> slight smear
+        Second echo: passed through chain twice -> more smear
+        Third echo: three passes -> significant density
+        The "swell" is the allpass chain's impulse response spreading
+        energy before and after its group delay center
+        With delay compensation, this spread creates pre-tap buildup
+
+    Amount 0.5 - 1.0 (Reverb):
+        All stages at high gain (0.6-0.7)
+        Each feedback iteration adds massive scatter
+        After 3-4 iterations, the signal is fully dense/reverberant
+        Tail becomes exponentially decaying noise-like
+        Result: lush reverb with initial transient preserved
+
+KEY INSIGHT: CUMULATIVE DIFFUSION
+----------------------------------
+Placing the allpass chain in the feedback path means diffusion ACCUMULATES:
+
+    Echo 1: signal * chain^1  (mild scatter)
+    Echo 2: signal * chain^2  (moderate scatter)
+    Echo 3: signal * chain^3  (heavy scatter)
+    Echo N: signal * chain^N  (fully diffuse)
+
+This is fundamentally different from pre-write diffusion where every echo
+has the same amount of scatter. The cumulative approach:
+  - Preserves transient clarity on the first tap
+  - Naturally evolves into reverb on later taps
+  - Creates the subjective impression of "space" building over time
+
+CODE EXAMPLE
+------------
+```cpp
+class FeedbackPathDiffusion
+{
+public:
+    static constexpr int MaxStages = 8;
+
+    float stageTunings[MaxStages] = { 10.0f, 15.0f, 22.0f, 33.0f, 50.0f, 75.0f, 113.0f, 170.0f };
+
+    void Prepare(double sampleRate)
+    {
+        totalChainDelayMs = 0.0f;
+        for (int i = 0; i < MaxStages; ++i)
+        {
+            allpass[i].Prepare(sampleRate);
+            allpass[i].Configure(stageTunings[i], 0.0f);
+            totalChainDelayMs += stageTunings[i];
+        }
+    }
+
+    void SetDiffusionAmount(float amount01)
+    {
+        diffusionAmount = amount01;
+
+        // Gain ramp: reaches max at amount=0.5, stays there for 0.5-1.0
+        float gainDrive = std::min(1.0f, amount01 * 2.0f);
+        float gain = gainDrive * 0.7f;
+
+        for (int i = 0; i < activeStages; ++i)
+            allpass[i].SetGain(gain);
+    }
+
+    void SetSize(float size01)
+    {
+        float scale = 0.25f + 0.75f * size01;
+        totalChainDelayMs = 0.0f;
+
+        for (int i = 0; i < activeStages; ++i)
+        {
+            float delayMs = stageTunings[i] * scale;
+            allpass[i].SetDelayMilliseconds(delayMs);
+            totalChainDelayMs += delayMs;
+        }
+    }
+
+    float ProcessSample(float input)
+    {
+        float sample = input;
+        for (int i = 0; i < activeStages; ++i)
+            sample = allpass[i].ProcessSample(sample);
+        return sample;
+    }
+
+    float GetChainDelayMs() const { return totalChainDelayMs; }
+
+private:
+    DiffusionAllpass allpass[MaxStages];
+    int activeStages = 8;
+    float diffusionAmount = 0.0f;
+    float totalChainDelayMs = 0.0f;
+};
+
+// Main processing:
+void ProcessSampleMain(float dryInput)
+{
+    // Write: clean input + already-diffused feedback
+    float writeSignal = dryInput + lastFeedback;
+    delayLine.PushSample(writeSignal);
+
+    // Read at nominal delay time (no compensation needed for first tap clarity)
+    float wet = delayLine.ReadAt(userDelayMs);
+
+    // Diffuse the read signal (this is what goes back into feedback)
+    float diffused = chain.ProcessSample(wet);
+
+    // Output: blend between clean read and diffused read based on amount
+    // At amount=0: output is clean wet
+    // At amount=1: output is fully diffused
+    float cleanGain = std::cos(diffusionAmount * 3.14159f * 0.5f);
+    float diffGain = std::sin(diffusionAmount * 3.14159f * 0.5f);
+    float outputWet = wet * cleanGain + diffused * diffGain;
+
+    // Feedback uses the diffused version always (accumulates over iterations)
+    float damped = dampingFilter.Process(diffused);
+    lastFeedback = damped * feedbackGain;
+
+    output = dryInput * dryVol + outputWet * wetVol;
+}
+```
+
+PROS
+----
++ First echo retains transient clarity at all diffusion amounts
++ Progressive echo diffusion is extremely natural-sounding
++ CPU: only 8 allpass operations per sample (chain runs once on the read)
++ The reverb "builds" over feedback iterations — very musical
++ Simple architecture with clear signal flow
++ Delay line doesn't need compensation (first tap is always at nominal time)
++ Sounds like "a delay that gradually dissolves into reverb" which matches
+  subjective descriptions of Deelay
+
+CONS
+----
+- The FIRST tap doesn't have the "swell" effect — it's always clean or
+  just mildly diffused
+- The allpass chain adds latency to the feedback path, meaning the
+  effective feedback timing is: delayTime + chainDelay (this may need
+  compensation to keep rhythm-synced delays accurate)
+- The swell behavior (pre-tap buildup) requires additional trickery:
+  either read earlier and use chain spread, or accept that the swell
+  only appears in feedback iterations (2nd, 3rd echo, etc.)
+- At very short delays with high feedback, the chain delay accumulates
+  and can shift pitch (flanger-like artifacts)
+- Less "immediate" swell effect compared to pre-write diffusion
+
+HYBRID VARIANT: PRE-WRITE + POST-READ
+--------------------------------------
+To get both the "first-tap swell" and "cumulative reverb buildup":
+
+    Write path: input + feedback (feedback already diffused)
+    Read path: read at earlyTime, pass through chain -> swell
+    Feedback: diffused read -> damping -> gain -> loop
+
+This is essentially what your current code does, but with a SINGLE chain
+used for both the read-diffusion and the feedback path, rather than
+separate chains. The chain runs once per sample on the delay output,
+and its output feeds both the wet mix and the feedback.
