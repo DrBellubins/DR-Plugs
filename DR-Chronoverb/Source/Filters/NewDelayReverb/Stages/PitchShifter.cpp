@@ -58,9 +58,23 @@ std::pair<float, float> PitchShifter::ProcessSample(float inputSampleL, float in
     if (pitchWetMix <= 0.0001f)
         return std::make_pair(inputSampleL, inputSampleR);
 
-    float pitchedLeft = pitchShifterLeft.ProcessSample(inputSampleL);
-    float pitchedRight = pitchShifterRight.ProcessSample(inputSampleR);
+    delayLineLeft->PushSample(inputSampleL);
+    delayLineRight->PushSample(inputSampleR);
 
+    // 1) Pre-read latency compensation.
+    smoothedCenteredReadDelayMilliseconds += readDelaySlewCoefficient *
+            (delayTimeSegment.DelayTimeMilliseconds - smoothedCenteredReadDelayMilliseconds);
+
+    const float nominalReadMilliseconds = smoothedCenteredReadDelayMilliseconds;
+    const float preReadMs = std::max(1.0f, nominalReadMilliseconds - pitchShifterLatencyMs);
+
+    const float preReadWetLeft = delayLineLeft->ReadFeedbackBuffer(preReadMs);
+    const float preReadWetRight = delayLineRight->ReadFeedbackBuffer(preReadMs);
+
+    float pitchedLeft = pitchShifterLeft.ProcessSample(preReadWetLeft);
+    float pitchedRight = pitchShifterRight.ProcessSample(preReadWetRight);
+
+    // Advance echo boundary
     ++echoWriteCounter;
     if (echoWriteCounter >= writePeriodSamples)
     {
@@ -69,6 +83,7 @@ std::pair<float, float> PitchShifter::ProcessSample(float inputSampleL, float in
         pitchShifterRight.OnNewEchoBoundary();
     }
 
+    // 2) Diffuse pitch tap through reverb
     auto [diffPitchedLeft, diffPitchedRight] =
         reverb->ProcessSample(pitchedLeft, pitchedRight);
 
@@ -83,7 +98,7 @@ std::pair<float, float> PitchShifter::ProcessSample(float inputSampleL, float in
     pitchedRight =
         ((pitchedRight * cleanGain) + (diffPitchedRight * diffusedGain)) * makeupGain;
 
-    // Parallel blend, not replacement crossfade
+    // 3) Blend input wet with pitched signal
     const float dryWetPitch = juce::jlimit(0.0f, 1.0f, pitchWetMix);
 
     const float outLeft =
