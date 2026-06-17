@@ -207,7 +207,8 @@ void Delay::SetDiffusionSize(float newDiffusionSize)
 
 void Delay::SetDiffusionQuality(int newDiffusionQuality)
 {
-    diffusionQualityStages = newDiffusionQuality;
+    // Limit quality to save on CPU usage.
+    diffusionQualityStages = juce::jlimit(1, 5, newDiffusionQuality);;
     diffusionRebuildPending.store(true, std::memory_order_release);
 }
 

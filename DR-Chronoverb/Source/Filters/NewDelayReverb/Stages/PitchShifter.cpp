@@ -157,7 +157,8 @@ void PitchShifter::SetDiffusionSize(float newDiffusionSize)
 
 void PitchShifter::SetDiffusionQuality(int newDiffusionQuality)
 {
-    diffusionQualityStages = newDiffusionQuality;
+    // Limit quality to save on CPU usage.
+    diffusionQualityStages = juce::jlimit(1, 3, newDiffusionQuality);
     reverb->SetDiffusionQuality(diffusionQualityStages);
 }
 
