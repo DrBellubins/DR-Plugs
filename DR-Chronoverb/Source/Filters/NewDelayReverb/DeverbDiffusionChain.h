@@ -40,7 +40,7 @@ private:
     float size01 = 1.0f;
     float totalChainDelayMs = 0.0f;
 
-    static constexpr float MaxAllpassGain = 0.7f;
+    static constexpr float MaxAllpassGain = 0.58f;
 
     const std::array<float, MaxStages> stageTuningsMs =
     {
