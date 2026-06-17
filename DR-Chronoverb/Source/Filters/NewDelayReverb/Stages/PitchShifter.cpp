@@ -58,10 +58,22 @@ std::pair<float, float> PitchShifter::ProcessSample(float inputSampleL, float in
     if (pitchWetMix <= 0.0001f)
         return std::make_pair(inputSampleL, inputSampleR);
 
+    // Push incoming wet into alignment line
+    delayLineLeft->PushSample(inputSampleL);
+    delayLineRight->PushSample(inputSampleR);
+
+    // Backend latency in ms
+    const float alignMs = std::max(1.0f, pitchShifterLatencyMs);
+
+    // Delayed unpitched reference, aligned to backend output timing
+    const float alignedInputL = delayLineLeft->ReadFeedbackBuffer(alignMs);
+    const float alignedInputR = delayLineRight->ReadFeedbackBuffer(alignMs);
+
+    // Process current wet directly through pitch backend
     float pitchedLeft = pitchShifterLeft.ProcessSample(inputSampleL);
     float pitchedRight = pitchShifterRight.ProcessSample(inputSampleR);
 
-    // keep sequence changes quantized to echo boundaries
+    // Quantize sequence changes to echo boundaries
     ++echoWriteCounter;
     if (echoWriteCounter >= writePeriodSamples)
     {
@@ -70,13 +82,11 @@ std::pair<float, float> PitchShifter::ProcessSample(float inputSampleL, float in
         pitchShifterRight.OnNewEchoBoundary();
     }
 
-    // optional internal diffusion/reverb stage
+    // Optional diffusion on pitched result
     auto [diffPitchedLeft, diffPitchedRight] =
         reverb->ProcessSample(pitchedLeft, pitchedRight);
 
-    // same lower-half diffusion blend you already had
     const float lowerHalf01 = juce::jlimit(0.0f, 1.0f, diffusionAmount * 2.0f);
-
     const float cleanGain = std::pow(1.0f - lowerHalf01, 3.0f);
     const float diffusedGain = std::sin(lowerHalf01 * juce::MathConstants<float>::halfPi) * 0.75f;
     const float makeupGain =
@@ -84,12 +94,12 @@ std::pair<float, float> PitchShifter::ProcessSample(float inputSampleL, float in
 
     pitchedLeft =
         ((pitchedLeft * cleanGain) + (diffPitchedLeft * diffusedGain)) * makeupGain;
-
     pitchedRight =
         ((pitchedRight * cleanGain) + (diffPitchedRight * diffusedGain)) * makeupGain;
 
-    pitchedLeft = PMath::EqualPowerCrossfade(inputSampleL, pitchedLeft, pitchWetMix);
-    pitchedRight = PMath::EqualPowerCrossfade(inputSampleR, pitchedRight, pitchWetMix);
+    // Crossfade against aligned unpitched wet, not the immediate wet
+    pitchedLeft = PMath::EqualPowerCrossfade(alignedInputL, pitchedLeft, pitchWetMix);
+    pitchedRight = PMath::EqualPowerCrossfade(alignedInputR, pitchedRight, pitchWetMix);
 
     return std::make_pair(pitchedLeft, pitchedRight);
 }
