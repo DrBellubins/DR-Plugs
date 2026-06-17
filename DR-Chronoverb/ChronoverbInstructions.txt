@@ -11,7 +11,7 @@ It uses 8 carefully tuned allpass filters. The quality of which is changed with 
 
 It is absolutely non-negotiable that the delay diffusion should sound like there is a swell into the nominal tap, with a nice diffusion tail after the tap, which sounds like the signal is being "blurred" both before and after the nominal tap.
 
-The diffusion space knob controls the perceived "space" of the wet signal by scaling the allpass tunings by the diffusion space value. Diffusion space should be smoothed so that it can be changed at runtime without ugly artifacting. This smoothing in Deelay causes changing the space to "pitch warp". This is the intended characteristic.
+The diffusion size knob controls the perceived "space" of the wet signal by scaling the allpass tunings by the diffusion size value. Diffusion size should be smoothed so that it can be changed at runtime without ugly artifacting. This smoothing in Deelay causes changing the space to "pitch warp". This is the intended characteristic.
 
 The diffusion amount knob is the most complex, having nuanced cross-fades between various input signals, and and output signals. The knob characteristics are as follows:
 
@@ -21,7 +21,7 @@ Amount Range	Character
 0.2 → 0.5	    Noticeable thickening. Clean tap fades rapidly (the pow(4) curve). Pre-echo clusters become audible. Distinct echoes start dissolving.
 0.5	            Clean tap is completely gone. Pre-write is fully delay-chain diffused. The output is entirely blurred echoes — sounds like a slapback in a tiled room.
 0.5 → 1.0	    The reverb diffusion chain fades in via equal-power crossfade. Delays lengthen (29–149 ms, prime-spaced). Tails become continuous. Spectral distribution widens.
-1.0	            Full reverb character. Pre-write signal is entirely the reverb-quality chain. The 1-second delay is still structurally there (you can hear periodicity), but each                  repeat is a dense wash rather than a discrete tap.
+1.0	            Full reverb character. Pre-write signal is entirely the reverb-quality chain. The 1-second delay is still structurally there (you can hear periodicity), but each repeat is a dense wash rather than a discrete tap.
 
 The diffusion amount knob, in accordance with Deelay's design, shouldn't have any artifacts when changing it while diffusion is running. I am currently unsure if Deelay's diffusion amount knob has any smoothing, it is responsive without artifacts, but is hard to tell with the feedback loop.
 
