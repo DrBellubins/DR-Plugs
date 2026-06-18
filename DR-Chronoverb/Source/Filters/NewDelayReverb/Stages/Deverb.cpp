@@ -31,12 +31,7 @@ void Deverb::PrepareToPlay(double newSampleRate, Filters& filters)
     diffusionLeft.SetDiffusionAmount(diffusionAmount);
     diffusionRight.SetDiffusionAmount(diffusionAmount);
 
-    // TODO: Lerp between these states in diff amt 0.5 -> 1.0
-    diffusionLeft.SetStageGains(MaxAllpassGain, DelayAllpassGainMultipliers);
-    diffusionRight.SetStageGains(MaxAllpassGain, DelayAllpassGainMultipliers);
-
-    diffusionLeft.SetStageGains(1.0f, ReverbAllpassGainMultipliers);
-    diffusionRight.SetStageGains(1.0f, ReverbAllpassGainMultipliers);
+    setBlendedStageGains();
 
     dampingLeft = DampingFilter();
     dampingRight = DampingFilter();
@@ -110,7 +105,6 @@ std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSam
 
     if (diffusionAmount > 0.0001f)
     {
-
         diffusedTapL = diffusionLeft.ProcessSample(filteredL);
         diffusedTapR = diffusionRight.ProcessSample(filteredR);
     }
@@ -220,6 +214,8 @@ void Deverb::SetDiffusionAmount(float newAmount01)
 
     diffusionLeft.SetDiffusionAmount(diffusionAmount);
     diffusionRight.SetDiffusionAmount(diffusionAmount);
+
+    setBlendedStageGains();
 }
 
 void Deverb::SetDiffusionSize(float newSize01)
@@ -271,6 +267,32 @@ void Deverb::updateDynamicDiffusionSizeFromDelayTime()
 
     diffusionLeft.SetSize(effectiveSize);
     diffusionRight.SetSize(effectiveSize);
+}
+
+void Deverb::setBlendedStageGains()
+{
+    // Blend region: 0.5 -> 1.0 diffusion amount
+    const float t = juce::jlimit(0.0f, 1.0f, (diffusionAmount - 0.5f) * 2.0f);
+
+    // Crossfade max gain too
+    const float delayMaxGain = MaxAllpassGain;
+    const float reverbMaxGain = 1.0f;
+
+    const float blendedMaxGain = juce::jmap(t, delayMaxGain, reverbMaxGain);
+
+    std::array<float, 8> blendedStageGains {};
+
+    for (int i = 0; i < 8; ++i)
+    {
+        blendedStageGains[i] = juce::jmap(
+            t,
+            static_cast<float>(DelayAllpassGainMultipliers[i]),
+            static_cast<float>(ReverbAllpassGainMultipliers[i])
+        );
+    }
+
+    diffusionLeft.SetStageGains(blendedMaxGain, blendedStageGains);
+    diffusionRight.SetStageGains(blendedMaxGain, blendedStageGains);
 }
 
 //endregion

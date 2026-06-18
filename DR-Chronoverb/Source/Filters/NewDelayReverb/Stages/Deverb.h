@@ -63,13 +63,12 @@ public:
     void SetFiltersOrder(int newOrder);
 
 private:
-    void setLongerGains(float newGain);
-
     float getAmountLower() const;
     float getAmountUpper() const;
 
     void updateFeedbackGainFromFeedbackTime();
     void updateDynamicDiffusionSizeFromDelayTime();
+    void setBlendedStageGains();
 
     // Parameters
     double sampleRate = 48000.0;
