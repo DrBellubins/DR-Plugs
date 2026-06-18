@@ -15,6 +15,8 @@ void DeverbDiffusionChain::Prepare(double newSampleRate, std::array<float, MaxSt
 
     rebuildStageDelays();
     Reset();
+
+    gainSlewCoefficient = 1.0f / (0.01f * static_cast<float>(sampleRate)); // ~10 ms
 }
 
 void DeverbDiffusionChain::Reset()
@@ -38,8 +40,10 @@ void DeverbDiffusionChain::SetSize(float newSize01)
 
 void DeverbDiffusionChain::SetStageGains(float baseGain, std::array<float, MaxStages> stageGains)
 {
+    targetBaseGain = baseGain;
+
     for (int stageIndex = 0; stageIndex < MaxStages; ++stageIndex)
-        allpasses[stageIndex].SetGain(baseGain * stageGains[stageIndex]);
+        targetStageGains[stageIndex] = baseGain * stageGains[stageIndex];
 }
 
 void DeverbDiffusionChain::SetDiffusionAmount(float newAmount01)
@@ -52,7 +56,13 @@ float DeverbDiffusionChain::ProcessSample(float inputSample)
     float sample = inputSample;
 
     for (int stageIndex = 0; stageIndex < activeStages; ++stageIndex)
+    {
+        currentStageGains[stageIndex] += gainSlewCoefficient *
+            (targetStageGains[stageIndex] - currentStageGains[stageIndex]);
+
+        allpasses[stageIndex].SetGain(currentStageGains[stageIndex]);
         sample = allpasses[stageIndex].ProcessSample(sample);
+    }
 
     return sample;
 }

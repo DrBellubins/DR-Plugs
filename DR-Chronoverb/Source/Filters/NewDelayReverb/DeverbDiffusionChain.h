@@ -42,6 +42,14 @@ private:
     float totalChainDelayMs = 0.0f;
     float totalTuningMs = 0.0f;
 
+    // Gain smoothing
+    std::array<float, MaxStages> currentStageGains {};
+    std::array<float, MaxStages> targetStageGains {};
+
+    float currentBaseGain = 0.0f;
+    float targetBaseGain = 0.0f;
+    float gainSlewCoefficient = 0.0f;
+
     std::array<float, MaxStages> stageTuningsMs = {};
 
     std::array<DiffusionAllpass, MaxStages> allpasses {};
