@@ -25,8 +25,6 @@ public:
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
 
     std::unique_ptr<Deverb> DeverbLeftRight;
-    std::unique_ptr<Delay> DelayLeftRight;
-    std::unique_ptr<Reverb> ReverbLeftRight;
     std::unique_ptr<PitchShifter> PitchShifterLeftRight;
     std::unique_ptr<Distortion> DistortionLeftRight;
     std::unique_ptr<Stereo> StereoLeftRight;
@@ -79,12 +77,10 @@ private:
 
     juce::AudioBuffer<float> drySnapshot;
 
-    //float delayTimeNormalized = 0.3f;
-    float delayMilliseconds = 300.0f;
-
     static constexpr int NumDistortionModules = 3;
 
     //region Parameters
+    float delayMilliseconds = 300.0f;
     int delayMode = 0;
 
     float feedbackTimeSeconds = 3.0f;

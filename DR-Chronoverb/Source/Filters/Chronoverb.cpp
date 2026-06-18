@@ -5,8 +5,6 @@ Chronoverb::Chronoverb()
     // Must happen at class construction
     DeverbLeftRight = std::make_unique<Deverb>();
 
-    DelayLeftRight = std::make_unique<Delay>();
-    ReverbLeftRight = std::make_unique<Reverb>();
     PitchShifterLeftRight = std::make_unique<PitchShifter>();
     DistortionLeftRight = std::make_unique<Distortion>();
     StereoLeftRight = std::make_unique<Stereo>();
@@ -23,9 +21,6 @@ void Chronoverb::PrepareToPlay(double newSampleRate)
     drySnapshot.setSize(2, 4096, false, true, false);
 
     DeverbLeftRight->PrepareToPlay(newSampleRate, *FilterLeftRight);
-
-    DelayLeftRight->PrepareToPlay(sampleRate, *FilterLeftRight);
-    ReverbLeftRight->PrepareToPlay(sampleRate, *FilterLeftRight);
 
     PitchShifterLeftRight->PrepareToPlay(sampleRate, *FilterLeftRight);
     DistortionLeftRight->PrepareToPlay(static_cast<float>(sampleRate));
@@ -51,9 +46,6 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 
     DeverbLeftRight->ProcessBlock(audioBuffer);
 
-    DelayLeftRight->ProcessBlock(audioBuffer);
-    ReverbLeftRight->ProcessBlock(audioBuffer);
-
     PitchShifterLeftRight->ProcessBlock(audioBuffer);
     FilterLeftRight->ProcessBlock(audioBuffer);
 
@@ -62,62 +54,19 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         const float dryLeft = drySnapL[sampleIndex];
         const float dryRight = drySnapR[sampleIndex];
 
-        // 0) Pre filters
-        // TODO: (breaks if removed) Don't know why this is needed when it exists in delay/reverb
-        float preFilteredLeft = dryLeft;
-        float preFilteredRight = dryRight;
-
-        /*if (filtersOrder == 1)
-        {
-            auto [filteredL, filteredR] =
-                FilterLeftRight->ProcessSample(dryLeft, dryRight);
-
-            preFilteredLeft = filteredL;
-            preFilteredRight = filteredR;
-        }*/
-
-        // 1) Deverb test
+        // 1) Delay/Reverb (Deverb)
         auto [deverbLeft, deverbRight] =
             DeverbLeftRight->ProcessSample(dryLeft, dryRight);
 
-        auto [delayGain, reverbGain] = GetDelayReverbGain(diffusionAmount);
-
-        // 1) Delay
-        /*float delayLeft = 0, delayRight = 0;
-
-        if (delayGain > 0.0001f)
-        {
-            auto delayPair =
-                DelayLeftRight->ProcessSample(preFilteredLeft, preFilteredRight);
-
-            delayLeft = delayPair.first;
-            delayRight = delayPair.second;
-        }
-
-        // 2) Reverb
-        float reverbLeft = 0, reverbRight = 0;
-
-        if (reverbGain > 0.0001f)
-        {
-            auto reverbPair = ReverbLeftRight->ProcessSample(preFilteredLeft, preFilteredRight);
-
-            reverbLeft = reverbPair.first;
-            reverbRight = reverbPair.second;
-        }
-
-        // 3) Blend delay -> reverb between diff amt 0.5 -> 1.0
-        const float wetLeft = (delayLeft * delayGain) + (reverbLeft * reverbGain);
-        const float wetRight = (delayRight * delayGain) + (reverbRight * reverbGain);*/
-
-        // 4) Pitch shifter
+        // 2) Pitch shifter
         auto [pitchLeft, pitchRight] =
             PitchShifterLeftRight->ProcessSample(deverbLeft, deverbRight);
 
-        // 5) Distortion
+        // 3) Distortion
         auto [distortionDryLeft, distortionDryRight, distortionWetLeft, distortionWetRight] =
             DistortionLeftRight->ProcessSample(dryLeft, dryRight, pitchLeft, pitchRight);
 
-        // 6) Post filters
+        // 4) Post filters
         float postFilteredLeft = distortionWetLeft;
         float postFilteredRight = distortionWetRight;
 
@@ -130,16 +79,16 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
             postFilteredRight = filteredR;
         }
 
-        // 7) Ducking (shouldn't duck by distortion signal, since distortion crushes dynamics)
+        // 5) Ducking (shouldn't duck by distortion signal, since distortion crushes dynamics)
         auto [duckedWetLeft, duckedWetRight] =
             DuckingLeftRight->ProcessSample(dryLeft, dryRight,
                 postFilteredLeft, postFilteredRight);
 
-        // 8) Dry/wet volume gain + combine
+        // 6) Dry/wet volume gain + combine
         float gainedLeft = (distortionDryLeft * dryVolume) + (duckedWetLeft * wetVolume);
         float gainedRight = (distortionDryRight * dryVolume) + (duckedWetRight * wetVolume);
 
-        // 9) Stereo
+        // 7) Stereo
         auto [stereoLeft, stereoRight] =
             StereoLeftRight->ProcessSample(gainedLeft, gainedRight);
 

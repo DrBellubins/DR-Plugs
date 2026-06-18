@@ -55,8 +55,6 @@ void Deverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 {
     juce::ignoreUnused(audioBuffer);
 
-
-
     readDelaySlewCoefficient = delayTimeSegment.ReadDelaySlewCoefficient;
     updateDynamicDiffusionSizeFromDelayTime();
 }
