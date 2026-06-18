@@ -12,9 +12,35 @@
 #include "../DeverbDiffusionChain.h"
 #include "../../../Utils/PMath.h"
 
+// TODO: Diffusion quality doesn't interpolate tunings (ugh)
+// TODO: Make diff amt 1 respond sooner (needs research)
+// TODO: Simply boosting shorter all-pass gains didn't work.
+
+// TODO: Add jitter in DeverbDiffusionChain
+
 class Deverb
 {
 public:
+    static constexpr float MaxAllpassGain = 0.58f;
+
+    const std::array<float, DeverbDiffusionChain::MaxStages> AllpassTunings =
+    {
+        5.0, 11.0, 19.0, 31.0, 43.0, 53.0, 73.0, 83.0
+        //11.0f, 13.0f, 23.0f, 31.0f, 43.0f, 53.0f, 73.0f, 83.0f
+    };
+
+    // Multiplier of MaxAllpassGain
+    const std::array<float, DeverbDiffusionChain::MaxStages> DelayAllpassGainMultipliers =
+    {
+        1.0, 1.0, 1.0, 1.0, 0.5, 0.0, 0.0, 0.0
+    };
+
+    // Raw multiplier
+    const std::array<float, DeverbDiffusionChain::MaxStages> ReverbAllpassGainMultipliers =
+    {
+        2.0, 1.5, 1.0, MaxAllpassGain, MaxAllpassGain, MaxAllpassGain, MaxAllpassGain, MaxAllpassGain
+    };
+
     void PrepareToPlay(double newSampleRate, Filters& filters);
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
 
@@ -37,6 +63,8 @@ public:
     void SetFiltersOrder(int newOrder);
 
 private:
+    void setLongerGains(float newGain);
+
     float getAmountLower() const;
     float getAmountUpper() const;
 

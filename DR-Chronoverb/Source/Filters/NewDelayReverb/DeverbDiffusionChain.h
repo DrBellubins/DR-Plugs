@@ -17,12 +17,15 @@ class DeverbDiffusionChain
 public:
     static constexpr int MaxStages = 8;
 
-    void Prepare(double newSampleRate);
+    void Prepare(double newSampleRate, std::array<float, MaxStages> stageTunings);
     void Reset();
 
     void SetQuality(int newStageCount);
     void SetSize(float newSize01);
     void SetDiffusionAmount(float newAmount01);
+
+    void SetStageGain(int index, float newGain);
+    void SetStageGains(float maxGain, std::array<float, MaxStages> stageGains);
 
     float ProcessSample(float inputSample);
 
@@ -31,7 +34,6 @@ public:
 
 private:
     void rebuildStageDelays();
-    void updateStageGains();
 
     double sampleRate = 48000.0;
     int activeStages = MaxStages;
@@ -41,13 +43,7 @@ private:
     float totalChainDelayMs = 0.0f;
     float totalTuningMs = 0.0f;
 
-    static constexpr float MaxAllpassGain = 0.58f;
-
-    const std::array<float, MaxStages> stageTuningsMs =
-    {
-        5.0, 11.0, 19.0, 31.0, 43.0, 53.0, 73.0, 83.0
-        //11.0f, 13.0f, 23.0f, 31.0f, 43.0f, 53.0f, 73.0f, 83.0f
-    };
+    std::array<float, MaxStages> stageTuningsMs = {};
 
     std::array<DiffusionAllpass, MaxStages> allpasses {};
 };

@@ -19,8 +19,8 @@ void Deverb::PrepareToPlay(double newSampleRate, Filters& filters)
     delayLineLeft.Clear();
     delayLineRight.Clear();
 
-    diffusionLeft.Prepare(sampleRate);
-    diffusionRight.Prepare(sampleRate);
+    diffusionLeft.Prepare(sampleRate, AllpassTunings);
+    diffusionRight.Prepare(sampleRate, AllpassTunings);
 
     diffusionLeft.SetQuality(diffusionQualityStages);
     diffusionRight.SetQuality(diffusionQualityStages);
@@ -30,6 +30,13 @@ void Deverb::PrepareToPlay(double newSampleRate, Filters& filters)
 
     diffusionLeft.SetDiffusionAmount(diffusionAmount);
     diffusionRight.SetDiffusionAmount(diffusionAmount);
+
+    // TODO: Lerp between these states in diff amt 0.5 -> 1.0
+    diffusionLeft.SetStageGains(MaxAllpassGain, DelayAllpassGainMultipliers);
+    diffusionRight.SetStageGains(MaxAllpassGain, DelayAllpassGainMultipliers);
+
+    diffusionLeft.SetStageGains(1.0f, ReverbAllpassGainMultipliers);
+    diffusionRight.SetStageGains(1.0f, ReverbAllpassGainMultipliers);
 
     dampingLeft = DampingFilter();
     dampingRight = DampingFilter();
@@ -75,9 +82,6 @@ std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSam
     float filteredL = inputFeedbackL;
     float filteredR = inputFeedbackR;
 
-    float filteredFeedbackL = lastFeedbackL;
-    float filteredFeedbackR = lastFeedbackR;
-
     if (filtersOrder == 1)
     {
         auto [outFilteredL, outFilteredR] =
@@ -85,9 +89,6 @@ std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSam
 
         filteredL = inputSampleL + outFilteredL;
         filteredR = inputSampleR + outFilteredR;
-
-        filteredFeedbackL = outFilteredL;
-        filteredFeedbackR = outFilteredR;
     }
 
     // 2) Clean path
@@ -109,17 +110,12 @@ std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSam
 
     if (diffusionAmount > 0.0001f)
     {
-        float swellGain = 1.0f + (1.0f - diffusionAmountLower); // diff amt 0.0 -> 1.0 = 2.0 -> 1.0
+        // TODO: Boost shorter gains (stages 1, 2, maybe 3)
+        // Increase longer all-pass gains at 0.5 -> 1.0
+        //setLongerGains(diffusionAmountUpper);
 
-        float swellGainedL = (inputSampleL * swellGain) + filteredFeedbackL;
-        float swellGainedR = (inputSampleR * swellGain) + filteredFeedbackR;
-
-        DBG("Lower: " << diffusionAmountLower << ", Upper: " << diffusionAmountUpper);
-
-        //float diffusionInputL = PMath::EqualPowerCrossfade(swellGainedL, filteredFeedbackL, )
-
-        diffusedTapL = diffusionLeft.ProcessSample(swellGainedL);
-        diffusedTapR = diffusionRight.ProcessSample(swellGainedR);
+        diffusedTapL = diffusionLeft.ProcessSample(filteredL);
+        diffusedTapR = diffusionRight.ProcessSample(filteredR);
     }
 
     // 4) Blend between clean path and diffused path
@@ -174,19 +170,21 @@ float Deverb::getAmountLower() const
     // Map 0..0.5 -> 0..1, then clamp so >=0.5 stays fully diffused.
     const float x = std::clamp(amount * 2.0f, 0.0f, 1.0f);
 
-    // Equal-power-ish curve into full diffusion.
-    return std::sin(x * juce::MathConstants<float>::halfPi);
+    float lower = std::sin(x * juce::MathConstants<float>::halfPi);
+
+    return std::clamp(lower, 0.0f, 1.0f);
 }
 
 float Deverb::getAmountUpper() const
 {
     const float amount = std::clamp(diffusionAmount, 0.0f, 1.0f);
 
-    // Map 0.5..1.0 -> 0..1, then clamp so >=0.5 stays fully diffused.
-    const float x = std::clamp(amount * 2.0f, 0.0f, 1.0f);
+    // Map 0.5..1.0 -> 0..1
+    const float x = std::clamp((amount - 0.5f) * 2.0f, 0.0f, 1.0f);
 
-    // Equal-power-ish curve into full diffusion.
-    return std::sin(juce::MathConstants<float>::halfPi + (x * juce::MathConstants<float>::halfPi));
+    float upper = std::sin(x * juce::MathConstants<float>::halfPi);
+
+    return std::clamp(upper, 0.0f, 1.0f);
 }
 
 //endregion
@@ -276,6 +274,26 @@ void Deverb::updateDynamicDiffusionSizeFromDelayTime()
 
     diffusionLeft.SetSize(effectiveSize);
     diffusionRight.SetSize(effectiveSize);
+}
+
+void Deverb::setLongerGains(float newGain)
+{
+    const float gain = newGain * MaxAllpassGain;
+
+    //DBG("gain: " << gain);
+
+    // --- LONGER ---
+    // Stage 6
+    diffusionLeft.SetStageGain(5, gain);
+    diffusionRight.SetStageGain(5, gain);
+
+    // Stage 7
+    diffusionLeft.SetStageGain(6, gain);
+    diffusionRight.SetStageGain(6, gain);
+
+    // Stage 8
+    diffusionLeft.SetStageGain(7, gain);
+    diffusionRight.SetStageGain(7, gain);
 }
 
 //endregion
