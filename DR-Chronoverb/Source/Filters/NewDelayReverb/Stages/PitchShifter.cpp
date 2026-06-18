@@ -95,6 +95,7 @@ std::pair<float, float> PitchShifter::ProcessSample(float inputSampleL, float in
 
     pitchedLeft =
         ((pitchedLeft * cleanGain) + (diffPitchedLeft * diffusedGain)) * makeupGain;
+
     pitchedRight =
         ((pitchedRight * cleanGain) + (diffPitchedRight * diffusedGain)) * makeupGain;
 

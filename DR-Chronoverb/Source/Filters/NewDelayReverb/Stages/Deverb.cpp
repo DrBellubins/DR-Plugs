@@ -8,14 +8,14 @@ void Deverb::PrepareToPlay(double newSampleRate, Filters& filters)
     delayTimeSegment.PrepareToPlay(sampleRate);
     delayTimeSegment.UpdateDelayMilliseconds();
 
-    delayLineLeft = std::make_unique<DelayLine>(delayTimeSegment.MaxDelaySamples);
-    delayLineRight = std::make_unique<DelayLine>(delayTimeSegment.MaxDelaySamples);
+    delayLineLeft = DelayLine(delayTimeSegment.MaxDelaySamples);
+    delayLineRight = DelayLine(delayTimeSegment.MaxDelaySamples);
 
-    delayLineLeft->SetSampleRate(sampleRate);
-    delayLineRight->SetSampleRate(sampleRate);
+    delayLineLeft.SetSampleRate(sampleRate);
+    delayLineRight.SetSampleRate(sampleRate);
 
-    delayLineLeft->Clear();
-    delayLineRight->Clear();
+    delayLineLeft.Clear();
+    delayLineRight.Clear();
 
     diffusionLeft.Prepare(sampleRate);
     diffusionRight.Prepare(sampleRate);
@@ -29,14 +29,14 @@ void Deverb::PrepareToPlay(double newSampleRate, Filters& filters)
     diffusionLeft.SetDiffusionAmount(diffusionAmount);
     diffusionRight.SetDiffusionAmount(diffusionAmount);
 
-    dampingLeft = std::make_unique<DampingFilter>();
-    dampingRight = std::make_unique<DampingFilter>();
+    dampingLeft = DampingFilter();
+    dampingRight = DampingFilter();
 
-    dampingLeft->Prepare(sampleRate);
-    dampingRight->Prepare(sampleRate);
+    dampingLeft.Prepare(sampleRate);
+    dampingRight.Prepare(sampleRate);
 
-    dampingLeft->SetCutoffHz(dampingCutoff);
-    dampingRight->SetCutoffHz(dampingCutoff);
+    dampingLeft.SetCutoffHz(dampingCutoff);
+    dampingRight.SetCutoffHz(dampingCutoff);
 
     updateFeedbackGainFromFeedbackTime();
 
@@ -69,22 +69,34 @@ std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSam
     if (filtersOrder == 1)
     {
         auto [filteredL, filteredR] =
-            filtersInput->ProcessSample(inputFeedbackL, inputFeedbackR);
+            filtersInput->ProcessSample(lastFeedbackL, lastFeedbackR);
 
-        inputFeedbackL = filteredL;
-        inputFeedbackR = filteredR;
+        inputFeedbackL = inputSampleL + filteredL;
+        inputFeedbackR = inputSampleR + filteredR;
     }
 
     // 2) Clean path
-    delayLineLeft->PushSample(inputFeedbackL);
-    delayLineRight->PushSample(inputFeedbackR);
+    float cleanTapL = inputFeedbackL;
+    float cleanTapR = inputFeedbackR;
 
-    const float cleanTapL = delayLineLeft->ReadFeedbackBuffer(delayTimeSegment.DelayTimeMilliseconds);
-    const float cleanTapR = delayLineRight->ReadFeedbackBuffer(delayTimeSegment.DelayTimeMilliseconds);
+    if (diffusionAmount < 0.5)
+    {
+        delayLineLeft.PushSample(inputFeedbackL);
+        delayLineRight.PushSample(inputFeedbackR);
+
+        cleanTapL = delayLineLeft.ReadFeedbackBuffer(delayTimeSegment.DelayTimeMilliseconds);
+        cleanTapR = delayLineRight.ReadFeedbackBuffer(delayTimeSegment.DelayTimeMilliseconds);
+    }
 
     // 3) Diffused path
-    const float diffusedTapL = diffusionLeft.ProcessSample(inputFeedbackL);
-    const float diffusedTapR = diffusionRight.ProcessSample(inputFeedbackR);
+    float diffusedTapL = cleanTapL;
+    float diffusedTapR = cleanTapR;
+
+    if (diffusionAmount > 0.0001f)
+    {
+        diffusedTapL = diffusionLeft.ProcessSample(inputFeedbackL);
+        diffusedTapR = diffusionRight.ProcessSample(inputFeedbackR);
+    }
 
     // 4) Blend between clean path and diffused path
     const float targetBlend = diffusionLeft.GetBlendAmount();
@@ -98,8 +110,8 @@ std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSam
         (cleanTapR * (1.0f - smoothedBlend)) + (diffusedTapR * smoothedBlend);
 
     // 5) Damping
-    const float dampedL = dampingLeft->ProcessSample(writeSignalL);
-    const float dampedR = dampingRight->ProcessSample(writeSignalR);
+    const float dampedL = dampingLeft.ProcessSample(writeSignalL);
+    const float dampedR = dampingRight.ProcessSample(writeSignalR);
 
     // 6) Recirculation
     lastFeedbackL = dampedL * feedbackGain;
@@ -116,20 +128,19 @@ void Deverb::Reset()
     smoothedBlend = diffusionLeft.GetBlendAmount();
     smoothedReadDelayMs = std::max(1.0f, delayTimeSegment.DelayTimeMilliseconds);
 
-    if (delayLineLeft != nullptr)
-        delayLineLeft->Clear();
+    delayLineLeft.Clear();
+    delayLineRight.Clear();
 
-    if (delayLineRight != nullptr)
-        delayLineRight->Clear();
-
-    if (dampingLeft != nullptr)
-        dampingLeft->Reset();
-
-    if (dampingRight != nullptr)
-        dampingRight->Reset();
+    dampingLeft.Reset();
+    dampingRight.Reset();
 
     diffusionLeft.Reset();
     diffusionRight.Reset();
+}
+
+std::pair<DelayLine&, DelayLine&> Deverb::GetDelayLines()
+{
+    return { delayLineLeft, delayLineRight };
 }
 
 //region Parameters

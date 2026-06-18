@@ -21,6 +21,8 @@ public:
 
     void Reset();
 
+    std::pair<DelayLine&, DelayLine&> GetDelayLines();
+
     void SetHostTempo(float bpm);
 
     void SetDelayTime(float newDelayTime);
@@ -67,14 +69,14 @@ private:
 
     DelayTimeSegment delayTimeSegment;
 
-    std::unique_ptr<DelayLine> delayLineLeft;
-    std::unique_ptr<DelayLine> delayLineRight;
+    DelayLine delayLineLeft = DelayLine(0);
+    DelayLine delayLineRight = DelayLine(0);
 
     DeverbDiffusionChain diffusionLeft;
     DeverbDiffusionChain diffusionRight;
 
-    std::unique_ptr<DampingFilter> dampingLeft;
-    std::unique_ptr<DampingFilter> dampingRight;
+    DampingFilter dampingLeft;
+    DampingFilter dampingRight;
 
     Filters* filtersInput = nullptr;
 };
