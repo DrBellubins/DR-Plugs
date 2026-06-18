@@ -10,6 +10,9 @@
 #include "../DelayTimeSegment.h"
 #include "../DeverbDiffusionChain.h"
 
+// TODO: Diffusion amount 1.0 sounds like Deelays 0.5 (progress?)
+// TODO: Need to boost my earlier stages for near-instant response > 0.5 (transition)
+
 // Deverb = Delay/Reverb hybrid experiment.
 //
 // Revised patch:
@@ -43,6 +46,7 @@ public:
 private:
     void updateFeedbackGainFromFeedbackTime();
 
+    // Parameters
     double sampleRate = 48000.0;
     float hostBPM = 120.0f;
 
@@ -53,6 +57,10 @@ private:
     float diffusionSize = 1.0f;
     int diffusionQualityStages = 8;
 
+    // Settings
+    const float diffusionCompensationBias = 0.25f; // ~100ms compensation at size=1
+
+    // Runtime
     float lastFeedbackL = 0.0f;
     float lastFeedbackR = 0.0f;
 
@@ -62,10 +70,6 @@ private:
     float blendSlewCoefficient = 0.0f;
     float readDelaySlewCoefficient = 0.0f;
 
-    // Settings
-    const float diffusionCompensationBias = 5.0f;
-
-    // Runtime
     float staticCompensationMs = 0.0f;
 
     DelayTimeSegment delayTimeSegment;
