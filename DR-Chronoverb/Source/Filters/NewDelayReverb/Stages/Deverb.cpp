@@ -40,7 +40,7 @@ void Deverb::PrepareToPlay(double newSampleRate, Filters& filters)
 
     updateFeedbackGainFromFeedbackTime();
 
-    smoothedBlend = diffusionLeft.GetBlendAmount();
+    smoothedBlend = getBlendAmount();
     smoothedReadDelayMs = delayTimeSegment.DelayTimeMilliseconds;
 
     blendSlewCoefficient = 1.0f / (0.01f * static_cast<float>(sampleRate)); // ~10 ms
@@ -55,34 +55,48 @@ void Deverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 {
     juce::ignoreUnused(audioBuffer);
 
+
+
     readDelaySlewCoefficient = delayTimeSegment.ReadDelaySlewCoefficient;
     updateDynamicDiffusionSizeFromDelayTime();
 }
 
 std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSampleR)
 {
+    // 0) Variables
+    const float diffusionAmountLower = getBlendAmount(); // 0.0 - 0.5
+
     // 1) Input + feedback
     float inputFeedbackL = inputSampleL + lastFeedbackL;
     float inputFeedbackR = inputSampleR + lastFeedbackR;
 
     // 2) Pre-filters (optional)
+    float filteredL = inputFeedbackL;
+    float filteredR = inputFeedbackR;
+
+    float filteredFeedbackL = lastFeedbackL;
+    float filteredFeedbackR = lastFeedbackR;
+
     if (filtersOrder == 1)
     {
-        auto [filteredL, filteredR] =
+        auto [outFilteredL, outFilteredR] =
             filtersInput->ProcessSample(lastFeedbackL, lastFeedbackR);
 
-        inputFeedbackL = inputSampleL + filteredL;
-        inputFeedbackR = inputSampleR + filteredR;
+        filteredL = inputSampleL + outFilteredL;
+        filteredR = inputSampleR + outFilteredR;
+
+        filteredFeedbackL = outFilteredL;
+        filteredFeedbackR = outFilteredR;
     }
 
     // 2) Clean path
-    float cleanTapL = inputFeedbackL;
-    float cleanTapR = inputFeedbackR;
+    float cleanTapL = filteredL;
+    float cleanTapR = filteredR;
 
     if (diffusionAmount < 0.5)
     {
-        delayLineLeft.PushSample(inputFeedbackL);
-        delayLineRight.PushSample(inputFeedbackR);
+        delayLineLeft.PushSample(filteredL);
+        delayLineRight.PushSample(filteredR);
 
         cleanTapL = delayLineLeft.ReadFeedbackBuffer(delayTimeSegment.DelayTimeMilliseconds);
         cleanTapR = delayLineRight.ReadFeedbackBuffer(delayTimeSegment.DelayTimeMilliseconds);
@@ -94,13 +108,17 @@ std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSam
 
     if (diffusionAmount > 0.0001f)
     {
-        diffusedTapL = diffusionLeft.ProcessSample(inputFeedbackL);
-        diffusedTapR = diffusionRight.ProcessSample(inputFeedbackR);
+        float swellGain = 1.0f + (1.0f - diffusionAmountLower); // diff amt 0.0 -> 1.0 = 2.0 -> 1.0
+
+        float diffusionInputL = (inputSampleL * swellGain) + filteredFeedbackL;
+        float diffusionInputR = (inputSampleR * swellGain) + filteredFeedbackR;
+
+        diffusedTapL = diffusionLeft.ProcessSample(diffusionInputL);
+        diffusedTapR = diffusionRight.ProcessSample(diffusionInputR);
     }
 
     // 4) Blend between clean path and diffused path
-    const float targetBlend = diffusionLeft.GetBlendAmount();
-    smoothedBlend += blendSlewCoefficient * (targetBlend - smoothedBlend);
+    smoothedBlend += blendSlewCoefficient * (diffusionAmountLower - smoothedBlend);
     smoothedBlend = std::clamp(smoothedBlend, 0.0f, 1.0f);
 
     const float writeSignalL =
@@ -125,7 +143,7 @@ void Deverb::Reset()
     lastFeedbackL = 0.0f;
     lastFeedbackR = 0.0f;
 
-    smoothedBlend = diffusionLeft.GetBlendAmount();
+    smoothedBlend = getBlendAmount();
     smoothedReadDelayMs = std::max(1.0f, delayTimeSegment.DelayTimeMilliseconds);
 
     delayLineLeft.Clear();
@@ -138,10 +156,24 @@ void Deverb::Reset()
     diffusionRight.Reset();
 }
 
+//region Utilities
 std::pair<DelayLine&, DelayLine&> Deverb::GetDelayLines()
 {
     return { delayLineLeft, delayLineRight };
 }
+
+float Deverb::getBlendAmount() const
+{
+    const float a = std::clamp(diffusionAmount, 0.0f, 1.0f);
+
+    // Map 0..0.5 -> 0..1, then clamp so >=0.5 stays fully diffused.
+    const float x = std::clamp(a * 2.0f, 0.0f, 1.0f);
+
+    // Equal-power-ish curve into full diffusion.
+    return std::sin(x * juce::MathConstants<float>::halfPi);
+}
+
+//endregion
 
 //region Parameters
 

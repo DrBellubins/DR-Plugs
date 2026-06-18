@@ -26,9 +26,7 @@ public:
 
     float ProcessSample(float inputSample);
 
-    float GetBlendAmount() const;
     float GetTotalChainDelayMs() const { return totalChainDelayMs; }
-
     float GetTotalTuningMs() const;
 
 private:

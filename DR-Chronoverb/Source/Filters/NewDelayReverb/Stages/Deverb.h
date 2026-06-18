@@ -36,6 +36,8 @@ public:
     void SetFiltersOrder(int newOrder);
 
 private:
+    float getBlendAmount() const;
+
     void updateFeedbackGainFromFeedbackTime();
     void updateDynamicDiffusionSizeFromDelayTime();
 

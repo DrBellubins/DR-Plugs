@@ -53,17 +53,6 @@ float DeverbDiffusionChain::ProcessSample(float inputSample)
     return sample;
 }
 
-float DeverbDiffusionChain::GetBlendAmount() const
-{
-    const float a = std::clamp(diffusionAmount, 0.0f, 1.0f);
-
-    // Map 0..0.5 -> 0..1, then clamp so >=0.5 stays fully diffused.
-    const float x = std::clamp(a * 2.0f, 0.0f, 1.0f);
-
-    // Equal-power-ish curve into full diffusion.
-    return std::sin(x * juce::MathConstants<float>::halfPi);
-}
-
 float DeverbDiffusionChain::GetTotalTuningMs() const
 {
     return totalTuningMs;
