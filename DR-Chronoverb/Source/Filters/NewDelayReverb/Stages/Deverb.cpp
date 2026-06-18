@@ -1,5 +1,7 @@
 #include "Deverb.h"
 
+#include "../../Chronoverb.h"
+
 void Deverb::PrepareToPlay(double newSampleRate, Filters& filters)
 {
     sampleRate = newSampleRate;
@@ -40,7 +42,7 @@ void Deverb::PrepareToPlay(double newSampleRate, Filters& filters)
 
     updateFeedbackGainFromFeedbackTime();
 
-    smoothedBlend = getBlendAmount();
+    smoothedBlend = getAmountLower();
     smoothedReadDelayMs = delayTimeSegment.DelayTimeMilliseconds;
 
     blendSlewCoefficient = 1.0f / (0.01f * static_cast<float>(sampleRate)); // ~10 ms
@@ -62,7 +64,8 @@ void Deverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSampleR)
 {
     // 0) Variables
-    const float diffusionAmountLower = getBlendAmount(); // 0.0 - 0.5
+    const float diffusionAmountLower = getAmountLower(); // 0.0 - 0.5
+    const float diffusionAmountUpper = getAmountUpper(); // 0.5 - 1.0
 
     // 1) Input + feedback
     float inputFeedbackL = inputSampleL + lastFeedbackL;
@@ -108,11 +111,15 @@ std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSam
     {
         float swellGain = 1.0f + (1.0f - diffusionAmountLower); // diff amt 0.0 -> 1.0 = 2.0 -> 1.0
 
-        float diffusionInputL = (inputSampleL * swellGain) + filteredFeedbackL;
-        float diffusionInputR = (inputSampleR * swellGain) + filteredFeedbackR;
+        float swellGainedL = (inputSampleL * swellGain) + filteredFeedbackL;
+        float swellGainedR = (inputSampleR * swellGain) + filteredFeedbackR;
 
-        diffusedTapL = diffusionLeft.ProcessSample(diffusionInputL);
-        diffusedTapR = diffusionRight.ProcessSample(diffusionInputR);
+        DBG("Lower: " << diffusionAmountLower << ", Upper: " << diffusionAmountUpper);
+
+        //float diffusionInputL = PMath::EqualPowerCrossfade(swellGainedL, filteredFeedbackL, )
+
+        diffusedTapL = diffusionLeft.ProcessSample(swellGainedL);
+        diffusedTapR = diffusionRight.ProcessSample(swellGainedR);
     }
 
     // 4) Blend between clean path and diffused path
@@ -141,7 +148,7 @@ void Deverb::Reset()
     lastFeedbackL = 0.0f;
     lastFeedbackR = 0.0f;
 
-    smoothedBlend = getBlendAmount();
+    smoothedBlend = getAmountLower();
     smoothedReadDelayMs = std::max(1.0f, delayTimeSegment.DelayTimeMilliseconds);
 
     delayLineLeft.Clear();
@@ -160,15 +167,26 @@ std::pair<DelayLine&, DelayLine&> Deverb::GetDelayLines()
     return { delayLineLeft, delayLineRight };
 }
 
-float Deverb::getBlendAmount() const
+float Deverb::getAmountLower() const
 {
-    const float a = std::clamp(diffusionAmount, 0.0f, 1.0f);
+    const float amount = std::clamp(diffusionAmount, 0.0f, 1.0f);
 
     // Map 0..0.5 -> 0..1, then clamp so >=0.5 stays fully diffused.
-    const float x = std::clamp(a * 2.0f, 0.0f, 1.0f);
+    const float x = std::clamp(amount * 2.0f, 0.0f, 1.0f);
 
     // Equal-power-ish curve into full diffusion.
     return std::sin(x * juce::MathConstants<float>::halfPi);
+}
+
+float Deverb::getAmountUpper() const
+{
+    const float amount = std::clamp(diffusionAmount, 0.0f, 1.0f);
+
+    // Map 0.5..1.0 -> 0..1, then clamp so >=0.5 stays fully diffused.
+    const float x = std::clamp(amount * 2.0f, 0.0f, 1.0f);
+
+    // Equal-power-ish curve into full diffusion.
+    return std::sin(juce::MathConstants<float>::halfPi + (x * juce::MathConstants<float>::halfPi));
 }
 
 //endregion

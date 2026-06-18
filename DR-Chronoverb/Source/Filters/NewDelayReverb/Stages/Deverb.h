@@ -10,6 +10,7 @@
 #include "../DampingFilter.h"
 #include "../DelayTimeSegment.h"
 #include "../DeverbDiffusionChain.h"
+#include "../../../Utils/PMath.h"
 
 class Deverb
 {
@@ -36,7 +37,8 @@ public:
     void SetFiltersOrder(int newOrder);
 
 private:
-    float getBlendAmount() const;
+    float getAmountLower() const;
+    float getAmountUpper() const;
 
     void updateFeedbackGainFromFeedbackTime();
     void updateDynamicDiffusionSizeFromDelayTime();
