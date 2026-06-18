@@ -3,9 +3,8 @@
 
 #include <memory>
 
-#include "NewDelayReverb/Stages/Delay.h"
+#include "NewDelayReverb/Stages/Old/Delay.h"
 #include "NewDelayReverb/Stages/Deverb.h"
-#include "NewDelayReverb/Stages/Reverb.h"
 #include "NewDelayReverb/Stages/PitchShifter.h"
 #include "NewDelayReverb/Stages/Distortion.h"
 #include "NewDelayReverb/Stages/Ducking.h"

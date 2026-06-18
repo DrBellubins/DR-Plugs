@@ -4,12 +4,12 @@
 #include <memory>
 #include <vector>
 
-#include "Filters.h"
-#include "../DelayLine.h"
-#include "../DampingFilter.h"
-#include "../DiffusionChain.h"
-#include "../DelayTimeSegment.h"
-#include "../../ChronoverbUtils.h"
+#include "../Filters.h"
+#include "../../DelayLine.h"
+#include "../../DampingFilter.h"
+#include "../../DiffusionChain.h"
+#include "../../DelayTimeSegment.h"
+#include "../../../ChronoverbUtils.h"
 
 // TODO: Delay time doesn't seem to affect the diffusion decay time
 // TODO: Use Lissajous Stereo Rotation instead of static tuning decorrelation.

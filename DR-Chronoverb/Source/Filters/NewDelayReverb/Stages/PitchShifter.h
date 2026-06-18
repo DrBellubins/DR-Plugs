@@ -1,8 +1,9 @@
 #pragma once
 
-#include "Delay.h"
+#include "Old/Delay.h"
+#include "Old/Reverb.h"
+
 #include "../PitchShiftingEngine.h"
-#include "Reverb.h"
 #include "../DelayTimeSegment.h"
 #include "../DelayLine.h"
 #include "../../../Utils/PMath.h"

@@ -2,11 +2,11 @@
 
 #include <vector>
 
-#include "Filters.h"
-#include "../DelayTimeSegment.h"
-#include "../DiffusionChain.h"
-#include "../DampingFilter.h"
-#include "../../ChronoverbUtils.h"
+#include "../Filters.h"
+#include "../../DelayTimeSegment.h"
+#include "../../DiffusionChain.h"
+#include "../../DampingFilter.h"
+#include "../../../ChronoverbUtils.h"
 
 // Multi-channel, handles all reverb feedback, diffusion, damping, etc.
 class Reverb
