@@ -72,8 +72,8 @@ std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSam
     smoothedDiffusionAmount += diffusionAmountSlewCoefficient * (targetDiffusionAmount - smoothedDiffusionAmount);
     smoothedDiffusionAmount = std::clamp(smoothedDiffusionAmount, 0.0f, 1.0f);
 
-    const float diffusionAmountLower = getAmountLower(); // 0.0 - 0.5
-    const float diffusionAmountUpper = getAmountUpper(); // 0.5 - 1.0
+    //const float diffusionAmountLower = getAmountLower(); // 0.0 - 0.5
+    //const float diffusionAmountUpper = getAmountUpper(); // 0.5 - 1.0
 
     // 1) Input + feedback
     float inputFeedbackL = inputSampleL + lastFeedbackL;
@@ -116,11 +116,13 @@ std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSam
     }
 
     // 4) Blend between clean path and diffused path
+    const float lowerBlend = juce::jlimit(0.0f, 1.0f, smoothedDiffusionAmount * 2.0f);
+
     const float writeSignalL =
-        (cleanTapL * (1.0f - diffusionAmountLower)) + (diffusedTapL * diffusionAmountLower);
+        (cleanTapL * (1.0f - lowerBlend)) + (diffusedTapL * lowerBlend);
 
     const float writeSignalR =
-        (cleanTapR * (1.0f - diffusionAmountLower)) + (diffusedTapR * diffusionAmountLower);
+        (cleanTapR * (1.0f - lowerBlend)) + (diffusedTapR * lowerBlend);
 
     // 5) Damping
     const float dampedL = dampingLeft.ProcessSample(writeSignalL);
@@ -274,7 +276,7 @@ void Deverb::updateDynamicDiffusionSizeFromDelayTime()
 void Deverb::setBlendedStageGains()
 {
     // Blend region: 0.5 -> 1.0 diffusion amount
-    const float t = juce::jlimit(0.0f, 1.0f, (diffusionAmount - 0.5f) * 2.0f);
+    const float t = juce::jlimit(0.0f, 1.0f, (smoothedDiffusionAmount - 0.5f) * 2.0f);
 
     // Crossfade max gain too
     const float delayMaxGain = MaxAllpassGain;
