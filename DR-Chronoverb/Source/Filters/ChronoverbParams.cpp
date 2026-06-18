@@ -185,6 +185,7 @@ void Chronoverb::SetFiltersOrder(int newOrder)
 {
     filtersOrder = std::clamp(newOrder, 0, 2);
     DelayLeftRight->SetFiltersOrder(filtersOrder);
+    DeverbLeftRight->SetFiltersOrder(filtersOrder);
 }
 
 void Chronoverb::SetLowPassCutoff(float newLowpass)

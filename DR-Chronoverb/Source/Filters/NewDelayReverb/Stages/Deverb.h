@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "Filters.h"
 #include "../DelayLine.h"
 #include "../DampingFilter.h"
 #include "../DelayTimeSegment.h"
@@ -13,7 +14,7 @@
 class Deverb
 {
 public:
-    void PrepareToPlay(double newSampleRate);
+    void PrepareToPlay(double newSampleRate, Filters& filters);
     void ProcessBlock(juce::AudioBuffer<float>& audioBuffer);
 
     std::pair<float, float> ProcessSample(float inputSampleL, float inputSampleR);
@@ -30,6 +31,8 @@ public:
     void SetDiffusionSize(float newSize01);
     void SetDiffusionQuality(int newQualityStages);
 
+    void SetFiltersOrder(int newOrder);
+
 private:
     void updateFeedbackGainFromFeedbackTime();
     void updateDynamicDiffusionSizeFromDelayTime();
@@ -44,9 +47,11 @@ private:
     float diffusionAmount = 0.0f;
     float diffusionSize = 1.0f;
     int diffusionQualityStages = 8;
+    int filtersOrder = 0;
 
     // Settings
     const float diffusionCompensationBias = 0.5f; // Bigger values = longer swell into nominal
+    const float dampingCutoff = 4200.0f;
 
     // Runtime
     float lastFeedbackL = 0.0f;
@@ -65,9 +70,11 @@ private:
     std::unique_ptr<DelayLine> delayLineLeft;
     std::unique_ptr<DelayLine> delayLineRight;
 
+    DeverbDiffusionChain diffusionLeft;
+    DeverbDiffusionChain diffusionRight;
+
     std::unique_ptr<DampingFilter> dampingLeft;
     std::unique_ptr<DampingFilter> dampingRight;
 
-    DeverbDiffusionChain diffusionLeft;
-    DeverbDiffusionChain diffusionRight;
+    Filters* filtersInput = nullptr;
 };

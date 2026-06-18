@@ -22,7 +22,7 @@ void Chronoverb::PrepareToPlay(double newSampleRate)
     // 2 channels, 4096 samples covers all typical DAW block sizes.
     drySnapshot.setSize(2, 4096, false, true, false);
 
-    DeverbLeftRight->PrepareToPlay(newSampleRate);
+    DeverbLeftRight->PrepareToPlay(newSampleRate, *FilterLeftRight);
 
     DelayLeftRight->PrepareToPlay(sampleRate, *FilterLeftRight);
     ReverbLeftRight->PrepareToPlay(sampleRate, *FilterLeftRight);
@@ -67,18 +67,18 @@ void Chronoverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
         float preFilteredLeft = dryLeft;
         float preFilteredRight = dryRight;
 
-        if (filtersOrder == 1)
+        /*if (filtersOrder == 1)
         {
             auto [filteredL, filteredR] =
                 FilterLeftRight->ProcessSample(dryLeft, dryRight);
 
             preFilteredLeft = filteredL;
             preFilteredRight = filteredR;
-        }
+        }*/
 
         // 1) Deverb test
         auto [deverbLeft, deverbRight] =
-            DeverbLeftRight->ProcessSample(preFilteredLeft, preFilteredRight);
+            DeverbLeftRight->ProcessSample(dryLeft, dryRight);
 
         auto [delayGain, reverbGain] = GetDelayReverbGain(diffusionAmount);
 

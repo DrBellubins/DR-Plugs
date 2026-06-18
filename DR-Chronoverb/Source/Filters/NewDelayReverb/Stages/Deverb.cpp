@@ -1,8 +1,9 @@
 #include "Deverb.h"
 
-void Deverb::PrepareToPlay(double newSampleRate)
+void Deverb::PrepareToPlay(double newSampleRate, Filters& filters)
 {
-    sampleRate = std::max(1.0, newSampleRate);
+    sampleRate = newSampleRate;
+    filtersInput = &filters;
 
     delayTimeSegment.PrepareToPlay(sampleRate);
     delayTimeSegment.UpdateDelayMilliseconds();
@@ -16,17 +17,6 @@ void Deverb::PrepareToPlay(double newSampleRate)
     delayLineLeft->Clear();
     delayLineRight->Clear();
 
-    dampingLeft = std::make_unique<DampingFilter>();
-    dampingRight = std::make_unique<DampingFilter>();
-
-    dampingLeft->Prepare(sampleRate);
-    dampingRight->Prepare(sampleRate);
-
-    constexpr float InitialDampingCutoffHz = 4200.0f;
-
-    dampingLeft->SetCutoffHz(InitialDampingCutoffHz);
-    dampingRight->SetCutoffHz(InitialDampingCutoffHz);
-
     diffusionLeft.Prepare(sampleRate);
     diffusionRight.Prepare(sampleRate);
 
@@ -38,6 +28,15 @@ void Deverb::PrepareToPlay(double newSampleRate)
 
     diffusionLeft.SetDiffusionAmount(diffusionAmount);
     diffusionRight.SetDiffusionAmount(diffusionAmount);
+
+    dampingLeft = std::make_unique<DampingFilter>();
+    dampingRight = std::make_unique<DampingFilter>();
+
+    dampingLeft->Prepare(sampleRate);
+    dampingRight->Prepare(sampleRate);
+
+    dampingLeft->SetCutoffHz(dampingCutoff);
+    dampingRight->SetCutoffHz(dampingCutoff);
 
     updateFeedbackGainFromFeedbackTime();
 
@@ -63,19 +62,29 @@ void Deverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
 std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSampleR)
 {
     // 1) Input + feedback
-    const float inputWithFeedbackL = inputSampleL + lastFeedbackL;
-    const float inputWithFeedbackR = inputSampleR + lastFeedbackR;
+    float inputFeedbackL = inputSampleL + lastFeedbackL;
+    float inputFeedbackR = inputSampleR + lastFeedbackR;
+
+    // 2) Pre-filters (optional)
+    if (filtersOrder == 1)
+    {
+        auto [filteredL, filteredR] =
+            filtersInput->ProcessSample(inputFeedbackL, inputFeedbackR);
+
+        inputFeedbackL = filteredL;
+        inputFeedbackR = filteredR;
+    }
 
     // 2) Clean path
-    delayLineLeft->PushSample(inputWithFeedbackL);
-    delayLineRight->PushSample(inputWithFeedbackR);
+    delayLineLeft->PushSample(inputFeedbackL);
+    delayLineRight->PushSample(inputFeedbackR);
 
     const float cleanTapL = delayLineLeft->ReadFeedbackBuffer(delayTimeSegment.DelayTimeMilliseconds);
     const float cleanTapR = delayLineRight->ReadFeedbackBuffer(delayTimeSegment.DelayTimeMilliseconds);
 
     // 3) Diffused path
-    const float diffusedTapL = diffusionLeft.ProcessSample(inputWithFeedbackL);
-    const float diffusedTapR = diffusionRight.ProcessSample(inputWithFeedbackR);
+    const float diffusedTapL = diffusionLeft.ProcessSample(inputFeedbackL);
+    const float diffusedTapR = diffusionRight.ProcessSample(inputFeedbackR);
 
     // 4) Blend between clean path and diffused path
     const float targetBlend = diffusionLeft.GetBlendAmount();
@@ -171,6 +180,11 @@ void Deverb::SetDiffusionQuality(int newQualityStages)
 
     diffusionLeft.SetQuality(diffusionQualityStages);
     diffusionRight.SetQuality(diffusionQualityStages);
+}
+
+void Deverb::SetFiltersOrder(int newOrder)
+{
+    filtersOrder = newOrder;
 }
 
 //endregion

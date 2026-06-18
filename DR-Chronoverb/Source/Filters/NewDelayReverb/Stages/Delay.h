@@ -46,9 +46,6 @@ public:
 
     void SetFiltersOrder(int newOrder);
 
-    std::unique_ptr<DelayLine> InternalDelayLineLeft;
-    std::unique_ptr<DelayLine> InternalDelayLineRight;
-
 private:
     void rebuildDiffusionIfNeeded();
     void updateFeedbackGainFromFeedbackTime();
@@ -93,6 +90,9 @@ private:
 
     // Data
     DelayTimeSegment delayTimeSegment;
+
+    std::unique_ptr<DelayLine> delayLineLeft;
+    std::unique_ptr<DelayLine> delayLineRight;
 
     std::unique_ptr<DiffusionChain> diffusionReadLeft;
     std::unique_ptr<DiffusionChain> diffusionWriteLeft;

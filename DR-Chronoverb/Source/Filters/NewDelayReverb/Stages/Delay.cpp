@@ -9,14 +9,14 @@ void Delay::PrepareToPlay(double newSampleRate, Filters& filters)
     delayTimeSegment.UpdateDelayMilliseconds();
 
     // Delay line
-    InternalDelayLineLeft = std::make_unique<DelayLine>(delayTimeSegment.MaxDelaySamples);
-    InternalDelayLineRight = std::make_unique<DelayLine>(delayTimeSegment.MaxDelaySamples);
+    delayLineLeft = std::make_unique<DelayLine>(delayTimeSegment.MaxDelaySamples);
+    delayLineRight = std::make_unique<DelayLine>(delayTimeSegment.MaxDelaySamples);
 
-    InternalDelayLineLeft->Clear();
-    InternalDelayLineRight->Clear();
+    delayLineLeft->Clear();
+    delayLineRight->Clear();
 
-    InternalDelayLineLeft->SetSampleRate(sampleRate);
-    InternalDelayLineRight->SetSampleRate(sampleRate);
+    delayLineLeft->SetSampleRate(sampleRate);
+    delayLineRight->SetSampleRate(sampleRate);
 
     // Diffusion Read
     diffusionReadLeft = std::make_unique<DiffusionChain>();
@@ -117,8 +117,8 @@ std::pair<float, float> Delay::ProcessSample(float inputSampleL, float inputSamp
     }
 
     // 5) Write to delay line
-    InternalDelayLineLeft->PushSample(feedbackWriteLeft);
-    InternalDelayLineRight->PushSample(feedbackWriteRight);
+    delayLineLeft->PushSample(feedbackWriteLeft);
+    delayLineRight->PushSample(feedbackWriteRight);
 
     // 6) Read nominal and early tap
     smoothedCenteredReadDelayMilliseconds += readDelaySlewCoefficient *
@@ -129,11 +129,11 @@ std::pair<float, float> Delay::ProcessSample(float inputSampleL, float inputSamp
     const float earlyReadMilliseconds =
         std::max(1.0f, nominalReadMilliseconds - staticDiffusionCompensationMilliseconds);
 
-    const float nominalTapLeft = InternalDelayLineLeft->ReadFeedbackBuffer(nominalReadMilliseconds);
-    const float nominalTapRight = InternalDelayLineRight->ReadFeedbackBuffer(nominalReadMilliseconds);
+    const float nominalTapLeft = delayLineLeft->ReadFeedbackBuffer(nominalReadMilliseconds);
+    const float nominalTapRight = delayLineRight->ReadFeedbackBuffer(nominalReadMilliseconds);
 
-    const float earlyTapLeft = InternalDelayLineLeft->ReadFeedbackBuffer(earlyReadMilliseconds);
-    const float earlyTapRight = InternalDelayLineRight->ReadFeedbackBuffer(earlyReadMilliseconds);
+    const float earlyTapLeft = delayLineLeft->ReadFeedbackBuffer(earlyReadMilliseconds);
+    const float earlyTapRight = delayLineRight->ReadFeedbackBuffer(earlyReadMilliseconds);
 
     // 7) Diffuse the early tap (second pass)
     float hybridTapLeft = nominalTapLeft;
