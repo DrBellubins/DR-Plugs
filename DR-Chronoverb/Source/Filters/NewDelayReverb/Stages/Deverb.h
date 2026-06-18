@@ -90,13 +90,17 @@ private:
     float lastFeedbackL = 0.0f;
     float lastFeedbackR = 0.0f;
 
-    float smoothedBlend = 0.0f;
+    //float smoothedBlend = 0.0f;
     float smoothedReadDelayMs = 1.0f;
 
     float blendSlewCoefficient = 0.0f;
     float readDelaySlewCoefficient = 0.0f;
 
     float staticCompensationMs = 0.0f;
+
+    float targetDiffusionAmount = 0.0f;
+    float smoothedDiffusionAmount = 0.0f;
+    float diffusionAmountSlewCoefficient = 0.0f;
 
     DelayTimeSegment delayTimeSegment;
 
