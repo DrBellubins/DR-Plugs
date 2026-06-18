@@ -57,6 +57,7 @@ void Deverb::ProcessBlock(juce::AudioBuffer<float>& audioBuffer)
     juce::ignoreUnused(audioBuffer);
 
     readDelaySlewCoefficient = delayTimeSegment.ReadDelaySlewCoefficient;
+    updateDynamicDiffusionSizeFromDelayTime();
 }
 
 std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSampleR)
@@ -65,47 +66,33 @@ std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSam
     const float inputWithFeedbackL = inputSampleL + lastFeedbackL;
     const float inputWithFeedbackR = inputSampleR + lastFeedbackR;
 
-    // 2) Diffused path
-    const float diffusedL = diffusionLeft.ProcessSample(inputWithFeedbackL);
-    const float diffusedR = diffusionRight.ProcessSample(inputWithFeedbackR);
+    // 2) Clean path
+    delayLineLeft->PushSample(inputWithFeedbackL);
+    delayLineRight->PushSample(inputWithFeedbackR);
 
-    // 3) Smooth only the clean/diffused write blend
+    const float cleanTapL = delayLineLeft->ReadFeedbackBuffer(delayTimeSegment.DelayTimeMilliseconds);
+    const float cleanTapR = delayLineRight->ReadFeedbackBuffer(delayTimeSegment.DelayTimeMilliseconds);
+
+    // 3) Diffused path
+    const float diffusedTapL = diffusionLeft.ProcessSample(inputWithFeedbackL);
+    const float diffusedTapR = diffusionRight.ProcessSample(inputWithFeedbackR);
+
+    // 4) Blend between clean path and diffused path
     const float targetBlend = diffusionLeft.GetBlendAmount();
     smoothedBlend += blendSlewCoefficient * (targetBlend - smoothedBlend);
     smoothedBlend = std::clamp(smoothedBlend, 0.0f, 1.0f);
 
-    // 4) Blend clean path and diffused path BEFORE delay write
-    // TODO: Make this happen between diff amt 0.0 - 0.5
     const float writeSignalL =
-        (inputWithFeedbackL * (1.0f - smoothedBlend)) + (diffusedL * smoothedBlend);
+        (cleanTapL * (1.0f - smoothedBlend)) + (diffusedTapL * smoothedBlend);
 
     const float writeSignalR =
-        (inputWithFeedbackR * (1.0f - smoothedBlend)) + (diffusedR * smoothedBlend);
+        (cleanTapR * (1.0f - smoothedBlend)) + (diffusedTapR * smoothedBlend);
 
-    // 5) Write to delay line
-    /*delayLineLeft->PushSample(writeSignalL);
-    delayLineRight->PushSample(writeSignalR);
-
-    // 6) Read only at the user delay time
-    // This means diffusionAmount no longer changes timing -> no pitch slewing from amount.
-    const float targetReadDelayMs =
-        std::max(1.0f, delayTimeSegment.DelayTimeMilliseconds - staticCompensationMs);
-
-    smoothedReadDelayMs += readDelaySlewCoefficient
-        * (targetReadDelayMs - smoothedReadDelayMs);
-
-    smoothedReadDelayMs = std::max(1.0f, smoothedReadDelayMs);
-
-    const float wetL = delayLineLeft->ReadFeedbackBuffer(smoothedReadDelayMs);
-    const float wetR = delayLineRight->ReadFeedbackBuffer(smoothedReadDelayMs);*/
-
-    // TODO: Blend between wet L/R and write signal L/R between diff amt 0.5 - 1.0
-
-    // 7) Damping
+    // 5) Damping
     const float dampedL = dampingLeft->ProcessSample(writeSignalL);
     const float dampedR = dampingRight->ProcessSample(writeSignalR);
 
-    // 8) Recirculation
+    // 6) Recirculation
     lastFeedbackL = dampedL * feedbackGain;
     lastFeedbackR = dampedR * feedbackGain;
 
@@ -136,20 +123,26 @@ void Deverb::Reset()
     diffusionRight.Reset();
 }
 
+//region Parameters
+
 void Deverb::SetHostTempo(float bpm)
 {
     hostBPM = bpm;
+
     delayTimeSegment.SetHostTempo(hostBPM);
+    updateDynamicDiffusionSizeFromDelayTime();
 }
 
 void Deverb::SetDelayTime(float newDelayTime)
 {
     delayTimeSegment.SetDelayTime(newDelayTime);
+    updateDynamicDiffusionSizeFromDelayTime();
 }
 
 void Deverb::SetDelayMode(int newDelayMode)
 {
     delayTimeSegment.SetDelayMode(newDelayMode);
+    updateDynamicDiffusionSizeFromDelayTime();
 }
 
 void Deverb::SetFeedbackTime(float newFeedbackTimeSeconds)
@@ -169,9 +162,7 @@ void Deverb::SetDiffusionAmount(float newAmount01)
 void Deverb::SetDiffusionSize(float newSize01)
 {
     diffusionSize = std::clamp(newSize01, 0.0f, 1.0f);
-
-    diffusionLeft.SetSize(diffusionSize);
-    diffusionRight.SetSize(diffusionSize);
+    updateDynamicDiffusionSizeFromDelayTime();
 }
 
 void Deverb::SetDiffusionQuality(int newQualityStages)
@@ -182,9 +173,36 @@ void Deverb::SetDiffusionQuality(int newQualityStages)
     diffusionRight.SetQuality(diffusionQualityStages);
 }
 
+//endregion
+
+//region Update functions
+
 void Deverb::updateFeedbackGainFromFeedbackTime()
 {
     const float normalized = std::clamp(feedbackTimeSeconds / 10.0f, 0.0f, 1.0f);
     const float curved = std::sqrt(normalized);
     feedbackGain = std::max(0.0f, std::min(0.85f * curved, 0.95f));
 }
+
+void Deverb::updateDynamicDiffusionSizeFromDelayTime()
+{
+    const float staticTotalMs = diffusionLeft.GetTotalTuningMs();
+
+    if (staticTotalMs <= 0.0f)
+        return;
+
+    // ratio to make diffusion chain nominally match requested delay time
+    const float targetRatio =
+        delayTimeSegment.DelayTimeMilliseconds / staticTotalMs;
+
+    // Per your request: dynamic length factor * user diffusion size
+    const float effectiveSize = targetRatio * diffusionSize;
+
+    //DBG("Delay time: " << delayTimeSegment.DelayTimeMilliseconds << ", totalMs: " << staticTotalMs <<
+    //    ", effectiveSize: " << effectiveSize << ", targetRatio: " << targetRatio);
+
+    diffusionLeft.SetSize(effectiveSize);
+    diffusionRight.SetSize(effectiveSize);
+}
+
+//endregion

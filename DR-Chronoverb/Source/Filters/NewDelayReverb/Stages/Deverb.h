@@ -10,19 +10,6 @@
 #include "../DelayTimeSegment.h"
 #include "../DeverbDiffusionChain.h"
 
-// TODO: Diffusion amount 1.0 sounds like Deelays 0.5 (progress?)
-// TODO: Need to boost my earlier stages for near-instant response > 0.5 (transition)
-
-// Deverb = Delay/Reverb hybrid experiment.
-//
-// Revised patch:
-// - keeps serial allpass diffusion BEFORE delay write
-// - keeps amount-controlled clean/diffused write blend
-// - removes amount-driven read compensation entirely
-// - delay time remains the only thing that slews the read position
-//
-// This preserves the experiment while avoiding pitch slewing when
-// changing diffusionAmount live.
 class Deverb
 {
 public:
@@ -45,6 +32,7 @@ public:
 
 private:
     void updateFeedbackGainFromFeedbackTime();
+    void updateDynamicDiffusionSizeFromDelayTime();
 
     // Parameters
     double sampleRate = 48000.0;

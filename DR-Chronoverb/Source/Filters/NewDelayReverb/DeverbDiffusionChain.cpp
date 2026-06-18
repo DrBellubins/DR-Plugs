@@ -4,6 +4,11 @@ void DeverbDiffusionChain::Prepare(double newSampleRate)
 {
     sampleRate = std::max(1.0, newSampleRate);
 
+    totalTuningMs = 0.0f;
+
+    for (int i = 0; i < MaxStages; ++i)
+        totalTuningMs += stageTuningsMs[i];
+
     for (auto& allpass : allpasses)
         allpass.Prepare(sampleRate);
 
@@ -27,7 +32,8 @@ void DeverbDiffusionChain::SetQuality(int newStageCount)
 
 void DeverbDiffusionChain::SetSize(float newSize01)
 {
-    size01 = std::clamp(newSize01, 0.0f, 1.0f);
+    //size01 = std::clamp(newSize01, 0.0f, 1.0f);
+    size01 = newSize01;
     rebuildStageDelays();
 }
 
@@ -56,6 +62,11 @@ float DeverbDiffusionChain::GetBlendAmount() const
 
     // Equal-power-ish curve into full diffusion.
     return std::sin(x * juce::MathConstants<float>::halfPi);
+}
+
+float DeverbDiffusionChain::GetTotalTuningMs() const
+{
+    return totalTuningMs;
 }
 
 void DeverbDiffusionChain::rebuildStageDelays()

@@ -29,6 +29,8 @@ public:
     float GetBlendAmount() const;
     float GetTotalChainDelayMs() const { return totalChainDelayMs; }
 
+    float GetTotalTuningMs() const;
+
 private:
     void rebuildStageDelays();
     void updateStageGains();
@@ -39,6 +41,7 @@ private:
     float diffusionAmount = 0.0f;
     float size01 = 1.0f;
     float totalChainDelayMs = 0.0f;
+    float totalTuningMs = 0.0f;
 
     static constexpr float MaxAllpassGain = 0.58f;
 
