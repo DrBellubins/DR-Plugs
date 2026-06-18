@@ -76,6 +76,20 @@ void DeverbDiffusionChain::updateStageGains()
     const float gainDrive = std::min(1.0f, diffusionAmount * 2.0f);
     const float baseGain = gainDrive * MaxAllpassGain;
 
+    static constexpr float stageMultipliers[MaxStages] =
+    {
+        1.00f, 0.97f, 1.02f, 0.95f, 1.01f, 0.96f, 0.99f, 0.94f
+    };
+
+    for (int stageIndex = 0; stageIndex < MaxStages; ++stageIndex)
+        allpasses[stageIndex].SetGain(baseGain * stageMultipliers[stageIndex]);
+}
+
+/*void DeverbDiffusionChain::updateStageGains()
+{
+    const float gainDrive = std::min(1.0f, diffusionAmount * 2.0f);
+    const float baseGain = gainDrive * MaxAllpassGain;
+
     for (int stageIndex = 0; stageIndex < MaxStages; ++stageIndex)
     {
         const float stageTaper =
@@ -85,7 +99,7 @@ void DeverbDiffusionChain::updateStageGains()
 
         allpasses[stageIndex].SetGain(baseGain * stageTaper);
     }
-}
+}*/
 
 /*void DeverbDiffusionChain::updateStageGains()
 {

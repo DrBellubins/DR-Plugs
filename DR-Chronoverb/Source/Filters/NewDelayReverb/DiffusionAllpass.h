@@ -53,15 +53,23 @@ public:
     {
         const int size = static_cast<int>(buffer.size());
 
-        int readIndex = writeIndex - currentDelaySamples;
+        smoothedDelaySamples += 0.0025f * (currentDelaySamples - smoothedDelaySamples);
 
-        while (readIndex < 0)
-            readIndex += size;
+        float readPos = static_cast<float>(writeIndex) - smoothedDelaySamples;
 
-        while (readIndex >= size)
-            readIndex -= size;
+        while (readPos < 0.0f)
+            readPos += static_cast<float>(size);
 
-        const float delayed = buffer[static_cast<size_t>(readIndex)];
+        while (readPos >= static_cast<float>(size))
+            readPos -= static_cast<float>(size);
+
+        const int indexA = static_cast<int>(std::floor(readPos));
+        const int indexB = (indexA + 1) % size;
+        const float frac = readPos - static_cast<float>(indexA);
+
+        const float delayed =
+            buffer[static_cast<size_t>(indexA)] * (1.0f - frac)
+            + buffer[static_cast<size_t>(indexB)] * frac;
 
         // Canonical Schroeder allpass
         const float v = inputSample + gain * delayed;
@@ -91,8 +99,9 @@ public:
     // For this cheap test version, we quantize to integer samples.
     void SetCurrentDelaySamples(float newDelaySamples)
     {
-        const int newDelayInt = std::max(1, static_cast<int>(std::round(newDelaySamples)));
-        currentDelaySamples = std::min(newDelayInt, maxUsableDelaySamples());
+        currentDelaySamples = juce::jlimit(1.0f,
+                                           static_cast<float>(maxUsableDelaySamples()),
+                                           newDelaySamples);
     }
 
     void SetDelayMilliseconds(float newDelayMs)
@@ -136,5 +145,7 @@ private:
     int writeIndex = 0;
 
     int delaySamplesInteger = 1;
-    int currentDelaySamples = 1;
+
+    float currentDelaySamples = 1.0f;
+    float smoothedDelaySamples = 1.0f;
 };
