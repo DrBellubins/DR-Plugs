@@ -24,7 +24,6 @@ public:
     void SetSize(float newSize01);
     void SetDiffusionAmount(float newAmount01);
 
-    void SetStageGain(int index, float newGain);
     void SetStageGains(float maxGain, std::array<float, MaxStages> stageGains);
 
     float ProcessSample(float inputSample);

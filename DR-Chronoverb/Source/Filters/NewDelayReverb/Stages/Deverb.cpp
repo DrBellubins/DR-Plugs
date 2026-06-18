@@ -110,9 +110,6 @@ std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSam
 
     if (diffusionAmount > 0.0001f)
     {
-        // TODO: Boost shorter gains (stages 1, 2, maybe 3)
-        // Increase longer all-pass gains at 0.5 -> 1.0
-        //setLongerGains(diffusionAmountUpper);
 
         diffusedTapL = diffusionLeft.ProcessSample(filteredL);
         diffusedTapR = diffusionRight.ProcessSample(filteredR);
@@ -274,26 +271,6 @@ void Deverb::updateDynamicDiffusionSizeFromDelayTime()
 
     diffusionLeft.SetSize(effectiveSize);
     diffusionRight.SetSize(effectiveSize);
-}
-
-void Deverb::setLongerGains(float newGain)
-{
-    const float gain = newGain * MaxAllpassGain;
-
-    //DBG("gain: " << gain);
-
-    // --- LONGER ---
-    // Stage 6
-    diffusionLeft.SetStageGain(5, gain);
-    diffusionRight.SetStageGain(5, gain);
-
-    // Stage 7
-    diffusionLeft.SetStageGain(6, gain);
-    diffusionRight.SetStageGain(6, gain);
-
-    // Stage 8
-    diffusionLeft.SetStageGain(7, gain);
-    diffusionRight.SetStageGain(7, gain);
 }
 
 //endregion

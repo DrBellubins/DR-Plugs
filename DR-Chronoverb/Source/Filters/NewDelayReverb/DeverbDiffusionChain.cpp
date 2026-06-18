@@ -36,14 +36,6 @@ void DeverbDiffusionChain::SetSize(float newSize01)
     rebuildStageDelays();
 }
 
-void DeverbDiffusionChain::SetStageGain(int index, float newGain)
-{
-    if (index < 0 || index > MaxStages)
-        return;
-
-    allpasses[index].SetGain(newGain);
-}
-
 void DeverbDiffusionChain::SetStageGains(float maxGain, std::array<float, MaxStages> stageGains)
 {
     const float gainDrive = std::min(1.0f, diffusionAmount * 2.0f);
