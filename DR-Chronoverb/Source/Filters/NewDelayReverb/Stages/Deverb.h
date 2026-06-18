@@ -58,7 +58,7 @@ private:
     int diffusionQualityStages = 8;
 
     // Settings
-    const float diffusionCompensationBias = 0.25f; // ~100ms compensation at size=1
+    const float diffusionCompensationBias = 0.5f; // Bigger values = longer swell into nominal
 
     // Runtime
     float lastFeedbackL = 0.0f;

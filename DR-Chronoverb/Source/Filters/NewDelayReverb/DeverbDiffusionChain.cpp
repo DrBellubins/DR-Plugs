@@ -49,10 +49,13 @@ float DeverbDiffusionChain::ProcessSample(float inputSample)
 
 float DeverbDiffusionChain::GetBlendAmount() const
 {
-    // Equal-power style write-blend curve.
-    // amount=0   -> clean path only
-    // amount=1   -> fully diffused write path
-    return std::sin(diffusionAmount * juce::MathConstants<float>::halfPi);
+    const float a = std::clamp(diffusionAmount, 0.0f, 1.0f);
+
+    // Map 0..0.5 -> 0..1, then clamp so >=0.5 stays fully diffused.
+    const float x = std::clamp(a * 2.0f, 0.0f, 1.0f);
+
+    // Equal-power-ish curve into full diffusion.
+    return std::sin(x * juce::MathConstants<float>::halfPi);
 }
 
 void DeverbDiffusionChain::rebuildStageDelays()
@@ -78,7 +81,7 @@ void DeverbDiffusionChain::updateStageGains()
 
     static constexpr float stageMultipliers[MaxStages] =
     {
-        1.00f, 0.97f, 1.02f, 0.95f, 1.01f, 0.96f, 0.99f, 0.94f
+        1.00f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f
     };
 
     for (int stageIndex = 0; stageIndex < MaxStages; ++stageIndex)

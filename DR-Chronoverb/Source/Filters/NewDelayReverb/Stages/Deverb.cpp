@@ -83,7 +83,7 @@ std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSam
         (inputWithFeedbackR * (1.0f - smoothedBlend)) + (diffusedR * smoothedBlend);
 
     // 5) Write to delay line
-    delayLineLeft->PushSample(writeSignalL);
+    /*delayLineLeft->PushSample(writeSignalL);
     delayLineRight->PushSample(writeSignalR);
 
     // 6) Read only at the user delay time
@@ -97,13 +97,13 @@ std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSam
     smoothedReadDelayMs = std::max(1.0f, smoothedReadDelayMs);
 
     const float wetL = delayLineLeft->ReadFeedbackBuffer(smoothedReadDelayMs);
-    const float wetR = delayLineRight->ReadFeedbackBuffer(smoothedReadDelayMs);
+    const float wetR = delayLineRight->ReadFeedbackBuffer(smoothedReadDelayMs);*/
 
     // TODO: Blend between wet L/R and write signal L/R between diff amt 0.5 - 1.0
 
     // 7) Damping
-    const float dampedL = dampingLeft->ProcessSample(wetL);
-    const float dampedR = dampingRight->ProcessSample(wetR);
+    const float dampedL = dampingLeft->ProcessSample(writeSignalL);
+    const float dampedR = dampingRight->ProcessSample(writeSignalR);
 
     // 8) Recirculation
     lastFeedbackL = dampedL * feedbackGain;

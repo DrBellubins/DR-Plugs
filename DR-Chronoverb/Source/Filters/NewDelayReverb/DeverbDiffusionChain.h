@@ -44,7 +44,8 @@ private:
 
     const std::array<float, MaxStages> stageTuningsMs =
     {
-        11.0f, 13.0f, 23.0f, 31.0f, 43.0f, 53.0f, 73.0f, 83.0f
+        5.0, 11.0, 19.0, 31.0, 43.0, 53.0, 73.0, 83.0
+        //11.0f, 13.0f, 23.0f, 31.0f, 43.0f, 53.0f, 73.0f, 83.0f
     };
 
     std::array<DiffusionAllpass, MaxStages> allpasses {};
