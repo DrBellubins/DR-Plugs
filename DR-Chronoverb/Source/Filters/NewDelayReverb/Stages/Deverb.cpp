@@ -75,6 +75,7 @@ std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSam
     smoothedBlend = std::clamp(smoothedBlend, 0.0f, 1.0f);
 
     // 4) Blend clean path and diffused path BEFORE delay write
+    // TODO: Make this happen between diff amt 0.0 - 0.5
     const float writeSignalL =
         (inputWithFeedbackL * (1.0f - smoothedBlend)) + (diffusedL * smoothedBlend);
 
@@ -97,6 +98,8 @@ std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSam
 
     const float wetL = delayLineLeft->ReadFeedbackBuffer(smoothedReadDelayMs);
     const float wetR = delayLineRight->ReadFeedbackBuffer(smoothedReadDelayMs);
+
+    // TODO: Blend between wet L/R and write signal L/R between diff amt 0.5 - 1.0
 
     // 7) Damping
     const float dampedL = dampingLeft->ProcessSample(wetL);
