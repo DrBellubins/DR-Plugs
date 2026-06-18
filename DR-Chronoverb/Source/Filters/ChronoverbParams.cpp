@@ -2,7 +2,8 @@
 
 void Chronoverb::SetHostTempo(float bpm) const
 {
-    //DeverbLeftRight->SetHostTempo(bpm);
+    DeverbLeftRight->SetHostTempo(bpm);
+
     DelayLeftRight->SetHostTempo(bpm);
     ReverbLeftRight->SetHostTempo(bpm);
     PitchShifterLeftRight->SetHostTempo(bpm);
@@ -13,7 +14,8 @@ void Chronoverb::SetDelayTime(float newDelayTime)
 {
     delayMilliseconds = newDelayTime;
 
-    //DeverbLeftRight->SetDelayTime(delayMilliseconds);
+    DeverbLeftRight->SetDelayTime(delayMilliseconds);
+
     DelayLeftRight->SetDelayTime(delayMilliseconds);
     ReverbLeftRight->SetDelayTime(delayMilliseconds);
     PitchShifterLeftRight->SetDelayTime(delayMilliseconds);
@@ -24,7 +26,8 @@ void Chronoverb::SetDelayMode(int newDelayMode)
 {
     delayMode = std::clamp(newDelayMode, 0, 3);
 
-    //DeverbLeftRight->SetDelayMode(delayMode);
+    DeverbLeftRight->SetDelayMode(delayMode);
+
     DelayLeftRight->SetDelayMode(delayMode);
     ReverbLeftRight->SetDelayMode(delayMode);
     PitchShifterLeftRight->SetDelayMode(delayMode);
@@ -35,7 +38,8 @@ void Chronoverb::SetFeedbackTime(float newFeedbackTimeSeconds)
 {
     feedbackTimeSeconds = std::max(0.0f, newFeedbackTimeSeconds);
 
-    //DeverbLeftRight->SetFeedbackTime(feedbackTimeSeconds);
+    DeverbLeftRight->SetFeedbackTime(feedbackTimeSeconds);
+
     DelayLeftRight->SetFeedbackTime(feedbackTimeSeconds);
     ReverbLeftRight->SetFeedbackTime(feedbackTimeSeconds);
 }
@@ -44,7 +48,8 @@ void Chronoverb::SetDiffusionAmount(float newAmount01)
 {
     diffusionAmount = clamp01(newAmount01);
 
-    //DeverbLeftRight->SetDiffusionAmount(diffusionAmount);
+    DeverbLeftRight->SetDiffusionAmount(diffusionAmount);
+
     DelayLeftRight->SetDiffusionAmount(diffusionAmount);
     ReverbLeftRight->SetDiffusionAmount(diffusionAmount);
     PitchShifterLeftRight->SetDiffusionAmount(diffusionAmount);
@@ -55,7 +60,8 @@ void Chronoverb::SetDiffusionSize(float newSize01)
 {
     diffusionSize = clamp01(newSize01);
 
-    //DeverbLeftRight->SetDiffusionSize(diffusionSize);
+    DeverbLeftRight->SetDiffusionSize(diffusionSize);
+
     DelayLeftRight->SetDiffusionSize(diffusionSize);
     ReverbLeftRight->SetDiffusionSize(diffusionSize);
     PitchShifterLeftRight->SetDiffusionSize(diffusionSize);
@@ -65,7 +71,8 @@ void Chronoverb::SetDiffusionQuality(int newQualityStages)
 {
     diffusionQualityStages = clampInt(newQualityStages, 1, 8);
 
-    //DeverbLeftRight->SetDiffusionQuality(diffusionQualityStages);
+    DeverbLeftRight->SetDiffusionQuality(diffusionQualityStages);
+
     DelayLeftRight->SetDiffusionQuality(diffusionQualityStages);
     ReverbLeftRight->SetDiffusionQuality(diffusionQualityStages);
     PitchShifterLeftRight->SetDiffusionQuality(diffusionQualityStages);

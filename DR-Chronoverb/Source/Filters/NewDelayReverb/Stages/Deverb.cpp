@@ -47,6 +47,8 @@ void Deverb::PrepareToPlay(double newSampleRate)
     blendSlewCoefficient = 1.0f / (0.01f * static_cast<float>(sampleRate)); // ~10 ms
     readDelaySlewCoefficient = delayTimeSegment.ReadDelaySlewCoefficient;
 
+    staticCompensationMs = diffusionLeft.GetTotalChainDelayMs() * diffusionCompensationBias;
+
     Reset();
 }
 
@@ -73,22 +75,11 @@ std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSam
     smoothedBlend = std::clamp(smoothedBlend, 0.0f, 1.0f);
 
     // 4) Blend clean path and diffused path BEFORE delay write
-    float cleanWriteWeight = 1.0f - smoothedBlend;
-
-    // Above 0.5 diffusion amount, suppress residual clean tap more aggressively.
-    // This helps enforce the design rule that the clean tap should be gone by 0.5.
-    if (diffusionAmount > 0.5f)
-    {
-        const float upperHalf01 = (diffusionAmount - 0.5f) / 0.5f;
-        const float suppression = juce::jmap(upperHalf01, 1.0f, 0.0f);
-        cleanWriteWeight *= suppression;
-    }
-
     const float writeSignalL =
-        (inputWithFeedbackL * cleanWriteWeight) + (diffusedL * smoothedBlend);
+        (inputWithFeedbackL * (1.0f - smoothedBlend)) + (diffusedL * smoothedBlend);
 
     const float writeSignalR =
-        (inputWithFeedbackR * cleanWriteWeight) + (diffusedR * smoothedBlend);
+        (inputWithFeedbackR * (1.0f - smoothedBlend)) + (diffusedR * smoothedBlend);
 
     // 5) Write to delay line
     delayLineLeft->PushSample(writeSignalL);
@@ -97,7 +88,7 @@ std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSam
     // 6) Read only at the user delay time
     // This means diffusionAmount no longer changes timing -> no pitch slewing from amount.
     const float targetReadDelayMs =
-        std::max(1.0f, delayTimeSegment.DelayTimeMilliseconds);
+        std::max(1.0f, delayTimeSegment.DelayTimeMilliseconds - staticCompensationMs);
 
     smoothedReadDelayMs += readDelaySlewCoefficient
         * (targetReadDelayMs - smoothedReadDelayMs);

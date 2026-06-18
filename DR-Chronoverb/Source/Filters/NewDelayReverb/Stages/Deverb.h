@@ -62,6 +62,12 @@ private:
     float blendSlewCoefficient = 0.0f;
     float readDelaySlewCoefficient = 0.0f;
 
+    // Settings
+    const float diffusionCompensationBias = 5.0f;
+
+    // Runtime
+    float staticCompensationMs = 0.0f;
+
     DelayTimeSegment delayTimeSegment;
 
     std::unique_ptr<DelayLine> delayLineLeft;
