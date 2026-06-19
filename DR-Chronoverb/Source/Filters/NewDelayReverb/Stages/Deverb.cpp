@@ -19,17 +19,15 @@ void Deverb::PrepareToPlay(double newSampleRate, Filters& filters)
     delayLineLeft.Clear();
     delayLineRight.Clear();
 
+    // Diffusion
     diffusionLeft.Prepare(sampleRate, AllpassTunings);
     diffusionRight.Prepare(sampleRate, AllpassTunings);
 
-    diffusionLeft.SetQuality(diffusionQualityStages);
-    diffusionRight.SetQuality(diffusionQualityStages);
+    diffusionLeft.SetJitterRate(jitterRate);
+    diffusionRight.SetJitterRate(jitterRate);
 
-    diffusionLeft.SetSize(diffusionSize);
-    diffusionRight.SetSize(diffusionSize);
-
-    diffusionLeft.SetDiffusionAmount(diffusionAmount);
-    diffusionRight.SetDiffusionAmount(diffusionAmount);
+    diffusionLeft.SetJitterDepth(jitterDepth);
+    diffusionRight.SetJitterDepth(jitterDepth);
 
     setBlendedStageGains();
 

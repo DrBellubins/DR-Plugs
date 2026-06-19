@@ -3,8 +3,9 @@
 #include <array>
 #include <algorithm>
 #include <cmath>
+#include <random>
 
-#include "DiffusionAllpass.h"
+#include "DeverbDiffusionAllpass.h"
 
 // A dedicated diffusion chain for the Deverb experiment.
 // This version keeps the experiment intact while ensuring that
@@ -26,16 +27,21 @@ public:
 
     void SetStageGains(float baseGain, std::array<float, MaxStages> stageGains);
 
+    void SetJitterRate(float newRateHz);
+    void SetJitterDepth(float newDepthMs);
+
     float ProcessSample(float inputSample);
 
-    float GetTotalChainDelayMs() const { return totalChainDelayMs; }
-    float GetTotalTuningMs() const;
+    [[nodiscard]] float GetTotalChainDelayMs() const { return totalChainDelayMs; }
+    [[nodiscard]] float GetTotalTuningMs() const;
 
 private:
     void rebuildStageDelays();
+    void updateJitterTargets();
+    void pushJitterTargetsToAllpasses();
 
     double sampleRate = 48000.0;
-    int activeStages = MaxStages;
+    size_t activeStages = MaxStages;
 
     float diffusionAmount = 0.0f;
     float size01 = 1.0f;
@@ -50,7 +56,19 @@ private:
     float targetBaseGain = 0.0f;
     float gainSlewCoefficient = 0.0f;
 
+    // Jitter
+    float jitterRateHz = 0.5f;
+    float jitterDepthMs = 0.35f;
+    float jitterAlpha = 0.0f;
+    int jitterIntervalSamples = 1;
+    int jitterCountdown = 1;
+
+    std::array<float, MaxStages> jitterTargets {};
+    std::array<float, MaxStages> jitterSmoothedOffsets {};
+    std::mt19937 rng { 0x12345678 };
+    std::uniform_real_distribution<float> jitterDist { -1.0f, 1.0f };
+
     std::array<float, MaxStages> stageTuningsMs = {};
 
-    std::array<DiffusionAllpass, MaxStages> allpasses {};
+    std::array<DeverbDiffusionAllpass, MaxStages> allpasses {};
 };
