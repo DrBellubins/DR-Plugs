@@ -126,6 +126,12 @@ public:
         jitterSmoothingAlpha = juce::jlimit(0.0f, 1.0f, newAlpha);
     }
 
+    void SetMaxJitterDepthMs(float maxDepthMs)
+    {
+        maxJitterDepthMs = std::max(0.0f, maxDepthMs);
+        ensureBufferSize(); // Re-evaluate buffer size
+    }
+
     void SetTargetDelayMilliseconds(float newDelayMs)
     {
         targetDelayMs = std::max(1.0f, newDelayMs);
@@ -140,7 +146,12 @@ public:
 private:
     void ensureBufferSize()
     {
-        const int minSize = std::max(4, delaySamplesInteger + 2);
+        // Extra headroom: +4 for interpolation safety, and enough
+        // for the maximum jitter offset that could be applied later.
+        const int maxJitterSamples = static_cast<int>(
+            std::ceil((maxJitterDepthMs * static_cast<float>(sampleRate)) / 1000.0f));
+
+        const int minSize = std::max(4, delaySamplesInteger + maxJitterSamples + 4);
 
         if (static_cast<int>(buffer.size()) < minSize)
             buffer.resize(static_cast<size_t>(minSize), 0.0f);
@@ -158,6 +169,7 @@ private:
     float targetDelayMs = 50.0f;
     float jitterSmoothingAlpha = 0.0f;
     float smoothedDelayMs = 50.0f;
+    float maxJitterDepthMs = 0.35f;
 
     std::vector<float> buffer;
     int writeIndex = 0;

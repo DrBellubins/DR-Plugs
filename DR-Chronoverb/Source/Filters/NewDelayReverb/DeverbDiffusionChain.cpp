@@ -93,6 +93,9 @@ void DeverbDiffusionChain::SetJitterRate(float newRateHz)
 void DeverbDiffusionChain::SetJitterDepth(float newDepthMs)
 {
     jitterDepthMs = std::max(0.0f, newDepthMs);
+
+    for (auto& allpass : allpasses)
+        allpass.SetMaxJitterDepthMs(jitterDepthMs);
 }
 
 void DeverbDiffusionChain::SetDiffusionAmount(float newAmount01)
@@ -108,11 +111,7 @@ float DeverbDiffusionChain::ProcessSample(float inputSample)
     {
         jitterCountdown = jitterIntervalSamples;
         updateJitterTargets();
-
-        for (size_t i = 0; i < MaxStages; ++i)
-            jitterSmoothedOffsets[i] += (1.0f - jitterAlpha) * (jitterTargets[i] - jitterSmoothedOffsets[i]);
-
-        pushJitterTargetsToAllpasses();
+        pushJitterTargetsToAllpasses(); // Just push raw targets — allpass smooths per sample
     }
 
     for (size_t stageIndex = 0; stageIndex < activeStages; ++stageIndex)
@@ -164,7 +163,7 @@ void DeverbDiffusionChain::pushJitterTargetsToAllpasses()
     for (size_t i = 0; i < MaxStages; ++i)
     {
         const float baseDelayMs = stageTuningsMs[i] * scale;
-        const float targetDelayMs = std::max(1.0f, baseDelayMs + jitterSmoothedOffsets[i]);
+        const float targetDelayMs = std::max(1.0f, baseDelayMs + jitterTargets[i]);
         allpasses[i].SetTargetDelayMilliseconds(targetDelayMs);
     }
 }
