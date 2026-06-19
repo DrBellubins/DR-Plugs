@@ -13,12 +13,13 @@
 #include "../../ChronoverbUtils.h"
 #include "../../../Utils/PMath.h"
 
+// TODO: There are lingering resonant effects
+// TODO: diff amt 1 sounds like a artificial drone, 0.5 sounds like weaker drone, 0.15 sounds like a bell
+
 // TODO: Delay side diffusion is too wide
-// TODO: Investigate whether jitter-based L/R De-Correlation is better than static tuning De-Correlation
+// TODO: Investigate if jitter-based L/R De-Correlation is better than static tuning De-Correlation
 
 // TODO: Diffusion quality doesn't interpolate tunings (ugh)
-// TODO: Make diff amt 1 respond sooner (needs research)
-// TODO: Simply boosting shorter all-pass gains didn't work.
 
 class Deverb
 {

@@ -82,11 +82,12 @@ std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSam
     float cleanTapL = filteredL;
     float cleanTapR = filteredR;
 
+    // Needs to constantly push as transition through 0.5 causes buffer resurgence.
+    delayLineLeft.PushSample(filteredL);
+    delayLineRight.PushSample(filteredR);
+    
     if (diffusionAmount < 0.5)
     {
-        delayLineLeft.PushSample(filteredL);
-        delayLineRight.PushSample(filteredR);
-
         cleanTapL = delayLineLeft.ReadFeedbackBuffer(delayTimeSegment.DelayTimeMilliseconds);
         cleanTapR = delayLineRight.ReadFeedbackBuffer(delayTimeSegment.DelayTimeMilliseconds);
     }
