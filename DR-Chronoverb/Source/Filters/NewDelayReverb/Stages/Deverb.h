@@ -12,11 +12,11 @@
 #include "../DeverbDiffusionChain.h"
 #include "../../../Utils/PMath.h"
 
+// TODO: Jitter doesn't work (for no good reason!)
+
 // TODO: Diffusion quality doesn't interpolate tunings (ugh)
 // TODO: Make diff amt 1 respond sooner (needs research)
 // TODO: Simply boosting shorter all-pass gains didn't work.
-
-// TODO: Add jitter in DeverbDiffusionChain
 
 class Deverb
 {
