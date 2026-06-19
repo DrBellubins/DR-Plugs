@@ -3,7 +3,6 @@
 #include <array>
 #include <algorithm>
 #include <cmath>
-#include <random>
 
 #include "DeverbDiffusionAllpass.h"
 
@@ -27,9 +26,6 @@ public:
 
     void SetStageGains(float baseGain, std::array<float, MaxStages> stageGains);
 
-    void SetJitterRate(float newRateHz);
-    void SetJitterDepth(float newDepthMs);
-
     float ProcessSample(float inputSample);
 
     [[nodiscard]] float GetTotalChainDelayMs() const { return totalChainDelayMs; }
@@ -37,8 +33,6 @@ public:
 
 private:
     void rebuildStageDelays();
-    void updateJitterTargets();
-    void pushJitterTargetsToAllpasses();
 
     double sampleRate = 48000.0;
     size_t activeStages = MaxStages;

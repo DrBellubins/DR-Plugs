@@ -10,9 +10,11 @@
 #include "../DampingFilter.h"
 #include "../DelayTimeSegment.h"
 #include "../DeverbDiffusionChain.h"
+#include "../../ChronoverbUtils.h"
 #include "../../../Utils/PMath.h"
 
-// TODO: Jitter doesn't work (for no good reason!)
+// TODO: Delay side diffusion is too wide
+// TODO: Investigate whether jitter-based L/R De-Correlation is better than static tuning De-Correlation
 
 // TODO: Diffusion quality doesn't interpolate tunings (ugh)
 // TODO: Make diff amt 1 respond sooner (needs research)
@@ -83,9 +85,6 @@ private:
     int filtersOrder = 0;
 
     // Settings
-    const float jitterRate = 24000.0f;
-    const float jitterDepth = 0.35f;
-
     const float diffusionCompensationBias = 0.5f; // Bigger values = longer swell into nominal
     const float dampingCutoff = 4200.0f;
 
