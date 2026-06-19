@@ -115,6 +115,10 @@ public:
         ensureBufferSize();
 
         currentDelaySamples = static_cast<float>(std::min(delaySamplesInteger, maxUsableDelaySamples()));
+
+        // Initialize smoothed and target to prevent startup discontinuity
+        smoothedDelayMs = delayMs;
+        targetDelayMs = delayMs;
     }
 
     void SetJitterSmoothingAlpha(float newAlpha)

@@ -31,6 +31,11 @@ void DeverbDiffusionChain::Prepare(double newSampleRate, std::array<float, MaxSt
     jitterCountdown = jitterIntervalSamples;
 
     rebuildStageDelays();
+
+    // Initialize jitter targets immediately to prevent startup glitch
+    updateJitterTargets();
+    pushJitterTargetsToAllpasses();
+
     Reset();
 
     gainSlewCoefficient = 1.0f / (0.01f * static_cast<float>(sampleRate));
@@ -75,9 +80,9 @@ void DeverbDiffusionChain::SetJitterRate(float newRateHz)
 {
     jitterRateHz = std::max(0.01f, newRateHz);
 
-    constexpr float Pi = juce::MathConstants<float>::pi;
-    const float omega = 2.0f * Pi * jitterRateHz;
-    jitterAlpha = std::exp(-omega / static_cast<float>(sampleRate));
+    // Use fixed smoothing window instead of rate-based
+    constexpr float smoothingTimeSeconds = 0.05f; // 50ms smoothing
+    jitterAlpha = std::exp(-1.0f / (smoothingTimeSeconds * static_cast<float>(sampleRate)));
 
     jitterIntervalSamples = std::max(1, static_cast<int>(std::round(sampleRate / jitterRateHz)));
 
@@ -137,6 +142,9 @@ void DeverbDiffusionChain::rebuildStageDelays()
     {
         const float delayMs = stageTuningsMs[stageIndex] * scale;
         allpasses[stageIndex].SetDelayMilliseconds(delayMs);
+
+        // Also set target to prevent discontinuity
+        allpasses[stageIndex].SetTargetDelayMilliseconds(delayMs);
 
         if (stageIndex < activeStages)
             totalChainDelayMs += delayMs;
