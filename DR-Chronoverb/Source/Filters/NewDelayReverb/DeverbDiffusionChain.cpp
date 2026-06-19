@@ -10,25 +10,17 @@ void DeverbDiffusionChain::Prepare(double newSampleRate, std::array<float, MaxSt
     for (size_t i = 0; i < MaxStages; ++i)
         totalTuningMs += stageTuningsMs[i];
 
-    for (auto& allpass : allpasses)
-        allpass.Prepare(sampleRate);
-
-    {
-        constexpr float Pi = juce::MathConstants<float>::pi;
-        const float omega = 2.0f * Pi * std::max(0.01f, jitterRateHz);
-        jitterAlpha = std::exp(-omega / static_cast<float>(sampleRate));
-        jitterIntervalSamples = std::max(1, static_cast<int>(std::round(sampleRate / jitterRateHz)));
-    }
-
+    // Initialize LFO phases spread evenly to decorrelate stages
     for (size_t i = 0; i < MaxStages; ++i)
     {
-        jitterTargets[i] = 0.0f;
-        jitterSmoothedOffsets[i] = 0.0f;
+        const float phaseOffset = (juce::MathConstants<float>::twoPi / MaxStages) * static_cast<float>(i);
+        lfoPhases[i] = phaseOffset;
 
-        allpasses[i].SetJitterSmoothingAlpha(jitterAlpha);
+        // Each stage gets a slightly different rate to prevent synchronised beating
+        const float rateVariance = 1.0f + (static_cast<float>(i) * 0.07f);  // 0%, 7%, 14%... per stage
+        lfoRates[i] = (juce::MathConstants<float>::twoPi * LfoBaseRateHz * rateVariance)
+                      / static_cast<float>(sampleRate);
     }
-
-    jitterCountdown = jitterIntervalSamples;
 
     rebuildStageDelays();
 
@@ -107,11 +99,28 @@ float DeverbDiffusionChain::ProcessSample(float inputSample)
 {
     float sample = inputSample;
 
-    if (--jitterCountdown <= 0)
+    for (size_t stageIndex = 0; stageIndex < activeStages; ++stageIndex)
     {
-        jitterCountdown = jitterIntervalSamples;
-        updateJitterTargets();
-        pushJitterTargetsToAllpasses(); // Just push raw targets — allpass smooths per sample
+        // Gain slew (unchanged)
+        currentStageGains[stageIndex] += gainSlewCoefficient *
+            (targetStageGains[stageIndex] - currentStageGains[stageIndex]);
+
+        allpasses[stageIndex].SetGain(currentStageGains[stageIndex]);
+
+        // Per-sample LFO modulation — advance phase and compute offset
+        lfoPhases[stageIndex] += lfoRates[stageIndex];
+
+        if (lfoPhases[stageIndex] >= juce::MathConstants<float>::twoPi)
+            lfoPhases[stageIndex] -= juce::MathConstants<float>::twoPi;
+
+        const float scale = 0.25f + (0.75f * size01);
+        const float baseDelayMs = stageTuningsMs[stageIndex] * scale;
+        const float lfoOffsetMs = std::sin(lfoPhases[stageIndex]) * LfoDepthMs;
+        const float modulatedDelayMs = std::max(1.0f, baseDelayMs + lfoOffsetMs);
+
+        allpasses[stageIndex].SetTargetDelayMilliseconds(modulatedDelayMs);
+
+        sample = allpasses[stageIndex].ProcessSample(sample);
     }
 
     for (size_t stageIndex = 0; stageIndex < activeStages; ++stageIndex)

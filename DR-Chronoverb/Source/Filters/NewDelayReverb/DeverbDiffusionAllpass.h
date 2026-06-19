@@ -53,10 +53,8 @@ public:
     {
         const int size = static_cast<int>(buffer.size());
 
-        // Cheap per-sample smoothing of cached target.
-        smoothedDelayMs += (1.0f - jitterSmoothingAlpha) * (targetDelayMs - smoothedDelayMs);
-
-        float readSamples = (smoothedDelayMs * static_cast<float>(sampleRate)) / 1000.0f;
+        // Use target directly — LFO is already smooth, no per-sample slewing needed
+        float readSamples = (targetDelayMs * static_cast<float>(sampleRate)) / 1000.0f;
         float readPos = static_cast<float>(writeIndex) - readSamples;
 
         while (readPos < 0.0f)
@@ -116,8 +114,7 @@ public:
 
         currentDelaySamples = static_cast<float>(std::min(delaySamplesInteger, maxUsableDelaySamples()));
 
-        // Initialize smoothed and target to prevent startup discontinuity
-        smoothedDelayMs = delayMs;
+        // Initialize target to prevent startup discontinuity
         targetDelayMs = delayMs;
     }
 
@@ -168,7 +165,6 @@ private:
 
     float targetDelayMs = 50.0f;
     float jitterSmoothingAlpha = 0.0f;
-    float smoothedDelayMs = 50.0f;
     float maxJitterDepthMs = 0.35f;
 
     std::vector<float> buffer;

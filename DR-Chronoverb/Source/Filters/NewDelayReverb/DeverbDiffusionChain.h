@@ -56,17 +56,12 @@ private:
     float targetBaseGain = 0.0f;
     float gainSlewCoefficient = 0.0f;
 
-    // Jitter
-    float jitterRateHz = 0.5f;
-    float jitterDepthMs = 0.35f;
-    float jitterAlpha = 0.0f;
-    int jitterIntervalSamples = 1;
-    int jitterCountdown = 1;
+    // Jitter LFO modulation
+    static constexpr float LfoBaseRateHz = 0.15f;  // Slow drift
+    static constexpr float LfoDepthMs = 0.25f;     // Subtle — just enough to spread comb notches
 
-    std::array<float, MaxStages> jitterTargets {};
-    std::array<float, MaxStages> jitterSmoothedOffsets {};
-    std::mt19937 rng { 0x12345678 };
-    std::uniform_real_distribution<float> jitterDist { -1.0f, 1.0f };
+    std::array<float, MaxStages> lfoPhases {};      // Per-stage phase (radians)
+    std::array<float, MaxStages> lfoRates  {};      // Per-stage rate (radians/sample) — set in Prepare
 
     std::array<float, MaxStages> stageTuningsMs = {};
 
