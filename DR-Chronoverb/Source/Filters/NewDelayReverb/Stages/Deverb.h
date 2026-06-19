@@ -83,7 +83,7 @@ private:
     int filtersOrder = 0;
 
     // Settings
-    const float jitterRate = 0.5f;
+    const float jitterRate = 24000.0f;
     const float jitterDepth = 0.35f;
 
     const float diffusionCompensationBias = 0.5f; // Bigger values = longer swell into nominal
