@@ -13,9 +13,6 @@
 #include "../../ChronoverbUtils.h"
 #include "../../../Utils/PMath.h"
 
-// TODO: There are lingering resonant effects
-// TODO: diff amt 1 sounds like a artificial drone, 0.5 sounds like weaker drone, 0.15 sounds like a bell
-
 // TODO: Delay side diffusion is too wide
 // TODO: Investigate if jitter-based L/R De-Correlation is better than static tuning De-Correlation
 
