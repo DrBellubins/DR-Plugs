@@ -24,7 +24,8 @@
 class Deverb
 {
 public:
-    static constexpr float MaxAllpassGain = 0.58f;
+    static constexpr float BaseDelayAllpassGain = 0.58f;
+    static constexpr float BasedReverbAllpassGain = 1.0f;
 
     const std::array<float, DeverbDiffusionChain::MaxStages> AllpassTunings =
     {
@@ -41,8 +42,7 @@ public:
     // Raw multiplier
     const std::array<float, DeverbDiffusionChain::MaxStages> ReverbAllpassGainMultipliers =
     {
-        0.95, 0.85, 0.75, 0.65, 0.58, 0.50, 0.42, 0.35
-        //2.0, 1.5, 1.0, MaxAllpassGain, MaxAllpassGain, MaxAllpassGain, MaxAllpassGain, MaxAllpassGain
+        2.0, 1.5, 1.0, BaseDelayAllpassGain, BaseDelayAllpassGain, BaseDelayAllpassGain, BaseDelayAllpassGain, BaseDelayAllpassGain
     };
 
     void PrepareToPlay(double newSampleRate, Filters& filters);
