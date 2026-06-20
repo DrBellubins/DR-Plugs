@@ -30,6 +30,8 @@ void DeverbDiffusionChain::Prepare(double newSampleRate, std::array<float, MaxSt
     Reset();
 
     gainSlewCoefficient = 1.0f / (0.01f * static_cast<float>(sampleRate));
+
+    distributedTuningsMs = buildDistributedTunings(activeStages);
 }
 
 void DeverbDiffusionChain::Reset()
@@ -93,7 +95,7 @@ float DeverbDiffusionChain::ProcessSample(float inputSample)
             lfoPhases[stageIndex] -= juce::MathConstants<float>::twoPi;
 
         const float scale = 0.25f + (0.75f * size01);
-        const float baseDelayMs = stageTuningsMs[stageIndex] * scale;
+        const float baseDelayMs = distributedTuningsMs[stageIndex] * scale;
 
         // Only apply LFO offset when signal is present
         const float lfoOffsetMs = lfoActive
@@ -117,18 +119,52 @@ float DeverbDiffusionChain::GetTotalTuningMs() const
 void DeverbDiffusionChain::rebuildStageDelays()
 {
     const float scale = 0.25f + (0.75f * size01);
-
     totalChainDelayMs = 0.0f;
 
-    for (size_t stageIndex = 0; stageIndex < MaxStages; ++stageIndex)
+    for (size_t stageIndex = 0; stageIndex < activeStages; ++stageIndex)
     {
-        const float delayMs = stageTuningsMs[stageIndex] * scale;
+        const float delayMs = distributedTuningsMs[stageIndex] * scale;
         allpasses[stageIndex].SetDelayMilliseconds(delayMs);
-
-        // Also set target to prevent discontinuity
         allpasses[stageIndex].SetTargetDelayMilliseconds(delayMs);
-
-        if (stageIndex < activeStages)
-            totalChainDelayMs += delayMs;
+        totalChainDelayMs += delayMs;
     }
+}
+
+std::array<float, DeverbDiffusionChain::MaxStages>
+DeverbDiffusionChain::buildDistributedTunings(size_t outputStages) const
+{
+    std::array<float, MaxStages> distributed{};
+
+    constexpr size_t sourceCount = MaxStages;
+    const size_t clampedOutputStages = std::clamp(outputStages, size_t{1}, sourceCount);
+
+    if (clampedOutputStages == 1)
+    {
+        // Average the whole chain rather than grabbing the middle tuning,
+        // so a single active stage still represents the full size character.
+        float sum = 0.0f;
+        for (float tuning : stageTuningsMs)
+            sum += tuning;
+
+        distributed[0] = sum / static_cast<float>(sourceCount);
+        return distributed;
+    }
+
+    for (size_t stageIndex = 0; stageIndex < clampedOutputStages; ++stageIndex)
+    {
+        const float normalizedPosition =
+            static_cast<float>(stageIndex) / static_cast<float>(clampedOutputStages - 1);
+
+        const float sourceIndexFloat = normalizedPosition * static_cast<float>(sourceCount - 1);
+
+        const size_t sourceIndexA = static_cast<size_t>(std::floor(sourceIndexFloat));
+        const size_t sourceIndexB = std::min(sourceIndexA + 1, sourceCount - 1);
+
+        const float fraction = sourceIndexFloat - static_cast<float>(sourceIndexA);
+
+        distributed[stageIndex] = stageTuningsMs[sourceIndexA] * (1.0f - fraction)
+                                 + stageTuningsMs[sourceIndexB] * fraction;
+    }
+
+    return distributed;
 }

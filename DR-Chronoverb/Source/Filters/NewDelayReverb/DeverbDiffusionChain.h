@@ -33,6 +33,7 @@ public:
 
 private:
     void rebuildStageDelays();
+    std::array<float, MaxStages> buildDistributedTunings(size_t outputStages) const;
 
     double sampleRate = 48000.0;
     size_t activeStages = MaxStages;
@@ -65,4 +66,6 @@ private:
 
     std::array<float, MaxStages> stageTuningsMs = {};
     std::array<DeverbDiffusionAllpass, MaxStages> allpasses {};
+
+    std::array<float, MaxStages> distributedTuningsMs{};
 };
