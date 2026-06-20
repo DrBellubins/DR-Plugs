@@ -268,13 +268,13 @@ void Deverb::setBlendedStageGains()
 
     // Crossfade max gain too
     const float delayMaxGain = MaxAllpassGain;
-    const float reverbMaxGain = 1.0f;
+    const float reverbMaxGain = 0.92f;
 
     const float blendedMaxGain = juce::jmap(t, delayMaxGain, reverbMaxGain);
 
     std::array<float, DeverbDiffusionChain::MaxStages> blendedStageGains {};
 
-    for (int i = 0; i < 8; ++i)
+    for (size_t i = 0; i < 8; ++i)
     {
         blendedStageGains[i] = juce::jmap(
             t,

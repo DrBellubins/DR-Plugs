@@ -41,7 +41,8 @@ public:
     // Raw multiplier
     const std::array<float, DeverbDiffusionChain::MaxStages> ReverbAllpassGainMultipliers =
     {
-        2.0, 1.5, 1.0, MaxAllpassGain, MaxAllpassGain, MaxAllpassGain, MaxAllpassGain, MaxAllpassGain
+        0.95, 0.85, 0.75, 0.65, 0.58, 0.50, 0.42, 0.35
+        //2.0, 1.5, 1.0, MaxAllpassGain, MaxAllpassGain, MaxAllpassGain, MaxAllpassGain, MaxAllpassGain
     };
 
     void PrepareToPlay(double newSampleRate, Filters& filters);
