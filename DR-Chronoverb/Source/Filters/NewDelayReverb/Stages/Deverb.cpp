@@ -265,7 +265,7 @@ void Deverb::setBlendedStageGains()
 {
     // Blend region: 0.5 -> 1.0 diffusion amount
     const float t = juce::jlimit(0.0f, 1.0f, (diffusionAmount - 0.5f) * 2.0f);
-    
+
     const float blendedMaxGain = juce::jmap(t,
         BaseDelayAllpassGain, BasedReverbAllpassGain);
 

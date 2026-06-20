@@ -71,6 +71,15 @@ float DeverbDiffusionChain::ProcessSample(float inputSample)
 {
     float sample = inputSample;
 
+    // Track signal energy to gate LFO modulation
+    const float absInput = std::abs(inputSample);
+    if (absInput > chainEnvelope)
+        chainEnvelope = absInput;
+    else
+        chainEnvelope *= 0.9999f; // slow release
+
+    const bool lfoActive = (chainEnvelope > LfoGateThreshold);
+
     for (size_t stageIndex = 0; stageIndex < activeStages; ++stageIndex)
     {
         currentStageGains[stageIndex] += gainSlewCoefficient *
@@ -85,9 +94,13 @@ float DeverbDiffusionChain::ProcessSample(float inputSample)
 
         const float scale = 0.25f + (0.75f * size01);
         const float baseDelayMs = stageTuningsMs[stageIndex] * scale;
-        const float lfoOffsetMs = std::sin(lfoPhases[stageIndex]) * LfoDepthMs;
-        const float modulatedDelayMs = std::max(1.0f, baseDelayMs + lfoOffsetMs);
 
+        // Only apply LFO offset when signal is present
+        const float lfoOffsetMs = lfoActive
+            ? std::sin(lfoPhases[stageIndex]) * LfoDepthMs
+            : 0.0f;
+
+        const float modulatedDelayMs = std::max(1.0f, baseDelayMs + lfoOffsetMs);
         allpasses[stageIndex].SetTargetDelayMilliseconds(modulatedDelayMs);
 
         sample = allpasses[stageIndex].ProcessSample(sample);

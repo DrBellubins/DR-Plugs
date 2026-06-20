@@ -166,10 +166,10 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     }
 
     // Impulse response click
-    //ImpulseClick.Process(buffer);
+    ImpulseClick.Process(buffer);
 
     // Computer Keyboard Square Synth
-    //KeyboardSynth.Process(buffer);
+    KeyboardSynth.Process(buffer);
 
     // Process reverb
     DelayReverb.ProcessBlock(buffer);

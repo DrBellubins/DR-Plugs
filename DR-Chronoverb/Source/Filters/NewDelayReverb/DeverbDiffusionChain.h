@@ -57,7 +57,12 @@ private:
     std::array<float, MaxStages> lfoPhases {};      // Per-stage phase (radians)
     std::array<float, MaxStages> lfoRates  {};      // Per-stage rate (radians/sample) — set in Prepare
 
-    std::array<float, MaxStages> stageTuningsMs = {};
+    // Envelope (for LFO termination)
+    float chainEnvelope = 0.0f;
+    static constexpr float EnvelopeAttackCoeff  = 0.9999f; // near-instant attack
+    static constexpr float EnvelopeReleaseCoeff = 0.9999f; // ~sample-accurate tracking
+    static constexpr float LfoGateThreshold     = 1.0e-6f; // below this, suppress LFO offset
 
+    std::array<float, MaxStages> stageTuningsMs = {};
     std::array<DeverbDiffusionAllpass, MaxStages> allpasses {};
 };
