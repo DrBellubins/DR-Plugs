@@ -13,10 +13,10 @@
 #include "../../ChronoverbUtils.h"
 #include "../../../Utils/PMath.h"
 
+// TODO: Diffusion quality interpolation breaks because of different allpass gains
+
 // TODO: Delay side diffusion is too wide
 // TODO: Investigate if jitter-based L/R De-Correlation is better than static tuning De-Correlation
-
-// TODO: Diffusion quality doesn't interpolate tunings (ugh)
 
 class Deverb
 {

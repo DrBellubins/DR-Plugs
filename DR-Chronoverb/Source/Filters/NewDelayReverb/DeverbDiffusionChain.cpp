@@ -46,6 +46,7 @@ void DeverbDiffusionChain::Reset()
 void DeverbDiffusionChain::SetQuality(int newStageCount)
 {
     activeStages = static_cast<size_t>(std::clamp(newStageCount, 1, MaxStages));
+    distributedTuningsMs = buildDistributedTunings(activeStages);
     rebuildStageDelays();
 }
 
@@ -118,14 +119,24 @@ float DeverbDiffusionChain::GetTotalTuningMs() const
 
 void DeverbDiffusionChain::rebuildStageDelays()
 {
-    const float scale = 0.25f + (0.75f * size01);
+    const float sizeScale = 0.25f + (0.75f * size01);
+
+    float distributedTotal = 0.0f;
+
+    for (size_t i = 0; i < activeStages; ++i)
+        distributedTotal += distributedTuningsMs[i];
+
+    const float preserveScale = (distributedTotal > 0.0f) ? (totalTuningMs / distributedTotal) : 1.0f;
+
     totalChainDelayMs = 0.0f;
 
     for (size_t stageIndex = 0; stageIndex < activeStages; ++stageIndex)
     {
-        const float delayMs = distributedTuningsMs[stageIndex] * scale;
+        const float delayMs = distributedTuningsMs[stageIndex] * preserveScale * sizeScale;
+
         allpasses[stageIndex].SetDelayMilliseconds(delayMs);
         allpasses[stageIndex].SetTargetDelayMilliseconds(delayMs);
+
         totalChainDelayMs += delayMs;
     }
 }
