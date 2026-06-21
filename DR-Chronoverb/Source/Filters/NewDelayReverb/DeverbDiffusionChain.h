@@ -33,7 +33,16 @@ public:
 
 private:
     void rebuildStageDelays();
-    std::array<float, MaxStages> buildDistributedTunings(size_t outputStages) const;
+    [[nodiscard]] std::array<float, MaxStages> buildDistributedTunings(size_t outputStages) const;
+
+    static std::array<float, MaxStages> buildDistributedGains(
+        const std::array<float, MaxStages>& source,
+        size_t outputStages);
+
+    static float computeEnergyCompensation(
+        const std::array<float, MaxStages>& referenceGains,
+        const std::array<float, MaxStages>& activeGains,
+        size_t activeStages);
 
     double sampleRate = 48000.0;
     size_t activeStages = MaxStages;
@@ -50,6 +59,11 @@ private:
     float currentBaseGain = 0.0f;
     float targetBaseGain = 0.0f;
     float gainSlewCoefficient = 0.0f;
+
+    // Compensation
+    float targetQualityCompensation = 1.0f;
+    float currentQualityCompensation = 1.0f;
+    float compensationSlewCoefficient = 0.0f;
 
     // Jitter LFO modulation
     static constexpr float LfoBaseRateHz = 0.15f;  // Slow drift
@@ -68,4 +82,5 @@ private:
     std::array<DeverbDiffusionAllpass, MaxStages> allpasses {};
 
     std::array<float, MaxStages> distributedTuningsMs{};
+    std::array<float, MaxStages> distributedGainMultipliers {};
 };

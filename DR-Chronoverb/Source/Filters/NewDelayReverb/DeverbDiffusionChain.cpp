@@ -32,6 +32,7 @@ void DeverbDiffusionChain::Prepare(double newSampleRate, std::array<float, MaxSt
     gainSlewCoefficient = 1.0f / (0.01f * static_cast<float>(sampleRate));
 
     distributedTuningsMs = buildDistributedTunings(activeStages);
+    distributedGainMultipliers = buildDistributedGains(targetStageGains, activeStages);
 }
 
 void DeverbDiffusionChain::Reset()
@@ -46,8 +47,16 @@ void DeverbDiffusionChain::Reset()
 void DeverbDiffusionChain::SetQuality(int newStageCount)
 {
     activeStages = static_cast<size_t>(std::clamp(newStageCount, 1, MaxStages));
+
     distributedTuningsMs = buildDistributedTunings(activeStages);
+    distributedGainMultipliers = buildDistributedGains(targetStageGains, activeStages);
+
     rebuildStageDelays();
+
+    const float rawCompensation =
+        computeEnergyCompensation(targetStageGains, distributedGainMultipliers, activeStages);
+
+    targetQualityCompensation = std::clamp(rawCompensation, 0.75f, 1.5f);
 }
 
 void DeverbDiffusionChain::SetSize(float newSize01)
@@ -63,6 +72,13 @@ void DeverbDiffusionChain::SetStageGains(float baseGain, std::array<float, MaxSt
 
     for (size_t stageIndex = 0; stageIndex < MaxStages; ++stageIndex)
         targetStageGains[stageIndex] = baseGain * stageGains[stageIndex];
+
+    distributedGainMultipliers = buildDistributedGains(targetStageGains, activeStages);
+
+    const float rawCompensation =
+        computeEnergyCompensation(targetStageGains, distributedGainMultipliers, activeStages);
+
+    targetQualityCompensation = std::clamp(rawCompensation, 0.75f, 1.5f);
 }
 
 void DeverbDiffusionChain::SetDiffusionAmount(float newAmount01)
@@ -83,12 +99,15 @@ float DeverbDiffusionChain::ProcessSample(float inputSample)
 
     const bool lfoActive = (chainEnvelope > LfoGateThreshold);
 
+    currentQualityCompensation += compensationSlewCoefficient *
+        (targetQualityCompensation - currentQualityCompensation);
+
     for (size_t stageIndex = 0; stageIndex < activeStages; ++stageIndex)
     {
         currentStageGains[stageIndex] += gainSlewCoefficient *
-            (targetStageGains[stageIndex] - currentStageGains[stageIndex]);
+            (distributedGainMultipliers[stageIndex] - currentStageGains[stageIndex]);
 
-        allpasses[stageIndex].SetGain(currentStageGains[stageIndex]);
+        allpasses[stageIndex].SetGain(currentStageGains[stageIndex] * currentQualityCompensation);
 
         lfoPhases[stageIndex] += lfoRates[stageIndex];
 
@@ -111,6 +130,8 @@ float DeverbDiffusionChain::ProcessSample(float inputSample)
 
     return sample;
 }
+
+//region Utils
 
 float DeverbDiffusionChain::GetTotalTuningMs() const
 {
@@ -179,3 +200,66 @@ DeverbDiffusionChain::buildDistributedTunings(size_t outputStages) const
 
     return distributed;
 }
+
+std::array<float, DeverbDiffusionChain::MaxStages>
+DeverbDiffusionChain::buildDistributedGains(
+    const std::array<float, MaxStages>& source,
+    size_t outputStages)
+{
+    std::array<float, MaxStages> distributed {};
+
+    constexpr size_t sourceCount = MaxStages;
+    const size_t clampedOutputStages = std::clamp(outputStages, size_t{1}, sourceCount);
+
+    if (clampedOutputStages == 1)
+    {
+        float sum = 0.0f;
+        for (float v : source)
+            sum += v;
+
+        distributed[0] = sum / static_cast<float>(sourceCount);
+        return distributed;
+    }
+
+    for (size_t stageIndex = 0; stageIndex < clampedOutputStages; ++stageIndex)
+    {
+        const float normalizedPosition =
+            static_cast<float>(stageIndex) / static_cast<float>(clampedOutputStages - 1);
+
+        const float sourceIndexFloat =
+            normalizedPosition * static_cast<float>(sourceCount - 1);
+
+        const size_t sourceIndexA = static_cast<size_t>(std::floor(sourceIndexFloat));
+        const size_t sourceIndexB = std::min(sourceIndexA + 1, sourceCount - 1);
+
+        const float fraction = sourceIndexFloat - static_cast<float>(sourceIndexA);
+
+        distributed[stageIndex] =
+            source[sourceIndexA] * (1.0f - fraction) +
+            source[sourceIndexB] * fraction;
+    }
+
+    return distributed;
+}
+
+float DeverbDiffusionChain::computeEnergyCompensation(
+    const std::array<float, MaxStages>& referenceGains,
+    const std::array<float, MaxStages>& activeGains,
+    size_t activeStages)
+{
+    float referenceEnergy = 0.0f;
+    float activeEnergy = 0.0f;
+
+    for (size_t i = 0; i < MaxStages; ++i)
+        referenceEnergy += referenceGains[i] * referenceGains[i];
+
+    for (size_t i = 0; i < activeStages; ++i)
+        activeEnergy += activeGains[i] * activeGains[i];
+
+    if (activeEnergy <= 1.0e-6f)
+        return 1.0f;
+
+    return std::sqrt(referenceEnergy / activeEnergy);
+}
+
+//endregion

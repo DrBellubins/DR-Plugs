@@ -13,7 +13,7 @@
 #include "../../ChronoverbUtils.h"
 #include "../../../Utils/PMath.h"
 
-// TODO: Diffusion quality interpolation breaks because of different allpass gains
+// TODO: Diffusion quality 1 & 2 are broken, make them use the longest allpass delays, with no gain compensation
 
 // TODO: Delay side diffusion is too wide
 // TODO: Investigate if jitter-based L/R De-Correlation is better than static tuning De-Correlation
