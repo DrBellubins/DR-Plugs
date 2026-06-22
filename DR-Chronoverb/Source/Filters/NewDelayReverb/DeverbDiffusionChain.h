@@ -44,6 +44,10 @@ private:
         const std::array<float, MaxStages>& activeGains,
         size_t activeStages);
 
+    static float computeQualityCompensation(
+        const std::array<float, MaxStages>& activeGains,
+        size_t _activeStages);
+
     double sampleRate = 48000.0;
     size_t activeStages = MaxStages;
 
