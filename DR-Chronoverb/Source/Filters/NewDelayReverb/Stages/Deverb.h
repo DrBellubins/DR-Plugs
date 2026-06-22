@@ -86,7 +86,7 @@ private:
     const float dampingCutoff = 4200.0f;
 
     // Jitter LFO modulation
-    static constexpr float JitterLfoRateHz = 1.0f;
+    static constexpr float JitterLfoRateHz = 0.15f;
     static constexpr float JitterLfoDepthMs = 0.25f;
 
     // Runtime
