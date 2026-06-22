@@ -13,9 +13,7 @@
 #include "../../ChronoverbUtils.h"
 #include "../../../Utils/PMath.h"
 
-// TODO: Diffusion quality 1 & 2 are broken, make them use the longest allpass delays, with no gain compensation
-// TODO: Could reduce stages centered on the middle delay lengths (lower qualty = less shortest + longest delays)
-// TODO: Maybe instead of using compensation, could reduce stages from longest to shortest (quality 1 = longest, quality 8 adds shortest)??
+// TODO: Lower diffusion quality makes jitter LFO create audible comb-like resonance (changes up/down slowly over time).
 
 // TODO: Delay side diffusion is too wide
 // TODO: Investigate if jitter-based L/R De-Correlation is better than static tuning De-Correlation
