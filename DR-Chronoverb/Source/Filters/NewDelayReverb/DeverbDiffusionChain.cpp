@@ -1,9 +1,13 @@
 #include "DeverbDiffusionChain.h"
 
-void DeverbDiffusionChain::Prepare(double newSampleRate, std::array<float, MaxStages> stageTunings)
+void DeverbDiffusionChain::Prepare(double newSampleRate, std::array<float, MaxStages> stageTunings,
+    float jitterRate, float jitterDepth)
 {
     sampleRate = std::max(1.0, newSampleRate);
     stageTuningsMs = stageTunings;
+
+    jitterLfoRate = jitterRate;
+    jitterLfoDepth = jitterDepth;
 
     totalTuningMs = 0.0f;
 
@@ -22,7 +26,7 @@ void DeverbDiffusionChain::Prepare(double newSampleRate, std::array<float, MaxSt
         // Each stage gets a slightly different rate to prevent synchronised beating
         const float rateVariance = 1.0f + (static_cast<float>(i) * 0.07f);  // 0%, 7%, 14%... per stage
 
-        lfoRates[i] = (juce::MathConstants<float>::twoPi * LfoBaseRateHz * rateVariance)
+        lfoRates[i] = (juce::MathConstants<float>::twoPi * jitterLfoRate * rateVariance)
                       / static_cast<float>(sampleRate);
     }
 
@@ -30,8 +34,6 @@ void DeverbDiffusionChain::Prepare(double newSampleRate, std::array<float, MaxSt
     Reset();
 
     gainSlewCoefficient = 1.0f / (0.01f * static_cast<float>(sampleRate));         // ~10 ms
-
-    lfoStereoDecorrelation = 1.0f;
 
     // Prevent startup
     targetQualityCompensation  = 1.0f;
@@ -72,11 +74,6 @@ void DeverbDiffusionChain::SetDiffusionQuality(int newStageCount)
 
     // No compensation
     targetQualityCompensation = 1.0f;
-}
-
-void DeverbDiffusionChain::SetStereoDecorrelation(float newStereoDecorrelation)
-{
-    lfoStereoDecorrelation = newStereoDecorrelation;
 }
 
 void DeverbDiffusionChain::SetStageGains(float baseGain, std::array<float, MaxStages> stageGains)
@@ -122,7 +119,7 @@ float DeverbDiffusionChain::ProcessSample(float inputSample)
 
         // Only apply LFO offset when signal is present
         const float lfoOffsetMs = lfoActive
-            ? std::sin(lfoPhases[stageIndex]) * (LfoDepthMs * lfoStereoDecorrelation)
+            ? std::sin(lfoPhases[stageIndex]) * jitterLfoDepth
             : 0.0f;
 
         const float modulatedDelayMs = std::max(1.0f, baseDelayMs + lfoOffsetMs);

@@ -1,6 +1,8 @@
 #pragma once
 
 #include <utility>
+#include <juce_gui_basics/juce_gui_basics.h>
+
 #include "BinaryData.h"
 #include "PluginProcessor.h"
 
@@ -29,8 +31,8 @@ public:
     void resized() override;
 
     // KeyListener overrides to forward computer keyboard input to the synth.
-    bool keyPressed(const juce::KeyPress& key, juce::Component* originatingComponent) override;
-    bool keyStateChanged(bool isKeyDown, juce::Component* originatingComponent) override;
+    //bool keyPressed(const juce::KeyPress& key, juce::Component* originatingComponent) override;
+    //bool keyStateChanged(bool isKeyDown, juce::Component* originatingComponent) override;
 
 private:
     void updateDelayKnobDisplay(int modeIndex);

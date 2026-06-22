@@ -4,9 +4,8 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "Filters/Chronoverb.h"
-//#include "Filters/NewDelayReverb.h"
-#include "Filters/ComputerKeyboardSquareSynth.h"
-#include "Filters/ImpulseClickSynth.h"
+//#include "Filters/ComputerKeyboardSquareSynth.h"
+//#include "Filters/ImpulseClickSynth.h"
 
 //==============================================================================
 class AudioPluginAudioProcessor  : public juce::AudioProcessor, public juce::AudioProcessorValueTreeState::Listener
@@ -21,11 +20,10 @@ public:
 
     juce::AudioProcessorValueTreeState parameters;
 
-    //NewDelayReverb DelayReverb;
     Chronoverb DelayReverb;
 
-    ComputerKeyboardSquareSynth KeyboardSynth;
-    ImpulseClickSynth ImpulseClick;
+    //ComputerKeyboardSquareSynth KeyboardSynth;
+    //ImpulseClickSynth ImpulseClick;
 
     //==============================================================================
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;

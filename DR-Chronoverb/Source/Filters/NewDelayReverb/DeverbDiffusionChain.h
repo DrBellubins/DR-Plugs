@@ -17,14 +17,14 @@ class DeverbDiffusionChain
 public:
     static constexpr int MaxStages = 8;
 
-    void Prepare(double newSampleRate, std::array<float, MaxStages> stageTunings);
+    void Prepare(double newSampleRate, std::array<float, MaxStages> stageTunings,
+        float jitterRate, float jitterDepth);
+
     void Reset();
 
     void SetDiffusionAmount(float newAmount01);
     void SetDiffusionSize(float newSize01);
     void SetDiffusionQuality(int newStageCount);
-
-    void SetStereoDecorrelation(float newStereoDecorrelation);
 
     void SetStageGains(float baseGain, std::array<float, MaxStages> stageGains);
 
@@ -49,6 +49,9 @@ private:
     float totalChainDelayMs = 0.0f;
     float totalTuningMs = 0.0f;
 
+    float jitterLfoRate = 0.0f;
+    float jitterLfoDepth = 0.0f;
+
     // Gain smoothing
     std::array<float, MaxStages> currentStageGains {};
     std::array<float, MaxStages> targetStageGains {};
@@ -59,12 +62,6 @@ private:
 
     // Compensation
     float targetQualityCompensation = 1.0f;
-
-    // Jitter LFO modulation
-    static constexpr float LfoBaseRateHz = 1.0f;   // Slow drift
-    static constexpr float LfoDepthMs = 0.25f;     // Subtle — just enough to spread comb notches
-
-    float lfoStereoDecorrelation = 1.0f;
 
     std::array<float, MaxStages> lfoPhases {};      // Per-stage phase (radians)
     std::array<float, MaxStages> lfoRates  {};      // Per-stage rate (radians/sample) — set in Prepare

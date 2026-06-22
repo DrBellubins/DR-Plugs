@@ -15,9 +15,6 @@
 
 // TODO: Lower diffusion quality makes jitter LFO create audible comb-like resonance (changes up/down slowly over time).
 
-// TODO: Delay side diffusion is too wide
-// TODO: Investigate if jitter-based L/R De-Correlation is better than static tuning De-Correlation
-
 class Deverb
 {
 public:
@@ -85,8 +82,12 @@ private:
 
     // Settings
     const float diffusionCompensationBias = 0.5f; // Bigger values = longer swell into nominal
-    const float stereoJitterDecoration = 2.0f; // Controls the depth of the jitter
+    const float jitterStereoDecoration = 1.1f;    // Controls the depth of the jitter
     const float dampingCutoff = 4200.0f;
+
+    // Jitter LFO modulation
+    static constexpr float JitterLfoRateHz = 1.0f;
+    static constexpr float JitterLfoDepthMs = 0.25f;
 
     // Runtime
     float lastFeedbackL = 0.0f;

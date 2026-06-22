@@ -3,8 +3,6 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <functional>
 
-#include "juce_core/unit_tests/juce_UnitTestCategories.h"
-
 // ThemedKnob: Customizable rotary knob with a label and flexible value/text handling.
 class ThemedKnob : public juce::Slider
 {

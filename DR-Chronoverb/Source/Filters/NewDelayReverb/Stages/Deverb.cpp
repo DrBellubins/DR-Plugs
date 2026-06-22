@@ -20,8 +20,11 @@ void Deverb::PrepareToPlay(double newSampleRate, Filters& filters)
     delayLineRight.Clear();
 
     // Diffusion
-    diffusionLeft.Prepare(sampleRate, AllpassTunings);
-    diffusionRight.Prepare(sampleRate, AllpassTunings);
+    diffusionLeft.Prepare(sampleRate, AllpassTunings,
+        JitterLfoRateHz, JitterLfoDepthMs);
+
+    diffusionRight.Prepare(sampleRate, AllpassTunings,
+        JitterLfoRateHz, JitterLfoDepthMs * jitterStereoDecoration);
 
     setBlendedStageGains();
 
@@ -96,7 +99,7 @@ std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSam
     float diffusedTapL = cleanTapL;
     float diffusedTapR = cleanTapR;
 
-    float diffusionStereoDecorrelation = stereoJitterDecoration * diffusionAmount;
+    float diffusionStereoDecorrelation = jitterStereoDecoration * diffusionAmount;
 
     if (diffusionAmount > 0.0001f)
     {
@@ -207,8 +210,6 @@ void Deverb::SetDiffusionAmount(float newAmount01)
     diffusionAmount = std::clamp(newAmount01, 0.0f, 1.0f);
 
     diffusionLeft.SetDiffusionAmount(diffusionAmount);
-
-    diffusionRight.SetStereoDecorrelation(stereoJitterDecoration * diffusionAmount);
     diffusionRight.SetDiffusionAmount(diffusionAmount);
 
     setBlendedStageGains();
