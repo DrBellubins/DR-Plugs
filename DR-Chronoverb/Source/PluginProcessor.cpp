@@ -99,8 +99,8 @@ void AudioPluginAudioProcessor::prepareToPlay(double sampleRate, int samplesPerB
     // Re-apply current parameter state before DSP prep.
     PluginParameterRegistry::ApplyAll(DelayReverb, parameters);
 
-    //KeyboardSynth.PrepareToPlay(sampleRate);
-    //ImpulseClick.PrepareToPlay(sampleRate);
+    KeyboardSynth.PrepareToPlay(sampleRate);
+    ImpulseClick.PrepareToPlay(sampleRate);
 
     DelayReverb.PrepareToPlay(sampleRate);
 }
@@ -166,10 +166,10 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     }
 
     // Impulse response click
-    //ImpulseClick.Process(buffer);
+    ImpulseClick.Process(buffer);
 
     // Computer Keyboard Square Synth
-    //KeyboardSynth.Process(buffer);
+    KeyboardSynth.Process(buffer);
 
     // Process reverb
     DelayReverb.ProcessBlock(buffer);

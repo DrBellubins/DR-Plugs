@@ -263,7 +263,7 @@ void AudioPluginAudioProcessorEditor::resized()
 }
 
 // Forward keyboard input to the Keyboard Synth in the processor.
-/*bool AudioPluginAudioProcessorEditor::keyPressed(const juce::KeyPress& key, juce::Component* originatingComponent)
+bool AudioPluginAudioProcessorEditor::keyPressed(const juce::KeyPress& key, juce::Component* originatingComponent)
 {
     juce::ignoreUnused(originatingComponent);
 
@@ -331,7 +331,7 @@ bool AudioPluginAudioProcessorEditor::keyStateChanged(bool isKeyDown, juce::Comp
 
     lastHeldKeyCodes.swap(currentHeld);
     return true; // Consume
-}*/
+}
 
 void AudioPluginAudioProcessorEditor::updateDelayKnobDisplay(int ModeIndex)
 {
