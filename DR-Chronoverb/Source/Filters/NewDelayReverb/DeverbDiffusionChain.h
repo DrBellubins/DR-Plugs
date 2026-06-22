@@ -39,11 +39,6 @@ private:
         const std::array<float, MaxStages>& source,
         size_t outputStages);
 
-    static float computeEnergyCompensation(
-        const std::array<float, MaxStages>& referenceGains,
-        const std::array<float, MaxStages>& activeGains,
-        size_t activeStages);
-
     double sampleRate = 48000.0;
     size_t activeStages = MaxStages;
 
@@ -62,8 +57,6 @@ private:
 
     // Compensation
     float targetQualityCompensation = 1.0f;
-    float currentQualityCompensation = 1.0f;
-    float compensationSlewCoefficient = 0.0f;
 
     // Jitter LFO modulation
     static constexpr float LfoBaseRateHz = 0.15f;  // Slow drift

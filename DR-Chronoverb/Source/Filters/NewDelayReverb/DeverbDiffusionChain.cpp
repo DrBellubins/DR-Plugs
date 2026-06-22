@@ -30,11 +30,9 @@ void DeverbDiffusionChain::Prepare(double newSampleRate, std::array<float, MaxSt
     Reset();
 
     gainSlewCoefficient = 1.0f / (0.01f * static_cast<float>(sampleRate));         // ~10 ms
-    compensationSlewCoefficient = 1.0f / (0.02f * static_cast<float>(sampleRate)); // ~20 ms
 
     // Prevent startup
     targetQualityCompensation  = 1.0f;
-    currentQualityCompensation = 1.0f;
 
     distributedTuningsMs = buildDistributedTunings(activeStages);
     distributedGainMultipliers = buildDistributedGains(targetStageGains, activeStages);
@@ -58,10 +56,8 @@ void DeverbDiffusionChain::SetQuality(int newStageCount)
 
     rebuildStageDelays();
 
-    const float rawCompensation = computeEnergyCompensation(
-        targetStageGains, distributedGainMultipliers, activeStages);
-
-    targetQualityCompensation = std::clamp(rawCompensation, 0.5f, 1.5f);
+    // No compensation
+    targetQualityCompensation = 1.0f;
 }
 
 void DeverbDiffusionChain::SetSize(float newSize01)
@@ -75,15 +71,13 @@ void DeverbDiffusionChain::SetStageGains(float baseGain, std::array<float, MaxSt
 {
     targetBaseGain = baseGain;
 
-    for (size_t stageIndex = 0; stageIndex < MaxStages; ++stageIndex)
-        targetStageGains[stageIndex] = baseGain * stageGains[stageIndex];
+    for (size_t i = 0; i < MaxStages; ++i)
+        targetStageGains[i] = baseGain * stageGains[i];
 
     distributedGainMultipliers = buildDistributedGains(targetStageGains, activeStages);
 
-    const float rawCompensation =
-        computeEnergyCompensation(targetStageGains, distributedGainMultipliers, activeStages);
-
-    targetQualityCompensation = std::clamp(rawCompensation, 0.75f, 1.5f);
+    // No compensation — gain redistribution handles consistency
+    targetQualityCompensation  = 1.0f;
 }
 
 void DeverbDiffusionChain::SetDiffusionAmount(float newAmount01)
@@ -104,15 +98,12 @@ float DeverbDiffusionChain::ProcessSample(float inputSample)
 
     const bool lfoActive = (chainEnvelope > LfoGateThreshold);
 
-    currentQualityCompensation += compensationSlewCoefficient *
-        (targetQualityCompensation - currentQualityCompensation);
-
     for (size_t stageIndex = 0; stageIndex < activeStages; ++stageIndex)
     {
         currentStageGains[stageIndex] += gainSlewCoefficient *
             (distributedGainMultipliers[stageIndex] - currentStageGains[stageIndex]);
 
-        allpasses[stageIndex].SetGain(currentStageGains[stageIndex] * currentQualityCompensation);
+        allpasses[stageIndex].SetGain(currentStageGains[stageIndex]);
 
         lfoPhases[stageIndex] += lfoRates[stageIndex];
 
@@ -216,55 +207,48 @@ DeverbDiffusionChain::buildDistributedGains(
     constexpr size_t sourceCount = MaxStages;
     const size_t clampedOutputStages = std::clamp(outputStages, size_t{1}, sourceCount);
 
-    if (clampedOutputStages == 1)
-    {
-        float sum = 0.0f;
-        for (float v : source)
-            sum += v;
+    // Compute mean gain across the full source so all quality levels use
+    // a consistent per-stage g value rather than sampling high/low endpoints.
+    float meanGain = 0.0f;
 
-        distributed[0] = sum / static_cast<float>(sourceCount);
+    for (float v : source)
+        meanGain += v;
+
+    meanGain /= static_cast<float>(sourceCount);
+
+    if (clampedOutputStages == sourceCount)
+    {
+        // Full quality — use exact source values
+        distributed = source;
         return distributed;
     }
 
     for (size_t stageIndex = 0; stageIndex < clampedOutputStages; ++stageIndex)
     {
         const float normalizedPosition =
-            static_cast<float>(stageIndex) / static_cast<float>(clampedOutputStages - 1);
+            static_cast<float>(stageIndex) / static_cast<float>(clampedOutputStages - 1 + (clampedOutputStages == 1 ? 1 : 0));
 
+        // Interpolate between the mean (at low quality) and the actual
+        // source endpoint (at high quality) to avoid the endpoint-sampling
+        // problem that causes g=0.92 at quality 2.
         const float sourceIndexFloat =
             normalizedPosition * static_cast<float>(sourceCount - 1);
 
-        const size_t sourceIndexA = static_cast<size_t>(std::floor(sourceIndexFloat));
+        const auto sourceIndexA = static_cast<size_t>(std::floor(sourceIndexFloat));
         const size_t sourceIndexB = std::min(sourceIndexA + 1, sourceCount - 1);
-
         const float fraction = sourceIndexFloat - static_cast<float>(sourceIndexA);
 
-        distributed[stageIndex] =
-            source[sourceIndexA] * (1.0f - fraction) +
-            source[sourceIndexB] * fraction;
+        const float sampledGain = source[sourceIndexA] * (1.0f - fraction)
+                                + source[sourceIndexB] * fraction;
+
+        // Blend sampled value toward mean for reduced stage counts.
+        // At full quality (clampedOutputStages==MaxStages) this branch isn't reached.
+        const float qualityT = static_cast<float>(clampedOutputStages - 1)
+                             / static_cast<float>(sourceCount - 1);
+
+        distributed[stageIndex] = meanGain + qualityT * (sampledGain - meanGain);
     }
 
     return distributed;
 }
-
-float DeverbDiffusionChain::computeEnergyCompensation(
-    const std::array<float, MaxStages>& referenceGains,
-    const std::array<float, MaxStages>& activeGains,
-    size_t activeStages)
-{
-    float referenceEnergy = 0.0f;
-    float activeEnergy = 0.0f;
-
-    for (size_t i = 0; i < MaxStages; ++i)
-        referenceEnergy += referenceGains[i] * referenceGains[i];
-
-    for (size_t i = 0; i < activeStages; ++i)
-        activeEnergy += activeGains[i] * activeGains[i];
-
-    if (activeEnergy <= 1.0e-6f)
-        return 1.0f;
-
-    return std::sqrt(referenceEnergy / activeEnergy);
-}
-
 //endregion
