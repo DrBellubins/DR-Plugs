@@ -41,6 +41,12 @@ private:
         const std::array<float, MaxStages>& source,
         size_t outputStages);
 
+    void initializeDriftState();
+    void retargetStageDrift(size_t stageIndex);
+    void updateStageJitterDepths();
+    [[nodiscard]] float getQualityJitterScale() const;
+    [[nodiscard]] float getAmountJitterScale() const;
+
     double sampleRate = 48000.0;
     size_t activeStages = MaxStages;
 
@@ -63,8 +69,24 @@ private:
     // Compensation
     float targetQualityCompensation = 1.0f;
 
-    std::array<float, MaxStages> lfoPhases {};      // Per-stage phase (radians)
-    std::array<float, MaxStages> lfoRates  {};      // Per-stage rate (radians/sample) — set in Prepare
+    // Per-stage smooth random drift state
+    std::array<float, MaxStages> driftCurrentMs {};
+    std::array<float, MaxStages> driftTargetMs {};
+    std::array<float, MaxStages> driftStepPerSample {};
+    std::array<int,   MaxStages> driftSamplesUntilRetarget {};
+
+    // Per-stage depth scaling derived from stage tuning length
+    std::array<float, MaxStages> stageJitterDepthMs {};
+
+    // Random source for aperiodic modulation
+    juce::Random random;
+
+    // Base retarget timing for the drift system
+    float driftRetargetMinMs = 120.0f;
+    float driftRetargetMaxMs = 380.0f;
+
+    // Optional global safety trim
+    float jitterGlobalDepthScale = 0.25f;
 
     // Envelope (for LFO termination)
     float chainEnvelope = 0.0f;

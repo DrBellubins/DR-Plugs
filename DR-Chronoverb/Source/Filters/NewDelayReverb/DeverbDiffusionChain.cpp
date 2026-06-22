@@ -17,18 +17,8 @@ void DeverbDiffusionChain::Prepare(double newSampleRate, std::array<float, MaxSt
     for (auto& allpass : allpasses)
         allpass.Prepare(sampleRate);
 
-    // Initialize LFO phases spread evenly to decorrelate stages
-    for (size_t i = 0; i < MaxStages; ++i)
-    {
-        const float phaseOffset = (juce::MathConstants<float>::twoPi / MaxStages) * static_cast<float>(i);
-        lfoPhases[i] = phaseOffset;
-
-        // Each stage gets a slightly different rate to prevent synchronised beating
-        const float rateVariance = 1.0f + (static_cast<float>(i) * 0.07f);  // 0%, 7%, 14%... per stage
-
-        lfoRates[i] = (juce::MathConstants<float>::twoPi * jitterLfoRate * rateVariance)
-                      / static_cast<float>(sampleRate);
-    }
+    updateStageJitterDepths();
+    initializeDriftState();
 
     rebuildStageDelays();
     Reset();
@@ -40,6 +30,10 @@ void DeverbDiffusionChain::Prepare(double newSampleRate, std::array<float, MaxSt
 
     distributedTuningsMs = buildDistributedTunings(activeStages);
     distributedGainMultipliers = buildDistributedGains(targetStageGains, activeStages);
+
+    // Depths depend on distributed tunings / stage layout too, so refresh once more after distribution exists.
+    updateStageJitterDepths();
+    initializeDriftState();
 }
 
 void DeverbDiffusionChain::Reset()
@@ -47,8 +41,9 @@ void DeverbDiffusionChain::Reset()
     for (auto& allpass : allpasses)
         allpass.Clear();
 
-    for (size_t i = 0; i < MaxStages; ++i)
-        lfoPhases[i] = (juce::MathConstants<float>::twoPi / MaxStages) * static_cast<float>(i);
+    chainEnvelope = 0.0f;
+
+    initializeDriftState();
 }
 
 void DeverbDiffusionChain::SetDiffusionAmount(float newAmount01)
@@ -61,6 +56,7 @@ void DeverbDiffusionChain::SetDiffusionSize(float newSize01)
     //size01 = std::clamp(newSize01, 0.0f, 1.0f);
     size01 = newSize01;
     rebuildStageDelays();
+    updateStageJitterDepths();
 }
 
 void DeverbDiffusionChain::SetDiffusionQuality(int newStageCount)
@@ -74,6 +70,9 @@ void DeverbDiffusionChain::SetDiffusionQuality(int newStageCount)
 
     // No compensation
     targetQualityCompensation = 1.0f;
+
+    updateStageJitterDepths();
+    initializeDriftState();
 }
 
 void DeverbDiffusionChain::SetStageGains(float baseGain, std::array<float, MaxStages> stageGains)
@@ -93,14 +92,14 @@ float DeverbDiffusionChain::ProcessSample(float inputSample)
 {
     float sample = inputSample;
 
-    // Track signal energy to gate LFO modulation
     const float absInput = std::abs(inputSample);
+
     if (absInput > chainEnvelope)
         chainEnvelope = absInput;
     else
-        chainEnvelope *= 0.9999f; // slow release
+        chainEnvelope *= 0.9999f;
 
-    const bool lfoActive = (chainEnvelope > LfoGateThreshold);
+    const bool driftActive = (chainEnvelope > LfoGateThreshold);
 
     for (size_t stageIndex = 0; stageIndex < activeStages; ++stageIndex)
     {
@@ -109,20 +108,23 @@ float DeverbDiffusionChain::ProcessSample(float inputSample)
 
         allpasses[stageIndex].SetGain(currentStageGains[stageIndex]);
 
-        lfoPhases[stageIndex] += lfoRates[stageIndex];
-
-        if (lfoPhases[stageIndex] >= juce::MathConstants<float>::twoPi)
-            lfoPhases[stageIndex] -= juce::MathConstants<float>::twoPi;
-
         const float scale = 0.25f + (0.75f * size01);
         const float baseDelayMs = distributedTuningsMs[stageIndex] * scale;
 
-        // Only apply LFO offset when signal is present
-        const float lfoOffsetMs = lfoActive
-            ? std::sin(lfoPhases[stageIndex]) * jitterLfoDepth
-            : 0.0f;
+        float driftOffsetMs = 0.0f;
 
-        const float modulatedDelayMs = std::max(1.0f, baseDelayMs + lfoOffsetMs);
+        if (driftActive)
+        {
+            if (driftSamplesUntilRetarget[stageIndex] <= 0)
+                retargetStageDrift(stageIndex);
+
+            driftCurrentMs[stageIndex] += driftStepPerSample[stageIndex];
+            --driftSamplesUntilRetarget[stageIndex];
+
+            driftOffsetMs = driftCurrentMs[stageIndex];
+        }
+
+        const float modulatedDelayMs = std::max(1.0f, baseDelayMs + driftOffsetMs);
         allpasses[stageIndex].SetTargetDelayMilliseconds(modulatedDelayMs);
 
         sample = allpasses[stageIndex].ProcessSample(sample);
@@ -255,4 +257,86 @@ DeverbDiffusionChain::buildDistributedGains(
 
     return distributed;
 }
+
+void DeverbDiffusionChain::initializeDriftState()
+{
+    for (size_t stageIndex = 0; stageIndex < MaxStages; ++stageIndex)
+    {
+        driftCurrentMs[stageIndex] = 0.0f;
+        driftTargetMs[stageIndex] = 0.0f;
+        driftStepPerSample[stageIndex] = 0.0f;
+        driftSamplesUntilRetarget[stageIndex] = 0;
+
+        retargetStageDrift(stageIndex);
+    }
+}
+
+void DeverbDiffusionChain::retargetStageDrift(size_t stageIndex)
+{
+    const float depthMs = stageJitterDepthMs[stageIndex]
+                        * getQualityJitterScale()
+                        * getAmountJitterScale()
+                        * jitterGlobalDepthScale;
+
+    const float nextTargetMs = random.nextFloat() * 2.0f * depthMs - depthMs;
+
+    const float retargetMs = juce::jmap(random.nextFloat(),
+        driftRetargetMinMs, driftRetargetMaxMs);
+
+    const int samplesToTarget = std::max(1,
+        static_cast<int>(std::round((retargetMs * 0.001f) * static_cast<float>(sampleRate))));
+
+    driftTargetMs[stageIndex] = nextTargetMs;
+    driftSamplesUntilRetarget[stageIndex] = samplesToTarget;
+    driftStepPerSample[stageIndex] =
+        (driftTargetMs[stageIndex] - driftCurrentMs[stageIndex]) / static_cast<float>(samplesToTarget);
+}
+
+void DeverbDiffusionChain::updateStageJitterDepths()
+{
+    // Safety behavior:
+    // - shortest stages get far less relative modulation
+    // - longer stages can move a little more
+    // - values remain subtle enough to avoid chorus-y sweep
+    for (size_t stageIndex = 0; stageIndex < MaxStages; ++stageIndex)
+    {
+        const float tuningMs =
+            (stageIndex < distributedTuningsMs.size() && distributedTuningsMs[stageIndex] > 0.0f)
+                ? distributedTuningsMs[stageIndex]
+                : stageTuningsMs[stageIndex];
+
+        // Relative depth: about 0.6% to 1.8% depending on tuning length,
+        // clamped to a very conservative absolute range.
+        const float relativeDepth = tuningMs * juce::jmap(tuningMs,
+            3.0f, 83.0f,
+            0.006f, 0.018f);
+
+        stageJitterDepthMs[stageIndex] = juce::jlimit(0.008f, 0.09f, relativeDepth);
+    }
+}
+
+float DeverbDiffusionChain::getQualityJitterScale() const
+{
+    // Fewer active stages = more exposed comb structure,
+    // so reduce jitter depth accordingly.
+    const float quality01 =
+        static_cast<float>(activeStages - 1) / static_cast<float>(MaxStages - 1);
+
+    return juce::jmap(quality01, 0.45f, 1.0f);
+}
+
+float DeverbDiffusionChain::getAmountJitterScale() const
+{
+    // Conservative below 0.5 where the tap structure is more exposed.
+    // More freedom in the higher diffuse/wash region.
+    if (diffusionAmount <= 0.5f)
+    {
+        const float lower01 = juce::jlimit(0.0f, 1.0f, diffusionAmount / 0.5f);
+        return juce::jmap(lower01, 0.35f, 0.75f);
+    }
+
+    const float upper01 = juce::jlimit(0.0f, 1.0f, (diffusionAmount - 0.5f) / 0.5f);
+    return juce::jmap(upper01, 0.75f, 1.0f);
+}
+
 //endregion
