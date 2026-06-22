@@ -31,6 +31,8 @@ void DeverbDiffusionChain::Prepare(double newSampleRate, std::array<float, MaxSt
 
     gainSlewCoefficient = 1.0f / (0.01f * static_cast<float>(sampleRate));         // ~10 ms
 
+    lfoStereoDecorrelation = 1.0f;
+
     // Prevent startup
     targetQualityCompensation  = 1.0f;
 
@@ -47,7 +49,19 @@ void DeverbDiffusionChain::Reset()
         lfoPhases[i] = (juce::MathConstants<float>::twoPi / MaxStages) * static_cast<float>(i);
 }
 
-void DeverbDiffusionChain::SetQuality(int newStageCount)
+void DeverbDiffusionChain::SetDiffusionAmount(float newAmount01)
+{
+    diffusionAmount = std::clamp(newAmount01, 0.0f, 1.0f);
+}
+
+void DeverbDiffusionChain::SetDiffusionSize(float newSize01)
+{
+    //size01 = std::clamp(newSize01, 0.0f, 1.0f);
+    size01 = newSize01;
+    rebuildStageDelays();
+}
+
+void DeverbDiffusionChain::SetDiffusionQuality(int newStageCount)
 {
     activeStages = static_cast<size_t>(std::clamp(newStageCount, 1, MaxStages));
 
@@ -60,11 +74,9 @@ void DeverbDiffusionChain::SetQuality(int newStageCount)
     targetQualityCompensation = 1.0f;
 }
 
-void DeverbDiffusionChain::SetSize(float newSize01)
+void DeverbDiffusionChain::SetStereoDecorrelation(float newStereoDecorrelation)
 {
-    //size01 = std::clamp(newSize01, 0.0f, 1.0f);
-    size01 = newSize01;
-    rebuildStageDelays();
+    lfoStereoDecorrelation = newStereoDecorrelation;
 }
 
 void DeverbDiffusionChain::SetStageGains(float baseGain, std::array<float, MaxStages> stageGains)
@@ -78,11 +90,6 @@ void DeverbDiffusionChain::SetStageGains(float baseGain, std::array<float, MaxSt
 
     // No compensation — gain redistribution handles consistency
     targetQualityCompensation  = 1.0f;
-}
-
-void DeverbDiffusionChain::SetDiffusionAmount(float newAmount01)
-{
-    diffusionAmount = std::clamp(newAmount01, 0.0f, 1.0f);
 }
 
 float DeverbDiffusionChain::ProcessSample(float inputSample)
@@ -115,7 +122,7 @@ float DeverbDiffusionChain::ProcessSample(float inputSample)
 
         // Only apply LFO offset when signal is present
         const float lfoOffsetMs = lfoActive
-            ? std::sin(lfoPhases[stageIndex]) * LfoDepthMs
+            ? std::sin(lfoPhases[stageIndex]) * (LfoDepthMs * lfoStereoDecorrelation)
             : 0.0f;
 
         const float modulatedDelayMs = std::max(1.0f, baseDelayMs + lfoOffsetMs);

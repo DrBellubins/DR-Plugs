@@ -85,6 +85,7 @@ private:
 
     // Settings
     const float diffusionCompensationBias = 0.5f; // Bigger values = longer swell into nominal
+    const float stereoJitterDecoration = 2.0f; // Controls the depth of the jitter
     const float dampingCutoff = 4200.0f;
 
     // Runtime

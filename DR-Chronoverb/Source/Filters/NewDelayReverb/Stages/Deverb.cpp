@@ -21,7 +21,7 @@ void Deverb::PrepareToPlay(double newSampleRate, Filters& filters)
 
     // Diffusion
     diffusionLeft.Prepare(sampleRate, AllpassTunings);
-    diffusionRight.Prepare(sampleRate, DecorrelateTunings(AllpassTunings));
+    diffusionRight.Prepare(sampleRate, AllpassTunings);
 
     setBlendedStageGains();
 
@@ -95,6 +95,8 @@ std::pair<float, float> Deverb::ProcessSample(float inputSampleL, float inputSam
     // 3) Diffused path
     float diffusedTapL = cleanTapL;
     float diffusedTapR = cleanTapR;
+
+    float diffusionStereoDecorrelation = stereoJitterDecoration * diffusionAmount;
 
     if (diffusionAmount > 0.0001f)
     {
@@ -205,6 +207,8 @@ void Deverb::SetDiffusionAmount(float newAmount01)
     diffusionAmount = std::clamp(newAmount01, 0.0f, 1.0f);
 
     diffusionLeft.SetDiffusionAmount(diffusionAmount);
+
+    diffusionRight.SetStereoDecorrelation(stereoJitterDecoration * diffusionAmount);
     diffusionRight.SetDiffusionAmount(diffusionAmount);
 
     setBlendedStageGains();
@@ -220,8 +224,8 @@ void Deverb::SetDiffusionQuality(int newQualityStages)
 {
     diffusionQualityStages = std::clamp(newQualityStages, 1, DeverbDiffusionChain::MaxStages);
 
-    diffusionLeft.SetQuality(diffusionQualityStages);
-    diffusionRight.SetQuality(diffusionQualityStages);
+    diffusionLeft.SetDiffusionQuality(diffusionQualityStages);
+    diffusionRight.SetDiffusionQuality(diffusionQualityStages);
 }
 
 void Deverb::SetFiltersOrder(int newOrder)
@@ -257,8 +261,8 @@ void Deverb::updateDynamicDiffusionSizeFromDelayTime()
     //DBG("Delay time: " << delayTimeSegment.DelayTimeMilliseconds << ", totalMs: " << staticTotalMs <<
     //    ", effectiveSize: " << effectiveSize << ", targetRatio: " << targetRatio);
 
-    diffusionLeft.SetSize(effectiveSize);
-    diffusionRight.SetSize(effectiveSize);
+    diffusionLeft.SetDiffusionSize(effectiveSize);
+    diffusionRight.SetDiffusionSize(effectiveSize);
 }
 
 void Deverb::setBlendedStageGains()

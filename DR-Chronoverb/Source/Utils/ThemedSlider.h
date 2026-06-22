@@ -2,6 +2,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <functional>
+#include <utility>
 #include "Theme.h"
 
 // ThemedSlider: Flat horizontal slider matching ThemedKnob, full rect, no thumb, no shadow.
@@ -15,16 +16,16 @@ public:
     using TextToValueFunction = std::function<double(const juce::String& Text)>;
 
     // Constructor
-    ThemedSlider(const juce::String& LabelText = "Slider",
+    ThemedSlider(juce::String  LabelText = "Slider",
                  ValueToTextFunction ToTextFunction = nullptr,
                  TextToValueFunction ToValueFunction = nullptr,
-                 const juce::String& Suffix = "",
+                 juce::String  Suffix = "",
                  juce::Slider::TextEntryBoxPosition TextBoxPosition = juce::Slider::TextBoxRight)
         : juce::Slider(juce::Slider::LinearHorizontal, TextBoxPosition),
-          labelText(LabelText),
-          valueToTextFunction(ToTextFunction),
-          textToValueFunction(ToValueFunction),
-          valueSuffix(Suffix)
+          labelText(std::move(LabelText)),
+          valueToTextFunction(std::move(ToTextFunction)),
+          textToValueFunction(std::move(ToValueFunction)),
+          valueSuffix(std::move(Suffix))
     {
         setTextValueSuffix(valueSuffix);
     }
@@ -50,7 +51,7 @@ public:
         }
         else
         {
-            return juce::String(Value, 2);
+            return {Value, 2};
         }
     }
 
@@ -73,13 +74,13 @@ public:
 
     void setValueToTextFunction(ValueToTextFunction Function)
     {
-        valueToTextFunction = Function;
+        valueToTextFunction = std::move(Function);
         repaint();
     }
 
     void setTextToValueFunction(TextToValueFunction Function)
     {
-        textToValueFunction = Function;
+        textToValueFunction = std::move(Function);
     }
 
     void setValueSuffix(const juce::String& Suffix)

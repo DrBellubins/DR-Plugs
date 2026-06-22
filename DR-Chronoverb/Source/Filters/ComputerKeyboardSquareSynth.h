@@ -51,10 +51,18 @@ private:
         float TargetAmplitude = 0.0f;
     };
 
+    struct NoteEvent
+    {
+        int MidiNote = -1;
+        bool IsOn = false;
+    };
+
     double SampleRate = 44100.0;
     float OutputGain = 0.20f;            // Conservative to avoid hard clipping on chords
     float AmplitudeSlew = 0.0040f;       // Per-sample amplitude slew for click reduction
+
     static constexpr int MaxVoices = 16; // Simple polyphony limit
+    static constexpr int EventQueueSize = 64;
 
     std::vector<Voice> Voices;
 
@@ -63,6 +71,15 @@ private:
 
     // Track which keys are currently held (for debouncing)
     std::unordered_set<int> HeldKeys;
+
+    // Thread safety
+
+
+    std::array<NoteEvent, EventQueueSize> EventQueue {};
+    std::atomic<int> EventWriteIndex { 0 };
+    std::atomic<int> EventReadIndex { 0 };
+
+    void DrainNoteEvents();
 
     // Helpers
     static double MidiNoteToFrequency(int MidiNote);

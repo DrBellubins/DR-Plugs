@@ -29,10 +29,17 @@ void ComputerKeyboardSquareSynth::PrepareToPlay(double NewSampleRate)
     }
 
     HeldKeys.clear();
+
+    EventReadIndex.store(0, std::memory_order_relaxed);
+    EventWriteIndex.store(0, std::memory_order_relaxed);
+    for (auto& Evt : EventQueue)
+        Evt = {};
 }
 
 void ComputerKeyboardSquareSynth::Process(juce::AudioBuffer<float>& AudioBuffer)
 {
+    DrainNoteEvents();
+
     const int NumChannels = AudioBuffer.getNumChannels();
     const int NumSamples = AudioBuffer.getNumSamples();
 
@@ -94,20 +101,32 @@ void ComputerKeyboardSquareSynth::HandleKeyChange(int KeyCode, bool IsKeyDown)
     auto MapIt = KeyToMidi.find(KeyCode);
 
     if (MapIt == KeyToMidi.end())
-        return; // Not a mapped key
+        return;
 
     const int MidiNote = MapIt->second;
 
+    // Debounce on the message thread so we don't enqueue repeats
     if (IsKeyDown)
     {
-        if (HeldKeys.insert(KeyCode).second)
-            NoteOn(MidiNote);
+        if (!HeldKeys.insert(KeyCode).second)
+            return;
     }
     else
     {
-        if (HeldKeys.erase(KeyCode) > 0)
-            NoteOff(MidiNote);
+        if (HeldKeys.erase(KeyCode) == 0)
+            return;
     }
+
+    const int write = EventWriteIndex.load(std::memory_order_relaxed);
+    const int read  = EventReadIndex.load(std::memory_order_acquire);
+    const int nextWrite = (write + 1) % EventQueueSize;
+
+    // Queue full: drop the event rather than blocking the message thread
+    if (nextWrite == read)
+        return;
+
+    EventQueue[write] = { MidiNote, IsKeyDown };
+    EventWriteIndex.store(nextWrite, std::memory_order_release);
 }
 
 void ComputerKeyboardSquareSynth::SetOutputGain(float NewGain)
@@ -127,6 +146,27 @@ std::vector<int> ComputerKeyboardSquareSynth::GetMappedKeyCodes() const
 }
 
 // ============================== Internals ==============================
+
+// At the TOP of Process(), before the sample loop (audio thread):
+void ComputerKeyboardSquareSynth::DrainNoteEvents()
+{
+    int read = EventReadIndex.load(std::memory_order_relaxed);
+    const int write = EventWriteIndex.load(std::memory_order_acquire);
+
+    while (read != write)
+    {
+        const NoteEvent evt = EventQueue[read];
+
+        if (evt.IsOn)
+            NoteOn(evt.MidiNote);
+        else
+            NoteOff(evt.MidiNote);
+
+        read = (read + 1) % EventQueueSize;
+    }
+
+    EventReadIndex.store(read, std::memory_order_release);
+}
 
 double ComputerKeyboardSquareSynth::MidiNoteToFrequency(int MidiNote)
 {

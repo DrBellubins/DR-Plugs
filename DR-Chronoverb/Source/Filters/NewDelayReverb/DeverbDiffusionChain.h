@@ -20,9 +20,11 @@ public:
     void Prepare(double newSampleRate, std::array<float, MaxStages> stageTunings);
     void Reset();
 
-    void SetQuality(int newStageCount);
-    void SetSize(float newSize01);
     void SetDiffusionAmount(float newAmount01);
+    void SetDiffusionSize(float newSize01);
+    void SetDiffusionQuality(int newStageCount);
+
+    void SetStereoDecorrelation(float newStereoDecorrelation);
 
     void SetStageGains(float baseGain, std::array<float, MaxStages> stageGains);
 
@@ -59,8 +61,10 @@ private:
     float targetQualityCompensation = 1.0f;
 
     // Jitter LFO modulation
-    static constexpr float LfoBaseRateHz = 0.15f;  // Slow drift
+    static constexpr float LfoBaseRateHz = 1.0f;   // Slow drift
     static constexpr float LfoDepthMs = 0.25f;     // Subtle — just enough to spread comb notches
+
+    float lfoStereoDecorrelation = 1.0f;
 
     std::array<float, MaxStages> lfoPhases {};      // Per-stage phase (radians)
     std::array<float, MaxStages> lfoRates  {};      // Per-stage rate (radians/sample) — set in Prepare
