@@ -29,7 +29,12 @@ void DeverbDiffusionChain::Prepare(double newSampleRate, std::array<float, MaxSt
     rebuildStageDelays();
     Reset();
 
-    gainSlewCoefficient = 1.0f / (0.01f * static_cast<float>(sampleRate));
+    gainSlewCoefficient = 1.0f / (0.01f * static_cast<float>(sampleRate));         // ~10 ms
+    compensationSlewCoefficient = 1.0f / (0.02f * static_cast<float>(sampleRate)); // ~20 ms
+
+    // Prevent startup
+    targetQualityCompensation  = 1.0f;
+    currentQualityCompensation = 1.0f;
 
     distributedTuningsMs = buildDistributedTunings(activeStages);
     distributedGainMultipliers = buildDistributedGains(targetStageGains, activeStages);
@@ -53,10 +58,10 @@ void DeverbDiffusionChain::SetQuality(int newStageCount)
 
     rebuildStageDelays();
 
-    const float rawCompensation =
-        computeQualityCompensation(distributedGainMultipliers, activeStages);
+    const float rawCompensation = computeEnergyCompensation(
+        targetStageGains, distributedGainMultipliers, activeStages);
 
-    targetQualityCompensation = std::clamp(rawCompensation, 0.5f, 1.0f);
+    targetQualityCompensation = std::clamp(rawCompensation, 0.5f, 1.5f);
 }
 
 void DeverbDiffusionChain::SetSize(float newSize01)
@@ -260,27 +265,6 @@ float DeverbDiffusionChain::computeEnergyCompensation(
         return 1.0f;
 
     return std::sqrt(referenceEnergy / activeEnergy);
-}
-
-float DeverbDiffusionChain::computeQualityCompensation(
-    const std::array<float, MaxStages>& activeGains,
-    size_t _activeStages)
-{
-    float gainEnergy = 0.0f;
-    for (size_t i = 0; i < _activeStages; ++i)
-        gainEnergy += activeGains[i] * activeGains[i];
-
-    gainEnergy = std::max(gainEnergy, 1.0e-6f);
-
-    const float normalizedQuality =
-        (_activeStages <= 1)
-            ? 0.0f
-            : static_cast<float>(_activeStages - 1) / static_cast<float>(MaxStages - 1);
-
-    const float densityFactor = 0.35f + 0.65f * std::pow(normalizedQuality, 0.7f);
-    const float energyFactor = std::sqrt(1.0f / gainEnergy);
-
-    return densityFactor * energyFactor;
 }
 
 //endregion
