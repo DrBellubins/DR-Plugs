@@ -14,6 +14,8 @@
 #include "../../../Utils/PMath.h"
 
 // TODO: Diffusion quality 1 & 2 are broken, make them use the longest allpass delays, with no gain compensation
+// TODO: Could reduce stages centered on the middle delay lengths (lower qualty = less shortest + longest delays)
+// TODO: Maybe instead of using compensation, could reduce stages from longest to shortest (quality 1 = longest, quality 8 adds shortest)??
 
 // TODO: Delay side diffusion is too wide
 // TODO: Investigate if jitter-based L/R De-Correlation is better than static tuning De-Correlation
@@ -26,20 +28,20 @@ public:
 
     const std::array<float, DeverbDiffusionChain::MaxStages> AllpassTunings =
     {
-        5.0, 11.0, 19.0, 31.0, 43.0, 53.0, 73.0, 83.0
+        3.0, 7.0, 19.0, 31.0, 43.0, 53.0, 73.0, 83.0
         //11.0f, 13.0f, 23.0f, 31.0f, 43.0f, 53.0f, 73.0f, 83.0f
     };
 
-    // Multiplier of MaxAllpassGain
+    // Delay
     const std::array<float, DeverbDiffusionChain::MaxStages> DelayAllpassGainMultipliers =
     {
         1.0, 1.0, 1.0, 1.0, 0.5, 0.0, 0.0, 0.0
     };
 
-    // Raw multiplier
+    // Reverb
     const std::array<float, DeverbDiffusionChain::MaxStages> ReverbAllpassGainMultipliers =
     {
-        2.0, 1.5, 1.0, BaseDelayAllpassGain, BaseDelayAllpassGain, BaseDelayAllpassGain, BaseDelayAllpassGain, BaseDelayAllpassGain
+        0.92f, 0.88f, 0.84f, 0.78f, 0.72f, 0.66f, 0.60f, 0.55f
     };
 
     void PrepareToPlay(double newSampleRate, Filters& filters);
