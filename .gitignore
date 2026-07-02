@@ -1,15 +1,3 @@
-### Project ###
-cmake-build-debug/
-cmake-build-release/
-Libs/*
-!Libs/JUCE
-
-.idea/
-**/.idea/
-
-**/[Bb]uild*/
-/Libs/
-
 # Created by https://www.toptal.com/developers/gitignore/api/C++,CMake,macos,windows
 # Edit at https://www.toptal.com/developers/gitignore?templates=C++,CMake,macos,windows
 
