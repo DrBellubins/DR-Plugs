@@ -1,0 +1,3 @@
+domains:
+  - path: ./Source
+    permissions: [read, find, grep, ls]
