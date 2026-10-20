@@ -1,0 +1,7 @@
+This is a screenshot of the main UI of synplant.
+The "plant" circle in the center represents the
+different per-key "branch" of the synth
+evolution. Synplant allows for note keys (C,
+C major, G, etc) to be grown or extended
+individually, furthering their "evolution"
+more than the other keys.
