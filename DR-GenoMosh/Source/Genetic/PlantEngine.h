@@ -55,8 +55,8 @@ private:
 void buildPlant (PlantSnapshot& out, uint64_t seedId, const Genome& seed,
                  const MutationParams& mutation);
 
-/// Which branch a note plays (design doc 5.3).
-int branchForNote (int midiNote, float rotation);
+/// Which branch a note plays: its pitch class (design doc 5.3).
+int branchForNote (int midiNote);
 
 /// Resolve the genome a voice should use, including the guard rail retries of
 /// 5.6 ("nudge or re-roll with the next seed in the hash chain").

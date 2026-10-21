@@ -14,6 +14,11 @@ namespace gmosh
 //
 // Modulation: mod envelope, looping/tilt envelope, LFO and two slow drift
 // generators, all per voice, plus per voice random detune and phase start.
+//
+// Pitch policy (design doc 5.3, "the branch changes timbre and modulation, not
+// the played pitch"): the played pitch is the note plus the a_freq / b_freq
+// offset genes, then vibrato from the LFO and a few cents of drift. The mod
+// envelope has no destination in pitch, it moves timbre.
 //==============================================================================
 {
 class Voice
@@ -47,6 +52,8 @@ private:
     int ctrlCountdown = 0;
     float freqA = 0.0f, freqATo = 0.0f, freqASlope = 0.0f;
     float freqB = 0.0f, freqBTo = 0.0f, freqBSlope = 0.0f;
+    float colourA = 0.0f, colourATo = 0.0f, colourASlope = 0.0f;
+    float colourB = 0.0f, colourBTo = 0.0f, colourBSlope = 0.0f;
     float cutoff1 = 0.0f, cutoff1To = 0.0f, cutoff1Slope = 0.0f;
     float cutoff2 = 0.0f, cutoff2To = 0.0f, cutoff2Slope = 0.0f;
     float fmIndex = 0.0f, fmIndexTo = 0.0f, fmIndexSlope = 0.0f;

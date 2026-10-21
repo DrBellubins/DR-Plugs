@@ -149,6 +149,10 @@ note bookkeeping
 
 ### The pitch slide is not a bug
 
+**Correction (later the same day): it is a bug.** The reasoning below was wrong
+— the slide is not "intended modulation", it is the mod envelope being wired to
+oscillator pitch, which 5.3 forbids. See section 8.
+
 With a gate stuck open you hear the whole mod envelope travel: `a_mod` /
 `b_mod` are bipolar ±1 octave and `Voice::updateControlTargets` scales them by
 `modMix * 0.75` octaves, while `modMix` walks from +1 to −1 as the mod
@@ -177,3 +181,264 @@ footer with the current octave.
 
 Because notes go through the normal note path, playing on the computer keyboard
 lights up the branch it maps to on the ring.
+
+---
+
+## 7. Addendum 2026-10-21 — six UI / behaviour reports
+
+All six were reported from playing the standalone. Five were real bugs, one was
+a missing affordance.
+
+### 1. "new seed" left the old plant's growth in place (real bug)
+
+`newSeed()` re-randomized the genome but not the twelve branch length
+parameters, so a fresh seed appeared wearing the previous plant's growth.
+`AudioPluginAudioProcessor::resetBranchLengths()` now folds them back to
+`kDefaultBranchLength` (0.45) from `newSeed()`, and from `plantBranch()` too —
+5.6.1 says planting means "branch lengths reset or decay", and the old code did
+neither. The editor also clears its `selectedBranch` and refreshes the gene
+page when a new seed is grown.
+
+### 2. Atonality was inverted (real bug, the important one)
+
+`snapToRatio` returned `lerpf (raw, snapped, atonality)`, i.e. atonality 0 gave
+the **raw** gene value and atonality 1 gave the **snapped** one — exactly
+backwards from 5.5. With `a_freq`/`b_freq` drawn anywhere in ±14 semitones,
+"atonality 0" therefore meant every branch sang a random pitch, which is the
+one thing that guard rail promises not to do.
+
+Fixed to `lerpf (snapped, raw, atonality)`, and the macro default dropped from
+0.65 to 0.25 so a random plant is tuneful by default as 5.5 asks.
+
+New test (`testRatioSnapping`, run first in the harness): at atonality 0 the
+result is a fixed point of the snapper, never more than 2.5 semitones from the
+input, and 193 free values over ±24 semitones collapse onto 23 distinct
+offsets; at atonality 1 the function is the identity; the blend moves
+monotonically between the two ends.
+
+Note what "in tune" means here: the branch still contributes its own oscillator
+offsets, they are just consonant ones (unison, octaves, fifths, harmonic
+series entries) instead of arbitrary cents. Turning atonality fully left is the
+way to hear the keyboard pitch itself.
+
+### 3. Rotation did something invisible (missing affordance)
+
+The mapping was always correct (`branchForNote` and the ring labels agreed), but
+the ring labels were the only thing that moved, and twelve 13 px glyphs moving
+by 30° is not visible. The plant view now treats the ring as the keyboard — slot
+*i* always shows pitch class *i* — and rotates the **plant** underneath it,
+which is what 12 describes ("12 radial branches offset by `rotation`"). Turning
+the knob spins the whole plant to the keys that now play those branches, and the
+knob reads `+3` instead of `3.00`.
+
+`PlantView` internals were renamed to match: `slotAt` (ring position) is
+separate from `branchForSlot` (which branch that position plays), and the drag
+writes the branch that was pressed, not the slot.
+
+### 4. The bottom sliders had no names (missing affordance)
+
+They are the WheelScale, VelSens and Volume macros and they did work; nothing
+on screen said so. Each now has a caption above it, a tooltip, and the wheel
+readout shows the multiplication the wheel scale slider is doing:
+`wheel 1.00 x 0.85 = 0.85 open`. Tooltips come from a `juce::TooltipWindow`
+parented to the editor (in a plug-in the parent must be the editor so the tip
+scales with the DAW; there is no `setParentComponent`, it is a constructor
+argument).
+
+### 5. Branches grew past the circle (real bug)
+
+The recursive drawing had no notion of its own extent: a root of
+`radius * (0.10 + 0.72 * d)` with children at 0.48–0.64 of their parent reaches
+about 2.7 times the root length, so any branch past half growth left the ring.
+
+Fixed without touching the synth: the tree is grown in **unit space** (root
+length 1) into a small vector of `Twig`s, its farthest control point is
+measured, and the whole tree is scaled to the growth radius. A quadratic Bézier
+lives inside the convex hull of its three points, so bounding those bounds the
+stroke. The shape is untouched — only its footprint is normalized — and the
+growth target is capped at `kMaxReach` (0.92 of the ring), which is also where
+the growth handle sits for the same length: a fully open branch reaches its
+handle and nothing ever leaves the circle.
+
+### 6. No separation between seed generation and live control (missing affordance)
+
+`PluginEditor` now has one `layout()` used by both `paint()` and `resized()`,
+and `paint()` fills a darker rounded plate (`PanelGray`, corner 10) behind the
+two groups of live controls: the macro column (tuning, atonality, effect,
+rotation, wheel readout, captioned "live macros") and the bottom strip
+(wheel scale, velocity, volume, captioned "output / response"). Seed generation
+— the plant, the gene page, new seed / plant branch — stays on the plain
+background. The macro plate and its knobs are hidden on the gene page, which
+uses the whole body area.
+
+### Verifying UI changes headless
+
+`Xvfb :98 -screen 0 900x700x24 &` then
+`DISPLAY=:98 ./build/dev/GenoMosh_artefacts/Release/Standalone/"Dr GenoMosh" &`
+then `DISPLAY=:98 import -window root /tmp/shot.png` gives a real screenshot of
+the editor. Two caveats: this box has no working fontconfig, so **no text
+renders at all** (labels, buttons and knob captions are invisible in the shot —
+geometry only), and with no ALSA device the audio callback never runs, so
+`currentWheel()` stays 0 and the plant draws at minimum reach. Forcing `len`
+and `wheel` to 1.0 temporarily is how the fully grown plant above was checked.
+
+---
+
+## 8. Addendum 2026-10-21 — "the note changes pitch when I play it" (real bug)
+
+Reported again after the atonality fix, from the computer keyboard and from
+clicking branches: a note dives (or rises) when it is struck, in a direction
+that seems random. Atonality could not touch it, because it was never the
+tuning genes.
+
+### Cause
+
+`Voice::updateControlTargets` put the mod envelope straight onto oscillator
+pitch:
+
+```cpp
+const float pitchModA = p.aMod * modMix * 0.75f + lfoPitch * 0.5f;
+```
+
+`modMix` for the default mod source is `modEnv * 2 - 1`, i.e. it starts at −1,
+walks to +1 over `mod_atk` and back down as `mod_dcy` decays. `a_mod` / `b_mod`
+are bipolar and drawn in ±0.7, so a struck note swept up to **two thirds of an
+octave**, upward if the gene was positive and downward if it was negative, over
+the first few hundred milliseconds. Every key is a different branch with a
+different sign, hence "random".
+
+This is what 5.3 rules out: *"Pitch is played as normal. The branch changes
+timbre and modulation, not the played pitch, except through the oscillator
+offset genes."* Section 6's "the pitch slide is not a bug" was wrong about that.
+
+### Fix
+
+The mod envelope has no destination in pitch any more. Pitch is the note, times
+the `a_freq` / `b_freq` offset (through the ratio snapper), plus LFO vibrato
+(`lfo_amt` / `lfo_bal`) and a few cents of `drift_amt` — the two things the
+document does ask for under "voice-level life".
+
+`a_mod` / `b_mod` keep their name and their velocity scaling and move to the
+destination they describe: each oscillator's own spectrum (`colour`, i.e. pulse
+width and added partials), smoothed at control rate like every other modulation
+target:
+
+```cpp
+constexpr float kModColourDepth = 0.35f;
+colourATo = clampf (p.aColour + p.aMod * modMix * kModColourDepth, 0.0f, 1.0f);
+```
+
+So the mod envelope, the loop envelope and the LFO still open and close the
+timbre while a note is held — the movement the project wants — they just do it
+in tune. If a real pitch envelope is ever wanted it should be its own gene, not
+a side effect of timbre modulation.
+
+### Measured (`testPitchStability`, new, runs second in the harness)
+
+A genome with both oscillators tuned to the pressed note, no vibrato, no drift,
+no detune, and a deliberately large `a_mod` / `b_mod`; note 60 rendered on all
+twelve branches at distance 0.85; the period is found by autocorrelation in a
+window 60 ms after the attack and another 550 ms after it.
+
+```
+before:  branch 0  period  50 ->  68   160.2 cents   (and not the pressed note)
+         branch 1  period 136 -> 243   302.5 cents
+         ... every branch fails, up to 3 semitones of slide
+after:   [PASS] a held note keeps the pitch it was pressed at
+         worst pitch movement while held: 2.8 cents
+```
+
+The 2.8 cents is the per voice random detune plus one sample of autocorrelation
+quantization at a 183 sample period, i.e. nothing.
+
+---
+
+## 9. Addendum 2026-10-21 — Atonality becomes a generation parameter; Rotation removed
+
+### Atonality: from a runtime blend to a generation time ceiling
+
+Section 7 fixed the direction of the ratio blend; the operator has since
+redefined what the parameter is for. It is now **generation facing**: it never
+modulates a note that is already sounding, it bounds what the plant is allowed
+to contain.
+
+Atonality is a ceiling on the *potential* of every gene that can move the
+played pitch. Those genes are tagged `kFlagPitch` in the gene table:
+
+| gene | neutral (no effect) | at atonality 0 |
+| --- | --- | --- |
+| `a_freq`, `b_freq` | 0.5 (unison) | unison |
+| `lfo_amt` (vibrato) | 0.0 | no vibrato |
+| `drift_amt` | 0.0 | no pitch drift |
+| `det_spread` (per voice detune) | 0.0 | no detune |
+
+`applyAtonality` (Genetic/Mutation.cpp) clamps each of them to
+`neutral ± atonality * span`, and for the two oscillator offsets it then puts
+the value on the ratio ladder (`snapToRatio`, 5.5) — so a plant is harmonically
+related to the key that plays it at any setting, and atonality decides how far
+up the ladder it may reach.
+
+It is a **ceiling, not a multiplier**, and that is deliberate: it is idempotent,
+so planting a branch (which feeds a resolved genome back in as the next seed)
+cannot ratchet the tuning down a little further every time. `randomizeGenome`
+draws pitch capable genes *inside* the band rather than clipping them into it,
+so a low atonality seed still has a spread of tunings instead of a pile on the
+ceiling.
+
+Applied in three places, all of them generation time:
+
+1. `randomizeGenome` — the draw is inside the band;
+2. `buildBranchDirection` — the pitch components of a branch direction are
+   scaled by it, and `buildPlant` gates the seed the audio thread sees;
+3. `resolveBranchGenome` — the resolved genome is gated again, because the sum
+   of seed plus displacement is not automatically inside the band.
+
+`MacroValues` no longer carries `atonality`, and `resolveVoiceParams` no longer
+calls `snapToRatio`: the voice just maps the gene. The parameter is still a
+normal host automatable float, but the processor listens for it
+(`AudioProcessorValueTreeState::Listener::parameterChanged`) and answers by
+rebuilding the plant. Default raised 0.25 → **0.50**: half the range of those
+genes is available, which is octaves and fifths and a real vibrato, and it is
+what makes a random plant sound related to the keyboard.
+
+Measured (`testAtonalityCeiling`, new, runs second):
+
+```
+atonality 0.00 -> furthest pitch gene at 0.000 of its range
+atonality 0.25 -> furthest pitch gene at 0.177 of its range
+atonality 1.00 -> furthest pitch gene at 0.710 of its range
+[PASS] atonality bounds every pitch capable gene at generation time
+```
+
+(0.710 at atonality 1 is the soft ranges doing their job, i.e. the full range is
+available.) `testPitchStability` now runs with `mp.atonality = 0`, which makes
+the "a held note keeps the pitch it was pressed at" check airtight: 2.8 cents
+worst case, all of it the per voice detune.
+
+One consequence worth knowing: `resolveBranchGenome` at distance 0 returns the
+**plant's** seed, which is the gated copy `buildPlant` stored, not the raw
+genome the gene page edits. The gene page shows the seed as drawn; atonality
+decides how much of it is realised. The 5.1.3 test was updated to compare
+against `plant.seed` for that reason.
+
+### Rotation removed
+
+The operator's verdict: useless in practice. Gone — the parameter, the macro,
+the knob, and the plant view's ring/plant offset. `branchForNote(midiNote)` is
+now just the pitch class, and a ring slot plays the branch of its own pitch
+class, which is the same thing, so the view and the audio side still agree by
+construction.
+
+### Layout
+
+The macro column is split by what the controls actually are:
+
+* top row, on the plain background: **atonality** (generation facing, it
+  rebuilds the plant rather than riding a live sound). The left half of that row
+  is deliberately empty.
+* bottom row, on the darker plate: **effect** and **tuning** — the two that are
+  safe to move while playing. The "live macros" caption moved onto that plate.
+* the bottom strip plate (wheel scale / velocity / volume) is unchanged.
+
+`Layout` in `PluginEditor` now carries `knobRowTop`, `knobRowBottom` and
+`macroPlate` instead of one column rect.

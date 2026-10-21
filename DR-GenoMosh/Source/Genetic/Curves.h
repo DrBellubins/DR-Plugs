@@ -124,7 +124,10 @@ inline float reflect01 (float x)
 //
 // Oscillator frequency genes are free semitone offsets; atonality blends between
 // the nearest consonant ratio and the raw value, so random patches are tuneful
-// by default and inharmonic only when asked for.
+// by default and inharmonic only when asked for:
+//
+//   atonality 0 -> the nearest table entry (harmonic, consonant)
+//   atonality 1 -> the raw gene value (free, inharmonic)
 inline float snapToRatio (float semitones, float atonality)
 {
     static const float ratios[] = {
@@ -145,7 +148,10 @@ inline float snapToRatio (float semitones, float atonality)
         if (d < bestDist) { bestDist = d; best = i; }
     }
 
-    return lerpf (v, ratios[best], clamp01 (atonality));
+    // Note the order: the *snapped* value is the atonality == 0 end. Blending
+    // the other way round makes every branch sing a random pitch when the
+    // atonality macro is closed, which is the opposite of 5.5.
+    return lerpf (ratios[best], v, clamp01 (atonality));
 }
 
 } // namespace gmosh

@@ -18,11 +18,9 @@ struct MacroValues
     float volume = 0.8f;
     float velSens = 0.6f;
     float tuningCents = 0.0f;
-    float atonality = 0.65f;
     float effect = 0.6f;
     float wheelScale = 0.7f;
     float wheel = 0.0f;
-    float rotation = 0.0f;
 };
 
 struct VoiceParams

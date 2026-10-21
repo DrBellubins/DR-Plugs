@@ -1,7 +1,5 @@
 #include "PlantEngine.h"
 
-#include <cmath>
-
 namespace gmosh
 {
 //==============================================================================
@@ -44,6 +42,10 @@ void buildPlant (PlantSnapshot& out, uint64_t seedId, const Genome& seed,
     out.seed = seed;
     out.mutation = mutation;
 
+    // The atonality ceiling belongs to the plant, not to the voice: the seed
+    // genome the audio thread sees is already inside it.
+    applyAtonality (out.seed, mutation.atonality);
+
     for (int b = 0; b < kNumBranches; ++b)
     {
         for (int v = 0; v < kNumDirections; ++v)
@@ -57,10 +59,11 @@ void buildPlant (PlantSnapshot& out, uint64_t seedId, const Genome& seed,
 }
 
 //==============================================================================
-int branchForNote (int midiNote, float rotation)
+// Which branch a note plays: its pitch class (design doc 5.3). Notes in other
+// octaves share the branch.
+int branchForNote (int midiNote)
 {
-    const int r = static_cast<int> (std::floor (rotation));
-    int b = (midiNote + r) % kNumBranches;
+    int b = midiNote % kNumBranches;
     if (b < 0)
         b += kNumBranches;
     return b;
@@ -92,6 +95,11 @@ Genome resolveBranchGenome (const PlantSnapshot& plant, int branch, float distan
         if (score > 0.85f)
             break;
     }
+
+    // The seed and the branch directions are both inside the atonality ceiling,
+    // but their sum is not automatically, so the resolved genome is gated too.
+    // Idempotent, and cheap: five genes, once per note on.
+    applyAtonality (best, plant.mutation.atonality);
 
     traitsOut = resolveTraits (plant.direction (branch, bestVariant).hash,
                                distance, plant.mutation);

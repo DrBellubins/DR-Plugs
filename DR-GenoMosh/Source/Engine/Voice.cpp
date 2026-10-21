@@ -111,8 +111,11 @@ void Voice::start (const VoiceParams& params, int midiNote, uint64_t plantHash)
 
     freqA = freqATo = baseFreqA;
     freqB = freqBTo = baseFreqB;
+    colourA = colourATo = clamp01 (p.aColour);
+    colourB = colourBTo = clamp01 (p.bColour);
     fmIndex = fmIndexTo = p.fmAmount * 3.0f;
     freqASlope = freqBSlope = cutoff1Slope = cutoff2Slope = fmIndexSlope = 0.0f;
+    colourASlope = colourBSlope = 0.0f;
     ctrlCountdown = 0;
 }
 
@@ -148,10 +151,22 @@ void Voice::updateControlTargets (float modMix, float lfoPitch, float lfoFilter,
 {
     const float driftCents = driftP * p.driftAmount * 12.0f;
 
-    // Pitch modulation in octaves: a_mod drives the mod envelope amount, the
-    // LFO is split by lfo_bal (design doc 4.2 lfo_bal).
-    const float pitchModA = p.aMod * modMix * 0.75f + lfoPitch * 0.5f;
-    const float pitchModB = p.bMod * modMix * 0.75f + lfoPitch * 0.5f;
+    // Pitch (5.3): vibrato from the LFO, split by lfo_bal, plus a few cents of
+    // drift. The mod envelope is deliberately *not* in this sum: a_mod / b_mod
+    // used to add modMix * 0.75 octaves, so every note dived or rose by up to
+    // two thirds of an octave while the mod envelope attacked, in whichever
+    // direction the sign of the gene happened to point. That is the "the note
+    // changes pitch when I play it" bug. A pitch envelope, if it is ever wanted,
+    // should be its own gene rather than a side effect of timbre modulation.
+    const float pitchModA = lfoPitch * 0.5f;
+    const float pitchModB = lfoPitch * 0.5f;
+
+    // Timbre: a_mod / b_mod are the mod envelope's amount on each oscillator's
+    // own spectrum (pulse width, added partials), which is the destination their
+    // names suggest and leaves the played pitch alone.
+    constexpr float kModColourDepth = 0.35f;
+    colourATo = clampf (p.aColour + p.aMod * modMix * kModColourDepth, 0.0f, 1.0f);
+    colourBTo = clampf (p.bColour + p.bMod * modMix * kModColourDepth, 0.0f, 1.0f);
 
     freqATo = clampFreq (baseFreqA * centsToRatio (detuneA + driftCents)
                                     * std::pow (2.0f, pitchModA), sampleRate);
@@ -226,16 +241,21 @@ void Voice::render (float* outL, float* outR, int numSamples)
             ctrlCountdown = kCtrlPeriod;
             constexpr float kCtrlInv = 1.0f / static_cast<float> (kCtrlPeriod);
             const float fromA = freqA, fromB = freqB, fromC1 = cutoff1, fromC2 = cutoff2, fromF = fmIndex;
+            const float fromCA = colourA, fromCB = colourB;
             updateControlTargets (modMix, lfoPitch, lfoFilter, driftP, driftF);
             freqASlope = (freqATo - fromA) * kCtrlInv;
             freqBSlope = (freqBTo - fromB) * kCtrlInv;
             cutoff1Slope = (cutoff1To - fromC1) * kCtrlInv;
             cutoff2Slope = (cutoff2To - fromC2) * kCtrlInv;
             fmIndexSlope = (fmIndexTo - fromF) * kCtrlInv;
+            colourASlope = (colourATo - fromCA) * kCtrlInv;
+            colourBSlope = (colourBTo - fromCB) * kCtrlInv;
         }
 
         freqA += freqASlope;   oscA.setFrequency (freqA, sr);
         freqB += freqBSlope;   oscB.setFrequency (freqB, sr);
+        colourA += colourASlope;
+        colourB += colourBSlope;
         cutoff1 += cutoff1Slope;
         cutoff2 += cutoff2Slope;
         fmIndex += fmIndexSlope;
@@ -253,24 +273,24 @@ void Voice::render (float* outL, float* outR, int numSamples)
 
         if (p.fmDirection == 0)
         {
-            const float rawB = oscB.next (p.bForm, p.bColour);
+            const float rawB = oscB.next (p.bForm, colourB);
             b = rawB;
-            a = oscA.nextModulated (p.aForm, p.aColour, fmIndex * rawB);
+            a = oscA.nextModulated (p.aForm, colourA, fmIndex * rawB);
 
             if (syncOn && oscA.phaseValue() < oscA.increment())
                 oscB.setPhase (p.bShape * 0.5f);
         }
         else
         {
-            const float rawA = oscA.next (p.aForm, p.aColour);
+            const float rawA = oscA.next (p.aForm, colourA);
             a = rawA;
-            b = oscB.nextModulated (p.bForm, p.bColour, fmIndex * rawA);
+            b = oscB.nextModulated (p.bForm, colourB, fmIndex * rawA);
 
             if (syncOn && oscB.phaseValue() < oscB.increment())
                 oscA.setPhase (p.bShape * 0.5f);
         }
 
-        if (holdOn) b = oscB.heldValue (p.bForm, p.bColour);
+        if (holdOn) b = oscB.heldValue (p.bForm, colourB);
         if (ringOn) b = a * b * 2.0f;
 
         if (hasNoiseA) { noiseState = whiteNoise(); a = a * (1.0f - p.aNoise) + noiseState * p.aNoise; }

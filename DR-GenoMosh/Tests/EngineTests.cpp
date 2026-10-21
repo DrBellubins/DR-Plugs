@@ -1,7 +1,8 @@
 // Offline harness for the GenoMosh core (design doc section 13).
 //
-//   * phase 1/2 acceptance: curve round trips, determinism, distance 0 returns
-//     the seed, deviation grows with distance, guard rails hold;
+//   * phase 1/2 acceptance: curve round trips, ratio snapping direction (5.5),
+//     determinism, distance 0 returns the seed, deviation grows with distance,
+//     guard rails hold;
 //   * a numeric check of the trapezoidal SVF against a reference biquad;
 //   * an offline render of every branch at several distances with level,
 //     silence, NaN and DC checks, plus a bit identical reproducibility test.
@@ -13,6 +14,7 @@
 #include "Genetic/Curves.h"
 #include "Genetic/PlantEngine.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <string>
@@ -61,6 +63,61 @@ static void testCurves()
 }
 
 //==============================================================================
+// 5.5: atonality 0 must mean "fully snapped", 1 must mean "free". Getting that
+// blend the other way round makes every branch sing a random pitch while the
+// atonality macro is closed, which is the one thing the guard rail promises not
+// to do, so it is checked from both ends.
+static void testRatioSnapping()
+{
+    std::printf ("ratio snapping (5.5)\n");
+    bool ok = true;
+    int distinct = 0;
+    float previous = 0.0f;
+    float maxDeviation = 0.0f;
+
+    for (float s = -24.0f; s <= 24.001f; s += 0.25f)
+    {
+        const float snapped = snapToRatio (s, 0.0f);
+
+        // Fully snapped: the result is a table entry, so it is a fixed point of
+        // the snapper and never further from s than the nearest entry can be.
+        if (std::abs (snapToRatio (snapped, 0.0f) - snapped) > 1.0e-3f)
+            ok = false;
+        if (std::abs (snapped - s) > 2.5f)   // widest half gap in the table is 2.5
+            ok = false;
+        maxDeviation = std::max (maxDeviation, std::abs (snapped - s));
+        if (std::abs (snapToRatio (s, 1.0f) - s) > 1.0e-4f)   // atonality 1 = free
+            ok = false;
+
+        // The blend has to move monotonically from the table entry to the raw
+        // value as atonality opens.
+        float lastDeviation = -1.0f;
+        for (float a = 0.0f; a <= 1.0001f; a += 0.1f)
+        {
+            const float deviation = std::abs (snapToRatio (s, a) - snapped);
+            if (deviation < lastDeviation - 1.0e-4f)
+                ok = false;
+            lastDeviation = deviation;
+        }
+
+        if (std::abs (snapped - previous) > 1.0e-4f)
+        {
+            previous = snapped;
+            ++distinct;
+        }
+    }
+
+    // 193 samples over +-24 semitones must collapse onto the ratio table, not
+    // onto 193 different pitches.
+    if (distinct < 4 || distinct > 40)
+        ok = false;
+
+    check (ok, "atonality 0 snaps to the ratio table, 1 leaves the gene free");
+    std::printf ("       %d distinct offsets over 193 free values, worst pull %.2f st\n",
+                 distinct, maxDeviation);
+}
+
+//==============================================================================
 static void testGenome (const MutationParams& mp)
 {
     std::printf ("genome / mutation\n");
@@ -94,11 +151,14 @@ static void testGenome (const MutationParams& mp)
     {
         BranchTraits traits;
         const Genome g0 = resolveBranchGenome (a, br, 0.0f, traits);
+        // 5.1.3, against the plant's own seed: buildPlant applies the atonality
+        // ceiling to the seed, so "the seed" from the audio thread's point of
+        // view is the gated one. Distance 0 still returns it bit exactly.
         for (std::size_t g = 0; g < kNumGenes; ++g)
-            if (g0[g] != seed[g])
+            if (g0[g] != a.seed[g])
                 zeroIdentity = false;
     }
-    check (zeroIdentity, "distance 0 returns the seed exactly");
+    check (zeroIdentity, "distance 0 returns the plant's seed exactly");
 
     // Deviation must grow with distance (continuity + seed anchoring).
     bool monotonic = true;
@@ -323,6 +383,231 @@ static RenderResult renderBranch (const PlantSnapshot& plant, const MutationPara
     return result;
 }
 
+//==============================================================================
+// 5.3: "Pitch is played as normal. The branch changes timbre and modulation,
+// not the played pitch, except through the oscillator offset genes." A note has
+// to hold the pitch it was pressed at. The mod envelope used to sweep
+// oscillator pitch by up to two thirds of an octave while it attacked, in
+// whichever direction the sign of a_mod happened to point, which is what made
+// every note sound randomly out of tune. The genome below tunes both
+// oscillators to the pressed note with no vibrato, no drift and no detune, and
+// asks for a large mod amount: if modulation reaches pitch at all, this shows it.
+//==============================================================================
+// Atonality is a generation time ceiling on every pitch capable gene (a_freq,
+// b_freq, lfo_amt, drift_amt, det_spread): at 0 the plant cannot touch pitch at
+// all, at 1 the whole range is available, and in between nothing may sit further
+// from its neutral point than the ceiling allows. It is applied to the seed, to
+// the branch directions and to the resolved genome, so it has to be idempotent:
+// planting a branch feeds a gated genome back in as the next seed.
+static void testAtonalityCeiling()
+{
+    std::printf ("atonality ceiling (5.5)\n");
+
+    const std::size_t pitchGenes[] = { g_a_freq, g_b_freq, g_lfo_amt, g_drift_amt, g_det_spread };
+    const float levels[] = { 0.0f, 0.25f, 1.0f };
+
+    bool ok = true;
+    float widestAtOne = 0.0f;
+
+    for (int level = 0; level < 3; ++level)
+    {
+        const float at = levels[level];
+
+        MutationParams mp;
+        mp.atonality = at;
+
+        const uint64_t seedId = hash::fromString ("atonality-ceiling");
+        Genome seed {};
+        Rng rng (seedId);
+        randomizeGenome (seed, rng, at);
+
+        PlantSnapshot plant;
+        buildPlant (plant, seedId, seed, mp);
+
+        float widest = 0.0f;
+
+        for (int branch = 0; branch < kNumBranches; ++branch)
+        {
+            for (float d = 0.0f; d <= 1.0001f; d += 0.25f)
+            {
+                BranchTraits traits;
+                const Genome g = resolveBranchGenome (plant, branch, d, traits);
+
+                Genome twice = g;
+                applyAtonality (twice, at);
+                applyAtonality (twice, at);
+                for (std::size_t gene : pitchGenes)
+                {
+                    if (std::abs (twice[gene] - g[gene]) > 1.0e-5f)
+                        ok = false;
+                }
+
+                for (std::size_t gene : pitchGenes)
+                {
+                    const bool bipolar = (kGenes[gene].flags & kFlagRatio) != 0;
+                    const float neutral = bipolar ? 0.5f : 0.0f;
+                    const float span = bipolar ? 0.5f : 1.0f;
+                    widest = std::max (widest, std::abs (g[gene] - neutral) / span);
+                }
+            }
+        }
+
+        std::printf ("       atonality %.2f -> furthest pitch gene at %.3f of its range\n",
+                     at, widest);
+
+        if (level == 0 && widest > 1.0e-5f)
+            ok = false;
+        if (level > 0 && widest > at + 1.0e-4f)
+            ok = false;
+        if (level == 2)
+            widestAtOne = widest;
+    }
+
+    // Atonality 1 must actually leave something to modulate.
+    if (widestAtOne < 0.05f)
+        ok = false;
+
+    check (ok, "atonality bounds every pitch capable gene at generation time");
+}
+
+static int estimatePeriod (const std::vector<float>& mono, int start, int length,
+                           int minLag, int maxLag)
+{
+    int best = minLag;
+    double bestScore = -1.0e300;
+
+    for (int lag = minLag; lag <= maxLag; ++lag)
+    {
+        double s = 0.0;
+        for (int i = 0; i + lag < length; ++i)
+        {
+            s += static_cast<double> (mono[static_cast<std::size_t> (start + i)])
+               * static_cast<double> (mono[static_cast<std::size_t> (start + i + lag)]);
+        }
+        if (s > bestScore)
+        {
+            bestScore = s;
+            best = lag;
+        }
+    }
+
+    return best;
+}
+
+static void testPitchStability()
+{
+    std::printf ("pitch stability (5.3)\n");
+
+    MutationParams mp;
+    mp.atonality = 0.0f;   // nothing in the plant may touch the pitch
+
+    const uint64_t seedId = hash::fromString ("pitch-stability");
+    Genome seed {};
+    Rng rng (seedId);
+    randomizeGenome (seed, rng);
+
+    seed[g_a_freq]     = 0.5f;   // bipolar centre = 0 semitones, both oscillators
+    seed[g_b_freq]     = 0.5f;
+    seed[g_lfo_amt]    = 0.0f;
+    seed[g_drift_amt]  = 0.0f;
+    seed[g_det_spread] = 0.0f;
+    seed[g_fm_amt]     = 0.0f;
+    seed[g_sub_am]     = 0.0f;
+    seed[g_a_noise]    = 0.0f;
+    seed[g_b_noise]    = 0.0f;
+    seed[g_env_loop]   = 0.0f;
+    seed[g_a_mod]      = 0.9f;   // large mod amount, both oscillators
+    seed[g_b_mod]      = 0.9f;
+    seed[g_mod_atk]    = 0.4f;   // peaks tens of ms after the note, decays over ~0.35 s
+    seed[g_mod_dcy]    = 0.55f;
+    seed[g_vol_atk]    = 0.05f;
+
+    PlantSnapshot plant;
+    buildPlant (plant, seedId, seed, mp);
+
+    const float sampleRate = 48000.0f;
+    const int block = 128;
+    const int numSamples = static_cast<int> (sampleRate);
+    const int note = 60;
+    const double expectedPeriod = static_cast<double> (sampleRate) / 261.6256;
+
+    const int window = static_cast<int> (sampleRate * 0.05);
+    const int windowA = static_cast<int> (sampleRate * 0.06);
+    const int windowB = static_cast<int> (sampleRate * 0.55);
+
+    bool ok = true;
+    float worstCents = 0.0f;
+
+    for (int branch = 0; branch < kNumBranches; ++branch)
+    {
+        PlantHandoff handoff;
+        auto& target = handoff.beginWrite();
+        target = plant;
+        handoff.publish();
+
+        Synth synth;
+        synth.prepare (sampleRate, block);
+        synth.attachPlant (&handoff);
+
+        PlayState state;
+        state.macros.wheel = 1.0f;
+        state.macros.wheelScale = 1.0f;
+        state.macros.volume = 0.7f;
+        for (int b = 0; b < kNumBranches; ++b)
+            state.branchLength[static_cast<std::size_t> (b)] = (b == branch) ? 0.85f : 0.0f;
+        synth.setPlayState (state);
+
+        std::vector<float> left (static_cast<std::size_t> (numSamples), 0.0f);
+        std::vector<float> right (static_cast<std::size_t> (numSamples), 0.0f);
+
+        for (int offset = 0; offset < numSamples; offset += block)
+        {
+            const int n = std::min (block, numSamples - offset);
+            if (offset == 0)
+                synth.addNoteOn (note, 0.9f, 8);
+            if (offset == static_cast<int> (sampleRate) * 7 / 10)
+                synth.addNoteOff (note, 0);
+
+            float* channels[2] = { left.data() + static_cast<std::size_t> (offset),
+                                   right.data() + static_cast<std::size_t> (offset) };
+            synth.render (channels, 2, n);
+        }
+
+        std::vector<float> mono (static_cast<std::size_t> (numSamples), 0.0f);
+        for (int i = 0; i < numSamples; ++i)
+            mono[static_cast<std::size_t> (i)] = 0.5f * (left[static_cast<std::size_t> (i)]
+                                                        + right[static_cast<std::size_t> (i)]);
+
+        const int periodA = estimatePeriod (mono, windowA, window, 40, 700);
+        const int periodB = estimatePeriod (mono, windowB, window, 40, 700);
+
+        // The two windows of one note must agree, and the pitch found has to be
+        // the pressed note (or a harmonic of it, which the autocorrelation may
+        // lock onto for a bright timbre).
+        const double driftCents = 1200.0 * std::log10 (static_cast<double> (periodB)
+                                                       / static_cast<double> (periodA));
+        worstCents = std::max (worstCents, std::abs (static_cast<float> (driftCents)));
+
+        bool onNote = false;
+        for (int harmonic = 1; harmonic <= 4; ++harmonic)
+        {
+            if (std::abs (static_cast<double> (periodA) * harmonic - expectedPeriod)
+                < 0.02 * expectedPeriod)
+                onNote = true;
+        }
+
+        if (std::abs (driftCents) > 15.0f || ! onNote)
+        {
+            std::printf ("       branch %d: period %d -> %d (%.1f cents), expected %.0f\n",
+                         branch, periodA, periodB, driftCents, expectedPeriod);
+            ok = false;
+        }
+    }
+
+    check (ok, "a held note keeps the pitch it was pressed at");
+    std::printf ("       worst pitch movement while held: %.1f cents\n", worstCents);
+}
+
 static void testRender()
 {
     std::printf ("offline render\n");
@@ -455,6 +740,9 @@ int main()
     std::printf ("GenoMosh core tests (%d genes, %d branches)\n",
                  static_cast<int> (kNumGenes), kNumBranches);
     testCurves();
+    testRatioSnapping();
+    testAtonalityCeiling();
+    testPitchStability();
     testGenome (mp);
     testFilter();
     testRender();

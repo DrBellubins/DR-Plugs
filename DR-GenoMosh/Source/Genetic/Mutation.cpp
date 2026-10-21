@@ -35,7 +35,15 @@ BranchDirection buildBranchDirection (uint64_t seedId, int branch, int variant,
         const float dir = lerpf (indiv, groupDir[gi.group], coherence);
 
         // 3. Per gene sensitivity is where the taste lives (design doc 5.2).
-        out.dir[i] = dir * gi.sensitivity * mp.globalScale;
+        float amount = dir * gi.sensitivity * mp.globalScale;
+
+        // Atonality ceiling: a branch may not walk into pitch territory beyond
+        // what the plant is allowed to have. The resolved genome is gated again
+        // (applyAtonality), this only keeps the direction honest.
+        if ((gi.flags & kFlagPitch) != 0)
+            amount *= clamp01 (mp.atonality);
+
+        out.dir[i] = amount;
     }
 
     // UI fingerprint: hue from a couple of timbre genes plus the hash, so two
@@ -44,6 +52,45 @@ BranchDirection buildBranchDirection (uint64_t seedId, int branch, int variant,
     out.hue = hueSeed;
 
     return out;
+}
+
+//==============================================================================
+namespace
+{
+    /// Where a gene sits when it has no effect on pitch at all: the middle for
+    /// bipolar genes, zero for the unipolar amounts.
+    float pitchNeutral (const GeneInfo& gi)
+    {
+        return (gi.flags & kFlagRatio) != 0 ? 0.5f : 0.0f;
+    }
+}
+
+void applyAtonality (Genome& genome, float atonality)
+{
+    const float at = clamp01 (atonality);
+
+    for (std::size_t i = 0; i < kNumGenes; ++i)
+    {
+        const GeneInfo& gi = kGenes[i];
+
+        if ((gi.flags & kFlagPitch) == 0)
+            continue;
+
+        const float neutral = pitchNeutral (gi);
+        const float span = neutral > 0.0f ? 0.5f : 1.0f;
+
+        genome[i] = clampf (genome[i], neutral - span * at, neutral + span * at);
+
+        if ((gi.flags & kFlagRatio) != 0)
+        {
+            // 5.5: the oscillator offsets live on the ratio ladder, so a branch
+            // is harmonically related to the key that plays it whatever the
+            // atonality is; atonality decides how far up the ladder it may go.
+            // Snapping is a fixed point (a table entry snaps to itself), so the
+            // whole function stays idempotent.
+            genome[i] = unmapGene (gi, snapToRatio (mapGene (gi, genome[i]), 0.0f));
+        }
+    }
 }
 
 //==============================================================================
@@ -176,12 +223,25 @@ float loudnessCompensation (const Genome& g)
 }
 
 //==============================================================================
-void randomizeGenome (Genome& genome, Rng& rng)
+void randomizeGenome (Genome& genome, Rng& rng, float atonality)
 {
+    const float at = clamp01 (atonality);
+
     for (std::size_t i = 0; i < kNumGenes; ++i)
     {
         const GeneInfo& gi = kGenes[i];
-        genome[i] = rng.range (gi.softMin, gi.softMax);
+        float v = rng.range (gi.softMin, gi.softMax);
+
+        // Pitch capable genes are drawn inside the atonality band rather than
+        // clipped into it afterwards, so a low atonality seed still has a
+        // spread of tunings rather than a pile on the ceiling.
+        if ((gi.flags & kFlagPitch) != 0)
+        {
+            const float neutral = pitchNeutral (gi);
+            v = neutral + (v - neutral) * at;
+        }
+
+        genome[i] = v;
     }
 
     // Bias a fresh seed towards something that behaves like an instrument

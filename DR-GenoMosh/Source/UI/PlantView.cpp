@@ -1,5 +1,6 @@
 #include "PlantView.h"
 
+#include <algorithm>
 #include <cmath>
 #include <functional>
 
@@ -12,13 +13,11 @@ const char* const PlantView::noteNames[12] = {
 //==============================================================================
 void PlantView::update (const PlantSnapshot& newSnapshot,
                         const std::array<float, kNumBranches>& newLengths,
-                        float newRotation,
                         int activeBranch,
                         float wheelValue)
 {
     snapshot = newSnapshot;
     lengths = newLengths;
-    rotationValue = newRotation;
     active = activeBranch;
     wheel = wheelValue;
     repaint();
@@ -37,39 +36,76 @@ juce::Colour PlantView::branchColour (const BranchDirection& direction, float hu
 }
 
 //==============================================================================
-void PlantView::drawBranch (juce::Graphics& g, float cx, float cy, float angle,
-                            float length, int depth, Rng& rng, const juce::Colour& colour) const
+// The tree is grown in unit space, so its shape is independent of how far the
+// branch has grown. Measuring the farthest control point and scaling afterwards
+// is exactly equivalent to drawing the same tree at the growth radius, and it is
+// what guarantees the plant stays inside the ring for any length or wheel value.
+void PlantView::growTree (std::vector<Twig>& out, juce::Point<float> from, float angle,
+                          float length, int depth, Rng& rng, float& reach) const
 {
-    if (depth <= 0 || length < 2.0f)
+    if (depth <= 0 || length < 0.02f)
         return;
 
     const float bend = rng.gaussianClamped (0.22f);
-    const float endX = cx + std::cos (angle) * length;
-    const float endY = cy + std::sin (angle) * length;
-    const float midX = cx + std::cos (angle + bend * 0.5f) * length * 0.5f;
-    const float midY = cy + std::sin (angle + bend * 0.5f) * length * 0.5f;
+    const auto dir   = juce::Point<float> (std::cos (angle), std::sin (angle));
+    const auto curve = juce::Point<float> (std::cos (angle + bend * 0.5f),
+                                           std::sin (angle + bend * 0.5f));
 
-    juce::Path stem;
-    stem.startNewSubPath (cx, cy);
-    stem.quadraticTo (midX, midY, endX, endY);
+    const auto to      = from + dir * length;
+    const auto control = from + curve * length * 0.5f;
 
-    g.setColour (colour.withAlpha (0.35f + 0.55f * static_cast<float> (depth) / 4.0f));
-    g.strokePath (stem, juce::PathStrokeType (static_cast<float> (depth) * 0.7f));
+    out.push_back ({ from, control, to, static_cast<float> (depth) });
+
+    // A quadratic Bezier lives inside the convex hull of its three points, so
+    // bounding those bounds the stroke.
+    reach = std::max (reach, to.getDistanceFromOrigin());
+    reach = std::max (reach, control.getDistanceFromOrigin());
 
     const int children = depth > 2 ? 2 : (rng.chance (0.6f) ? 2 : 1);
     for (int i = 0; i < children; ++i)
     {
         const float side = i == 0 ? -1.0f : 1.0f;
         const float spread = 0.30f + rng.uniform() * 0.45f;
-        drawBranch (g, endX, endY, angle + side * spread + bend * 0.3f,
-                    length * (0.48f + rng.uniform() * 0.16f), depth - 1, rng, colour);
+        growTree (out, to, angle + side * spread + bend * 0.3f,
+                  length * (0.48f + rng.uniform() * 0.16f), depth - 1, rng, reach);
+    }
+}
+
+void PlantView::drawPlant (juce::Graphics& g, juce::Point<float> centre, float angle,
+                           float targetReach, const BranchDirection& direction,
+                           const juce::Colour& colour) const
+{
+    std::vector<Twig> twigs;
+    twigs.reserve (32);
+
+    float reach = 0.0f;
+    Rng rng (direction.hash);
+    growTree (twigs, { 0.0f, 0.0f }, angle, 1.0f, 4, rng, reach);
+
+    if (twigs.empty() || reach < 1.0e-4f)
+        return;
+
+    const float scale = targetReach / reach;
+
+    for (const auto& twig : twigs)
+    {
+        const auto from = centre + twig.from * scale;
+        const auto ctl  = centre + twig.control * scale;
+        const auto to   = centre + twig.to * scale;
+
+        juce::Path stem;
+        stem.startNewSubPath (from);
+        stem.quadraticTo (ctl, to);
+
+        g.setColour (colour.withAlpha (0.35f + 0.55f * twig.depth / 4.0f));
+        g.strokePath (stem, juce::PathStrokeType (twig.depth * 0.7f));
     }
 }
 
 //==============================================================================
 void PlantView::paint (juce::Graphics& g)
 {
-    auto bounds = getLocalBounds().toFloat();
+    const auto bounds = getLocalBounds().toFloat();
     const auto centre = bounds.getCentre();
     const float radius = ringRadius();
 
@@ -79,67 +115,57 @@ void PlantView::paint (juce::Graphics& g)
     g.drawEllipse (centre.x - radius, centre.y - radius, radius * 2.0f, radius * 2.0f, 2.0f);
 
     const float segmentWidth = juce::MathConstants<float>::twoPi / static_cast<float> (kNumBranches);
+    const double now = juce::Time::getMillisecondCounterHiRes();
 
-    for (int b = 0; b < kNumBranches; ++b)
+    for (int slot = 0; slot < kNumBranches; ++slot)
     {
         const float angle = juce::MathConstants<float>::halfPi
-                          + static_cast<float> (b) * segmentWidth;
+                          + static_cast<float> (slot) * segmentWidth;
 
-        const int pitchClass = pitchClassForSegment (b);
+        const int branch = slot;   // the ring is the keyboard: pitch class -> branch
+        const bool isActive = branch == active;
 
-        const float len = juce::jlimit (0.0f, 1.0f, lengths[static_cast<std::size_t> (b)]);
+        const float len = juce::jlimit (0.0f, 1.0f, lengths[static_cast<std::size_t> (branch)]);
         const float effective = len * juce::jlimit (0.0f, 1.0f, wheel);
 
-        const BranchDirection& direction = snapshot.direction (b, 0);
+        const BranchDirection& direction = snapshot.direction (branch, 0);
         const juce::Colour colour = branchColour (direction, 0.0f);
 
         //--------------------------------------------------------------------
-        // The plant itself.
-        Rng rng (direction.hash);
-
+        // The plant itself, scaled to the growth radius of this branch.
         // Gentle idle sway so the plant is never completely still.
-        const float sway = std::sin (static_cast<float> (juce::Time::getMillisecondCounterHiRes() * 0.0004)
-                                   + static_cast<float> (b)) * 0.02f;
+        const float sway = std::sin (static_cast<float> (now * 0.0004)
+                                   + static_cast<float> (slot)) * 0.02f;
 
-        const float stemLength = radius * (0.10f + 0.72f * effective);
-        drawBranch (g, centre.x, centre.y, angle + sway, stemLength, 4, rng, colour);
-
-        // Seed marker at the centre.
-        g.setColour (colour.withAlpha (0.9f));
-        g.fillEllipse (centre.x - 4.0f, centre.y - 4.0f, 8.0f, 8.0f);
+        const float target = radius * (kMinReach + (kMaxReach - kMinReach) * effective);
+        drawPlant (g, centre, angle + sway, target, direction, colour);
 
         //--------------------------------------------------------------------
-        // Growth handle on the ring.
-        const float handleRadius = radius * (0.30f + 0.68f * len);
+        // Growth handle on the ring, at the radius the branch reaches when the
+        // wheel is fully open.
+        const float handleRadius = radius * (0.30f + (kMaxReach - 0.30f) * len);
         const float hx = centre.x + std::cos (angle) * handleRadius;
         const float hy = centre.y + std::sin (angle) * handleRadius;
 
-        g.setColour (b == active ? juce::Colours::white : colour);
+        g.setColour (isActive ? juce::Colours::white : colour);
         g.fillEllipse (hx - 5.0f, hy - 5.0f, 10.0f, 10.0f);
 
         //--------------------------------------------------------------------
-        // Pitch class label on the ring.
+        // Pitch class label on the ring. This ring is the keyboard and stays
+        // put; Rotation moves the plant underneath it.
         const float lx = centre.x + std::cos (angle) * (radius + 18.0f);
         const float ly = centre.y + std::sin (angle) * (radius + 18.0f);
 
-        g.setColour (b == active ? juce::Colours::white : juce::Colours::lightgrey);
+        g.setColour (isActive ? juce::Colours::white : juce::Colours::lightgrey);
         g.setFont (13.0f);
-        g.drawText (noteNames[static_cast<std::size_t> (pitchClass)],
+        g.drawText (noteNames[static_cast<std::size_t> (slot)],
                     juce::Rectangle<float> (lx - 20.0f, ly - 10.0f, 40.0f, 20.0f),
                     juce::Justification::centred, false);
     }
-}
 
-//==============================================================================
-int PlantView::pitchClassForSegment (int segment) const
-{
-    const int r = static_cast<int> (std::floor (rotationValue));
-    return ((segment - r) % kNumBranches + kNumBranches) % kNumBranches;
-}
-
-int PlantView::noteForSegment (int segment) const
-{
-    return 60 + pitchClassForSegment (segment);
+    // Seed marker at the centre.
+    g.setColour (juce::Colours::lightgoldenrodyellow.withAlpha (0.9f));
+    g.fillEllipse (centre.x - 4.0f, centre.y - 4.0f, 8.0f, 8.0f);
 }
 
 //==============================================================================
@@ -183,7 +209,7 @@ void PlantView::releaseAllNotes()
 // moving and the note is released, move again and it re articulates.
 void PlantView::timerCallback()
 {
-    if (heldNote < 0 || ! dragging || pressedSegment < 0)
+    if (heldNote < 0 || ! dragging || pressedSlot < 0)
         return;
 
     if (juce::Time::getMillisecondCounterHiRes() - lastMoveMs < kIdleReleaseMs)
@@ -193,7 +219,7 @@ void PlantView::timerCallback()
 }
 
 //==============================================================================
-int PlantView::segmentAt (juce::Point<float> position) const
+int PlantView::slotAt (juce::Point<float> position) const
 {
     const auto centre = getLocalBounds().getCentre().toFloat();
     const float dx = position.x - centre.x;
@@ -204,25 +230,26 @@ int PlantView::segmentAt (juce::Point<float> position) const
 
     const float segmentWidth = juce::MathConstants<float>::twoPi / static_cast<float> (kNumBranches);
     const float angle = std::atan2 (dy, dx);
-    float relative = angle - juce::MathConstants<float>::halfPi;
+    const float relative = angle - juce::MathConstants<float>::halfPi;
 
-    int segment = static_cast<int> (std::round (relative / segmentWidth));
-    segment %= kNumBranches;
-    if (segment < 0)
-        segment += kNumBranches;
+    int slot = static_cast<int> (std::round (relative / segmentWidth));
+    slot %= kNumBranches;
+    if (slot < 0)
+        slot += kNumBranches;
 
-    return segment;
+    return slot;
 }
 
 //==============================================================================
 void PlantView::mouseDown (const juce::MouseEvent& event)
 {
-    pressedSegment = segmentAt (event.position);
+    pressedSlot = slotAt (event.position);
+    pressedBranch = pressedSlot;
     dragging = false;
     lastPointer = event.position;
     lastMoveMs = juce::Time::getMillisecondCounterHiRes();
 
-    if (pressedSegment < 0)
+    if (pressedBranch < 0)
         return;
 
     const auto centre = getLocalBounds().getCentre().toFloat();
@@ -233,17 +260,18 @@ void PlantView::mouseDown (const juce::MouseEvent& event)
     if (event.mods.isRightButtonDown())
     {
         if (onPlantBranch != nullptr)
-            onPlantBranch (pressedSegment);
-        pressedSegment = -1;
+            onPlantBranch (pressedBranch);
+        pressedSlot = -1;
+        pressedBranch = -1;
         return;
     }
 
-    startNote (noteForSegment (pressedSegment));
+    startNote (noteForSlot (pressedSlot));
 }
 
 void PlantView::mouseDrag (const juce::MouseEvent& event)
 {
-    if (pressedSegment < 0)
+    if (pressedBranch < 0)
         return;
 
     const auto centre = getLocalBounds().getCentre().toFloat();
@@ -264,12 +292,12 @@ void PlantView::mouseDrag (const juce::MouseEvent& event)
 
         // The note was let go while the pointer was still: bring it back.
         if (dragging)
-            startNote (noteForSegment (pressedSegment));
+            startNote (noteForSlot (pressedSlot));
     }
 
-    if (dragging && branchParams[static_cast<std::size_t> (pressedSegment)] != nullptr)
+    if (dragging && branchParams[static_cast<std::size_t> (pressedBranch)] != nullptr)
     {
-        branchParams[static_cast<std::size_t> (pressedSegment)]
+        branchParams[static_cast<std::size_t> (pressedBranch)]
             ->setValueNotifyingHost (juce::jlimit (0.0f, 1.0f, distance));
     }
 }
@@ -280,7 +308,8 @@ void PlantView::mouseUp (const juce::MouseEvent&)
     // skipped whenever a drag had happened.
     endNote();
 
-    pressedSegment = -1;
+    pressedSlot = -1;
+    pressedBranch = -1;
     dragging = false;
 }
 

@@ -31,13 +31,16 @@ void resolveVoiceParams (const Genome& g, const BranchTraits& traits,
     p.aForm   = g[g_a_form];
     p.aColour = g[g_a_color];
     p.aNoise  = mapGene (g_a_noise, g[g_a_noise]);
-    p.aRatio  = snapToRatio (mapGene (g_a_freq, g[g_a_freq]), macros.atonality);
+    // The oscillator offsets are already inside the atonality ceiling and on the
+    // ratio ladder: that gate is part of generating the plant, not of playing
+    // it (see Genetic/Mutation.h, applyAtonality).
+    p.aRatio  = mapGene (g_a_freq, g[g_a_freq]);
     p.aMod    = mapGene (g_a_mod, g[g_a_mod]);
 
     p.bForm   = g[g_b_form];
     p.bColour = g[g_b_color];
     p.bNoise  = mapGene (g_b_noise, g[g_b_noise]);
-    p.bRatio  = snapToRatio (mapGene (g_b_freq, g[g_b_freq]), macros.atonality);
+    p.bRatio  = mapGene (g_b_freq, g[g_b_freq]);
     p.bMod    = mapGene (g_b_mod, g[g_b_mod]);
     p.bShape  = g[g_b_sh];
 

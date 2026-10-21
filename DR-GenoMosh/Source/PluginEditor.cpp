@@ -47,7 +47,6 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     attach ("tuning", tuningKnob);
     attach ("atonality", atonalityKnob);
     attach ("effect", effectKnob);
-    attach ("rotation", rotationKnob);
 
     for (juce::Slider* s : { &volumeSlider, &velSensSlider, &wheelScaleSlider })
     {
@@ -56,8 +55,49 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
         addAndMakeVisible (s);
     }
 
-    for (juce::Slider* s : { &tuningKnob, &atonalityKnob, &effectKnob, &rotationKnob })
+    for (juce::Slider* s : { &tuningKnob, &atonalityKnob, &effectKnob })
         addAndMakeVisible (s);
+
+    //------------------------------------------------------------------------
+    // What the live controls are for. Everything on a dark plate is a
+    // performance macro; everything on the plain background is seed generation.
+    struct SliderCaption { juce::Label* label; juce::Slider* slider; const char* text; const char* tip; };
+    const SliderCaption captions[3] = {
+        { &wheelScaleLabel, &wheelScaleSlider, "wheel scale",
+          "How far the mod wheel (CC1) opens the plant. At 0 every branch plays the seed; at 1 the branch lengths are used in full." },
+        { &velSensLabel, &velSensSlider, "velocity",
+          "How much playing harder changes loudness and the modulation envelope." },
+        { &volumeLabel, &volumeSlider, "volume",
+          "Master output level." },
+    };
+    for (const auto& c : captions)
+    {
+        c.label->setText (c.text, juce::dontSendNotification);
+        c.label->setFont (juce::Font (juce::FontOptions (12.0f)));
+        c.label->setColour (juce::Label::textColourId, CaptionGray);
+        c.label->setTooltip (c.tip);
+        c.slider->setTooltip (c.tip);
+        addAndMakeVisible (c.label);
+    }
+
+    tuningKnob.setTooltip ("Master tune in cents.");
+    atonalityKnob.setTooltip ("How much the plant is allowed to affect tonality.\n"
+                              "0: oscillator offsets are unison and there is no vibrato, drift or detune.\n"
+                              "1: the full range of those genes is available.\n"
+                              "This is a generation control: it rebuilds the plant, it never retunes a note you are holding.");
+    effectKnob.setTooltip ("Scales the chorus / reverb wet path of whatever is playing.");
+
+    liveCaption.setText ("live macros", juce::dontSendNotification);
+    outputCaption.setText ("output / response", juce::dontSendNotification);
+    for (juce::Label* l : { &liveCaption, &outputCaption })
+    {
+        l->setFont (juce::Font (juce::FontOptions (11.0f, juce::Font::bold)));
+        l->setColour (juce::Label::textColourId, CaptionGray);
+        addAndMakeVisible (l);
+    }
+
+    // Tooltips belong to the editor in a plug-in, so they scale with the DAW.
+    tooltips = std::make_unique<juce::TooltipWindow> (this, 600);
 
     title.setText ("GENOMOSH", juce::dontSendNotification);
     title.setFont (juce::Font (juce::FontOptions (21.0f, juce::Font::bold)));
@@ -76,10 +116,15 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     keyHint.setText (gmosh::ComputerKeyboard::helpText(), juce::dontSendNotification);
     keyHint.setFont (juce::Font (juce::FontOptions (12.0f)));
-    keyHint.setColour (juce::Label::textColourId, AccentGray);
+    keyHint.setColour (juce::Label::textColourId, CaptionGray);
     addAndMakeVisible (keyHint);
 
-    newSeedButton.onClick = [this] { processorRef.newSeed(); };
+    newSeedButton.onClick = [this]
+    {
+        processorRef.newSeed();      // also folds the branch lengths back to default
+        selectedBranch = -1;
+        geneGrid.refresh();
+    };
     plantBranchButton.onClick = [this]
     {
         if (selectedBranch < 0)
@@ -96,7 +141,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     std::array<juce::AudioParameterFloat*, gmosh::kNumBranches> branchParams {};
     for (int b = 0; b < gmosh::kNumBranches; ++b)
         branchParams[static_cast<std::size_t> (b)] = param (processorRef, AudioPluginAudioProcessor::branchParamId (b));
-    plantView.setParameters (branchParams, param (processorRef, "rotation"));
+    plantView.setParameters (branchParams);
 
     plantView.onPlayNote = [this] (int note, float velocity)
     {
@@ -153,6 +198,13 @@ void AudioPluginAudioProcessorEditor::showPage (bool genes)
     pageButton.setButtonText (genes ? "plant" : "genes");
     pageLabel.setText (genes ? "gene table" : "seed / branches", juce::dontSendNotification);
 
+    // The macro plate belongs to the plant page; the gene page uses the whole
+    // body area.
+    for (juce::Slider* s : { &tuningKnob, &atonalityKnob, &effectKnob })
+        s->setVisible (! genes);
+    wheelLabel.setVisible (! genes);
+    liveCaption.setVisible (! genes);
+
     if (genes)
         geneGrid.refresh();
 
@@ -206,73 +258,147 @@ void AudioPluginAudioProcessorEditor::timerCallback()
             lengths[static_cast<std::size_t> (b)] = p->get();
     }
 
-    auto* rotationParam = param (processorRef, "rotation");
-
     plantView.update (processorRef.lastPlantSnapshot(),
                       lengths,
-                      rotationParam != nullptr ? rotationParam->get() : 0.0f,
                       processorRef.lastPlayedBranch(),
                       processorRef.currentWheel());
 
-    wheelLabel.setText ("wheel " + juce::String (processorRef.currentWheel(), 2),
+    // The wheel readout also shows what the wheel scale slider is doing, which
+    // is otherwise invisible: it is a multiplier on how far the plant opens.
+    const double wheelNow = processorRef.currentWheel();
+    const double wheelOpen = wheelScaleSlider.getValue();
+
+    wheelLabel.setText ("wheel " + juce::String (wheelNow, 2)
+                          + "  x " + juce::String (wheelOpen, 2)
+                          + "  = " + juce::String (wheelNow * wheelOpen, 2) + " open",
                         juce::dontSendNotification);
+}
+
+//==============================================================================
+// One geometry, used by both paint() and resized(): the dark plates drawn behind
+// the live controls have to land exactly where the widgets go.
+AudioPluginAudioProcessorEditor::Layout AudioPluginAudioProcessorEditor::layout() const
+{
+    auto area = getLocalBounds();
+
+    Layout l;
+    l.header = area.removeFromTop (kHeaderHeight).reduced (12, 8);
+    const auto footerBand = area.removeFromBottom (kFooterHeight);
+
+    l.body = area.reduced (10, 6);
+
+    const int side = juce::jmin (l.body.getWidth() - kSideColumnWidth, l.body.getHeight());
+    l.plant = { l.body.getX(), l.body.getY(), side, side };
+    l.controlsPanel = l.body.withTrimmedLeft (side + 12);
+
+    // Top row: generation facing, on the plain background. Bottom row: the live
+    // macros, which get the darker plate. The left half of the top row is left
+    // empty on purpose.
+    auto controls = l.controlsPanel.reduced (12, 10);
+    auto rows = controls.withTrimmedTop (44);          // wheel readout lives above
+
+    const int rowHeight = rows.getHeight() / 2;
+    l.knobRowTop    = { rows.getX(), rows.getY(), rows.getWidth(), rowHeight };
+    l.knobRowBottom = { rows.getX(), rows.getBottom() - rowHeight, rows.getWidth(), rowHeight };
+    l.macroPlate    = l.knobRowBottom.expanded (8);
+
+    l.footerPanel = footerBand.reduced (8, 6);
+    l.footer = footerBand.reduced (20, 12);
+
+    return l;
 }
 
 //==============================================================================
 void AudioPluginAudioProcessorEditor::paint (juce::Graphics& graphics)
 {
+    const auto l = layout();
+
     graphics.fillAll (BGGray);
 
     graphics.setColour (AccentGray);
-    graphics.drawLine (0.0f, 44.0f, static_cast<float> (getWidth()), 44.0f, 2.0f);
-    graphics.drawLine (0.0f, static_cast<float> (getHeight()) - 92.0f,
-                       static_cast<float> (getWidth()), static_cast<float> (getHeight()) - 92.0f, 2.0f);
+    graphics.drawLine (0.0f, static_cast<float> (kHeaderHeight),
+                       static_cast<float> (getWidth()), static_cast<float> (kHeaderHeight), 2.0f);
+
+    // Seed generation lives on the plain background; only the controls that can
+    // be moved while the synth is sounding sit on a darker plate.
+    auto drawPlate = [&graphics] (juce::Rectangle<int> area)
+    {
+        const auto r = area.toFloat().reduced (1.0f);
+        graphics.setColour (PanelGray);
+        graphics.fillRoundedRectangle (r, 10.0f);
+        graphics.setColour (PanelEdge);
+        graphics.drawRoundedRectangle (r, 10.0f, 1.0f);
+    };
+
+    drawPlate (l.footerPanel);
+
+    if (! showingGenes)
+        drawPlate (l.macroPlate);
 }
 
 void AudioPluginAudioProcessorEditor::resized()
 {
-    auto area = getLocalBounds();
+    const auto l = layout();
 
-    auto header = area.removeFromTop (44).reduced (12, 8);
+    auto header = l.header;
     title.setBounds (header.removeFromLeft (220));
     pageButton.setBounds (header.removeFromRight (90).reduced (0, 2));
     plantBranchButton.setBounds (header.removeFromRight (110).reduced (0, 2));
     newSeedButton.setBounds (header.removeFromRight (100).reduced (0, 2));
     pageLabel.setBounds (header);
 
-    auto footer = area.removeFromBottom (92).reduced (16, 10);
-    const int sliderWidth = footer.getWidth() / 3 - 12;
+    //------------------------------------------------------------------------
+    // Output plate: caption, then three labelled sliders, then the key hint.
+    outputCaption.setBounds (l.footer.getX(), l.footer.getY(), 300, 14);
+
+    const int rowTop = l.footer.getY() + 20;
+    const int labelHeight = 14, sliderHeight = 26;
+    const int sliderWidth = l.footer.getWidth() / 3 - 12;
+
+    juce::Slider* sliders[3] = { &wheelScaleSlider, &velSensSlider, &volumeSlider };
+    juce::Label*  labels[3]  = { &wheelScaleLabel,  &velSensLabel,  &volumeLabel };
 
     for (int i = 0; i < 3; ++i)
     {
-        juce::Slider* sliders[3] = { &wheelScaleSlider, &velSensSlider, &volumeSlider };
-        sliders[i]->setBounds (footer.getX() + i * (sliderWidth + 18), footer.getY() + 18,
-                               sliderWidth, 26);
+        const int x = l.footer.getX() + i * (sliderWidth + 18);
+        labels[i]->setBounds (x, rowTop, 140, labelHeight);
+        sliders[i]->setBounds (x, rowTop + labelHeight + 2, sliderWidth, sliderHeight);
     }
 
-    keyHint.setBounds (footer.getX(), footer.getBottom() - 18, footer.getWidth(), 16);
+    keyHint.setBounds (l.footer.getX(), l.footer.getBottom() - 18, l.footer.getWidth(), 16);
 
-    auto body = area.reduced (12, 8);
+    //------------------------------------------------------------------------
+    // Generation facing row: no plate, it is not something you move while a
+    // note is sounding.
+    wheelLabel.setBounds (l.controlsPanel.getX() + 12, l.controlsPanel.getY() + 12,
+                          l.controlsPanel.getWidth() - 24, 18);
 
+    const int topKnobWidth = l.knobRowTop.getWidth() / 2;
+    const auto topRow = l.knobRowTop.reduced (0, 12);   // keep its text box clear of the plate
+    atonalityKnob.setBounds (topRow.getX() + topKnobWidth, topRow.getY(),
+                             topKnobWidth, topRow.getHeight());
+
+    //------------------------------------------------------------------------
+    // Live macro plate: tuning and effect, the two things that are safe to ride
+    // while playing.
+    liveCaption.setBounds (l.macroPlate.getX() + 12, l.macroPlate.getY() + 6, 200, 14);
+
+    const auto bottomRow = l.knobRowBottom.reduced (6, 20);   // room for the caption
+    const int knobWidth = bottomRow.getWidth() / 2;
+    const int knobHeight = bottomRow.getHeight();
+
+    effectKnob.setBounds (bottomRow.getX(), bottomRow.getY(), knobWidth, knobHeight);
+    tuningKnob.setBounds (bottomRow.getX() + knobWidth, bottomRow.getY(), knobWidth, knobHeight);
+
+    //------------------------------------------------------------------------
+    // Seed / plant area.
     if (showingGenes)
     {
-        geneGrid.setBounds (body);
-        plantView.setBounds (0, 0, 0, 0);
+        geneGrid.setBounds (l.body);
+        plantView.setBounds ({});
         return;
     }
 
-    const int side = juce::jmin (body.getWidth() - 260, body.getHeight());
-    plantView.setBounds (body.getX(), body.getY(), side, side);
-
-    auto controls = body.withTrimmedLeft (side + 16);
-    wheelLabel.setBounds (controls.removeFromTop (20));
-
-    const int knobWidth = controls.getWidth() / 2;
-    const int knobHeight = controls.getHeight() / 2;
-
-    tuningKnob.setBounds (controls.getX(), controls.getY(), knobWidth, knobHeight);
-    atonalityKnob.setBounds (controls.getX() + knobWidth, controls.getY(), knobWidth, knobHeight);
-    effectKnob.setBounds (controls.getX(), controls.getY() + knobHeight, knobWidth, knobHeight);
-    rotationKnob.setBounds (controls.getX() + knobWidth, controls.getY() + knobHeight,
-                           knobWidth, knobHeight);
+    geneGrid.setBounds ({});
+    plantView.setBounds (l.plant);
 }

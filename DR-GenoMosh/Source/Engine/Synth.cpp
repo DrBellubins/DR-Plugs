@@ -113,7 +113,7 @@ void Synth::startVoice (int voiceIndex, int midiNote, float velocity)
 
     const PlantSnapshot& snapshot = plant->current();
 
-    const int branch = branchForNote (midiNote, play.macros.rotation);
+    const int branch = branchForNote (midiNote);
     const float distance = effectiveDistance (play.branchLength[static_cast<std::size_t> (branch)],
                                              play.macros.wheel, play.macros.wheelScale);
 

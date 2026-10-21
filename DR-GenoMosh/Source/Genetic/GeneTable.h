@@ -25,6 +25,10 @@ namespace gmosh
 // seeds are drawn from inside it and branch displacement is compressed outside
 // it (see Curves.h / softCompress), which is what keeps random results usable.
 //
+// kFlagPitch marks the genes that can move the played pitch (oscillator
+// offsets, vibrato, drift, per voice detune). Atonality is a ceiling on those
+// genes at generation time, see Mutation.h / applyAtonality.
+//
 // Everything here is an [inferred] guess from the reference product's parameter
 // names, exactly as flagged in the design document. Tune by ear.
 #define GENO_MOSH_GENE_LIST(X) \
@@ -44,19 +48,19 @@ namespace gmosh
     X(env_tilt,  "Env Tilt",     Curve::Bipolar,-1.0f,     1.0f,  GrpLoop,  0.40f, 0.20f, 0.80f, 0) \
     /* --- LFO --------------------------------------------------------------- */ \
     X(lfo_rate,  "LFO Rate",     Curve::Exp,     0.020f,  30.0f,  GrpLfo,   0.60f, 0.05f, 0.60f, 0) \
-    X(lfo_amt,   "LFO Amount",   Curve::Squared, 0.0f,     1.0f,  GrpLfo,   0.50f, 0.10f, 0.80f, 0) \
+    X(lfo_amt,   "LFO Amount",   Curve::Squared, 0.0f,     1.0f,  GrpLfo,   0.50f, 0.10f, 0.80f, kFlagPitch) \
     X(lfo_bal,   "LFO Balance",  Curve::Bipolar,-1.0f,     1.0f,  GrpLfo,   0.50f, 0.20f, 0.80f, 0) \
     /* --- oscillator A ------------------------------------------------------ */ \
     X(a_form,    "A Waveform",   Curve::Linear,  0.0f,     1.0f,  GrpOscA,  0.50f, 0.05f, 0.95f, 0) \
     X(a_color,   "A Colour",     Curve::Linear,  0.0f,     1.0f,  GrpOscA,  0.50f, 0.10f, 0.90f, 0) \
     X(a_noise,   "A Noise",      Curve::Squared, 0.0f,     1.0f,  GrpOscA,  0.40f, 0.00f, 0.50f, 0) \
-    X(a_freq,    "A Frequency",  Curve::Bipolar,-24.0f,   24.0f,  GrpOscA,  0.40f, 0.20f, 0.80f, kFlagRatio) \
+    X(a_freq,    "A Frequency",  Curve::Bipolar,-24.0f,   24.0f,  GrpOscA,  0.40f, 0.20f, 0.80f, kFlagRatio | kFlagPitch) \
     X(a_mod,     "A Mod Amount", Curve::Bipolar,-1.0f,     1.0f,  GrpOscA,  0.50f, 0.15f, 0.85f, 0) \
     /* --- oscillator B ------------------------------------------------------ */ \
     X(b_form,    "B Waveform",   Curve::Linear,  0.0f,     1.0f,  GrpOscB,  0.50f, 0.05f, 0.95f, 0) \
     X(b_color,   "B Colour",     Curve::Linear,  0.0f,     1.0f,  GrpOscB,  0.50f, 0.10f, 0.90f, 0) \
     X(b_noise,   "B Noise",      Curve::Squared, 0.0f,     1.0f,  GrpOscB,  0.40f, 0.00f, 0.50f, 0) \
-    X(b_freq,    "B Frequency",  Curve::Bipolar,-24.0f,   24.0f,  GrpOscB,  0.40f, 0.20f, 0.80f, kFlagRatio) \
+    X(b_freq,    "B Frequency",  Curve::Bipolar,-24.0f,   24.0f,  GrpOscB,  0.40f, 0.20f, 0.80f, kFlagRatio | kFlagPitch) \
     X(b_mod,     "B Mod Amount", Curve::Bipolar,-1.0f,     1.0f,  GrpOscB,  0.50f, 0.15f, 0.85f, 0) \
     X(b_sh,      "B Shape",      Curve::Linear,  0.0f,     1.0f,  GrpOscB,  0.40f, 0.00f, 0.70f, 0) \
     /* --- mix and cross modulation ------------------------------------------- */ \
@@ -64,7 +68,7 @@ namespace gmosh
     X(fm_amt,    "FM Amount",    Curve::Squared, 0.0f,     1.0f,  GrpMix,   0.50f, 0.00f, 0.60f, 0) \
     X(fm_mod,    "FM Mod",       Curve::Bipolar,-1.0f,     1.0f,  GrpMix,   0.50f, 0.15f, 0.85f, 0) \
     X(sub_am,    "Sub / AM",     Curve::Linear,  0.0f,     1.0f,  GrpMix,   0.30f, 0.00f, 0.60f, 0) \
-    X(det_spread,"Detune",       Curve::Linear,  0.0f,     1.0f,  GrpMix,   0.40f, 0.00f, 0.50f, 0) \
+    X(det_spread,"Detune",       Curve::Linear,  0.0f,     1.0f,  GrpMix,   0.40f, 0.00f, 0.50f, kFlagPitch) \
     /* --- filter ------------------------------------------------------------- */ \
     X(flt_freq,  "Cutoff",       Curve::Exp,    40.0f, 18000.0f,  GrpFilter,0.60f, 0.15f, 0.85f, 0) \
     X(flt_q,     "Resonance",    Curve::Squared,0.0f,     1.0f,  GrpFilter,0.40f, 0.00f, 0.60f, 0) \
@@ -79,7 +83,7 @@ namespace gmosh
     X(fx_mix,    "FX Mix",       Curve::Linear,  0.0f,     1.0f,  GrpFx,    0.30f, 0.00f, 0.70f, 0) \
     X(fx_width,  "FX Width",     Curve::Linear,  0.0f,     1.0f,  GrpFx,    0.20f, 0.20f, 0.90f, 0) \
     /* --- per voice "life" ----------------------------------------------------- */ \
-    X(drift_amt, "Drift",        Curve::Linear,  0.0f,     1.0f,  GrpMeta,  0.40f, 0.10f, 0.70f, 0) \
+    X(drift_amt, "Drift",        Curve::Linear,  0.0f,     1.0f,  GrpMeta,  0.40f, 0.10f, 0.70f, kFlagPitch) \
     X(sat_drive, "Drive",        Curve::Squared, 0.0f,     1.0f,  GrpMeta,  0.40f, 0.00f, 0.50f, 0)
 
 //==============================================================================
@@ -103,6 +107,7 @@ enum GeneFlags : unsigned int
     kFlagNone   = 0,
     kFlagNever  = 1u << 0, ///< never mutated (macros live outside the genome)
     kFlagRatio  = 1u << 1, ///< pitch offset, goes through the ratio snapper (5.5)
+    kFlagPitch  = 1u << 2, ///< can move the played pitch: bounded by Atonality
 };
 
 struct GeneInfo

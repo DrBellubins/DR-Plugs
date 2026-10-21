@@ -11,14 +11,19 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     // A fixed initial seed keeps a fresh instance reproducible while still
     // being a real random genome rather than a hand written preset.
     seedIdentifier = gmosh::hash::fromString ("genomosh-initial-seed");
+    syncGenerationParams();
+
     gmosh::Rng rng (seedIdentifier);
-    gmosh::randomizeGenome (seed, rng);
+    gmosh::randomizeGenome (seed, rng, mutation.atonality);
+
+    parameters.addParameterListener ("atonality", this);
 
     rebuildPlant();
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
 {
+    parameters.removeParameterListener ("atonality", this);
 }
 
 //==============================================================================
@@ -38,16 +43,18 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
     addFloat ("volume",     "Volume",        0.0f, 1.0f,   0.75f);
     addFloat ("velSens",    "Vel Sens",      0.0f, 1.0f,   0.60f);
     addFloat ("tuning",     "Tuning",      -100.0f, 100.0f, 0.0f);
-    addFloat ("atonality",  "Atonality",     0.0f, 1.0f,   0.65f);
+    // 5.5, generation facing: a ceiling on how far the pitch capable genes may
+    // go. 0 pins every one of them to no effect, 1 leaves the full range free.
+    addFloat ("atonality",  "Atonality",     0.0f, 1.0f,   0.50f);
     addFloat ("effect",     "Effect",        0.0f, 1.0f,   0.60f);
     addFloat ("wheel",      "Mod Wheel",     0.0f, 1.0f,   1.00f);
     addFloat ("wheelScale", "Wheel Scale",   0.0f, 1.0f,   0.85f);
-    addFloat ("rotation",   "Rotation",      0.0f, 11.0f,  0.0f, 1.0f);
 
     // The twelve branch lengths are part of the patch and are persisted, and
     // are automatable so a host can grow a branch over time.
     for (int b = 0; b < gmosh::kNumBranches; ++b)
-        addFloat (branchParamId (b), "Branch " + juce::String (b + 1), 0.0f, 1.0f, 0.45f);
+        addFloat (branchParamId (b), "Branch " + juce::String (b + 1),
+                  0.0f, 1.0f, kDefaultBranchLength);
 
     return { list.begin(), list.end() };
 }
@@ -99,6 +106,24 @@ bool AudioPluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layou
 }
 
 //==============================================================================
+// Generation facing parameters: they are read once, when the plant is built,
+// and never while a note sounds.
+void AudioPluginAudioProcessor::syncGenerationParams()
+{
+    if (auto* v = parameters.getRawParameterValue ("atonality"))
+        mutation.atonality = gmosh::clamp01 (v->load());
+}
+
+void AudioPluginAudioProcessor::parameterChanged (const juce::String& parameterID, float newValue)
+{
+    if (parameterID != "atonality")
+        return;
+
+    mutation.atonality = gmosh::clamp01 (newValue);
+    rebuildPlant();
+}
+
+//==============================================================================
 void AudioPluginAudioProcessor::rebuildPlant()
 {
     auto& target = handoff.beginWrite();
@@ -130,9 +155,20 @@ void AudioPluginAudioProcessor::newSeed()
     ++seedIdentifier;
     seedIdentifier = gmosh::hash::mix (seedIdentifier);
 
+    syncGenerationParams();
     gmosh::Rng rng (seedIdentifier);
-    gmosh::randomizeGenome (seed, rng);
+    gmosh::randomizeGenome (seed, rng, mutation.atonality);
+    resetBranchLengths();
     rebuildPlant();
+}
+
+void AudioPluginAudioProcessor::resetBranchLengths()
+{
+    for (int b = 0; b < gmosh::kNumBranches; ++b)
+    {
+        if (auto* p = parameters.getParameter (branchParamId (b)))
+            p->setValueNotifyingHost (gmosh::clamp01 (kDefaultBranchLength));
+    }
 }
 
 void AudioPluginAudioProcessor::plantBranch (int branch, float distance)
@@ -143,6 +179,10 @@ void AudioPluginAudioProcessor::plantBranch (int branch, float distance)
     gmosh::BranchTraits traits;
     const auto grown = gmosh::resolveBranchGenome (lastPlant, branch,
                                                    gmosh::clamp01 (distance), traits);
+
+    // Planting folds the planted branch into the seed, so the growth of the old
+    // plant goes with it (5.6.1: "branch lengths reset or decay").
+    resetBranchLengths();
     setSeedGenome (grown);
 }
 
@@ -173,10 +213,8 @@ void AudioPluginAudioProcessor::fillPlayState (gmosh::PlayState& state)
     state.macros.volume     = raw ("volume") * 1.15f;
     state.macros.velSens    = raw ("velSens");
     state.macros.tuningCents= raw ("tuning");
-    state.macros.atonality  = raw ("atonality");
     state.macros.effect     = raw ("effect");
     state.macros.wheelScale = raw ("wheelScale");
-    state.macros.rotation   = raw ("rotation");
 
     const float hostWheel = raw ("wheel");
     const float midi = midiWheel.load();
@@ -285,6 +323,9 @@ void AudioPluginAudioProcessor::setStateInformation (const void* data, int sizeI
         }
     }
 
+    // The atonality ceiling lives in the parameters, so it has to be re read
+    // before the plant is rebuilt from a recalled seed.
+    syncGenerationParams();
     rebuildPlant();
 }
 
