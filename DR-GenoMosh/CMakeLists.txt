@@ -47,6 +47,13 @@ target_link_libraries("${PROJECT_NAME}"
         juce::juce_recommended_warning_flags
 )
 
+# Offline engine test harness (no JUCE, see Tests/EngineTests.cpp)
+option(GENOMOSH_BUILD_TESTS "Build the offline GenoMosh engine tests" ON)
+if (GENOMOSH_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(Tests)
+endif()
+
 get_target_property(ProjectSources "${PROJECT_NAME}" SOURCES)
 source_group(TREE "${PROJECT_SOURCE_DIR}/Source" FILES ${ProjectSources})
 
