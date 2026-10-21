@@ -137,50 +137,56 @@ void Synth::startVoice (int voiceIndex, int midiNote, float velocity)
 //==============================================================================
 void Synth::applyPending (const PendingNote& event)
 {
+    // One slot per note, reused: a re trigger of a note that is already held
+    // re articulates its own voice instead of adding a second tracking entry
+    // (which used to grow heldNotes without bound while a branch was dragged).
+    int slot = -1;
+    for (std::size_t i = 0; i < heldNotes.size(); ++i)
+    {
+        if (heldNotes[i].note == event.note)
+        {
+            slot = static_cast<int> (i);
+            break;
+        }
+    }
+
     if (event.on)
     {
-        int voiceIndex = -1;
-        for (auto& h : heldNotes)
-        {
-            if (h.note == event.note)
-            {
-                voiceIndex = h.voice;
-                break;
-            }
-        }
+        int voiceIndex = slot >= 0 ? heldNotes[static_cast<std::size_t> (slot)].voice : -1;
 
-        if (voiceIndex < 0)
+        if (voiceIndex < 0 || ! voices[static_cast<std::size_t> (voiceIndex)].isActive())
             voiceIndex = allocateVoice();
 
         startVoice (voiceIndex, event.note, event.velocity);
 
-        bool tracked = false;
-        for (auto& h : heldNotes)
+        if (slot >= 0)
         {
-            if (h.note < 0)
-            {
-                h.note = event.note;
-                h.voice = voiceIndex;
-                tracked = true;
-                break;
-            }
+            heldNotes[static_cast<std::size_t> (slot)].voice = voiceIndex;
         }
-        if (! tracked)
-            heldNotes.push_back ({ event.note, voiceIndex });
+        else
+        {
+            bool tracked = false;
+            for (auto& h : heldNotes)
+            {
+                if (h.note < 0)
+                {
+                    h.note = event.note;
+                    h.voice = voiceIndex;
+                    tracked = true;
+                    break;
+                }
+            }
+            if (! tracked)
+                heldNotes.push_back ({ event.note, voiceIndex });
+        }
     }
-    else
+    else if (slot >= 0)
     {
-        for (auto& h : heldNotes)
-        {
-            if (h.note == event.note)
-            {
-                if (h.voice >= 0)
-                    voices[static_cast<std::size_t> (h.voice)].release();
-                h.note = -1;
-                h.voice = -1;
-                break;
-            }
-        }
+        auto& h = heldNotes[static_cast<std::size_t> (slot)];
+        if (h.voice >= 0)
+            voices[static_cast<std::size_t> (h.voice)].release();
+        h.note = -1;
+        h.voice = -1;
     }
 }
 

@@ -4,6 +4,7 @@
 
 #include "Engine/Synth.h"
 #include "PluginProcessor.h"
+#include "UI/ComputerKeyboard.h"
 #include "UI/GeneGrid.h"
 #include "UI/PlantView.h"
 #include "Utils/FlatRotaryLookAndFeel.h"
@@ -24,6 +25,13 @@ private:
     void timerCallback() override;
     void showPage (bool showGenes);
 
+    // Computer keyboard playing (ported from the Chronoverb keyboard map).
+    // These are the Component key hooks: JUCE walks them from the focused
+    // component up to the editor, so they work with a slider focused too.
+    bool keyPressed (const juce::KeyPress&) override;
+    bool keyStateChanged (bool isKeyDown) override;
+    void updateKeyHint();
+
     AudioPluginAudioProcessor& processorRef;
 
     FlatRotaryLookAndFeel lookAndFeel;
@@ -40,8 +48,11 @@ private:
 
     gmosh::PlantView plantView;
     gmosh::GeneGrid geneGrid;
+    gmosh::ComputerKeyboard computerKeys;
 
-    juce::Label title, pageLabel, wheelLabel;
+    juce::Label title, pageLabel, wheelLabel, keyHint;
+    int shownOctave = 0;
+
     juce::TextButton newSeedButton { "new seed" };
     juce::TextButton plantBranchButton { "plant branch" };
     juce::TextButton pageButton { "genes" };

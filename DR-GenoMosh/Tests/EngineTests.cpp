@@ -381,6 +381,73 @@ static void testRender()
 }
 
 //==============================================================================
+// What dragging a branch does to the voice pool: the UI re articulates the same
+// note over and over while the pointer moves, then releases it once.
+static void testNoteBookkeeping()
+{
+    std::printf ("note bookkeeping\n");
+
+    const MutationParams mp;
+    const uint64_t seedId = hash::fromString ("bookkeeping-seed");
+    Genome seed{};
+    Rng rng (seedId);
+    randomizeGenome (seed, rng);
+
+    PlantSnapshot plant;
+    buildPlant (plant, seedId, seed, mp);
+
+    const int block = 128;
+    const int note = 64;
+
+    Synth synth;
+    synth.prepare (48000.0, block);
+
+    PlantHandoff handoff;
+    handoff.beginWrite() = plant;
+    handoff.publish();
+    synth.attachPlant (&handoff);
+
+    PlayState state;
+    state.macros.wheel = 1.0f;
+    state.macros.wheelScale = 1.0f;
+    state.macros.volume = 0.7f;
+    for (int b = 0; b < kNumBranches; ++b)
+        state.branchLength[static_cast<std::size_t> (b)] = 0.8f;
+    synth.setPlayState (state);
+
+    std::vector<float> bufL (static_cast<std::size_t> (block), 0.0f);
+    std::vector<float> bufR (static_cast<std::size_t> (block), 0.0f);
+    float* channels[2] = { bufL.data(), bufR.data() };
+
+    int worstHeld = 0, worstVoices = 0;
+
+    for (int i = 0; i < 200; ++i)
+    {
+        if (i % 4 == 0)
+            synth.addNoteOn (note, 0.8f, 0);   // the pointer is still moving
+
+        synth.render (channels, 2, block);
+
+        worstHeld   = std::max (worstHeld, synth.numHeldNotes());
+        worstVoices = std::max (worstVoices, synth.numActiveVoices());
+    }
+
+    check (worstHeld == 1, "repeating note on for one note keeps exactly one held note");
+    check (worstVoices <= 1, "re articulating a held note does not spend extra voices");
+
+    synth.addNoteOff (note, 0);
+    for (int i = 0; i < 4; ++i)
+        synth.render (channels, 2, block);
+
+    check (synth.numHeldNotes() == 0, "one note off releases the note completely");
+
+    // And a note off with no note on before it must not disturb anything.
+    synth.addNoteOff (note, 0);
+    synth.render (channels, 2, block);
+    check (synth.numHeldNotes() == 0, "a stray note off is harmless");
+}
+
+//==============================================================================
 int main()
 {
     const MutationParams mp;
@@ -391,6 +458,7 @@ int main()
     testGenome (mp);
     testFilter();
     testRender();
+    testNoteBookkeeping();
 
     std::printf ("\n%s (%d failures)\n", failures == 0 ? "ALL TESTS PASSED" : "FAILURES", failures);
     return failures == 0 ? 0 : 1;

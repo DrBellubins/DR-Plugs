@@ -101,3 +101,79 @@ Level compensation (5.6) is working: 12 far branches land inside ~1 dB.
 3. Should branch lengths be MIDI learnable, and should planting a branch reset
    the branch lengths (currently it does not)?
 4. Polyphony budget: 16 voices is the current constant.
+
+---
+
+## 6. Addendum 2026-10-21 — playing the plant, and stuck notes
+
+Two reported problems: dragging a branch left a note sounding forever, and the
+held note slid down in pitch. Plus a request for the Chronoverb computer
+keyboard playing.
+
+### Stuck note (real bug)
+
+`PlantView::mouseUp` only sent the note off when the press had **not** turned
+into a drag, so every drag left a voice gated on with the amp envelope sitting
+at `vol_sus`. Fixed by making the view own exactly one note (`heldNote`) and
+always ending it on mouse up.
+
+Note gating now follows the reference instrument:
+
+| interaction | sound |
+| --- | --- |
+| click and hold a segment | sounds while the button is held |
+| drag a branch | sounds **only while the branch is being changed**: the note is released 250 ms after the pointer stops moving, and re articulates when movement resumes |
+| mouse up, view hidden, editor closed | note off, always |
+
+The idle gate is a 30 Hz `juce::Timer` inside `PlantView` that only runs while
+a note is held (`kIdleReleaseMs`, `kMoveThresholdPx` in `PlantView.h`).
+
+### Second bug found on the way (`Synth::applyPending`)
+
+A note on for a note that was already held pushed a **second** tracking entry
+into `heldNotes`, so one note off left a stale entry behind and repeated re
+triggering grew the vector on the audio thread. One slot per note now, reused;
+a re trigger re articulates its own voice instead of allocating another.
+
+New regression test (`ctest`):
+
+```
+note bookkeeping
+  [PASS] repeating note on for one note keeps exactly one held note
+  [PASS] re articulating a held note does not spend extra voices
+  [PASS] one note off releases the note completely
+  [PASS] a stray note off is harmless
+```
+
+`Synth::numHeldNotes()` was added as the debug/harness hook for this.
+
+### The pitch slide is not a bug
+
+With a gate stuck open you hear the whole mod envelope travel: `a_mod` /
+`b_mod` are bipolar ±1 octave and `Voice::updateControlTargets` scales them by
+`modMix * 0.75` octaves, while `modMix` walks from +1 to −1 as the mod
+envelope decays (`mod_dcy` reaches 12 s). So a long held note glides down by
+up to ~0.75 octave, with `drift_amt` adding a slow ±12 cent wander on top.
+That is the intended modulation, just never meant to be heard in full. If it is
+too much, the one constant to turn down is the `0.75f` in
+`Voice::updateControlTargets`, or lower `a_mod`/`b_mod` on the genes page.
+
+### Computer keyboard playing
+
+`Source/UI/ComputerKeyboard.{h,cpp}` is the Chronoverb
+`ComputerKeyboardSquareSynth` key map, without its oscillator: two piano like
+rows (`z s x c v b n m` = C3..B3, `q 2 w e 5 r t 6 y u` = C4..B4), octave
+transpose on `,` and `.`. It only produces note on/off through a callback, so
+the editor wires it to `playNote`/`stopNote` exactly like the plant view.
+
+The editor hooks `Component::keyPressed` / `Component::keyStateChanged` rather
+than a `KeyListener`: JUCE walks those from the focused component up to the
+editor, so the keys work with a slider focused too, and it avoids the
+`-Woverloaded-virtual` hiding warnings the KeyListener route produces.
+Releases come from polling `KeyPress::isKeyCurrentlyDown` for the keys we are
+holding only (the original polled the whole map). Notes are let go when focus
+leaves the editor and in the editor destructor. The key map is printed in the
+footer with the current octave.
+
+Because notes go through the normal note path, playing on the computer keyboard
+lights up the branch it maps to on the ring.

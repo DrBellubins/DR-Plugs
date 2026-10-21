@@ -17,6 +17,18 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 {
     setLookAndFeel (&lookAndFeel);
 
+    // The editor itself takes key focus so the computer keyboard plays the
+    // synth even when nothing else is focused (standalone testing, no DAW).
+    setWantsKeyboardFocus (true);
+
+    computerKeys.onNote = [this] (int note, float velocity)
+    {
+        if (velocity > 0.0f)
+            processorRef.playNote (note, velocity);
+        else
+            processorRef.stopNote (note);
+    };
+
     auto attach = [this] (const juce::String& id, juce::Slider& slider)
     {
         if (auto* p = param (processorRef, id))
@@ -61,6 +73,11 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     addAndMakeVisible (newSeedButton);
     addAndMakeVisible (plantBranchButton);
     addAndMakeVisible (pageButton);
+
+    keyHint.setText (gmosh::ComputerKeyboard::helpText(), juce::dontSendNotification);
+    keyHint.setFont (juce::Font (juce::FontOptions (12.0f)));
+    keyHint.setColour (juce::Label::textColourId, AccentGray);
+    addAndMakeVisible (keyHint);
 
     newSeedButton.onClick = [this] { processorRef.newSeed(); };
     plantBranchButton.onClick = [this]
@@ -120,6 +137,10 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
 {
+    // Nothing may be left sounding when the window goes away.
+    computerKeys.releaseAll();
+    plantView.releaseAllNotes();
+
     setLookAndFeel (nullptr);
 }
 
@@ -139,8 +160,43 @@ void AudioPluginAudioProcessorEditor::showPage (bool genes)
 }
 
 //==============================================================================
+// Computer keyboard.
+bool AudioPluginAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
+{
+    return computerKeys.handleKeyPress (key);
+}
+
+bool AudioPluginAudioProcessorEditor::keyStateChanged (bool isKeyDown)
+{
+    if (! isKeyDown)
+        computerKeys.handleKeyStateChanged();
+
+    return false;   // never swallow the key, sliders and buttons still need it
+}
+
+void AudioPluginAudioProcessorEditor::updateKeyHint()
+{
+    if (computerKeys.octave() == shownOctave)
+        return;
+
+    shownOctave = computerKeys.octave();
+
+    keyHint.setText (gmosh::ComputerKeyboard::helpText()
+                       + (shownOctave == 0 ? juce::String()
+                                           : "   octave " + juce::String (shownOctave)),
+                     juce::dontSendNotification);
+}
+
+//==============================================================================
 void AudioPluginAudioProcessorEditor::timerCallback()
 {
+    // Focus went somewhere else (or the window is hidden): let go of anything
+    // the computer keyboard is still holding.
+    if (! hasKeyboardFocus (true))
+        computerKeys.releaseAll();
+
+    updateKeyHint();
+
     std::array<float, gmosh::kNumBranches> lengths {};
 
     for (int b = 0; b < gmosh::kNumBranches; ++b)
@@ -193,6 +249,8 @@ void AudioPluginAudioProcessorEditor::resized()
         sliders[i]->setBounds (footer.getX() + i * (sliderWidth + 18), footer.getY() + 18,
                                sliderWidth, 26);
     }
+
+    keyHint.setBounds (footer.getX(), footer.getBottom() - 18, footer.getWidth(), 16);
 
     auto body = area.reduced (12, 8);
 

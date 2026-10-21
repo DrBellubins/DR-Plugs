@@ -85,7 +85,7 @@ void PlantView::paint (juce::Graphics& g)
         const float angle = juce::MathConstants<float>::halfPi
                           + static_cast<float> (b) * segmentWidth;
 
-        const int pitchClass = ((b - static_cast<int> (std::floor (rotationValue))) % kNumBranches + kNumBranches) % kNumBranches;
+        const int pitchClass = pitchClassForSegment (b);
 
         const float len = juce::jlimit (0.0f, 1.0f, lengths[static_cast<std::size_t> (b)]);
         const float effective = len * juce::jlimit (0.0f, 1.0f, wheel);
@@ -131,6 +131,68 @@ void PlantView::paint (juce::Graphics& g)
 }
 
 //==============================================================================
+int PlantView::pitchClassForSegment (int segment) const
+{
+    const int r = static_cast<int> (std::floor (rotationValue));
+    return ((segment - r) % kNumBranches + kNumBranches) % kNumBranches;
+}
+
+int PlantView::noteForSegment (int segment) const
+{
+    return 60 + pitchClassForSegment (segment);
+}
+
+//==============================================================================
+// Note gating. One note at a time is ever held by this view, which is what
+// keeps a stuck note from surviving a drag.
+//==============================================================================
+void PlantView::startNote (int midiNote)
+{
+    if (heldNote == midiNote)
+        return;
+
+    endNote();
+    heldNote = midiNote;
+
+    if (onPlayNote != nullptr)
+        onPlayNote (midiNote, 0.85f);
+
+    startTimer (30);   // watches for the pointer going still
+}
+
+void PlantView::endNote()
+{
+    stopTimer();
+
+    if (heldNote < 0)
+        return;
+
+    if (onPlayNote != nullptr)
+        onPlayNote (heldNote, 0.0f);   // velocity 0 means note off
+
+    heldNote = -1;
+}
+
+void PlantView::releaseAllNotes()
+{
+    endNote();
+}
+
+//==============================================================================
+// While a branch is being dragged the note follows the movement only: stop
+// moving and the note is released, move again and it re articulates.
+void PlantView::timerCallback()
+{
+    if (heldNote < 0 || ! dragging || pressedSegment < 0)
+        return;
+
+    if (juce::Time::getMillisecondCounterHiRes() - lastMoveMs < kIdleReleaseMs)
+        return;
+
+    endNote();
+}
+
+//==============================================================================
 int PlantView::segmentAt (juce::Point<float> position) const
 {
     const auto centre = getLocalBounds().getCentre().toFloat();
@@ -157,6 +219,8 @@ void PlantView::mouseDown (const juce::MouseEvent& event)
 {
     pressedSegment = segmentAt (event.position);
     dragging = false;
+    lastPointer = event.position;
+    lastMoveMs = juce::Time::getMillisecondCounterHiRes();
 
     if (pressedSegment < 0)
         return;
@@ -166,17 +230,15 @@ void PlantView::mouseDown (const juce::MouseEvent& event)
     const float pdy = event.position.y - centre.y;
     pressedDistance = std::sqrt (pdx * pdx + pdy * pdy) / ringRadius();
 
-    if (event.mods.isRightButtonDown() && onPlantBranch != nullptr)
+    if (event.mods.isRightButtonDown())
     {
-        onPlantBranch (pressedSegment);
+        if (onPlantBranch != nullptr)
+            onPlantBranch (pressedSegment);
         pressedSegment = -1;
         return;
     }
 
-    const int pitchClass = ((pressedSegment - static_cast<int> (std::floor (rotationValue))) % kNumBranches + kNumBranches) % kNumBranches;
-
-    if (onPlayNote != nullptr)
-        onPlayNote (60 + pitchClass, 0.85f);
+    startNote (noteForSegment (pressedSegment));
 }
 
 void PlantView::mouseDrag (const juce::MouseEvent& event)
@@ -189,8 +251,21 @@ void PlantView::mouseDrag (const juce::MouseEvent& event)
     const float dy = event.position.y - centre.y;
     const float distance = std::sqrt (dx * dx + dy * dy) / ringRadius();
 
-    if (std::abs (distance - pressedDistance) > 0.03f)
+    if (std::abs (distance - pressedDistance) > kDragThreshold)
         dragging = true;
+
+    const float mx = event.position.x - lastPointer.x;
+    const float my = event.position.y - lastPointer.y;
+
+    if (std::sqrt (mx * mx + my * my) > kMoveThresholdPx)
+    {
+        lastPointer = event.position;
+        lastMoveMs = juce::Time::getMillisecondCounterHiRes();
+
+        // The note was let go while the pointer was still: bring it back.
+        if (dragging)
+            startNote (noteForSegment (pressedSegment));
+    }
 
     if (dragging && branchParams[static_cast<std::size_t> (pressedSegment)] != nullptr)
     {
@@ -201,11 +276,9 @@ void PlantView::mouseDrag (const juce::MouseEvent& event)
 
 void PlantView::mouseUp (const juce::MouseEvent&)
 {
-    if (pressedSegment >= 0 && ! dragging && onPlayNote != nullptr)
-    {
-        const int pitchClass = ((pressedSegment - static_cast<int> (std::floor (rotationValue))) % kNumBranches + kNumBranches) % kNumBranches;
-        onPlayNote (60 + pitchClass, 0.0f);
-    }
+    // Always release, dragged or not: this is the note off that used to be
+    // skipped whenever a drag had happened.
+    endNote();
 
     pressedSegment = -1;
     dragging = false;

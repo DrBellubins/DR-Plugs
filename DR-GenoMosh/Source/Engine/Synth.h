@@ -47,6 +47,16 @@ public:
     /// Most recently started branch index, for the UI plant view.
     int lastBranch() const { return lastPlayedBranch.load(); }
 
+    /// Voice bookkeeping, for the offline harness and the debug UI.
+    int numHeldNotes() const
+    {
+        int n = 0;
+        for (const auto& h : heldNotes)
+            if (h.note >= 0)
+                ++n;
+        return n;
+    }
+
 private:
     struct PendingNote
     {

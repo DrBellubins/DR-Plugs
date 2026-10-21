@@ -15,11 +15,17 @@ namespace gmosh
 //   * dragging outwards from a segment grows that branch;
 //   * clicking a segment plays the note it maps to.
 //
+// Note gating follows the reference instrument: a clicked segment sounds while
+// the button is held, and a *dragged* segment sounds only while the branch is
+// actually being changed, so the note is released as soon as the pointer stops
+// moving (see timerCallback).
+//
 // The drawing is a deterministic fingerprint of the genome, not an attempt at
 // botany: same seed, same plant.
 //==============================================================================
 {
 class PlantView : public juce::Component
+              , private juce::Timer
 {
 public:
     struct BranchControl
@@ -46,10 +52,21 @@ public:
     void mouseDrag (const juce::MouseEvent&) override;
     void mouseUp (const juce::MouseEvent&) override;
 
+    /// Ends a note this view started, e.g. when the editor closes.
+    void releaseAllNotes();
+
+    /// onPlayNote is called with a velocity for note on, and with 0 for note off.
     std::function<void (int note, float velocity)> onPlayNote;
     std::function<void (int)> onPlantBranch;
 
 private:
+    void timerCallback() override;
+
+    int pitchClassForSegment (int segment) const;
+    int noteForSegment (int segment) const;
+    void startNote (int midiNote);
+    void endNote();
+
     int segmentAt (juce::Point<float> position) const;
     float ringRadius() const { return juce::jmin (getWidth(), getHeight()) * 0.42f; }
     void drawBranch (juce::Graphics&, float cx, float cy, float angle,
@@ -65,8 +82,18 @@ private:
     float wheel = 1.0f;
     int active = -1;
     int pressedSegment = -1;
+    int heldNote = -1;
     bool dragging = false;
     float pressedDistance = 0.0f;
+    juce::Point<float> lastPointer;
+    double lastMoveMs = 0.0;
+
+    /// A dragged branch stops sounding this long after the pointer stops moving.
+    static constexpr double kIdleReleaseMs = 250.0;
+    /// Pointer movement that counts as "still changing the branch", in pixels.
+    static constexpr float kMoveThresholdPx = 2.0f;
+    /// Ring distance that turns a click into a drag.
+    static constexpr float kDragThreshold = 0.03f;
 
     static const char* const noteNames[12];
 };
