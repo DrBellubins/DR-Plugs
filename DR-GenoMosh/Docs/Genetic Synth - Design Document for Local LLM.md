@@ -217,7 +217,7 @@ One shared clock drives both envelopes. **The envelope duration is a gene**, so 
 | `adj_treb` | High shelf **±24 dB at 6 kHz** | `Bipolar`, growth-exempt | 0.0 | `kFlagNever` |
 | `adj_pan` | **Branch panning amount** — how far branches are spread across the field; reduced by lowering `Effect` | `Bipolar` spread, growth-exempt | 0.0 | `kFlagNever` |
 | `adj_clip` | **Master soft clipper after the master volume** | Linear drive, growth-exempt | 0.0 | `kFlagNever` |
-**Migration from the current 43-gene table.** The code (`Source/Genetic/GeneTable.h`) is still Rev 1's set. Rename `fx_*→rvb_*`, `balance→osc_mix`, `sat_drive→saturate`; delete `b_color`, `det_spread`, `drift_amt`, `vol_rel` (per-voice life stays non-gene, per-voice release becomes a fixed behaviour per D-5); add `env_kf`, `vol_fade`, `lfo_dly`, `mix_mod`, `flt_type`, `rvb_atk`, `adj_bass`, `adj_treb`, `adj_pan`, `adj_clip`. `Docs/Rev2-Alignment-Plan.md` is still valid as a work plan but must be re-based on this revision: its Stage list assumed Rev 2's gene *semantics*, which are now partly overturned. Bump `kNumGenes`, and treat the old preset format as unreadable (a `mutationVersion`/model bump, §11).
+**Migration from the current 43-gene table.** The code (`Source/Genetic/GeneTable.h`) is still Rev 1's set. Rename `fx_*→rvb_*`, `balance→osc_mix`, `sat_drive→saturate`; delete `b_color`, `det_spread`, `drift_amt`, `vol_rel` (per-voice life stays non-gene, per-voice release becomes a fixed behaviour per D-5); add `env_kf`, `vol_fade`, `lfo_dly`, `mix_mod`, `flt_type`, `rvb_atk`, `adj_bass`, `adj_treb`, `adj_pan`, `adj_clip`. `Docs/Rev3-Alignment-Plan.md` is the plan of record for executing that migration (its milestone M0); `Docs/Rev2-Alignment-Plan.md` is superseded, since its stage list assumed Rev 2's gene *semantics*. Bump `kNumGenes`, and treat the old preset format as unreadable (a `mutationVersion`/model bump, §11).
 
 ### 4.3 Gene metadata table (implement as data)
 
@@ -236,6 +236,7 @@ struct GeneInfo {
     float       softMin, softMax;     // preferred musical region for random seeds and growth
     uint32_t    flags;       // kFlagNever (growth-exempt), kFlagPitch, kFlagStructural, kFlagLinked
     uint32_t    colour;      // group colour for the UI, one per gene group
+};
 ```
 
 `neutral`, `gateLow/gateHigh`, `steps` and `kFlagNever` are new in Rev 3 because the reference's interface shows them in use everywhere (§5.7). The `helpText` field exists because the reference documents every gene in its own interface (§12).
@@ -260,7 +261,6 @@ struct GeneInfo {
 Each branch has a fixed random **direction vector** derived from a hash of `(seedId, branchIndex)` — which is how the reference identifies a branch, so this is not a guess.
 
 ```cpp
-Genome growBranch(const Genome& seed, uint64_t seedId, int branch,
 Genome growBranch(const Genome& seed, uint64_t seedId, int branch,
                   float length /*0..1*/, const GrowthParams& gp)
 {
@@ -403,7 +403,6 @@ Growing a branch = the user drags it. Choosing a branch = **planting** it. The r
 - The `Release` **macro** is a different thing: a global release time plus a reverb **gate** (§8). Do not conflate them.
 
 ```cpp
-// Per voice, per control block. Envelope names are genes; the behaviour here follows
 // Per voice, per control block. Envelope names are genes; the behaviour here follows the
 // reference unless marked [ours].
 float T = envTime * (envKf > 0.5f ? keyShorten(note) : 1.0f);   // env_kf above 0.5 shortens
@@ -594,7 +593,7 @@ That is a **seeded note generator at a chosen note density, rendered offline at 
 | 6 | Plugin shell: macros, 48 gene parameters, MIDI config, mono/glide, tempo sync, state save/load, note→branch mapping, wheel + `Wheel Target`, rotation | Loads in a DAW; presets recall exactly; automation and MIDI-learn work |
 | 7 | Tuning pass with the harness and listening sessions (§13) | A random seed plus any branch is usable most of the time; report the usable-branch ratio |
 | 8 | Plant UI and polish | Interaction feels immediate; UI thread never blocks audio |
-After each phase report: what was built, what was assumed (list the **[ours]**/**[?]** markers touched), measured results, and open questions — the format already used in `Docs/Implementation-Status.md`. `Docs/Rev2-Alignment-Plan.md` needs re-basing onto this revision before it is executed further.
+After each phase report: what was built, what was assumed (list the **[ours]**/**[?]** markers touched), measured results, and open questions — the format already used in `Docs/Implementation-Status.md`. `Docs/Rev3-Alignment-Plan.md` is the sequenced and gated form of these phases (milestones M0–M11) against the current code; keep it updated as they complete.
 
 ---
 
