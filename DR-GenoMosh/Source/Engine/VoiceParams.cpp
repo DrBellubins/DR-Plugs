@@ -16,7 +16,7 @@ void resolveVoiceParams (const Genome& g, const BranchTraits& traits,
     p.modAttack  = mapGene (g_mod_atk,  g[g_mod_atk]);
     p.modDecay   = mapGene (g_mod_dcy,  g[g_mod_dcy]);
     // mod_sh is the shape of the mod envelope curve: <1 front weighted
-    // (percussive), >1 back weighted (swelling). [inferred]
+    // (percussive), >1 back weighted (swelling).
     p.modShape   = lerpf (0.3f, 3.0f, g[g_mod_sh]);
     p.modVelocity= g[g_mod_vel];
 
