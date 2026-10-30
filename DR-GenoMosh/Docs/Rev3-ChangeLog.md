@@ -132,11 +132,9 @@ default 0.6875), `fm_mod`, `mix_mod`, `flt_q`, `rvb_len`, `rvb_damp`, `rvb_chor`
   `env_time` becomes the note duration, `*_sh` become S&H rates, `a_freq` becomes 7 octaves,
   `flt_freq` becomes a tracking ratio, `a_color` becomes a noise spectrum, `sub_am` becomes true AM,
   `osc_mix` gets the 0.79 warp, `flt_type` becomes 4 topologies, `adj_pan` becomes a branch spread.
-- **`Docs/Rev3-Alignment-Plan.md`** is now the plan of record: it audits the current code against
-  this revision and sequences the migration as milestones M0–M11 with gates (M0 = "gene table
-  re-semantified"). `Docs/Rev2-Alignment-Plan.md` is superseded — its decision register (§2) and
-  its "details that will bite" (§5) are still referenced from the new plan, with the items Rev 3
-  closes, reopens or overturns marked as such.
+- `Docs/Rev2-Alignment-Plan.md` is still a valid *sequencing* of work but assumed Rev 2's gene
+  semantics; re-base it on Rev 3 before executing its later stages. Add Stage 0 = "gene table
+  re-semantified" with its own gate.
 - `Docs/Implementation-Status.md` describes the built state and stays as-is; its next entry should
   report the usable-branch ratio under the new table.
 - Presets written by the Rev 1 table are unreadable under Rev 3: bump `modelVersion`, reject or migrate.

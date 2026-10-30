@@ -1,11 +1,5 @@
 # GenoMosh — Rev 2 Alignment Plan
 
-**Status: superseded (2026-10-29).** The design document moved to **Revision 3**, which closed
-or overturned most of Rev 2's `[inferred]` gene semantics, so this file's stage list is no
-longer the plan of record — use **`Docs/Rev3-Alignment-Plan.md`**. What is still useful here is
-§2 (the decision register) and §5 ("details that will bite"); Rev 3's plan re-lists those with
-the same `Dn` numbers and says which ones Rev 3 closes, reopens or contradicts.
-
 *Plan of record for bringing the implementation in line with `Docs/Genetic Synth - Design
 Document for Local LLM.md` **Revision 2** (commit `aff2dae`, "Design document corrections").
 Rev 2 revised §4.2 (the exact 48-gene list), §6 (the shared looping envelope engine, LFO

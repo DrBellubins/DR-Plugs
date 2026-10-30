@@ -3,13 +3,10 @@
 *Report format requested by the design document, section 14: what was built,
 what was assumed, measured results, open questions.*
 
-*Plan of record for the work that follows: **`Docs/Rev3-Alignment-Plan.md`** — an audit of this
-code against design document **Revision 3** (48 genes with their documented meanings, the shared
-envelope clock, LFO to pitch/volume, two S&H sources, `flt_type`, `saturate`/`adj_*`, the §5.7
-curation mechanisms, and the §13 measurement protocol), with milestones M0–M11 and gates.
-It supersedes `Docs/Rev2-Alignment-Plan.md`. Everything below section 9 describes the code as it
-is now, which is Rev 1's gene set (43 genes: 10 of the 48 missing, 5 to delete, 7 renames, and
-24 that exist but mean something else).*
+*Planned changes against design document Revision 2 (48 genes, the shared looping
+envelope engine, LFO to pitch/volume, `adj_*` output stage): see
+**`Docs/Rev2-Alignment-Plan.md`**. Everything below section 9 describes the code as it is
+now, which is Rev 1's gene set (43 genes).*
 
 Date: 2026-10-20. Branch: first working pass, covering phases 1–6 in rudimentary
 form (genome, mutation, voice, modulation, FX, plugin shell) plus a debug UI.
