@@ -3,6 +3,10 @@
 *Report format requested by the design document, section 14: what was built,
 what was assumed, measured results, open questions.*
 
+*New to the code? Start with `Codebase-Map.md` — it walks the tree by aspect
+(what each file, class and function does) and lists the invariants the engine
+guarantees.*
+
 Date: 2026-10-20. Branch: first working pass, covering phases 1–6 in rudimentary
 form (genome, mutation, voice, modulation, FX, plugin shell) plus a debug UI.
 
