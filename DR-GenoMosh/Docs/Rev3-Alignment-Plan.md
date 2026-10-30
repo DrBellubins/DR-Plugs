@@ -473,6 +473,52 @@ audible" (render-with-neutral vs render-with-default per gene, assert RMS delta 
 `kFlagNever` genes provably identical across branch lengths 0…1; deterministic across runs.
 **Unlocks:** M2 can measure meaning instead of accidents, and M3's articulation metrics are sane.
 
+**Status: landed 2026-10-30.** Round-trip is green for all 50 slots including both stepped
+genes; the neutral check, the six gates (at both ends), the soft rails, the mix warp, the
+seed distribution, `pullToNeutral`, and the growth-exempt identity are all tests now — 28 →
+**44 checks**, all green, VST3 and Standalone build with no new warnings. Full record and
+measurements: `Implementation-Status.md` §11.
+
+How the middle clause of the gate was read, since it is the ambiguous one: per-gene RMS deltas
+against a *random* genome would fail for genes that are legitimately loud (`flt_freq`,
+`a_freq`), and design §14 phase 0 states the same requirement as "neutral value produces the
+same sound as the gene at rest". So it is asserted in two exact forms: (1) with all 50 genes
+at `neutral`, every destination of `VoiceParams` reads its identity value (0 offset, no
+modulation, no separation, no key follow, no drive, no dB, no spread, sustain 0, S&H off,
+equal-power mix, quietest Q, wide-open tracking cutoff, default topology step) — stronger than
+a 0.5 dB audio tolerance and it names the destination that gets it wrong; and (2) in audio, on
+the one gate whose destination already exists: a gene inside its dead zone renders **bit
+identically** to the same gene at neutral (`rms`/`peak` compared with `==`), while opening
+that gate is +1.36 dB, and the neutral plant must itself be audible or the comparison is
+between silences. If that reading is wrong, the fix belongs in `testNeutralGateIsAudible`.
+
+Three things the bullet list did not anticipate, all now documented in code:
+
+* **The lower gate rail belongs to the dead zone, the upper one to the gene.** Every gated
+gene has `gateLow == neutral`, so with the boundary "open" the neutral genome would run an
+8 Hz sample-and-hold (`mod_sh`) on a plant that §5.7.1 says is at rest. `gateOpen()` is
+therefore `v > gateLow && v <= gateHigh`.
+* **`gated()` rescales the live part of a range across all of [0,1]** rather than only
+clamping, because that is what §6.1.1's `vol_sus = max(0, 2(v−0.5))` is. Consequence for
+later milestones: no destination may apply a gate a second time, and gates are never written
+into genomes. `applyCouplings`/`safetyScore` still reason about `vol_sus` and friends in raw
+gene space (plan §6.3) — M3 must not assume they see gated values.
+* **`pullToNeutral` forced the `kFlagNever` skip into `applyDistance` too.** A zero direction
+was enough while displacement was only `dir · d`; the neutral term is non-zero on its own.
+`testGrowthExempt` and `testPullToNeutral` now pin both halves.
+
+One thing M1 surfaced that needs an operator nod (it is not a code problem): design §4.2 gives
+`b_freq`'s factory value as **0.6875** — +9 st on our curve — while its *neutral* is unison.
+Two different facts; the table stores only the neutral. Suggested: keep `neutral = 0.5`, add a
+`default` when M9 builds the parameter list. Nothing in M1 depends on the distinction.
+
+The plant came out **2.0 dB quieter with a 0.35 dB branch spread** (was 0.57), and DC dropped
+another 5× — from the gated sustain, `flt_q` finally going through its `Squared` curve,
+`mod_sh` no longer driving the mod-envelope curve (its old use as a shape exponent is pinned
+to the identity until M4 builds its real destination), and seeds drawn nearer the middle of
+every range. Usable branches are still 720/720. Those are the numbers M2 records as the
+baseline and M7 tunes against.
+
 ### M2 — The §13 harness, before the sound changes
 
 *Why here: `Implementation-Status` §4 admits the gene ranges have never been measured. Rev 2's

@@ -31,15 +31,17 @@ namespace gmosh
 //
 // 'sens' is the starting mutation sensitivity (0 = never moves, 1 = free).
 // 'softLo'/'softHi' are the preferred region of [0,1] for that gene: random
-// seeds are drawn from inside it and branch displacement is compressed outside
-// it (see Curves.h / softCompress), which is what keeps random results usable.
+// seeds are drawn around neutral and clamped to it, and branch displacement is
+// compressed outside it (see Curves.h / softCompress), which is what keeps
+// random results usable.
 //
 // 'neutral' is the value at which the gene does nothing audible (5.7.1);
 // 'gateLow'/'gateHigh' are its activation dead zone (5.7.3) and 0,1 means "no
-// gate". Both are *data* in this revision: the milestone that owns a
-// destination applies them (M1 for the envelope/mix gates, M5 the filter, M6
-// saturation, M7 the reverb and output stage). Applying them by hand in the
-// engine is how they end up applied twice.
+// gate". Both are read by the mapping layer and never twice: VoiceParams applies
+// gated()/gateOpen()/softRails() as it turns a gene into a DSP value (M1), and
+// a destination that gates something a second time is how a dead zone quietly
+// becomes "half on". The lower rail belongs to the dead zone (for every gated
+// gene gateLow *is* the neutral value), the upper rail belongs to the gene.
 //
 // kFlagPitch marks the genes that can move the played pitch. Atonality is a
 // ceiling on those genes at generation time, see Mutation.h / applyAtonality.

@@ -15,10 +15,16 @@ namespace gmosh
 // Modulation: mod envelope, looping/tilt envelope, LFO and two slow drift
 // generators, all per voice, plus per voice random detune and phase start.
 //
-// Pitch policy (design doc 5.3, "the branch changes timbre and modulation, not
-// the played pitch"): the played pitch is the note plus the a_freq / b_freq
-// offset genes, then vibrato from the LFO and a few cents of drift. The mod
-// envelope has no destination in pitch, it moves timbre.
+// What this class does *not* do is arithmetic on genes. Every value it reads
+// comes from VoiceParams, which is the one mapping layer (design doc 3, 5.7.2):
+// the pitches, both cutoffs, the mix in equal power mix space, the gated levels.
+// Re-deriving any of it here is how links end up applied twice and disagree.
+//
+// Pitch policy (design doc 5.3): the played pitch is the note plus the
+// resolved a_freq / b_freq offsets, then vibrato from the LFO and a few cents of
+// drift. The mod envelope has no destination in pitch yet, it moves timbre -
+// that is provisional, and M4 replaces it with the documented bipolar
+// a_mod / b_mod pitch modulation (decision R2, see alignment plan 6.1).
 //==============================================================================
 {
 class Voice
@@ -59,6 +65,10 @@ private:
     float fmIndex = 0.0f, fmIndexTo = 0.0f, fmIndexSlope = 0.0f;
 
     double sampleRate = 44100.0;
+
+    // The resolved cutoff pair is kept locked together by this octave offset
+    // (flt_sep), which VoiceParams measured once at note on.
+    float cutoffSepOct = 0.0f;
 
     VoiceParams p;
     int note = 60;

@@ -27,6 +27,9 @@ BranchDirection buildBranchDirection (uint64_t seedId, int branch, int variant,
 
         if ((gi.flags & kFlagNever) != 0)
         {
+            // 5.7.6: the output surface of the instrument never moves under
+            // growth. Both halves of the mechanism (a zero direction here and an
+            // explicit skip in applyDistance) are held by testGrowthExempt.
             out.dir[i] = 0.0f;
             continue;
         }
@@ -81,16 +84,6 @@ void applyAtonality (Genome& genome, float atonality)
         const float span = neutralSpan (gi);
 
         genome[i] = clampf (genome[i], neutral - span * at, neutral + span * at);
-
-        if ((gi.flags & kFlagRatio) != 0)
-        {
-            // 5.5: the oscillator offsets live on the ratio ladder, so a branch
-            // is harmonically related to the key that plays it whatever the
-            // atonality is; atonality decides how far up the ladder it may go.
-            // Snapping is a fixed point (a table entry snaps to itself), so the
-            // whole function stays idempotent.
-            genome[i] = unmapGene (gi, snapToRatio (mapGene (gi, genome[i]), 0.0f));
-        }
     }
 }
 
@@ -145,11 +138,29 @@ Genome applyDistance (const Genome& seed, const BranchDirection& direction,
 
     // 2. Non linear distance response.
     const float step = std::pow (d, mp.distanceExponent);
+    const float pull = clamp01 (mp.pullToNeutral);
 
     for (std::size_t i = 0; i < kNumGenes; ++i)
     {
         const GeneInfo& gi = kGenes[i];
-        const float x = seed[i] + direction.dir[i] * step;
+
+        // 5.7.6: growth exempt genes are copied through untouched. Their
+        // direction is already zero, but the neutral pull below is not, and a
+        // room size or master EQ that drifts as a branch grows is exactly the
+        // "disruption of the audio" the reference's own help text warns about.
+        if ((gi.flags & kFlagNever) != 0)
+        {
+            out[i] = seed[i];
+            continue;
+        }
+
+        // 3. Displacement, biased toward the gene's neutral value (5.2). The
+        //    bias is proportional to the same distance term as the direction, so
+        //    it cannot move anything at distance 0 and stays idempotent under
+        //    re-planting.
+        const float x = seed[i]
+                      + direction.dir[i] * step
+                      + pull * (gi.neutral - seed[i]) * step;
 
         // 4. Boundary handling: compress past the soft range, never clamp.
         out[i] = softCompress (x, seed[i], gi.softMin, gi.softMax);
@@ -230,6 +241,14 @@ float loudnessCompensation (const Genome& g)
 }
 
 //==============================================================================
+namespace
+{
+    /// Spread of the seed randomiser, in gene space. The reference's randomise
+    /// has "a spread of about a quarter of the range" (5.7 / 11); gaussianClamped
+    /// is bounded by its scale, so this is also the maximum excursion.
+    constexpr float kSeedSpread = 0.25f;
+}
+
 void randomizeGenome (Genome& genome, Rng& rng, float atonality)
 {
     const float at = clamp01 (atonality);
@@ -246,7 +265,14 @@ void randomizeGenome (Genome& genome, Rng& rng, float atonality)
             continue;
         }
 
-        float v = rng.range (gi.softMin, gi.softMax);
+        // 5.7.1 + 11: draw around the value where nothing happens, reflect at
+        // the rails rather than pile up on them, then honour the gene's soft
+        // range as an extra clamp. Centring on neutral is what makes "mostly
+        // nothing" the most likely outcome of a random seed, which is the whole
+        // point of the neutral convention.
+        float v = gi.neutral + rng.gaussianClamped (kSeedSpread);
+        v = reflect01 (v);
+        v = clampf (v, gi.softMin, gi.softMax);
 
         // Pitch capable genes are drawn inside the atonality band rather than
         // clipped into it afterwards, so a low atonality seed still has a
@@ -254,15 +280,16 @@ void randomizeGenome (Genome& genome, Rng& rng, float atonality)
         if ((gi.flags & kFlagPitch) != 0)
             v = gi.neutral + (v - gi.neutral) * at;
 
-        genome[i] = v;
+        genome[i] = clamp01 (v);
     }
 
-    // Bias a fresh seed towards something that behaves like an instrument
-    // before the guard rails run: a sustained amp envelope, and not all reverb.
-    // (Biasing vol_atk and flt_freq stopped making sense when those genes
-    // became a curvature control and a ratio.)
-    genome[g_vol_sus] = std::max (genome[g_vol_sus], 0.55f);
-    genome[g_rvb_mix] *= 0.7f;
+    // A fresh seed still has to be able to hold a note. vol_sus is read through
+    // its activation gate from M1 (below 0.5 the note does not sustain at all),
+    // so this floor sits above the gate rather than at the old half way point;
+    // M3 replaces it with a duration aware version of the same check, and the
+    // reverb line that used to sit here went away on its own when rvb_mix's
+    // neutral became "dry" (5.7.1).
+    genome[g_vol_sus] = std::max (genome[g_vol_sus], 0.68f);
 
     applyCouplings (genome);
 }

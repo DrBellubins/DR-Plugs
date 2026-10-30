@@ -5,13 +5,33 @@
 
 namespace gmosh
 //==============================================================================
-// Genome -> real world voice settings.
+// Genome -> real world voice settings: the one mapping layer (M1).
 //
 // Design doc section 3: this happens at note on, never per sample. The genome
 // stays normalized; all the ranges and curves live in the gene table.
 //
-// This is also the only place where the links between genes are resolved
-// (5.7.2): a_freq is the patch pitch and everything tonal follows it.
+// This is the only place a gene is turned into a number the DSP uses, which is
+// what makes it the only place the six curation mechanisms of 5.7 can be
+// applied once instead of at every destination:
+//
+//   5.7.1 neutral   - a gene at gi.neutral produces the identity value here
+//                     (0 offset, no modulation, silence where there was silence);
+//                     Tests/EngineTests.cpp, testMappingNeutralIsRest.
+//   5.7.2 linking   - a_freq is the patch pitch and B's offset, both filter
+//                     cutoffs and freqAHz/freqBHz follow it. Effect scales the
+//                     wet path, VelSens scales mod_vel. Nothing downstream
+//                     re-derives any of it.
+//   5.7.3 gates     - vol_sus, vol_fade, mod_vel, lfo_dly, rvb_atk and mod_sh
+//                     are read through gated()/gateOpen().
+//   5.7.4 rails     - flt_kf is read through softRails().
+//   5.7.5 steps     - a_freq and flt_type go through Curve::Stepped, so the
+//                     only values that reach the voice are grid points.
+//   5.7.7 curves    - osc_mix is warped into mix space before the equal power
+//                     pan law.
+//
+// Gates, rails and warps are *not* applied to genomes: the genome is the truth
+// the player sees and grows, this is how it is read. Voice reads resolved values
+// only (5.7.2's "not ad hoc in the DSP").
 //==============================================================================
 {
 /// Non-gene engine behaviour, named instead of mutated (design deviations D-3
@@ -41,12 +61,18 @@ struct VoiceParams
     float envTime = 1.0f, envRepeat = 0.0f, envTilt = 0.0f, envKeyFollow = 0.0f;
 
     // amplitude envelope
-    float ampAttack = 0.02f, ampDecay = 0.6f, ampSustain = 0.6f,
+    float ampAttack = 0.02f, ampDecay = 0.6f, ampSustain = 0.0f,
           ampRelease = kNoteOffReleaseSeconds;
     float volFade = 0.0f;
 
-    // modulation envelope
-    float modAttack = 0.01f, modDecay = 0.5f, modShape = 1.0f, modVelocity = 0.5f;
+    // modulation envelope. modShape is a curve exponent and is deliberately the
+    // identity (1.0 = linear) until M3/M4: mod_sh's documented destination is a
+    // sample and hold *rate*, and reading a rate gene as a curve exponent is
+    // what made its neutral value audible. modSampleHoldHz is the documented
+    // value (8 Hz down to 0.1 Hz, off below the gate); resolved here so the
+    // mapping layer is complete, read by M4.
+    float modAttack = 0.01f, modDecay = 0.5f, modShape = 1.0f, modVelocity = 0.0f;
+    float modSampleHoldHz = 0.0f;
 
     // lfo
     float lfoRate = 1.0f, lfoAmount = 0.0f, lfoBalance = 0.5f, lfoDelaySeconds = 0.0f;
@@ -55,21 +81,28 @@ struct VoiceParams
     float aForm = 0.0f, aColour = 0.5f, aNoise = 0.0f, aRatio = 0.0f, aMod = 0.0f;
     float bForm = 0.0f, bColour = 0.5f, bNoise = 0.0f, bRatio = 0.0f, bMod = 0.0f, bShape = 0.0f;
 
-    // mix / cross modulation
-    float balance = 0.79f, fmAmount = 0.0f, fmMod = 0.0f, mixMod = 0.0f, subLevel = 0.0f;
+    // mix / cross modulation. balance is in *mix space*, not gene space: the
+    // osc_mix warp of 5.7.7 is already applied, so 0.5 is equal power and 0 / 1
+    // are A alone / B alone. mix_mod (M4) adds to this value rather than to the
+    // gene, which is the only way the two can share one equal power curve.
+    float balance = 0.5f, fmAmount = 0.0f, fmMod = 0.0f, mixMod = 0.0f, subLevel = 0.0f;
 
-    // filter
-    float filterHz = 4000.0f, filterQ = 1.0f, keyFollow = 0.0f, filterMod = 0.0f, filterSep = 0.0f;
+    // filter. filterHz and cutoff2Hz are the resolved tracking pair: both are
+    // ratios of A's pitch (5.7.2) and both are computed here, once per note on.
+    // filterSep is kept alongside them because the voice has to move the two
+    // cutoffs together while modulation deviates them.
+    float filterHz = 4000.0f, cutoff2Hz = 4000.0f, filterQ = 0.5f,
+          keyFollow = 0.0f, filterMod = 0.0f, filterSep = 0.0f;
     /// flt_type as a stepped value in [0,1] (0 bandpass, .33 serial LP, .66
-    /// parallel LP, 1 notch). Resolved here so nothing else has to re-read the
-    /// gene; the audible topology stays the trait until M5 (decision R10).
+    /// parallel LP, 1 notch). Quantised by the table's Curve::Stepped; the
+    /// audible topology stays the trait until M5 (decision R10).
     float filterTopology = 0.6667f;
 
     // saturation
     float drive = 0.0f;
 
     // effects (per voice wet path, M7)
-    float fxSize = 0.6f, fxLength = 1.5f, fxDamp = 0.5f, fxChorus = 0.0f, fxMix = 0.2f, fxWidth = 0.5f;
+    float fxSize = 0.6f, fxLength = 1.5f, fxDamp = 0.5f, fxChorus = 0.0f, fxMix = 0.0f, fxWidth = 0.5f;
     float reverbBloomSeconds = 0.0f;
 
     // output stage (M7)
@@ -77,6 +110,11 @@ struct VoiceParams
 
     // per voice "life" (not genes any more, D-3)
     float driftAmount = kVoiceDriftAmount, detuneCents = kVoiceDetuneCents;
+
+    // Resolved links (5.7.2): the pitch the played note maps to after a_freq,
+    // in Hz and before any Nyquist clamping. Voice reads these instead of doing
+    // the arithmetic again, and M11's "grown vs base" display reads them too.
+    float freqAHz = 440.0f, freqBHz = 440.0f;
 
     // derived
     float gain = 1.0f;
