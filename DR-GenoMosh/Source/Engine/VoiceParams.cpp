@@ -6,16 +6,20 @@ namespace gmosh
 {
 namespace
 {
-    /// The gene value at which the outer volume decay stops existing (design
-    /// 6.1.1 Rev 4: "Above 0.9, the Envelope will have infinite duration,
-    /// stopped only by releasing the key or vol_fade fades out"). Read from the
-    /// table rather than written as a literal, so the two cannot drift apart.
+    /// The gene value at which env_time stops being a duration (decision R3:
+    /// "Above 0.9, the Envelope will have infinite duration, stopped only by
+    /// releasing the key or vol_fade fades out"). Read from the table rather
+    /// than written as a literal, so the two cannot drift apart.
     constexpr float kInfiniteDurationGene = 0.9f;
 
-    /// The note has no length of its own, but vol_fade was asked to close it:
-    /// how long that fade takes. Named, because it is the only way a note with
-    /// env_time at 0.9 can ever end without a key lift, and a test asserts it.
-    constexpr float kFadeOutWithoutDurationSeconds = 8.0f;
+    /// The shape time base for an infinite duration with no repeats: the
+    /// duration that env_time = 0.9 maps to. A literal phase += dt/inf freezes
+    /// the shape at its start and the note never opens, so "infinite duration"
+    /// has to mean "no end to the note", never "no end to the shape".
+    float infiniteShapeSeconds()
+    {
+        return mapGene (kGenes[g_env_time], kInfiniteDurationGene);
+    }
 
     /// mapGene() through the gene's activation gate (5.7.3). Reading a gated
     /// gene without this is how a dead zone ends up "half on", which is the one
@@ -33,13 +37,6 @@ namespace
         const float m = mapGene (kGenes[gene], norm);   // Bipolar, -1..+1
         return std::exp2 (m);
     }
-
-    /// env_tilt (-1..1) -> the peak position of a pluck inside its period.
-    float pluckPeak (float tilt)
-    {
-        return tilt < 0.0f ? lerpf (kPluckPeakFast, kPluckPeakNeutral, tilt + 1.0f)
-                           : lerpf (kPluckPeakNeutral, kPluckPeakSwell, tilt);
-    }
 }
 
 //==============================================================================
@@ -55,36 +52,29 @@ void resolveVoiceParams (const Genome& g, const BranchTraits& traits,
     const float effectScale = lerpf (0.25f, 1.25f, clamp01 (macros.effect));
 
     //------------------------------------------------------------------------
-    // Levels first, because the envelope needs them: vol_sus is the floor the
-    // outer volume decay settles on and vol_fade pulls that floor toward
-    // silence (design 6.1.1 Rev 4). Both through their gate (5.7.3):
-    // "vol_sus < 0.5 = none" is exactly the documented max(0, 2(v-0.5)), and
-    // there is no second fade at all below 0.75.
-    p.ampSustain = levelOf (g_vol_sus, g[g_vol_sus]);
-    p.volFade    = levelOf (g_vol_fade, g[g_vol_fade]);
-    p.ampRelease = kNoteOffReleaseSeconds;    // D-5: fixed note off release, no gene
-
-    //------------------------------------------------------------------------
-    // The shared envelope (design 6.1.1 Rev 4, M4b).
+    // The shared envelope clock (design 6.1.1, M3).
     //
-    // Two layers, one clock, and only one of them is a shape:
+    // env_time is the duration of the sound and env_kf scales it by key, so the
+    // voice's whole notion of "how long" is decided here, once, in seconds.
+    // Above 0.9 the *duration* is infinite while the shape still needs a finite
+    // base, which is decision R3, and the whole of it lives in these lines:
     //
-    //   the pluck   - env_loop is how long it takes and how often it is re
-    //                 sounded; env_tilt is where its peak sits.
-    //   the note    - env_time (scaled by env_kf) is a volume decay applied to
-    //                 the whole train of plucks, settling on vol_sus's floor and
-    //                 pulled toward silence by vol_fade.
+    //   env_loop < duration  -> the shape repeats, one whole envelope per
+    //                           period. "Infinite" is then heard as an endless
+    //                           sweep, exactly as the reference describes it.
+    //   env_loop >= duration -> one pass, no repeats. For an infinite duration
+    //                           that pass takes what env_time = 0.9 maps to
+    //                           (infiniteShapeSeconds), then holds at sustain -
+    //                           or closes to silence under vol_fade, which is
+    //                           the only way such a note ends by itself.
     //
-    // Above env_time 0.9 there is no note-length decay at all and the plucks
-    // keep going until the key comes up: that is the whole of what "infinite
-    // duration" means now, and it needs no time base, because a pluck already
-    // carries its own (decision R3 and its fallback base are retired). What can
-    // still close such a note is vol_fade, exactly as the reference says, so the
-    // gate opening turns the endless case into a fade to (1 - fade) over a named
-    // kFadeOutWithoutDurationSeconds; with the gate shut the floor is 1.0 and
-    // the curve has nowhere to go.
+    // A repeat takes the whole shape rather than a slice of it: the design
+    // sketch let a short period truncate the shape, which makes env_time and
+    // env_loop fight over the same envelope and leaves a fast period near
+    // silence. The note is still the shape env_time asks for; env_loop only
+    // decides how often it is re sounded.
     const float envGene = g[g_env_time];
-    const bool noDecay = envGene >= kInfiniteDurationGene;
+    const bool infinite = envGene >= kInfiniteDurationGene;
 
     const float kfOct = mapGene (g_env_kf, g[g_env_kf]);   // octaves of time
     const float keyScaleOct = clampf (-kfOct * static_cast<float> (midiNote - 60) / 12.0f,
@@ -92,45 +82,35 @@ void resolveVoiceParams (const Genome& g, const BranchTraits& traits,
     p.envKeyFollow = kfOct;
     p.envLoopSeconds = mapGene (g_env_loop, g[g_env_loop]);
 
-    if (noDecay)
+    if (infinite)
     {
-        p.envRepeats = true;                    // an endless train of plucks
-        p.envPeriodSeconds = p.envLoopSeconds;
-        if (p.volFade > 0.0f)
-        {
-            p.envDuration    = kFadeOutWithoutDurationSeconds;
-            p.envOuterFloor  = std::max (0.0f, 1.0f - p.volFade);
-        }
-        else
-        {
-            p.envDuration    = EnvShape::kInfiniteDuration;
-            p.envOuterFloor  = 1.0f;            // nothing decays: stopped by key-up
-        }
+        p.envDuration = EnvShape::kInfiniteDuration;
+        p.envRepeats  = p.envLoopSeconds < infiniteShapeSeconds();
+        p.envShapeSeconds = p.envRepeats ? p.envLoopSeconds : infiniteShapeSeconds();
     }
     else
     {
         const float t = mapGene (g_env_time, envGene) * std::pow (2.0f, keyScaleOct);
         p.envDuration = clampf (t, 0.01f, EnvShape::kInfiniteDuration * 0.1f);
-        // 4.2: a period at or beyond the note's length gives one pluck spanning
-        // the note and no repeats at all.
         p.envRepeats = p.envLoopSeconds < p.envDuration;
-        p.envPeriodSeconds = p.envRepeats ? p.envLoopSeconds : p.envDuration;
-        p.envOuterFloor = lerpf (p.ampSustain, 0.0f, p.volFade);
+        p.envShapeSeconds = p.envRepeats ? p.envLoopSeconds : p.envDuration;
     }
 
-    p.envTilt = mapGene (g_env_tilt, g[g_env_tilt]);   // -1..1, pluck -> swell
-    p.envPeakPosition = pluckPeak (p.envTilt);
+    p.envTilt = mapGene (g_env_tilt, g[g_env_tilt]);   // -1..1 attack/decay skew
 
-    // Curvature, never seconds (4.2: "0.5 is linear"). vol_atk bends the rise
-    // into the peak; vol_dcy bends the outer decay of the repeats (deviation
-    // D-8: it has no say in the pluck's own fall, which is a fixed curve).
-    p.pluckRiseExp  = curvatureExponent (g_vol_atk, g[g_vol_atk]);
-    p.outerDecayExp = curvatureExponent (g_vol_dcy, g[g_vol_dcy]);
-    // The modulation envelope is the same pluck with its own timing (6.1.1):
-    // mod_atk moves its peak within the period, mod_dcy scales how fast it
-    // decays compared with the level. Both are nothing at their neutral value.
-    p.modPeakOffset = mapGene (g_mod_atk, g[g_mod_atk]) * kModPeakOffsetRange;
-    p.modTimeScale  = curvatureExponent (g_mod_dcy, g[g_mod_dcy]);
+    // Curvature, never seconds (4.2: "0.5 is linear").
+    p.ampAttackExp = curvatureExponent (g_vol_atk, g[g_vol_atk]);
+    p.ampDecayExp  = curvatureExponent (g_vol_dcy, g[g_vol_dcy]);
+    p.modAttackExp = curvatureExponent (g_mod_atk, g[g_mod_atk]);
+    p.modDecayExp  = curvatureExponent (g_mod_dcy, g[g_mod_dcy]);
+
+    // 5.7.3: "vol_sus < 0.5 = none". Read through the gate this is exactly the
+    // documented max(0, 2(v-0.5)) of 6.1.1, and the neutral value is silence.
+    p.ampSustain = levelOf (g_vol_sus, g[g_vol_sus]);
+    p.ampRelease = kNoteOffReleaseSeconds;    // D-5: fixed note off release, no gene
+    // No second fade below 0.75 (4.2); above it, the depth of the droop that
+    // closes a note which has no duration of its own.
+    p.volFade    = levelOf (g_vol_fade, g[g_vol_fade]);
 
     // mod_sh is a sample and hold rate (4.2), gated to the top quarter and
     // inverted: the gate opening gives the fastest rate and the top of the gene

@@ -413,17 +413,15 @@ static void testMappingNeutralIsRest()
 
     // Envelope: gated sustain is silence, the curve exponents are linear, the
     // S&H is off and velocity is ignored.
-    // M4b: the envelope is a pluck under a volume decay. At neutral that is an
-    // ordinary pluck with its peak early in the period, a linear outer fade, no
-    // floor under it, no S&H, and no separate modulator timing.
     expect ("amp sustain", p.ampSustain, 0.0f);
     expect ("vol_fade", p.volFade, 0.0f);
-    expect ("outer floor", p.envOuterFloor, 0.0f);
-    expect ("pluck rise exponent", p.pluckRiseExp, 1.0f);
-    expect ("outer decay exponent", p.outerDecayExp, 1.0f);
-    expect ("mod peak offset", p.modPeakOffset, 0.0f);
-    expect ("mod time scale", p.modTimeScale, 1.0f);
-    expect ("the neutral envelope is a plain pluck", p.envPeakPosition, kPluckPeakNeutral);
+    // M3: the four curvature genes are exponents of the shared shape, so the
+    // neutral genome sits exactly on linear, and the envelope's own duration is
+    // env_time's neutral value rather than a made up ADSR.
+    expect ("amp attack curvature", p.ampAttackExp, 1.0f);
+    expect ("amp decay curvature", p.ampDecayExp, 1.0f);
+    expect ("mod attack curvature", p.modAttackExp, 1.0f);
+    expect ("mod decay curvature", p.modDecayExp, 1.0f);
     expect ("mod sample hold", p.modSampleHoldHz, 0.0f);
     expect ("mod velocity", p.modVelocity, 0.0f);
 
@@ -1286,7 +1284,7 @@ static void testPitchModulation()
         return g;
     };
 
-    struct PitchTrack { float hzEarly = 0.0f, hzHeld = 0.0f, hzPeak = 0.0f, cents = 0.0f; };
+    struct PitchTrack { float hzEarly = 0.0f, hzPeak = 0.0f, cents = 0.0f; };
     const float noteHz = noteToHz (note);
 
     /// The pitch at one instant, read where the mod envelope is at its peak (the
@@ -1313,27 +1311,10 @@ static void testPitchModulation()
         std::printf ("\n");
         r.hzEarly = static_cast<float> (peakHz (mono, static_cast<int> (sampleRate * 0.50f),
                                                 win, sampleRate, lo, hi));
-        // The bottom of the dive, not a fixed moment in it. Since M4b the mod
-        // envelope is a pluck, so its peak - and therefore the deepest point of
-        // the dive - is at env_tilt's peak position: 6% of the way into a 7.2 s
-        // shape is 0.43 s in. Reading one window there would be reading a guess
-        // about where the shape puts its peak, so read every window and keep the
-        // lowest pitch, which is the measurement that means "full swing".
-        double lowest = 1.0e9;
-        for (int at = static_cast<int> (sampleRate * 0.15f);
-             at + win < static_cast<int> (sampleRate * 3.0f);
-             at += static_cast<int> (sampleRate * 0.06f))
-            if (const double hz = peakHz (mono, at, win, sampleRate, lo, hi))
-            {
-                if (hz > 0.0 && hz < lowest)
-                    lowest = hz;
-            }
-        r.hzPeak = static_cast<float> (lowest < 1.0e8 ? lowest : 0.0f);
-        // A pitch that is not supposed to move is read at one steady moment
-        // instead: "the lowest reading anywhere in a 6 s note" also collects the
-        // D-3 detune beat and the probe's own smear, which is right for finding
-        // a dive and wrong for asserting that nothing moves.
-        r.hzHeld = static_cast<float> (peakHz (mono, static_cast<int> (sampleRate * 4.13f),
+        // The turn around: the mod envelope peaks at half of the shape, which at
+        // these genes is 4.2 s in. A window centred there has the pile up at the
+        // bottom of the dive in it, which is the whole point of the measurement.
+        r.hzPeak = static_cast<float> (peakHz (mono, static_cast<int> (sampleRate * 4.13f),
                                                win, sampleRate, lo, hi));
         // Against the pressed note: that is what "maximum negative" means in
         // 4.2's wording. The early window is printed too, to show the dive
@@ -1355,13 +1336,13 @@ static void testPitchModulation()
 
     // The probe, held to the note: if this is wrong the numbers below mean
     // nothing, so say so rather than passing on an accident.
-    expect (std::abs (atRest.hzHeld / noteHz - 1.0f) < 0.03f
+    expect (std::abs (atRest.hzPeak / noteHz - 1.0f) < 0.03f
             && std::abs (atRest.hzEarly / noteHz - 1.0f) < 0.03f,
             "the spectral probe reads the pressed note (the probe, not the engine)");
 
     // A note whose genes are neutral holds the pitch it was pressed at. That is
     // the surviving half of the old test; the rest of it is replaced above.
-    expect (std::abs (1200.0f * std::log2 (atRest.hzHeld / noteHz)) < 60.0f,
+    expect (std::abs (atRest.cents) < 60.0f,
             "neutral genes: the held note keeps its pitch");
 
     // A gene at its bottom end is the maximum negative swing: the mod envelope's
@@ -1376,8 +1357,8 @@ static void testPitchModulation()
 
     // Atonality 0 means the plant cannot ask for this at all: the same seed that
     // dove is silent on pitch, which is the generation time half of the bound.
-    expect (std::abs (1200.0f * std::log2 (converged.hzHeld / noteHz)) < 60.0f
-            && std::abs (converged.hzEarly / noteHz - 1.0f) < 0.03f,
+    expect (std::abs (converged.cents) < 60.0f
+            && std::abs (converged.hzPeak / noteHz - 1.0f) < 0.03f,
             "atonality 0: the plant cannot touch pitch (R2, R7)");
 
     check (ok, "pitch modulation is bounded, centred, and converged by atonality");
@@ -2164,9 +2145,8 @@ static void testModulationSources()
     // so that the ramp's own slope is far above the probe's wobble.
     auto modShGenes = [&] (float gene) {
         Genome g = neutralGenome();
-        g[g_env_time] = 0.55f;       // a 1.6 s note
-        g[g_env_loop] = 1.0f;        // a period past it: one pluck spanning the note,
-                                     // so the mod sweeps its full range once
+        g[g_env_time] = 0.5f;        // a 1.2 s shape: the mod sweeps 12 st in 0.6 s
+        g[g_vol_sus]  = 0.95f;
         g[g_vol_atk]  = 0.05f;
         g[g_mod_sh]   = gene;        // 0.79 is just past the gate: ~4 Hz
         g[g_a_mod]    = 1.0f;        // the mod envelope has the pitch all to itself
@@ -2175,14 +2155,14 @@ static void testModulationSources()
         return g;
     };
     const std::vector<float> held = renderHeldNote (plantOf (modShGenes (0.79f)), note,
-                                                     1.5f, 1.8f, sampleRate);
+                                                     1.15f, 1.35f, sampleRate);
     const std::vector<float> swept = renderHeldNote (plantOf (modShGenes (0.50f)), note,
-                                                     1.5f, 1.8f, sampleRate);
+                                                     1.15f, 1.35f, sampleRate);
     auto jumpHz = [&] (const std::vector<float>& buf) {
         const int w = static_cast<int> (sampleRate * 0.06f);
         const int h = static_cast<int> (sampleRate * 0.025f);
-        const int from = static_cast<int> (sampleRate * 0.2f);
-        const int to   = static_cast<int> (sampleRate * 1.4f);
+        const int from = static_cast<int> (sampleRate * 0.25f);
+        const int to   = static_cast<int> (sampleRate * 1.05f);
         const double lo = noteToHz (note) * 0.5, hi = noteToHz (note) * 2.5;
         std::vector<double> cents;
         double previous = 0.0;
@@ -2701,11 +2681,11 @@ static void testScenePlanIsSeeded()
 }
 
 //==============================================================================
-// M4b: the shared envelope (design 6.1.1, Rev 4: a pluck under a decay).
+// M3: the shared envelope (design 6.1.1).
 //
 // Two halves, deliberately. The first is the clock itself, driven from an
-// EnvShape: one pluck, a train of them under a volume decay, a floor, an
-// endless note, and the fixed note off release. The second is the articulation matrix the plan asks
+// EnvShape: repeats, one shots, the infinite duration of decision R3, and the
+// fixed note off release. The second is the articulation matrix the plan asks
 // for, measured off rendered audio with the section 13 metrics, because "the
 // gene says X and the engine does Y" is exactly the bug class the M2 harness
 // exists to catch. Every assertion here is a *direction* (attack got longer,
@@ -2780,40 +2760,36 @@ Genome seedWith (std::initializer_list<std::pair<std::size_t, float>> moves)
     return g;
 }
 
-/// Run the clock and report the loudest and quietest point of every window of
-/// `windowSamples`. For an envelope that is a pluck repeated at a period, the
-/// windows *are* the plucks: their maxima are the outer volume decay and their
-/// minima are the silence the shape returns to between them. (Counting local
-/// maxima instead is fragile exactly when the peaks get quieter, which is the
-/// thing under test.)
-struct WindowExtremes
+/// Count the times the clock re triggered: one pass of the shape is one rise
+/// followed by a clear fall away from its own maximum. The threshold is
+/// relative, because a slow shape falls by a hair per sample.
+int countPeaks (SharedEnv& env, int samples)
 {
-    std::vector<float> max, min;
-};
-
-WindowExtremes windowExtremes (SharedEnv& env, int windows, int windowSamples)
-{
-    WindowExtremes w;
-    for (int k = 0; k < windows; ++k)
+    int peaks = 0;
+    float runMax = 0.0f;
+    bool peaked = false;
+    for (int i = 0; i < samples; ++i)
     {
-        float hi = 0.0f, lo = 1.0e9f;
-        for (int i = 0; i < windowSamples; ++i)
+        const float v = env.process();
+        if (v > runMax)
         {
-            const float v = env.process();
-            hi = std::max (hi, v);
-            lo = std::min (lo, v);
+            runMax = v;
+            peaked = runMax > 0.05f;
         }
-        w.max.push_back (hi);
-        w.min.push_back (lo);
+        else if (peaked && v < runMax * 0.9f)
+        {
+            ++peaks;
+            peaked = false;
+            runMax = v;
+        }
     }
-    return w;
+    return peaks;
 }
-
 } // namespace
 
 static void testSharedEnvelope()
 {
-    std::printf ("the shared envelope is a pluck under a volume decay (6.1.1 Rev 4, M4b)\n");
+    std::printf ("the shared envelope clock (6.1.1, M3)\n");
 
     const double sr = 48000.0;
 
@@ -2823,38 +2799,32 @@ static void testSharedEnvelope()
         VoiceParams p;
         const BranchTraits traits;
         MacroValues macros;
-
-        // env_time >= 0.9 is "no note length of its own" (design 6.1.1): the
-        // pluck train simply keeps going, with no outer decay anywhere. The
-        // retired R3 fallback base must not come back in any form.
         resolveVoiceParams (seedWith ({{ g_env_time, 0.95f }}), traits, macros, 60, 0.9f, p);
-        check (p.envDuration == EnvShape::kInfiniteDuration && p.envOuterFloor == 1.0f,
-               "an endless note has no decay and no floor to settle on");
-        check (p.envRepeats && p.envPeriodSeconds > 0.05f && p.envPeriodSeconds < 30.0f,
-               "an endless note is an endless train of plucks with their own period");
 
-        // ...except vol_fade, which the reference names as the other way out.
-        resolveVoiceParams (seedWith ({{ g_env_time, 0.95f }, { g_vol_fade, 1.0f }}),
-                            traits, macros, 60, 0.9f, p);
-        check (p.envOuterFloor == 0.0f && p.envDuration < EnvShape::kInfiniteDuration,
-               "vol_fade closes a note that has no duration of its own (6.1.1)");
-        resolveVoiceParams (seedWith ({{ g_env_time, 0.95f }, { g_vol_fade, 0.9f }}),
-                            traits, macros, 60, 0.9f, p);
-        check (p.envOuterFloor > 0.05f && p.envOuterFloor < 0.45f,
-               "a half open vol_fade settles above silence, it does not switch on fully");
+        const float baseAt09 = mapGene (kGenes[g_env_time], 0.9f);
+        check (p.envDuration == EnvShape::kInfiniteDuration,
+               "env_time >= 0.9 resolves to an infinite duration (R3)");
+        check (p.envRepeats && p.envShapeSeconds < EnvShape::kInfiniteDuration * 0.5f
+               && p.envShapeSeconds > 0.05f,
+               "an infinite duration still has a finite shape base, never an infinite one (R3)");
 
-        // env_loop: inside the note it is the repeat period; at or beyond it the
-        // note is a single pluck spanning the whole thing (4.2).
-        resolveVoiceParams (seedWith ({{ g_env_time, 0.7f }, { g_env_loop, 0.2f }}),
+        // A period longer than the fallback base is not a repeat: the shape
+        // takes the base, then holds. That is the only reading in which
+        // vol_fade can end a note that has no duration.
+        resolveVoiceParams (seedWith ({{ g_env_time, 0.95f }, { g_env_loop, 1.0f }}),
                             traits, macros, 60, 0.9f, p);
-        check (p.envRepeats
-               && std::abs (p.envPeriodSeconds - mapGene (kGenes[g_env_loop], 0.2f)) < 1.0e-3f,
-               "a period inside the note repeats the pluck at that period");
-        resolveVoiceParams (seedWith ({{ g_env_time, 0.4f }, { g_env_loop, 1.0f }}),
+        check (! p.envRepeats && std::abs (p.envShapeSeconds - baseAt09) < 1.0e-3f,
+               "past the fallback base there are no repeats and the shape takes it");
+
+        resolveVoiceParams (seedWith ({{ g_env_time, 0.95f }, { g_env_loop, 0.2f }}),
                             traits, macros, 60, 0.9f, p);
-        check (! p.envRepeats
-               && std::abs (p.envPeriodSeconds - mapGene (kGenes[g_env_time], 0.4f)) < 1.0e-3f,
-               "a period at or beyond the note is one pluck spanning it (4.2)");
+        check (p.envRepeats && std::abs (p.envShapeSeconds - mapGene (kGenes[g_env_loop], 0.2f)) < 1.0e-3f,
+               "with a period inside it, the shape repeats at that period (endless sweep)");
+
+        resolveVoiceParams (seedWith ({{ g_env_time, 0.5f }, { g_env_loop, 0.5f }}),
+                            traits, macros, 60, 0.9f, p);
+        check (! p.envRepeats,
+               "env_loop equal to the duration means no repeats (4.2: longer than the duration)");
 
         // env_kf: above the middle, high keys shorten the note (4.2).
         const Genome kf = seedWith ({{ g_env_kf, 1.0f }});
@@ -2870,26 +2840,10 @@ static void testSharedEnvelope()
         check (noneLow.envDuration == noneHigh.envDuration,
                "env_kf at neutral is exactly nothing at any key");
 
-        // env_tilt is the tilt of the pluck: the neutral gene is a plain pluck,
-        // and only the top of the gene moves the peak to the end of the period.
-        VoiceParams tiltLow, tiltMid, tiltHigh;
-        resolveVoiceParams (seedWith ({{ g_env_tilt, 0.0f }}), traits, macros, 60, 0.9f, tiltLow);
-        resolveVoiceParams (neutralGenome (), traits, macros, 60, 0.9f, tiltMid);
-        resolveVoiceParams (seedWith ({{ g_env_tilt, 1.0f }}), traits, macros, 60, 0.9f, tiltHigh);
-        check (tiltMid.envPeakPosition == kPluckPeakNeutral && tiltLow.envPeakPosition < tiltMid.envPeakPosition,
-               "env_tilt at or below neutral is a pluck with its peak at the start");
-        check (tiltHigh.envPeakPosition == kPluckPeakSwell && tiltHigh.envPeakPosition > 0.9f,
-               "at the top of env_tilt the peak sits at the end: rise slowly, then fall off a cliff");
-
-        // The curvature genes are exponents with the neutral value exactly linear,
-        // and mod_atk / mod_dcy are timings, not curves (deviation D-8).
+        // Curvature genes are exponents with the neutral value exactly linear.
         resolveVoiceParams (seedWith ({{ g_vol_atk, 0.0f }}), traits, macros, 60, 0.9f, p);
-        check (std::abs (p.pluckRiseExp - 0.5f) < 1.0e-4f,
+        check (std::abs (p.ampAttackExp - 0.5f) < 1.0e-4f,
                "vol_atk maps to 2^(2(v-0.5)): the bottom of the range is 0.5");
-        resolveVoiceParams (seedWith ({{ g_mod_atk, 1.0f }}), traits, macros, 60, 0.9f, p);
-        check (std::abs (p.modPeakOffset - kModPeakOffsetRange) < 1.0e-4f
-               && p.modTimeScale == 1.0f,
-               "mod_atk moves the mod pluck's peak and nothing else");
     }
 
     //------------------------------------------------------------------------
@@ -2898,103 +2852,67 @@ static void testSharedEnvelope()
         SharedEnv env;
         env.setSampleRate (sr);
 
-        // One pluck: it peaks where tilt put the peak, and it is over at zero.
-        EnvShape one;
-        one.noteSeconds = 0.5f;
-        one.periodSeconds = 0.5f;
-        one.repeats = false;
-        one.peak = 0.05f;
-        one.outerFloor = 0.0f;
-        env.start (one);
-
-        float atPeak = 0.0f, levelAt[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+        // One shot, no sustain: sounds, and is over at its duration.
+        EnvShape oneShot;
+        oneShot.duration = 0.5f;
+        oneShot.shapeSeconds = 0.5f;
+        oneShot.sustain = 0.0f;
+        env.start (oneShot);
+        float atEnd = 1.0f, atPeak = 0.0f;
         int peakSample = -1;
-        const int total = static_cast<int> (sr * 0.5);
-        const int marks[4] = { total / 10, total * 3 / 10, total * 6 / 10, total * 9 / 10 };
-        for (int i = 0; i < total; ++i)
+        for (int i = 0; i < static_cast<int> (sr * 0.4); ++i)
         {
             const float v = env.process();
             if (v > atPeak) { atPeak = v; peakSample = i; }
-            for (int m = 0; m < 4; ++m)
-                if (i == marks[m])
-                    levelAt[m] = v;
         }
-        // The peak is at 5% of the *period*, not of the note: that is what
-        // env_tilt means (design 6.1.1 Rev 4), and it is the whole difference
-        // between a pluck and an attack/decay window.
-        check (std::abs (peakSample - static_cast<int> (sr * 0.5f * 0.05f)) <= 2
-               && atPeak > 0.9f,
-               "the pluck peaks exactly at the position env_tilt asked for");
-        // This is the defect M4b exists to fix: Rev 3's shape held a level
-        // through the middle of the note. A pluck keeps falling.
-        check (levelAt[1] < 0.92f * atPeak && levelAt[2] < 0.92f * levelAt[1]
-               && levelAt[3] < 0.92f * levelAt[2],
-               "there is no window: the level falls through the whole note");
-        const float endLevel = env.process();
-        check (endLevel < 1.0e-5f && env.selfEnded() && env.finished(),
-               "with no floor under it the note is over by itself, at silence");
+        const int expectPeakAt = static_cast<int> (sr * 0.25f);
+        check (std::abs (peakSample - expectPeakAt) <= 2 && atPeak > 0.999f,
+               "a symmetric shape peaks exactly at half its duration");
+        for (int i = 0; i < static_cast<int> (sr * 0.3); ++i)
+            atEnd = env.process();
+        check (atEnd < 1.0e-6f && env.selfEnded() && env.finished(),
+               "with no sustain the shape ends at silence and the note is over by itself");
 
-        // A train of plucks under a volume decay: one peak per period, each one
-        // quieter than the last, and silence in between them.
-        EnvShape train;
-        train.noteSeconds = 2.0f;
-        train.periodSeconds = 0.25f;
-        train.repeats = true;
-        train.peak = 0.05f;
-        train.outerFloor = 0.0f;
-        env.start (train);
-        const WindowExtremes plucks = windowExtremes (env, 8, static_cast<int> (sr * 0.25f));
-        bool onePerPeriod = true, silentInBetween = true, falling = true;
-        for (int k = 0; k < 8; ++k)
-        {
-            onePerPeriod = onePerPeriod && plucks.max[k] > 0.1f;   // it did sound
-            silentInBetween = silentInBetween && plucks.min[k] < 0.05f;
-            if (k > 0)
-                falling = falling && plucks.max[k] < plucks.max[k - 1] * 0.97f;
-        }
-        check (onePerPeriod, "a period inside the note re sounds exactly that many plucks");
-        check (silentInBetween, "a pluck returns to silence: there is nothing to hold between them");
-        check (falling, "env_time is a volume decay over the repeats: each pluck is quieter");
-        check (plucks.max.back() < plucks.max.front() * 0.85f,
-               "and the decay is audible across the note, not a trim of its level");
-
-        // The floor of vol_sus is a floor of that decay, never a plateau inside a
-        // pluck: with a floor the train keeps going at that level.
-        EnvShape floored = train;
-        floored.outerFloor = 0.5f;
-        env.start (floored);
-        for (int i = 0; i < static_cast<int> (sr * 3.0); ++i)
+        // Sustain holds, and the second fade takes that hold to silence.
+        EnvShape held = oneShot;
+        held.sustain = 0.5f;
+        env.start (held);
+        for (int i = 0; i < static_cast<int> (sr * 2); ++i)
             env.process();
-        // Note the distinction the clock makes and the genes do not: the note's
-        // *length* is over (selfEnded), but nothing has ended, because the level
-        // settled on a floor instead of reaching silence (finished).
-        check (! env.finished(),
-               "vol_sus's floor means the note is as long as the key");
-        const WindowExtremes after = windowExtremes (env, 2, static_cast<int> (sr * 0.25f));
-        check (std::abs (after.max.front () - 0.5f) < 0.05f,
-               "the plucks settle at vol_sus's floor instead of reaching silence");
-        check (after.min.front () < 0.05f,
-               "and even a sustaining note is still a train of plucks, not a hold");
+        check (std::abs (env.ampValue() - 0.5f) < 1.0e-4f && ! env.finished(),
+               "vol_sus is the floor the decay aims at, and it holds indefinitely");
 
-        // An endless note keeps plucking at full level until the key lifts.
-        EnvShape endless;
-        endless.noteSeconds = EnvShape::kInfiniteDuration;
-        endless.periodSeconds = 0.2f;
-        endless.repeats = true;
-        endless.peak = 0.05f;
-        endless.outerFloor = 1.0f;
-        env.start (endless);
-        const WindowExtremes endlessRun = windowExtremes (env, 10, static_cast<int> (sr * 0.2f));
-        check (endlessRun.max.size() == 10 && endlessRun.max.front () > 0.2f,
-               "env_time at 0.9 is an endless train of plucks");
-        bool level = true;
-        for (const float h : endlessRun.max)
-            level = level && std::abs (h - endlessRun.max.front ()) < 1.0e-3f;
-        check (level && ! env.finished () && ! env.selfEnded (),
-               "with no decay and no floor there is nothing to end the note");
+        EnvShape faded = held;
+        faded.fade = 1.0f;
+        env.start (faded);
+        for (int i = 0; i < static_cast<int> (sr * 2); ++i)
+            env.process();
+        check (env.ampValue() < 1.0e-5f && env.finished(),
+               "vol_fade alone closes a note that has no duration of its own (R3)");
 
-        // Note off (D-5): stop, and a fixed release from wherever the level is.
-        env.start (train);
+        // Repeats: one whole envelope per period, and none at all when the
+        // period is not inside the duration.
+        EnvShape loop;
+        loop.duration = 2.0f;
+        loop.repeats = true;
+        loop.loopPeriod = 0.25f;
+        loop.shapeSeconds = 0.25f;
+        env.start (loop);
+        const int peaks = countPeaks (env, static_cast<int> (sr * 2.1));
+
+        check (peaks == 8, "a loop period inside the duration re triggers the shape that many times");
+
+        EnvShape noLoop = loop;
+        noLoop.duration = 0.2f;   // the period is past it: no repeats (4.2)
+        noLoop.repeats = false;
+        noLoop.shapeSeconds = 0.2f;
+        env.start (noLoop);
+        const int single = countPeaks (env, static_cast<int> (sr * 2));
+        check (single == 1,
+               "a period at or beyond the duration gives exactly one pass");
+
+        // Note off: stop looping, fixed release from wherever the shape is.
+        env.start (loop);
         for (int i = 0; i < static_cast<int> (sr * 0.05); ++i)
             env.process();
         const float levelAtOff = env.ampValue();
@@ -3008,30 +2926,18 @@ static void testSharedEnvelope()
         const float expected = kNoteOffReleaseSeconds * static_cast<float> (sr);
         check (std::abs (samplesToSilence - expected) <= 2.0f,
                "note off is a fixed release (D-5), sample accurate, not an env_time release");
-        check (levelAtOff > 0.0f, "the release starts from the level the pluck was at");
+        check (levelAtOff > 0.0f, "the release starts from the level the shape was at");
 
-        // The modulator is the same pluck on the same clock, and it follows the
-        // note's level down: modulation cannot outlive the sound it modulates.
+        // The mod envelope shares the clock and always returns to nothing.
         EnvShape mod;
-        mod.noteSeconds = 1.0f;
-        mod.periodSeconds = 0.25f;
-        mod.repeats = true;
-        mod.peak = 0.05f;
-        mod.outerFloor = 0.0f;
+        mod.duration = 1.0f;
+        mod.shapeSeconds = 1.0f;
+        mod.sustain = 1.0f;   // amp holds at full, mod must not
         env.start (mod);
-        float ampPeak = 0.0f, modPeak = 0.0f, modLate = 1.0f;
-        for (int i = 0; i < static_cast<int> (sr * 1.2); ++i)
-        {
-            const float a = env.process();
-            ampPeak = std::max (ampPeak, a);
-            modPeak = std::max (modPeak, env.modValue());
-            if (i > static_cast<int> (sr * 0.9))
-                modLate = std::max (modLate * 0.0f, env.modValue());
-        }
-        check (modPeak > 0.9f * ampPeak,
-               "the modulator follows the pluck: it peaks where the level peaks");
-        check (modLate < 0.2f * modPeak,
-               "and it decays with the note, because it is the same envelope");
+        for (int i = 0; i < static_cast<int> (sr); ++i)
+            env.process();
+        check (std::abs (env.ampValue() - 1.0f) < 1.0e-4f && env.modValue() < 1.0e-4f,
+               "the mod envelope returns to nothing on the same clock the amp sustains on");
     }
 }
 
@@ -3112,17 +3018,7 @@ static void testEnvelopeArticulation()
     show ("vol_atk front weighted", front);
     show ("vol_atk back weighted", back);
     expect (!(! (front.measured && back.measured)), "! (front.measured && back.measured)");
-    // vol_atk bends the *rise into the peak* and nothing else (design 4.2 as
-    // re-read by M4b): the rise itself is env_tilt's, and at neutral tilt that is
-    // a few per cent of the period. So the direction is asserted, the factor is
-    // small on purpose - a gene that could double the attack time is env_tilt.
-    // vol_atk bends the *curvature* of the rise; the peak's position belongs to
-    // env_tilt, so a time-to-peak metric cannot see it (both renders peak at the
-    // same moment, and that is correct). What is asserted here is that the gene
-    // is not inaudible; the exponent itself is pinned at the mapping layer.
-    expect (!(! (front.measured && back.measured)), "! (front.measured && back.measured)");
-    expect (!(! (std::abs (front.peak - back.peak) > 1.0e-6f || front.endSeconds != back.endSeconds)),
-            "vol_atk changes the attack it renders (a time-to-peak probe cannot see a curvature)");
+    expect (!(! (back.attackSeconds > front.attackSeconds * 1.5f)), "! (back.attackSeconds > front.attackSeconds * 1.5f)");
 
     // env_kf: the same plant at a low key and a high one.
     const Articulation lowKey = articulate (seedWith ({ { g_env_time, 0.45f }, { g_env_loop, 1.0f },
@@ -3201,7 +3097,7 @@ static void testEnvelopeArticulation()
 //==============================================================================
 static void testM2BaselineAudio()
 {
-    std::printf ("the audio table, re-pinned after M4b (baseline for M5+)\n");
+    std::printf ("the audio table, re-pinned after M4 (baseline for M5+)\n");
 
     const MutationParams mp;
     const uint64_t seedId = hash::fromString ("render-seed");
@@ -3220,8 +3116,8 @@ static void testM2BaselineAudio()
     // sitting at full level. That is the design, and M7's Volume curve is the
     // milestone that re-tunes the output for it.
     static const float expectedRms[12] = {
-        0.0561175f, 0.0560848f, 0.0688941f, 0.0552762f, 0.0543616f, 0.0536776f,
-        0.0574720f, 0.0652010f, 0.0637223f, 0.0561138f, 0.0733133f, 0.0619699f
+        0.0252168f, 0.0248398f, 0.0293937f, 0.0234855f, 0.0231596f, 0.0234624f,
+        0.0248778f, 0.0277567f, 0.0277592f, 0.0230166f, 0.0309153f, 0.0269386f
     };
 
     bool same = true;
@@ -3425,13 +3321,7 @@ static void testBranchBatch()
     // worst +3.64 dB, quietest -1.58 dB, 60 of 60. The gate is now the target
     // itself; the measured spread is pinned one notch above what M3 got so that
     // M5's real topologies have somewhere to fail in before the gate does.
-    // M4b re-pinned this at +2.67 / -6.21 dB, 59 of 60 inside the target. The one
-    // case past it is branch 0 at length 1.0: a 0.68 s note with a 20% floor and
-    // vol_fade open, i.e. exactly the case where "how long the note sounds and how
-    // far its level falls" is the whole story and the compensator's duty term is a
-    // first order estimate of it. M5 owns the loudness model (plan 6.3); until it
-    // lands the gate allows one such case rather than pretending it is not there.
-    check (stats.overSixDb <= 1, "at most one of the 60 cases is outside the 6 dB target (M4b's gate)");
+    check (stats.overSixDb == 0, "every one of the 60 cases is inside the 6 dB target (M3's gate)");
     // M4 widened this from 3.64 dB to 5.29 dB, and the cause is known: three
     // genes now reach the output that did not reach it before (b_sh takes B
     // through a sample and hold, which the DC blocker then mostly removes;
@@ -3440,7 +3330,7 @@ static void testBranchBatch()
     // exactly plan 6.3's warning and M5's job (it owns a loudness model that
     // knows topology, separation and the sources of level). The gate therefore
     // stays at the target itself, one notch of slack above the measurement.
-    check (stats.worstDbVsSeed < 7.0f, "measured spread stays near the 6 dB target (M4b reached 6.21)");
+    check (stats.worstDbVsSeed < 6.0f, "measured spread stays inside the 6 dB target (M4 reached 5.29)");
     // Growth was level *suppressed* under M2; the duty term now lifts short and
     // percussive branches toward their seed, so a branch may come out a little
     // louder. Pin the direction and the amount anyway: +4 dB is the point where

@@ -265,11 +265,6 @@ void Voice::render (float* outL, float* outR, int numSamples)
     const float lfoBalanceCos = std::cos (clamp01 (p.lfoBalance) * 0.5f * kPi);
     const float lfoBalanceSin = std::sin (clamp01 (p.lfoBalance) * 0.5f * kPi);
     const bool lfoOn = p.lfoDepth > 1.0e-4f;
-    // The LFO is free (design 6.1.1 Rev 4): nothing here multiplies its depth by
-    // the envelope. Vibrato and tremolo are the only modulators in the instrument
-    // that do not follow the note's shape, which is what keeps them usable on a
-    // slow sound; lfo_dly is the only thing that gates them, and only at the
-    // onset. testModulationSources holds that line.
 
     // Structural traits, not b_sh semantics (plan M4, R10): a trait may swap what
     // B does, and mode 0 is "no trait". The sample and hold on B is a gene
@@ -285,19 +280,18 @@ void Voice::render (float* outL, float* outR, int numSamples)
     for (int i = 0; i < numSamples; ++i)
     {
         //--------------------------------------------------------------------
-        // The one clock (design 6.1.1 Rev 4): a pluck repeated at the resolved
-        // period, under an outer volume decay whose length is env_time. Sample
-        // accurate, per 6.4 - an envelope that lags its own shape is an envelope
-        // that does not measure what the harness measures.
+        // The one clock (design 6.1.1): the amp is the shape through the volume
+        // curvatures, the modulator is the same position through the mod
+        // curvatures, scaled once by VelSens x mod_vel. Sample accurate, per
+        // 6.4 - with duration as a gene, an envelope that lags its own shape is
+        // an envelope that does not measure what the harness measures.
         const float ampEnvV = env.process();
 
-        // The modulator is the *same pluck* with its own timing (6.1.1: the
-        // modulation envelope has no shape of its own), scaled once by VelSens x
-        // mod_vel and then re-quantised by mod_sh if that gate is open - which is
-        // what turns it from a pluck into a squared envelope that still follows
-        // the note. Scale, then hold, in the document's order: the two commute,
-        // but writing them the other way round is how a velocity curve ends up
-        // inside the hold.
+        // The modulator, scaled once by VelSens x mod_vel (6.1.1) and then
+        // re-quantised by mod_sh if that gate is open ("optionally re-quantised
+        // by an S&H at rate mod_sh"). Scale, then hold, in the document's order:
+        // the two commute, but writing them the other way round is how a
+        // velocity curve ends up inside the hold.
         const float modRaw = env.modValue() * p.modScale;
         const bool modStepped = modHold.process (modRaw);
         const float modMix = modHold.active() ? modHold.value() : modRaw;

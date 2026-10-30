@@ -58,17 +58,17 @@ namespace gmosh
     /* --- 4.2 group 1: envelope clock (4) + volume (4) + modulation (4) + LFO (4) = 16 --- \
        One shared clock drives both envelopes; the duration of the sound is a \
        gene, so growth changes articulation as much as spectrum. */ \
-    X(env_time,  "Env Duration",  "How long the note lasts, as a volume decay over the repeating pluck; above 0.9 it never fades by itself.", Curve::Exp,     0.05f,  10.0f, 0.50f, 0.00f, 1.00f, GrpEnv,   0, 0.45f, 0.12f, 0.72f, 0) \
-    X(env_loop,  "Env Repeat",    "How long the envelope curve takes to loop; a period longer than the note is one single pluck.", Curve::Exp, 0.05f, 1.0f, 0.50f, 0.00f, 1.00f, GrpEnv,  0, 0.35f, 0.15f, 0.75f, 0) \
-    X(env_tilt,  "Env Tilt",      "Tilt of the pluck: low is a plain pluck, high rises slowly and then falls off a cliff.", Curve::Bipolar, -1.0f, 1.0f, 0.50f, 0.00f, 1.00f, GrpEnv,  0, 0.40f, 0.25f, 0.75f, 0) \
+    X(env_time,  "Env Duration",  "Total duration of the sound; above 0.9 it is held until the key is released.", Curve::Exp,     0.05f,  30.0f, 0.50f, 0.00f, 1.00f, GrpEnv,   0, 0.45f, 0.12f, 0.72f, 0) \
+    X(env_loop,  "Env Repeat",    "Period of the repeating envelope; a period longer than the duration means no repeats.", Curve::Exp, 0.05f, 30.0f, 0.50f, 0.00f, 1.00f, GrpEnv,  0, 0.35f, 0.15f, 0.75f, 0) \
+    X(env_tilt,  "Env Tilt",      "Attack/decay skew of the shared envelope: low is a fast attack, high a slow one.", Curve::Bipolar, -1.0f, 1.0f, 0.50f, 0.00f, 1.00f, GrpEnv,  0, 0.40f, 0.25f, 0.75f, 0) \
     X(env_kf,    "Env Key Follow","Key follow of the duration; above the middle, high keys shorten the envelope.", Curve::Bipolar, -2.0f, 2.0f, 0.50f, 0.00f, 1.00f, GrpEnv,   0, 0.25f, 0.30f, 0.70f, 0) \
-    X(vol_atk,   "Attack",        "How the pluck rises to its peak: 0.5 is linear, below is punchy, above is soft. It cannot lengthen the attack, env_tilt does.", Curve::Bipolar, -1.0f, 1.0f, 0.50f, 0.00f, 1.00f, GrpVol, 0, 0.35f, 0.25f, 0.75f, 0) \
-    X(vol_dcy,   "Decay",         "Shape of the volume decay over the repeating pluck, not of the pluck itself: 0.5 fades steadily, above collapses late.", Curve::Bipolar, -1.0f, 1.0f, 0.50f, 0.00f, 1.00f, GrpVol, 0, 0.35f, 0.25f, 0.75f, 0) \
-    X(vol_sus,   "Sustain",       "Floor of that decay; below the middle the plucks fade away and the note ends by itself.", Curve::Linear, 0.0f, 1.0f, 0.50f, 0.50f, 1.00f, GrpVol, 0, 0.40f, 0.35f, 0.90f, 0) \
-    X(vol_fade,  "Fade",          "Takes that floor to silence, only active above the top quarter of the range.", Curve::Linear, 0.0f, 1.0f, 0.75f, 0.75f, 1.00f, GrpVol, 0, 0.25f, 0.75f, 0.95f, 0) \
-    X(mod_atk,   "Mod Attack",    "When the modulation arrives relative to the level. The modulation envelope has no curve of its own, it is the same pluck.", Curve::Bipolar, -1.0f, 1.0f, 0.50f, 0.00f, 1.00f, GrpMod, 0, 0.35f, 0.25f, 0.75f, 0) \
-    X(mod_dcy,   "Mod Decay",     "How fast the modulation decays compared with the level: 0.5 is the same, above decays sooner.", Curve::Bipolar, -1.0f, 1.0f, 0.50f, 0.00f, 1.00f, GrpMod, 0, 0.35f, 0.25f, 0.75f, 0) \
-    X(mod_sh,    "Mod Sample Hold","Turns the modulation from a pluck following the envelope into a squared envelope that still follows it; off until the top quarter, higher is slower.", Curve::Exp, 8.0f, 0.1f, 0.75f, 0.75f, 1.00f, GrpMod, 0, 0.30f, 0.10f, 0.90f, 0) \
+    X(vol_atk,   "Attack Shape",  "Attack curvature of the amp envelope: 0.5 is linear, below is front weighted, above back weighted.", Curve::Bipolar, -1.0f, 1.0f, 0.50f, 0.00f, 1.00f, GrpVol, 0, 0.35f, 0.25f, 0.75f, 0) \
+    X(vol_dcy,   "Decay Shape",   "Decay curvature of the amp envelope: 0.5 is linear.", Curve::Bipolar, -1.0f, 1.0f, 0.50f, 0.00f, 1.00f, GrpVol, 0, 0.35f, 0.25f, 0.75f, 0) \
+    X(vol_sus,   "Sustain",       "Sustain level; below the middle the note does not sustain at all.", Curve::Linear, 0.0f, 1.0f, 0.50f, 0.50f, 1.00f, GrpVol, 0, 0.40f, 0.35f, 0.90f, 0) \
+    X(vol_fade,  "Fade",          "A second fade after the attack, only active above the top quarter of the range.", Curve::Linear, 0.0f, 1.0f, 0.75f, 0.75f, 1.00f, GrpVol, 0, 0.25f, 0.75f, 0.95f, 0) \
+    X(mod_atk,   "Mod Atk Shape", "Attack curvature of the modulation envelope, which drives parameters, not level.", Curve::Bipolar, -1.0f, 1.0f, 0.50f, 0.00f, 1.00f, GrpMod, 0, 0.35f, 0.25f, 0.75f, 0) \
+    X(mod_dcy,   "Mod Dec Shape", "Decay curvature of the modulation envelope: 0.5 is linear.", Curve::Bipolar, -1.0f, 1.0f, 0.50f, 0.00f, 1.00f, GrpMod, 0, 0.35f, 0.25f, 0.75f, 0) \
+    X(mod_sh,    "Mod Sample Hold","Sample and hold rate for the modulation envelope; off until the top quarter, higher is slower.", Curve::Exp, 8.0f, 0.1f, 0.75f, 0.75f, 1.00f, GrpMod, 0, 0.30f, 0.10f, 0.90f, 0) \
     X(mod_vel,   "Mod Velocity",  "How much velocity scales modulation depth; below a tenth velocity is ignored.", Curve::Linear, 0.0f, 1.0f, 0.10f, 0.10f, 1.00f, GrpMod, 0, 0.30f, 0.10f, 0.90f, 0) \
     X(lfo_rate,  "LFO Rate",      "Frequency of the one LFO; vibrato and tremolo share it.", Curve::Exp,    0.02f,  30.0f, 0.50f, 0.00f, 1.00f, GrpLfo,   0, 0.60f, 0.05f, 0.60f, 0) \
     X(lfo_amt,   "LFO Amount",    "LFO depth; the middle is none, below it A and B move in opposite directions.", Curve::Bipolar, -1.0f, 1.0f, 0.50f, 0.00f, 1.00f, GrpLfo, 0, 0.50f, 0.25f, 0.85f, kFlagPitch) \
