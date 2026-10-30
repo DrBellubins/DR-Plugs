@@ -8,11 +8,17 @@ code against design document **Revision 3** (the 48 documented genes with their 
 a marked 2-gene extras block, the shared envelope clock, LFO to pitch/volume, two S&H sources,
 `flt_type`, `saturate`/`adj_*`, per-voice reverb, the §5.7 curation mechanisms, and the §13
 measurement protocol), with milestones M0–M11 and gates. Every open decision there was answered on
-2026-10-29 (`Rev3-Alignment-Plan.md` §4; verbatim answers in `Rev3-ChangeLog.md` §5.1), so the
-work is unblocked — start at M0. It supersedes `Docs/Rev2-Alignment-Plan.md`. Everything below
-section 9 describes the code as it is now, which is Rev 1's gene set (43 genes: 10 of the 48
-missing, 3 to delete, 2 to demote to the extras block, 7 renames, and 24 that exist but mean
-something else).*
+2026-10-29 (`Rev3-Alignment-Plan.md` §4; verbatim answers in `Rev3-ChangeLog.md` §5.1).
+**M0 landed on 2026-10-30** (§10 below): the gene table is now the 48 documented genes plus the
+marked 2-gene extras block, with `neutral`/`gateLow`/`gateHigh`/`steps`/`helpText`/`colour`,
+`Curve::Stepped`, the five growth-exempt genes, and a `modelVersion` that refuses older states.
+Next is **M1** (one mapping layer: neutral, gates, steps, links). It supersedes
+`Docs/Rev2-Alignment-Plan.md`.*
+
+Everything below section 9 describes the code as it was then, which was Rev 1's gene set
+(43 genes). **The gene table is no longer Rev 1's** — see §10 — but the *meaning* of most of
+those genes is still Rev 1's: the envelope, modulation, filter topology, saturation and output
+stage still work the way sections 1–9 describe until M3–M7 land.
 
 Date: 2026-10-20. Branch: first working pass, covering phases 1–6 in rudimentary
 form (genome, mutation, voice, modulation, FX, plugin shell) plus a debug UI.
@@ -99,8 +105,9 @@ Level compensation (5.6) is working: 12 far branches land inside ~1 dB.
    on the FM path).
 4. Structural traits are not crossfaded inside held notes.
 5. No sustain pedal / pitch bend / MIDI config (section 9).
-6. `PlantView::update` copies a whole `PlantSnapshot` (≈6 KB) at 30 Hz on the
-   UI thread; fine, but it should only need the hue/hash fields.
+6. ~~`PlantView::update` copies a whole `PlantSnapshot` at 30 Hz on the UI
+   thread.~~ Fixed at Rev 3 M0 (2026-10-30): the view keeps twelve 24-byte
+   per-branch drawing fingerprints and refreshes them only on a revision change.
 7. Voice stealing restarts the stolen voice immediately instead of fading it.
 
 ## 5. Questions for the operator
@@ -453,3 +460,133 @@ The macro column is split by what the controls actually are:
 
 `Layout` in `PluginEditor` now carries `knobRowTop`, `knobRowBottom` and
 `macroPlate` instead of one column rect.
+
+---
+
+## 10. Addendum 2026-10-30 — Rev 3 alignment **M0**: the gene table becomes the documented 48
+
+Milestone M0 of `Docs/Rev3-Alignment-Plan.md`. Table only: no envelope, modulation,
+filter topology or output behaviour was re-semantified. Everything in this section
+is what M1–M7 have to work against, so it is recorded in full.
+
+### What changed
+
+* `Source/Genetic/GeneTable.h`. `GENO_MOSH_GENE_LIST` is design §4.2 verbatim:
+  **48 genes in the document's order and groups (16 / 15 / 17), then the two
+  extras of deviation D-7** (`b_color`, `fx_width`) in their own `GrpExtras`
+  group, `kNumGenes` = 50, `kNumCoreGenes` = 48 as a named constant. The 7
+  renames (`balance→osc_mix`, `sat_drive→saturate`, `fx_*→rvb_*`), the 3
+  deletions (`vol_rel`, `det_spread`, `drift_amt`) and the 10 additions
+  (`env_kf`, `vol_fade`, `lfo_dly`, `mix_mod`, `flt_type`, `rvb_atk`,
+  `adj_bass`, `adj_treb`, `adj_pan`, `adj_clip`) are all in.
+* `GeneInfo` is §4.3's struct: `helpText` (one sentence per gene), `neutral`,
+  `gateLow/gateHigh`, `steps`, `colour`. New flags `kFlagLinked`,
+  `kFlagStructural`; `kFlagNever` is now actually used, on `rvb_size` + the four
+  `adj_*`. `enum Group` is the document's eleven groups plus `GrpExtras`, with
+  one ARGB colour per group via `constexpr groupColour()` so the table and the
+  UI cannot disagree. `Curve::Cubic` is gone (nothing used it); `Curve::Stepped`
+  exists and is implemented both ways in `Curves.h` (`quantiseNorm`, steps in
+  gene space, exact step grid, stable inverse).
+* Version axes (`kFormatVersion` / `kModelVersion` / `kMutationVersion`) live next
+  to the table; the state file writes all three and `setStateInformation`
+  **refuses** a state whose `modelVersion` differs, with a one-line warning
+  (decision R11 — no fake migration).
+* `Mutation.cpp`: the atonality ceiling reads `gi.neutral` and the span from the
+  table instead of inferring a neutral from the curve; `randomizeGenome` leaves
+  every growth-exempt gene at its neutral and no longer biases `vol_atk` /
+  `flt_freq`, which are a curvature control and a cutoff *ratio* now.
+  `applyCouplings`/`safetyScore`/`loudnessCompensation` keep their formulas with
+  the renamed ids — plan §6.3 tracks that, M3/M5/M7 recalibrate.
+* `VoiceParams` is where the deleted genes became named constants
+  (`kNoteOffReleaseSeconds = 0.18`, `kVoiceDetuneCents`, `kVoiceDriftAmount`,
+  D-3/D-5) and where `flt_freq` became the tracking cutoff
+  (`cutoff = fA × 2^lerp(−2,+8,v)`, `fA` = note × `a_freq`). The LFO split is
+  the equal-power one over a 0..1 `lfo_bal` (vibrato / both / tremolo), with the
+  tremolo half still wired to the filter until M4 (R6).
+* `GeneGrid`: no more `GrpCount/2` column split — the two columns are counted out
+  in rows and split at a group boundary; headers take their colour from
+  `groupColour()`; every row carries its `helpText` as a tooltip.
+* `PlantView::update` no longer copies a `PlantSnapshot`. It keeps twelve
+  `BranchVisual` records (hash, hue, saturation, brightness = 24 B each) and
+  refreshes them only when `snapshot.revision` changes.
+* `Pictures/2026-10-22-0854*_0855*.png` now have `.txt` sidecars (plan §6.8),
+  including the two asterisks that design §15 Q-2 asks about.
+
+### Measured, once (M0's gate asks for the numbers)
+
+```
+sizeof Genome = 200 B, BranchDirection = 216 B, PlantSnapshot = 8008 B,
+triple buffer = 24024 B
+```
+
+The plan's predicted ≈ 200 B / ≈ 8 kB / ≈ 24 kB. Confirmed rather than re-derived.
+
+`GenoMosh_Tests` is green (28 checks, was 21), including the new
+`testTableMatchesDoc` (48 ids, order, group, curve and `steps` — `a_freq` 7,
+`flt_type` 4 — spelled out by hand from §4.2, the extras at slots 48/49, every
+gene carrying help text / neutral / gates, exactly 5 `kFlagNever`, and the Rev 1
+names gone) and `testGrowthExempt` (no branch length, 0…1, moves any of the five).
+The VST3 target builds with no new warnings.
+
+### The sound did move, and by how much
+
+There is no WAV writer until M2, so the M0 spot-check of "new sound = old sound"
+was done with the harness's per-branch table. **Before** (this is the
+`1f245e9`-era reference; `Source/` differed from it by two comments only):
+
+```
+branch 0..11 at distance 0.85, 48 kHz, note 60+branch
+  peak 0.440..0.581   rms 0.0642..0.0874   dc +0.0001..+0.0004
+  branch spread: 2.7 dB rms          usable branches at distance 1: 720 / 720
+```
+
+**After M0:**
+
+```
+  peak 0.636..0.755   rms 0.0874..0.0933   dc +0.0034..+0.0041
+  branch spread: 0.6 dB rms          usable branches at distance 1: 720 / 720
+```
+
+Read that honestly. The six `same` genes (`mod_vel`, `lfo_rate`, `a_noise`,
+`b_noise`, `fm_mod`, `flt_mod`) keep their exact curves and ranges; `fm_amt` and
+`saturate` keep their old depth ranges under the curves §4.2 names. Everything
+else moved because its *meaning* moved, and the two big movers are the ones the
+plan expected: the tracking cutoff (every branch now sits relative to the note
+instead of at an absolute Hz) and the re-centred soft ranges. Net effect: branch
+loudness is 4× tighter (which is what the level model wants) and the plant is
+~2.4 dB hotter overall, with DC an order of magnitude up but still 10× inside the
+gate. **M7's `Volume`/limiter work must be done against the new numbers, not the
+old ones**, and `loudnessCompensation` gets its topology/shelf/clipper terms there.
+
+### Provisional wiring (what is deliberately dead, and who owns it)
+
+`VoiceParams` resolves these to their documented neutral, and nothing reads them
+yet — they exist so the table is honest before the destination is:
+
+| Gene | Resolved as | Read by |
+| --- | --- | --- |
+| `vol_fade`, `env_kf`, `vol_atk/vol_dcy/mod_atk/mod_dcy` (as `provisionalSeconds`) | times around a fixed base | M3 (`SharedEnv`) |
+| `lfo_dly`, `mix_mod`, `lfo_amt`'s sign | value, unused | M4 |
+| `flt_type` (`p.filterTopology`) | stepped value, unused; the `filterMode` trait still decides | M5 (R10) |
+| `saturate` (still inside the filter loop) | drive, unchanged | M6 |
+| `rvb_atk`, `adj_bass/treb/pan/clip` | value / dB / spread, unused | M7 |
+| `gateLow/gateHigh`, `softRails`, `pullToNeutral` | table data only | M1 |
+
+`a_freq` no longer carries `kFlagRatio`: it is quantised by its own seven-step
+curve (R10), and the ratio snapper of §5.5 stays on `b_freq` until M8 moves it
+behind Atonality (R7). `testPitchStability` still asserts Rev 1's "the mod
+envelope never touches pitch"; with `a_mod`/`b_mod` now `kFlagPitch`, atonality 0
+converges them to neutral and the assertion is vacuous. It is **rewritten** in M4,
+not kept (plan §6.1).
+
+### Run it
+
+```
+cmake --build cmake-build-debug --target GenoMosh_Tests && ./cmake-build-debug/Tests/GenoMosh_Tests
+cmake --build cmake-build-debug --target GenoMosh_VST3
+```
+
+Old `.ginomosh` states / DAW recalls from before this commit are expected to print
+the refusal line and start a fresh plant. That is the intended behaviour, not a
+regression. Next milestone: **M1**, one mapping layer (neutral, gates, steps,
+links), which is where `gateLow/gateHigh` stop being data.

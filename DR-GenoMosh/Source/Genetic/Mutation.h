@@ -30,12 +30,12 @@ struct MutationParams
 
     /// A generation time ceiling on tonality, not a modulation destination.
     ///
-    /// It bounds how far any kFlagPitch gene (a_freq, b_freq, lfo_amt,
-    /// drift_amt, det_spread) may sit from its neutral point, in the seed, in
-    /// every branch direction and in every resolved branch genome:
+    /// It bounds how far any kFlagPitch gene (a_freq, b_freq, a_mod, b_mod,
+    /// lfo_amt) may sit from its neutral point, in the seed, in every branch
+    /// direction and in every resolved branch genome:
     ///
-    ///   0 -> oscillator offsets are unison and there is no vibrato, drift or
-    ///        per voice detune: nothing in the plant can move the pitch.
+    ///   0 -> oscillator offsets are unison, there is no vibrato and no
+    ///        envelope pitch modulation: nothing in the plant can move the pitch.
     ///   1 -> the full range of those genes is available.
     ///
     /// A ceiling rather than a multiplier, so a seed drawn at atonality 0.8 and
@@ -56,6 +56,10 @@ struct BranchDirection
 };
 
 /// Discrete, distance gated structural changes (design doc 5.4).
+/// Decision R10: a trait may only offset a stepped gene by one step and swap
+/// which source drives a destination, never replace a gene. filterMode is on its
+/// way out for exactly that reason (M5 makes flt_type the gene the document
+/// describes); the three below only ever swap a source.
 struct BranchTraits
 {
     unsigned char filterMode = 0; ///< 0 = low, 1 = band, 2 = high

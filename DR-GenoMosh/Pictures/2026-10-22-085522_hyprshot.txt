@@ -1,0 +1,30 @@
+Screenshot of the reference product's second gene page, "II. Oscillators"
+(captured 2026-10-22). See the provenance note in the design document: where
+this page and the reference's written documentation disagree, the documentation
+wins.
+
+Left column, oscillator A: a_form, a_noise, a_mod, a_color, a_freq, next to
+"figure 2a Oscillator A" - a single clean cycle, i.e. the page shows A on its
+own, before anything modulates it.
+
+Middle, the FM/mix group: fm_mod, fm_amt on one row and mix_mod, osc_mix on the
+next, with arrows drawn from them down into A and up into B. This is the
+diagram that places the FM and mix controls between the two oscillators rather
+than after them.
+
+Left column, oscillator B: b_form, b_noise, b_mod, sub_am, b_freq, b_sh, next
+to "figure 2b Oscillator B" - a pulse-shaped wave at roughly the same period as
+figure 2a, which is how B reads as a relative of A rather than a second
+unrelated source.
+
+The arrows drawn between the two figures connect them into one chain: a green
+arrow runs from figure 2a down into the fm_mod / fm_amt / mix_mod / osc_mix row,
+and a line continues from that row into figure 2b. Read as a diagram, A and B and
+their FM/mix controls are one signal path, not two independent sources - which is
+how the reference presents "A modulated by B" as the default direction.
+
+No control on this page is a waveform duty/PWM control, which is the origin of
+open question 4 in section 15 (assume the pulse width is fixed).
+
+This page is the source of the 15 genes of design document 4.2 group 2
+(5 + 4 + 6).

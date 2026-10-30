@@ -79,15 +79,15 @@ void Voice::start (const VoiceParams& params, int midiNote, uint64_t plantHash)
     modEnv.gateOn();
 
     // One shot version of the loop envelope, crossfaded against the looping
-    // one by env_loop.
-    loopEnvOneShot.setTimes (p.loopTime * 0.25f, p.loopTime * 0.75f, 0.0f, p.loopTime * 0.25f);
+    // one by env_repeat (env_loop until M3 makes it the period it documents).
+    loopEnvOneShot.setTimes (p.envTime * 0.25f, p.envTime * 0.75f, 0.0f, p.envTime * 0.25f);
     loopEnvOneShot.gateOn();
 
     lfo.setRateHz (p.lfoRate, sampleRate);
     lfo.setShape (rng.integer (3), rng);
     lfo.setPhase (rng.uniform());
 
-    loopMod.setRateHz (1.0f / p.loopTime, sampleRate);
+    loopMod.setRateHz (1.0f / p.envTime, sampleRate);
     loopMod.setShape (1, rng);
     loopMod.setPhase (rng.uniform());
 
@@ -201,6 +201,14 @@ void Voice::render (float* outL, float* outR, int numSamples)
     const float mixA = std::cos (p.balance * 0.5f * kPi);
     const float mixB = std::sin (p.balance * 0.5f * kPi);
 
+    // lfo_bal is 0 = vibrato only, 0.5 = both, 1 = tremolo only (4.2), split at
+    // equal power. The tremolo half still drives the filter here: the volume
+    // path arrives with M4 and the fixed LFO to filter route goes away with it
+    // (decision R6).
+    const float lfoDepth = std::abs (p.lfoAmount);   // bipolar gene, 0.5 = silent
+    const float lfoBalanceCos = std::cos (clamp01 (p.lfoBalance) * 0.5f * kPi);
+    const float lfoBalanceSin = std::sin (clamp01 (p.lfoBalance) * 0.5f * kPi);
+
     const float sr = static_cast<float> (sampleRate);
     const bool syncOn = p.oscBMode == 0 && p.bShape > 0.02f;
     const bool ringOn = p.oscBMode == 1 && p.bShape > 0.02f;
@@ -208,7 +216,7 @@ void Voice::render (float* outL, float* outR, int numSamples)
     const bool hasNoiseA = p.aNoise > 0.001f;
     const bool hasNoiseB = p.bNoise > 0.001f;
     const bool hasSub = p.subLevel > 0.001f;
-    const bool hasLoop = p.loopAmount > 0.001f;
+    const bool hasLoop = p.envRepeat > 0.001f;
 
     for (int i = 0; i < numSamples; ++i)
     {
@@ -216,7 +224,7 @@ void Voice::render (float* outL, float* outR, int numSamples)
         // Modulators.
         const float modEnvV = std::pow (modEnv.process(), p.modShape);
         const float loopV = hasLoop
-                          ? tiltTriangle (loopMod.process() * 0.5f + 0.5f, p.loopTilt)
+                          ? tiltTriangle (loopMod.process() * 0.5f + 0.5f, p.envTilt)
                           : 0.0f;
         const float oneShotV = loopEnvOneShot.process() * 2.0f - 1.0f;
         const float lfoV = lfo.process();
@@ -231,8 +239,8 @@ void Voice::render (float* outL, float* outR, int numSamples)
             default: modMix = lfoV; break;
         }
 
-        const float lfoPitch = lfoV * p.lfoAmount * (0.5f - 0.5f * p.lfoBalance);
-        const float lfoFilter = lfoV * p.lfoAmount * (0.5f + 0.5f * p.lfoBalance);
+        const float lfoPitch = lfoV * lfoDepth * lfoBalanceCos;
+        const float lfoFilter = lfoV * lfoDepth * lfoBalanceSin;
 
         //--------------------------------------------------------------------
         // Control rate update + ramp (design doc 6.4).

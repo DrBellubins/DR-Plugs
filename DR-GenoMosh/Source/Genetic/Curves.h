@@ -17,6 +17,23 @@ inline float clamp01 (float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v);
 inline float clampf  (float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
 inline float lerpf   (float a, float b, float t) { return a + (b - a) * t; }
 
+//==============================================================================
+// Deliberate quantisation (design doc 5.7.5).
+//
+// A few genes are not continuous on purpose: a_freq is a seven step octave grid
+// and flt_type selects a topology. Quantisation happens in gene space, so the
+// stored genome stays a [0,1] float and every step is a multiple of
+// 1 / (steps - 1). Note that this makes "deviation grows with distance" false
+// in *audio* space across a step (5.4); the tests assert it in gene space.
+inline float quantiseNorm (float v, unsigned int steps)
+{
+    if (steps <= 1)
+        return clamp01 (v);
+
+    const float n = static_cast<float> (steps - 1);
+    return std::round (clamp01 (v) * n) / n;
+}
+
 inline float mapGene (const GeneInfo& g, float norm)
 {
     const float v = clamp01 (norm);
@@ -29,8 +46,8 @@ inline float mapGene (const GeneInfo& g, float norm)
         case Curve::Squared:
             return g.minValue + v * v * (g.maxValue - g.minValue);
 
-        case Curve::Cubic:
-            return g.minValue + v * v * v * (g.maxValue - g.minValue);
+        case Curve::Stepped:
+            return g.minValue + quantiseNorm (v, g.steps) * (g.maxValue - g.minValue);
 
         case Curve::Bipolar:
         {
@@ -56,8 +73,10 @@ inline float unmapGene (const GeneInfo& g, float value)
         case Curve::Squared:
             return std::sqrt ((value - g.minValue) / (g.maxValue - g.minValue));
 
-        case Curve::Cubic:
-            return std::cbrt ((value - g.minValue) / (g.maxValue - g.minValue));
+        case Curve::Stepped:
+            // The inverse of a quantised curve is itself quantised: mapping back
+            // gives the step that produced the value, not a free float.
+            return quantiseNorm ((value - g.minValue) / (g.maxValue - g.minValue), g.steps);
 
         case Curve::Bipolar:
             return value >= 0.0f

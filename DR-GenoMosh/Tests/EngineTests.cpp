@@ -18,6 +18,7 @@
 #include <cmath>
 #include <cstdio>
 #include <string>
+#include <vector>
 
 using namespace gmosh;
 
@@ -31,6 +32,231 @@ static void check (bool ok, const std::string& what)
 }
 
 //==============================================================================
+// The table is the contract (design doc 4.2 + 4.3). This test spells the
+// expected table out by hand, from the document, rather than reading it back out
+// of kGenes: it exists to catch the table drifting away from the document.
+struct ExpectedGene
+{
+    const char* id;
+    Group group;
+    Curve curve;
+    unsigned int steps;
+};
+
+static void testTableMatchesDoc()
+{
+    std::printf ("gene table vs design doc 4.2\n");
+
+    // 4.2 group 1 (16) = Envelope 4 + Volume 4 + Modulation 4 + LFO 4.
+    static const ExpectedGene expected[] = {
+        { "env_time",  GrpEnv,    Curve::Exp,     0 },
+        { "env_loop",  GrpEnv,    Curve::Exp,     0 },
+        { "env_tilt",  GrpEnv,    Curve::Bipolar, 0 },
+        { "env_kf",    GrpEnv,    Curve::Bipolar, 0 },
+        { "vol_atk",   GrpVol,    Curve::Bipolar, 0 },
+        { "vol_dcy",   GrpVol,    Curve::Bipolar, 0 },
+        { "vol_sus",   GrpVol,    Curve::Linear,  0 },
+        { "vol_fade",  GrpVol,    Curve::Linear,  0 },
+        { "mod_atk",   GrpMod,    Curve::Bipolar, 0 },
+        { "mod_dcy",   GrpMod,    Curve::Bipolar, 0 },
+        { "mod_sh",    GrpMod,    Curve::Exp,     0 },
+        { "mod_vel",   GrpMod,    Curve::Linear,  0 },
+        { "lfo_rate",  GrpLfo,    Curve::Exp,     0 },
+        { "lfo_amt",   GrpLfo,    Curve::Bipolar, 0 },
+        { "lfo_bal",   GrpLfo,    Curve::Linear,  0 },
+        { "lfo_dly",   GrpLfo,    Curve::Linear,  0 },
+        // 4.2 group 2 (15) = Oscillator A 5 + FM/mix 4 + Oscillator B 6.
+        { "a_form",    GrpOscA,   Curve::Linear,  0 },
+        { "a_noise",   GrpOscA,   Curve::Squared, 0 },
+        { "a_mod",     GrpOscA,   Curve::Bipolar, 0 },
+        { "a_color",   GrpOscA,   Curve::Linear,  0 },
+        { "a_freq",    GrpOscA,   Curve::Stepped, 7 },
+        { "fm_mod",    GrpMix,    Curve::Bipolar, 0 },
+        { "fm_amt",    GrpMix,    Curve::Bipolar, 0 },
+        { "mix_mod",   GrpMix,    Curve::Bipolar, 0 },
+        { "osc_mix",   GrpMix,    Curve::Linear,  0 },
+        { "b_form",    GrpOscB,   Curve::Linear,  0 },
+        { "b_noise",   GrpOscB,   Curve::Squared, 0 },
+        { "b_mod",     GrpOscB,   Curve::Bipolar, 0 },
+        { "sub_am",    GrpOscB,   Curve::Linear,  0 },
+        { "b_freq",    GrpOscB,   Curve::Bipolar, 0 },
+        { "b_sh",      GrpOscB,   Curve::Linear,  0 },
+        // 4.2 group 3 (17) = Filter 6 + saturation 1 + reverb 6 + output 4.
+        { "flt_type",  GrpFilter, Curve::Stepped, 4 },
+        { "flt_q",     GrpFilter, Curve::Squared, 0 },
+        { "flt_mod",   GrpFilter, Curve::Bipolar, 0 },
+        { "flt_sep",   GrpFilter, Curve::Bipolar, 0 },
+        { "flt_freq",  GrpFilter, Curve::Linear,  0 },
+        { "flt_kf",    GrpFilter, Curve::Linear,  0 },
+        { "saturate",  GrpSat,    Curve::Squared, 0 },
+        { "rvb_mix",   GrpRevb,   Curve::Linear,  0 },
+        { "rvb_atk",   GrpRevb,   Curve::Linear,  0 },
+        { "rvb_len",   GrpRevb,   Curve::Exp,     0 },
+        { "rvb_damp",  GrpRevb,   Curve::Linear,  0 },
+        { "rvb_chor",  GrpRevb,   Curve::Linear,  0 },
+        { "rvb_size",  GrpRevb,   Curve::Linear,  0 },
+        { "adj_bass",  GrpOut,    Curve::Bipolar, 0 },
+        { "adj_treb",  GrpOut,    Curve::Bipolar, 0 },
+        { "adj_pan",   GrpOut,    Curve::Bipolar, 0 },
+        { "adj_clip",  GrpOut,    Curve::Linear,  0 },
+    };
+
+    const std::size_t expectedCount = sizeof (expected) / sizeof (expected[0]);
+    bool ok = true;
+
+    check (expectedCount == kNumCoreGenes && kNumCoreGenes == 48,
+           "the documented gene count is 48");
+
+    int wrong = 0;
+    for (std::size_t i = 0; i < kNumCoreGenes && i < expectedCount; ++i)
+    {
+        const GeneInfo& gi = kGenes[i];
+        const ExpectedGene& ex = expected[i];
+
+        if (std::string (gi.id) != ex.id
+            || gi.group != ex.group
+            || gi.curve != ex.curve
+            || (ex.curve == Curve::Stepped ? gi.steps != ex.steps : gi.steps != 0))
+        {
+            std::printf ("       slot %2d: expected %s / group %d / curve %d / steps %u, "
+                         "found %s / %d / %d / %u\n",
+                         static_cast<int> (i), ex.id, static_cast<int> (ex.group),
+                         static_cast<int> (ex.curve), ex.steps,
+                         gi.id, static_cast<int> (gi.group),
+                         static_cast<int> (gi.curve), gi.steps);
+            ++wrong;
+        }
+    }
+    check (wrong == 0, "the first 48 table entries are 4.2 verbatim, in order");
+
+    // The D-7 extras block (decision R1): two genes, after the 48, in their own
+    // group, and nothing documented hides in it.
+    static const char* const extras[] = { "b_color", "fx_width" };
+    bool extrasOk = kNumGenes == kNumCoreGenes + 2;
+    for (std::size_t i = 0; i < kNumGenes && extrasOk; ++i)
+    {
+        const bool inExtras = kGenes[i].group == GrpExtras;
+        const bool expectedExtra = i >= kNumCoreGenes;
+        if (inExtras != expectedExtra)
+            extrasOk = false;
+    }
+    for (std::size_t e = 0; e < sizeof (extras) / sizeof (extras[0]); ++e)
+        if (std::string (kGenes[kNumCoreGenes + e].id) != extras[e])
+            extrasOk = false;
+    check (extrasOk, "exactly two marked extras sit after the 48 (D-7, decision R1)");
+
+    // 4.3 metadata: every gene documented, 5.7.1's neutral convention, gates in
+    // range, steps only on stepped curves.
+    int metaBad = 0;
+    int neverCount = 0;
+    for (std::size_t i = 0; i < kNumGenes; ++i)
+    {
+        const GeneInfo& gi = kGenes[i];
+
+        if (gi.id == nullptr || gi.id[0] == 0 || gi.label == nullptr || gi.label[0] == 0
+            || gi.helpText == nullptr || gi.helpText[0] == 0)
+            ++metaBad;
+
+        if (! std::isfinite (gi.neutral) || gi.neutral < 0.0f || gi.neutral > 1.0f)
+            ++metaBad;
+        if (gi.gateLow < 0.0f || gi.gateHigh > 1.0f || gi.gateLow >= gi.gateHigh)
+            ++metaBad;
+        if (gi.softMin > gi.softMax)
+            ++metaBad;
+        // min == max would make the mapping a constant; an Exp curve with
+        // min > max is legal and deliberate (mod_sh: higher gene = slower rate).
+        if (gi.minValue >= gi.maxValue && gi.curve != Curve::Exp)
+            ++metaBad;
+        if (gi.curve == Curve::Exp && (gi.minValue <= 0.0f || gi.maxValue <= 0.0f))
+            ++metaBad;
+        if (gi.curve == Curve::Stepped ? gi.steps < 2 : gi.steps != 0)
+            ++metaBad;
+
+        // 5.7.1: the "nothing happens" value of a bipolar gene is its middle.
+        if (gi.curve == Curve::Bipolar && std::abs (gi.neutral - 0.5f) > 1.0e-4f)
+            ++metaBad;
+
+        // The four documented non neutral defaults of 4.2 are also neutrals here:
+        // the reference's factory state is the state where nothing is added.
+        if (std::string (gi.id) == "osc_mix"  && std::abs (gi.neutral - 0.7937f) > 1.0e-3f) ++metaBad;
+        if (std::string (gi.id) == "flt_type" && std::abs (gi.neutral - 0.6667f) > 1.0e-3f) ++metaBad;
+        if (std::string (gi.id) == "flt_freq" && std::abs (gi.neutral - 0.7500f) > 1.0e-3f) ++metaBad;
+
+        if ((gi.flags & kFlagNever) != 0)
+            ++neverCount;
+    }
+    check (metaBad == 0, "every gene carries help text, a neutral and documented gates");
+    check (neverCount == 5, "rvb_size and the four adj_* are growth exempt (5.7.6)");
+
+    // 5.5: Atonality bounds the pitch capable genes. After R7 that is exactly
+    // the two oscillator offsets, the two envelope pitch modulations and the
+    // vibrato amount; per voice life is not a gene (D-3) and the output
+    // adjusters never move.
+    const char* const pitchIds[] = { "a_freq", "b_freq", "a_mod", "b_mod", "lfo_amt" };
+    bool pitchOk = true;
+    for (const char* id : pitchIds)
+    {
+        bool found = false;
+        for (std::size_t i = 0; i < kNumGenes; ++i)
+            if (std::string (kGenes[i].id) == id)
+                found = (kGenes[i].flags & kFlagPitch) != 0;
+        if (! found)
+            pitchOk = false;
+    }
+    for (std::size_t i = 0; i < kNumGenes; ++i)
+        if (std::string (kGenes[i].id) == "vol_sus" && (kGenes[i].flags & kFlagPitch) != 0)
+            pitchOk = false;   // deleted genes must not come back through flags
+    for (const char* gone : { "vol_rel", "det_spread", "drift_amt", "balance", "sat_drive",
+                              "fx_mix", "fx_len", "fx_damp", "fx_chors", "fx_size" })
+        for (std::size_t i = 0; i < kNumGenes; ++i)
+            if (std::string (kGenes[i].id) == gone)
+                pitchOk = false;
+    check (pitchOk, "the Rev 1 gene set is gone and the pitch flags are R7's list");
+}
+
+//==============================================================================
+// 5.7.6: the output surface of the instrument is not part of the plant. These
+// five must be bit identical along a branch at any length.
+static void testGrowthExempt()
+{
+    std::printf ("growth exemption (5.7.6)\n");
+
+    const MutationParams mp;
+    const uint64_t seedId = hash::fromString ("growth-exempt");
+    Genome seed {};
+    Rng rng (seedId);
+    randomizeGenome (seed, rng, mp.atonality);
+
+    PlantSnapshot plant;
+    buildPlant (plant, seedId, seed, mp);
+
+    std::vector<std::size_t> exempt;
+    for (std::size_t i = 0; i < kNumGenes; ++i)
+        if ((kGenes[i].flags & kFlagNever) != 0)
+            exempt.push_back (i);
+
+    bool ok = ! exempt.empty();
+    for (int branch = 0; branch < kNumBranches && ok; ++branch)
+    {
+        for (float d = 0.0f; d <= 1.0001f; d += 0.2f)
+        {
+            BranchTraits traits;
+            const Genome g = resolveBranchGenome (plant, branch, d, traits);
+            for (std::size_t gene : exempt)
+            {
+                if (g[gene] != plant.seed[gene])
+                {
+                    std::printf ("       branch %d at %.1f moved %s\n",
+                                 branch, d, kGenes[gene].id);
+                    ok = false;
+                }
+            }
+        }
+    }
+    check (ok, "no branch length moves a growth exempt gene");
+}
+
+//==============================================================================
 static void testCurves()
 {
     std::printf ("curves\n");
@@ -38,23 +264,56 @@ static void testCurves()
 
     for (std::size_t g = 0; g < kNumGenes; ++g)
     {
+        const GeneInfo& gi = kGenes[g];
+        std::vector<float> steps;
+
         for (float v = 0.0f; v <= 1.0001f; v += 0.125f)
         {
-            const float value = mapGene (kGenes[g], v);
-            const float back = unmapGene (kGenes[g], value);
+            const float value = mapGene (gi, v);
+            const float back = unmapGene (gi, value);
 
-            if (! std::isfinite (value) || std::abs (back - v) > 1.0e-3f)
+            if (! std::isfinite (value))
             {
-                std::printf ("    %s: v=%.3f -> %.6g -> %.3f\n", kGenes[g].id, v, value, back);
+                std::printf ("    %s: v=%.3f -> %g is not finite\n", gi.id, v, value);
+                ok = false;
+                continue;
+            }
+
+            if (gi.curve == Curve::Stepped)
+            {
+                // 5.7.5: a stepped gene maps many normalized values onto one
+                // real value, and its inverse returns that step rather than the
+                // value that produced it. The step grid itself has to be exact
+                // and the inverse stable, which is what this asserts.
+                if (std::abs (unmapGene (gi, mapGene (gi, back)) - back) > 1.0e-3f)
+                {
+                    std::printf ("    %s: step %g does not invert\n", gi.id, value);
+                    ok = false;
+                }
+                if (std::find (steps.begin(), steps.end(), value) == steps.end())
+                    steps.push_back (value);
+                continue;
+            }
+
+            if (std::abs (back - v) > 1.0e-3f)
+            {
+                std::printf ("    %s: v=%.3f -> %.6g -> %.3f\n", gi.id, v, value, back);
                 ok = false;
             }
         }
 
-        const float lo = mapGene (kGenes[g], 0.0f);
-        const float hi = mapGene (kGenes[g], 1.0f);
-        if (std::abs (lo - kGenes[g].minValue) > 1.0e-3f || std::abs (hi - kGenes[g].maxValue) > 1.0e-3f)
+        if (gi.curve == Curve::Stepped && steps.size() != gi.steps)
         {
-            std::printf ("    %s: range mismatch %g..%g\n", kGenes[g].id, lo, hi);
+            std::printf ("    %s: %d steps reachable, table says %u\n",
+                         gi.id, static_cast<int> (steps.size()), gi.steps);
+            ok = false;
+        }
+
+        const float lo = mapGene (gi, 0.0f);
+        const float hi = mapGene (gi, 1.0f);
+        if (std::abs (lo - gi.minValue) > 1.0e-3f || std::abs (hi - gi.maxValue) > 1.0e-3f)
+        {
+            std::printf ("    %s: range mismatch %g..%g\n", gi.id, lo, hi);
             ok = false;
         }
     }
@@ -392,6 +651,11 @@ static RenderResult renderBranch (const PlantSnapshot& plant, const MutationPara
 // every note sound randomly out of tune. The genome below tunes both
 // oscillators to the pressed note with no vibrato, no drift and no detune, and
 // asks for a large mod amount: if modulation reaches pitch at all, this shows it.
+//
+// Read this test as provisional (Docs/Rev3-Alignment-Plan.md 6.1): a_mod and
+// b_mod are documented *pitch* modulation now (decision R2), so with atonality 0
+// they are converged to neutral and the assertion above becomes vacuous. It is
+// rewritten, not kept, in M4, the milestone that lands that behaviour.
 //==============================================================================
 // Atonality is a generation time ceiling on every pitch capable gene (a_freq,
 // b_freq, lfo_amt, drift_amt, det_spread): at 0 the plant cannot touch pitch at
@@ -403,7 +667,10 @@ static void testAtonalityCeiling()
 {
     std::printf ("atonality ceiling (5.5)\n");
 
-    const std::size_t pitchGenes[] = { g_a_freq, g_b_freq, g_lfo_amt, g_drift_amt, g_det_spread };
+    // R7: atonality converges the oscillator offsets and the two envelope pitch
+    // modulations (plus, from M8, the ratio snap on b_freq). Per voice detune and
+    // drift are not genes any more (D-3).
+    const std::size_t pitchGenes[] = { g_a_freq, g_b_freq, g_a_mod, g_b_mod, g_lfo_amt };
     const float levels[] = { 0.0f, 0.25f, 1.0f };
 
     bool ok = true;
@@ -444,10 +711,12 @@ static void testAtonalityCeiling()
 
                 for (std::size_t gene : pitchGenes)
                 {
-                    const bool bipolar = (kGenes[gene].flags & kFlagRatio) != 0;
-                    const float neutral = bipolar ? 0.5f : 0.0f;
-                    const float span = bipolar ? 0.5f : 1.0f;
-                    widest = std::max (widest, std::abs (g[gene] - neutral) / span);
+                    // The ceiling is expressed in gene space around the neutral
+                    // value the table documents (4.3), not inferred from curves.
+                    const GeneInfo& gi = kGenes[gene];
+                    const float span = gi.neutral > 0.0f ? std::max (gi.neutral, 1.0f - gi.neutral)
+                                                        : 1.0f;
+                    widest = std::max (widest, std::abs (g[gene] - gi.neutral) / span);
                 }
             }
         }
@@ -506,12 +775,10 @@ static void testPitchStability()
     Rng rng (seedId);
     randomizeGenome (seed, rng);
 
-    seed[g_a_freq]     = 0.5f;   // bipolar centre = 0 semitones, both oscillators
+    seed[g_a_freq]     = 0.5f;   // stepped middle = 0 semitones, both oscillators
     seed[g_b_freq]     = 0.5f;
-    seed[g_lfo_amt]    = 0.0f;
-    seed[g_drift_amt]  = 0.0f;
-    seed[g_det_spread] = 0.0f;
-    seed[g_fm_amt]     = 0.0f;
+    seed[g_lfo_amt]    = 0.5f;   // bipolar middle = no vibrato
+    seed[g_fm_amt]     = 0.5f;
     seed[g_sub_am]     = 0.0f;
     seed[g_a_noise]    = 0.0f;
     seed[g_b_noise]    = 0.0f;
@@ -737,9 +1004,21 @@ int main()
 {
     const MutationParams mp;
 
-    std::printf ("GenoMosh core tests (%d genes, %d branches)\n",
-                 static_cast<int> (kNumGenes), kNumBranches);
+    // Measured once (Docs/Rev3-Alignment-Plan.md M0's gate): the genome is 50
+    // floats and a PlantSnapshot carries 36 of them, across a triple buffer.
+    // PlantView no longer copies one per timer tick, but the number is still
+    // worth watching at every milestone that adds data.
+    std::printf ("GenoMosh core tests (%d genes: %d documented + %d extras, %d branches)\n",
+                 static_cast<int> (kNumGenes),
+                 static_cast<int> (kNumCoreGenes),
+                 static_cast<int> (kNumGenes - kNumCoreGenes), kNumBranches);
+    std::printf ("       sizeof Genome = %zu B, BranchDirection = %zu B, "
+                 "PlantSnapshot = %zu B, triple buffer = %zu B\n",
+                 sizeof (Genome), sizeof (BranchDirection), sizeof (PlantSnapshot),
+                 sizeof (PlantSnapshot) * 3);
+    testTableMatchesDoc();
     testCurves();
+    testGrowthExempt();
     testRatioSnapping();
     testAtonalityCeiling();
     testPitchStability();

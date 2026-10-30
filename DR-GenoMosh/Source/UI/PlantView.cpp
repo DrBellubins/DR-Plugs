@@ -16,7 +16,24 @@ void PlantView::update (const PlantSnapshot& newSnapshot,
                         int activeBranch,
                         float wheelValue)
 {
-    snapshot = newSnapshot;
+    // Do not copy the snapshot: at 50 genes it is ~8 kB and this runs on the
+    // editor timer while a drag is in progress. The drawing only needs the per
+    // branch fingerprint below, and only when the plant was actually rebuilt.
+    if (newSnapshot.revision != snapshotRevision)
+    {
+        snapshotRevision = newSnapshot.revision;
+
+        for (int b = 0; b < kNumBranches; ++b)
+        {
+            const BranchDirection& direction = newSnapshot.direction (b, 0);
+            BranchVisual& v = visuals[static_cast<std::size_t> (b)];
+            v.hash = direction.hash;
+            v.hue = direction.hue;
+            v.saturation = direction.dir[g_flt_freq];
+            v.brightness = direction.dir[g_a_form];
+        }
+    }
+
     lengths = newLengths;
     active = activeBranch;
     wheel = wheelValue;
@@ -24,13 +41,13 @@ void PlantView::update (const PlantSnapshot& newSnapshot,
 }
 
 //==============================================================================
-juce::Colour PlantView::branchColour (const BranchDirection& direction, float hueShift)
+juce::Colour PlantView::branchColour (const BranchVisual& visual, float hueShift)
 {
     // Hue comes from the branch itself, saturation/brightness from a couple of
     // timbre genes, so the plant is a fingerprint of the sound (design doc 12).
-    const float hue = std::fmod (direction.hue + hueShift, 1.0f);
-    const float saturation = 0.45f + 0.45f * direction.dir[g_flt_freq];
-    const float brightness = 0.55f + 0.40f * direction.dir[g_a_form];
+    const float hue = std::fmod (visual.hue + hueShift, 1.0f);
+    const float saturation = 0.45f + 0.45f * visual.saturation;
+    const float brightness = 0.55f + 0.40f * visual.brightness;
     return juce::Colour::fromHSV (hue, juce::jlimit (0.2f, 0.95f, saturation),
                                   juce::jlimit (0.3f, 1.0f, brightness), 1.0f);
 }
@@ -72,14 +89,14 @@ void PlantView::growTree (std::vector<Twig>& out, juce::Point<float> from, float
 }
 
 void PlantView::drawPlant (juce::Graphics& g, juce::Point<float> centre, float angle,
-                           float targetReach, const BranchDirection& direction,
+                           float targetReach, uint64_t branchHash,
                            const juce::Colour& colour) const
 {
     std::vector<Twig> twigs;
     twigs.reserve (32);
 
     float reach = 0.0f;
-    Rng rng (direction.hash);
+    Rng rng (branchHash);
     growTree (twigs, { 0.0f, 0.0f }, angle, 1.0f, 4, rng, reach);
 
     if (twigs.empty() || reach < 1.0e-4f)
@@ -128,8 +145,8 @@ void PlantView::paint (juce::Graphics& g)
         const float len = juce::jlimit (0.0f, 1.0f, lengths[static_cast<std::size_t> (branch)]);
         const float effective = len * juce::jlimit (0.0f, 1.0f, wheel);
 
-        const BranchDirection& direction = snapshot.direction (branch, 0);
-        const juce::Colour colour = branchColour (direction, 0.0f);
+        const BranchVisual& visual = visuals[static_cast<std::size_t> (branch)];
+        const juce::Colour colour = branchColour (visual, 0.0f);
 
         //--------------------------------------------------------------------
         // The plant itself, scaled to the growth radius of this branch.
@@ -138,7 +155,7 @@ void PlantView::paint (juce::Graphics& g)
                                    + static_cast<float> (slot)) * 0.02f;
 
         const float target = radius * (kMinReach + (kMaxReach - kMinReach) * effective);
-        drawPlant (g, centre, angle + sway, target, direction, colour);
+        drawPlant (g, centre, angle + sway, target, visual.hash, colour);
 
         //--------------------------------------------------------------------
         // Growth handle on the ring, at the radius the branch reaches when the
