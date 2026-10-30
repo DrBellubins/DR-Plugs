@@ -28,20 +28,6 @@ struct MutationParams
     /// How strongly discrete/structural mutations fire with distance (5.4).
     float structuralRate = 0.85f;
 
-    /// How strongly growth pulls every gene back toward the value where nothing
-    /// happens (5.2 step 3, 5.7.1). This is new in Rev 3 and it is the reason
-    /// a long grown branch tends to sound "milder" rather than extreme: the
-    /// displacement is biased by
-    ///
-    ///   pullToNeutral * (gi.neutral - seed[g]) * d
-    ///
-    /// so a walk that has wandered away from the middle of its range walks back
-    /// toward it as the branch grows. It is a bias, not a clamp: distance 0 is
-    /// still exactly the seed, and a gene the seed holds at neutral does not
-    /// move from it because of this term. Growth exempt genes (kFlagNever) are
-    /// skipped before it is applied.
-    float pullToNeutral = 0.35f;
-
     /// A generation time ceiling on tonality, not a modulation destination.
     ///
     /// It bounds how far any kFlagPitch gene (a_freq, b_freq, a_mod, b_mod,
@@ -93,8 +79,7 @@ inline uint64_t branchHash (uint64_t seedId, int branch, int variant = 0)
 BranchDirection buildBranchDirection (uint64_t seedId, int branch, int variant,
                                       const MutationParams& mp);
 
-/// Steps 2 to 4 of 5.2: displace the seed along a branch direction, biased
-/// toward each gene's neutral value, and leave the growth exempt genes alone.
+/// Steps 2 to 4 of 5.2: displace the seed along a branch direction.
 /// distance = 0 returns the seed exactly (requirement 5.1.3).
 Genome applyDistance (const Genome& seed, const BranchDirection& direction,
                       float distance, const MutationParams& mp);
@@ -111,11 +96,6 @@ void applyCouplings (Genome& genome);
 /// applying it twice is the same as applying it once, which is what lets a
 /// planted branch (a resolved genome fed back in as the next seed) be gated
 /// again without ratcheting the tuning down a little more every time.
-///
-/// Until M1 this also snapped every kFlagRatio gene onto the ratio ladder at
-/// *every* atonality, which is not what 5.5 describes (there, the snap is the
-/// atonality == 0 end of a blend). The unconditional snap is gone; the blended
-/// version returns in M8 with converge() (decision R7, deviation D-4).
 void applyAtonality (Genome& genome, float atonality);
 
 /// Rough "this branch will make a usable sound" score in [0,1].
@@ -124,14 +104,10 @@ float safetyScore (const Genome& genome);
 /// Level compensation gain (5.6): keeps branches within a few dB of the seed.
 float loudnessCompensation (const Genome& genome);
 
-/// Random seed inside the curated ranges (design doc 11): a gaussian centred on
-/// each gene's neutral value, reflected at the 0/1 rails, then clamped to the
-/// gene's soft range. That is the reference's own randomise ("a gaussian
-/// centred on each gene's default, reflected at the rails, spread of about a
-/// quarter of the range") with softMin/softMax as the extra per-gene clamp on
-/// top. Pitch capable genes are drawn inside the atonality band instead of the
-/// full range, so a low atonality seed is spread over its allowed band rather
-/// than pinned to the edge of it.
+/// Random seed inside the curated soft ranges (design doc 11). Pitch capable
+/// genes are drawn inside the atonality ceiling instead of the full range, so a
+/// low atonality seed is spread over its allowed band rather than pinned to the
+/// edge of it.
 void randomizeGenome (Genome& genome, Rng& rng, float atonality = 1.0f);
 
 } // namespace gmosh

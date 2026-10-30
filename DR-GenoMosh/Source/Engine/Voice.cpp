@@ -57,13 +57,10 @@ void Voice::start (const VoiceParams& params, int midiNote, uint64_t plantHash)
     subPhase = 0.0f;
     noiseState = 0.0f;
 
-    // The pitches are resolved links (5.7.2): VoiceParams has already applied
-    // the played note, the tuning macro and the a_freq / b_freq offsets. All
-    // that is left here is keeping them inside Nyquist. The sub is still a sine
-    // at A/2 (M6 turns it into the documented AM of B at B/2).
-    baseFreqA     = clampFreq (p.freqAHz, sampleRate);
-    baseFreqB     = clampFreq (p.freqBHz, sampleRate);
-    baseFreqSub   = clampFreq (p.freqAHz * 0.5f, sampleRate);
+    const float f0 = noteToHz (midiNote, p.tuneCents);
+    baseFreqA = clampFreq (f0 * std::pow (2.0f, p.aRatio / 12.0f), sampleRate);
+    baseFreqB = clampFreq (f0 * std::pow (2.0f, p.bRatio / 12.0f), sampleRate);
+    baseFreqSub = clampFreq (f0 * 0.5f, sampleRate);
     subInc = baseFreqSub / static_cast<float> (sampleRate);
 
     // Tiny random detune plus the curated detune gene.
@@ -103,15 +100,10 @@ void Voice::start (const VoiceParams& params, int midiNote, uint64_t plantHash)
     panGainL = std::cos (angle);
     panGainR = std::sin (angle);
 
-    // The tracking cutoff pair arrives resolved (5.7.2). Both are clamped to
-    // Nyquist here, and the octave offset between them is kept as a member so
-    // modulation can move the pair together instead of re-deriving the link.
-    const float maxCut = static_cast<float> (sampleRate) * 0.45f;
-    cutoffSepOct = p.filterSep;
-    cutoff1 = cutoff1To = clampf (p.filterHz, 20.0f, maxCut);
-    cutoff2 = cutoff2To = clampf (p.cutoff2Hz, 20.0f, maxCut);
-
     const float q2 = 1.0f + (p.filterQ - 1.0f) * 0.5f;
+    cutoff1 = cutoff1To = clampf (p.filterHz, 20.0f, static_cast<float> (sampleRate) * 0.45f);
+    cutoff2 = cutoff2To = clampf (p.filterHz * std::pow (2.0f, p.filterSep), 20.0f,
+                                  static_cast<float> (sampleRate) * 0.45f);
     filter1.setCutoffQ (cutoff1, p.filterQ);
     filter2.setCutoffQ (cutoff2, q2);
     filter1.setDrive (p.drive);
@@ -181,9 +173,8 @@ void Voice::updateControlTargets (float modMix, float lfoPitch, float lfoFilter,
     freqBTo = clampFreq (baseFreqB * centsToRatio (detuneB + driftCents * 0.7f)
                                     * std::pow (2.0f, pitchModB), sampleRate);
 
-    // Filter: the resolved tracking pair moves together (5.7.2). Key follow was
-    // pre computed at note on through its soft rails (5.7.4); the mod sources
-    // add up to three octaves of deviation.
+    // Filter: key follow was pre computed at note on, mod sources add up to
+    // three octaves of deviation.
     const float oct = p.keyFollow
                     + p.filterMod * modMix * 3.0f
                     + lfoFilter * 1.5f
@@ -191,7 +182,7 @@ void Voice::updateControlTargets (float modMix, float lfoPitch, float lfoFilter,
 
     const float maxCut = static_cast<float> (sampleRate) * 0.45f;
     cutoff1To = clampf (p.filterHz * std::pow (2.0f, oct), 20.0f, maxCut);
-    cutoff2To = clampf (cutoff1To * std::pow (2.0f, cutoffSepOct), 20.0f, maxCut);
+    cutoff2To = clampf (cutoff1To * std::pow (2.0f, p.filterSep), 20.0f, maxCut);
 
     fmIndexTo = std::max (0.0f, p.fmAmount * (1.0f + p.fmMod * modMix) * 3.0f);
 
@@ -207,9 +198,6 @@ void Voice::render (float* outL, float* outR, int numSamples)
     const float bpMix = p.filterMode == 1 ? 1.0f : 0.0f;
     const float hpMix = p.filterMode == 2 ? 1.0f : 0.0f;
 
-    // p.balance is already in equal power mix space (0.5 = 50/50): the osc_mix
-    // warp of 5.7.7 was applied by VoiceParams, so the law here stays symmetric
-    // and mix_mod can share it when M4 adds to the same value.
     const float mixA = std::cos (p.balance * 0.5f * kPi);
     const float mixB = std::sin (p.balance * 0.5f * kPi);
 

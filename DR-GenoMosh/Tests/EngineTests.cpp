@@ -3,11 +3,6 @@
 //   * phase 1/2 acceptance: curve round trips, ratio snapping direction (5.5),
 //     determinism, distance 0 returns the seed, deviation grows with distance,
 //     guard rails hold;
-//   * the M1 mapping layer (Docs/Rev3-Alignment-Plan.md M1): neutral is the
-//     identity at every destination, the six documented activation gates are
-//     real at both ends, flt_kf's soft rails, osc_mix's documented equal power
-//     point, seeds drawn around neutral, growth's pull toward neutral, and no
-//     unconditional ratio snap at generation time;
 //   * a numeric check of the trapezoidal SVF against a reference biquad;
 //   * an offline render of every branch at several distances with level,
 //     silence, NaN and DC checks, plus a bit identical reproducibility test.
@@ -16,7 +11,6 @@
 //   g++ -std=c++17 -O2 Genetic/*.cpp Engine/*.cpp Tests/EngineTests.cpp -o /tmp/gmosh_tests -lm
 
 #include "Engine/Synth.h"
-#include "Engine/VoiceParams.h"
 #include "Genetic/Curves.h"
 #include "Genetic/PlantEngine.h"
 
@@ -108,6 +102,7 @@ static void testTableMatchesDoc()
     };
 
     const std::size_t expectedCount = sizeof (expected) / sizeof (expected[0]);
+    bool ok = true;
 
     check (expectedCount == kNumCoreGenes && kNumCoreGenes == 48,
            "the documented gene count is 48");
@@ -327,296 +322,6 @@ static void testCurves()
 }
 
 //==============================================================================
-// M1's mapping layer: one place turns gene space into DSP values, and what it
-// turns them into is exactly the six curation mechanisms of 5.7 that are pure
-// arithmetic. These three tests are the gate for that milestone:
-//
-//   testMappingNeutralIsRest  - 5.7.1: every destination reads its identity
-//                               value when its gene sits at the neutral value
-//                               the table documents. This is "a gene at neutral
-//                               changes nothing audible", stated where it can be
-//                               checked exactly instead of by ear.
-//   testActivationGates       - 5.7.3: the dead zones are real, for every gene
-//                               the reference documents one for, at both ends.
-//   testRailsAndMixWarp       - 5.7.4 and 5.7.7: flt_kf's soft rails and
-//                               osc_mix's 0.79 equal power point.
-//==============================================================================
-static VoiceParams resolveAt (const Genome& g, int note = 60, float velocity = 1.0f)
-{
-    VoiceParams p;
-    const MacroValues macros;          // the defaults: no macro scaling in these tests
-    const BranchTraits traits;         // no structural traits at distance 0
-    resolveVoiceParams (g, traits, macros, note, velocity, p);
-    return p;
-}
-
-static bool near (float a, float b, float eps = 1.0e-3f) { return std::abs (a - b) <= eps; }
-
-static void testMappingNeutralIsRest()
-{
-    std::printf ("neutral is the identity at every destination (5.7.1)\n");
-
-    const Genome neutral = neutralGenome();
-
-    // The table's neutrals are the reference's factory values (4.2), so "all
-    // neutral" and "the factory state" are the same genome; say so once, loudly.
-    check (near (neutral[g_osc_mix], 0.7937f, 1.0e-3f)
-           && near (neutral[g_flt_type], 0.6667f, 1.0e-3f)
-           && near (neutral[g_flt_freq], 0.7500f, 1.0e-3f),
-           "the neutral genome is the documented factory state");
-
-    const VoiceParams p = resolveAt (neutral);
-
-    int bad = 0;
-    auto expect = [&](const char* what, float got, float want, float eps = 1.0e-3f) {
-        if (! near (got, want, eps))
-        {
-            std::printf ("       %s reads %.6g at neutral, identity is %.6g\n", what, got, want);
-            ++bad;
-        }
-    };
-
-    // Pitch and timbre offsets: nothing offset, nothing modulated.
-    expect ("a_freq offset", p.aRatio, 0.0f);
-    expect ("b_freq offset", p.bRatio, 0.0f);
-    expect ("a_mod", p.aMod, 0.0f);
-    expect ("b_mod", p.bMod, 0.0f);
-    expect ("lfo amount", p.lfoAmount, 0.0f);
-    expect ("fm amount", p.fmAmount, 0.0f);
-    expect ("fm envelope", p.fmMod, 0.0f);
-    expect ("mix envelope", p.mixMod, 0.0f);
-    expect ("sub am", p.subLevel, 0.0f);
-    expect ("a noise", p.aNoise, 0.0f);
-    expect ("b noise", p.bNoise, 0.0f);
-    expect ("noise colour offset", p.bColour, p.aColour);
-    expect ("b sample hold", p.bShape, 0.0f);
-
-    // Envelope: gated sustain is silence, the curve exponents are linear, the
-    // S&H is off and velocity is ignored.
-    expect ("amp sustain", p.ampSustain, 0.0f);
-    expect ("vol_fade", p.volFade, 0.0f);
-    expect ("mod shape", p.modShape, 1.0f);
-    expect ("mod sample hold", p.modSampleHoldHz, 0.0f);
-    expect ("mod velocity", p.modVelocity, 0.0f);
-
-    // LFO: no onset delay.
-    expect ("lfo delay", p.lfoDelaySeconds, 0.0f);
-
-    // The mix warp puts the documented 0.7937 on the equal power point.
-    expect ("mix space (equal power)", p.balance, 0.5f);
-
-    // Filter: no separation, no key follow, no envelope, minimum resonance, and
-    // the default topology step. The cutoff is a ratio of A, so it is checked as
-    // one: at neutral it sits 5.5 octaves above the note (4.2's flt_freq range
-    // and its 0.75 default), which is "wide open", not a fixed hertz.
-    expect ("filter separation", p.filterSep, 0.0f);
-    expect ("filter key follow", p.keyFollow, 0.0f);
-    expect ("filter envelope", p.filterMod, 0.0f);
-    expect ("resonance", p.filterQ, 0.5f);          // the SVF's quietest Q
-    expect ("filter topology step", p.filterTopology, 0.6667f, 2.0e-3f);
-    const float fA = 261.6256f;                     // note 60, no tuning offset
-    expect ("cutoff tracks A", p.filterHz / fA, std::pow (2.0f, 5.5f), 0.02f);
-    expect ("cutoff pair is one ratio", p.cutoff2Hz / p.filterHz, 1.0f);
-
-    // Saturation, reverb and output: all off, no dB, no spread.
-    expect ("saturate", p.drive, 0.0f);
-    expect ("reverb mix", p.fxMix, 0.0f);
-    expect ("reverb bloom", p.reverbBloomSeconds, 0.0f);
-    expect ("bass shelf", p.bassDb, 0.0f);
-    expect ("treble shelf", p.trebleDb, 0.0f);
-    expect ("pan spread", p.panSpread, 0.0f);
-    expect ("clipper", p.clipDrive, 0.0f);
-
-    // Level compensation is relative by construction (5.6): it compares a branch
-    // to the seed, so all it has to do at neutral is stay sane.
-    if (! std::isfinite (p.gain) || p.gain <= 0.2f || p.gain > 1.0f)
-    {
-        std::printf ("       neutral gain = %g\n", p.gain);
-        ++bad;
-    }
-
-    // A gene at neutral is also inaudible through the *pitch* of a played note:
-    // the resolved pitch is the note itself at any key, because key follow and
-    // the octave grid are both identity there.
-    const VoiceParams hi = resolveAt (neutral, 84);
-    if (! near (hi.freqAHz / p.freqAHz, 4.0f, 0.01f) || ! near (hi.keyFollow, 0.0f))
-    {
-        std::printf ("       note 84 resolves to %g Hz (want 4x %g)\n", hi.freqAHz, p.freqAHz);
-        ++bad;
-    }
-
-    check (bad == 0, "every destination reads its identity value at neutral");
-}
-
-static void testActivationGates()
-{
-    std::printf ("activation gates (5.7.3)\n");
-
-    struct GateCase
-    {
-        const char* id;
-        std::size_t gene;
-        float offValue;      // inside the dead zone
-        float onValue;       // top of the active range
-        float VoiceParams::*field;
-        float onExpect;
-    };
-
-    // The six genes the reference documents gates for. Their off value is the
-    // middle of their dead zone, their on value the top of the range.
-    static const GateCase cases[] = {
-        { "vol_sus",  g_vol_sus,  0.20f, 1.00f, &VoiceParams::ampSustain,        1.0f },
-        { "vol_fade", g_vol_fade, 0.40f, 1.00f, &VoiceParams::volFade,           1.0f },
-        { "mod_vel",  g_mod_vel,  0.05f, 1.00f, &VoiceParams::modVelocity,       1.0f },
-        { "lfo_dly",  g_lfo_dly,  0.25f, 1.00f, &VoiceParams::lfoDelaySeconds,   1.0f },
-        { "rvb_atk",  g_rvb_atk,  0.30f, 1.00f, &VoiceParams::reverbBloomSeconds, 1.0f },
-    };
-
-    int bad = 0;
-    for (const GateCase& c : cases)
-    {
-        const GeneInfo& gi = kGenes[c.gene];
-
-        Genome off = neutralGenome();  off[c.gene] = c.offValue;
-        Genome on  = neutralGenome();  on[c.gene]  = c.onValue;
-
-        const VoiceParams po = resolveAt (off);
-        const VoiceParams pn = resolveAt (on);
-
-        const float gotOff = po.*(c.field);
-        const float gotOn  = pn.*(c.field);
-
-        // Quiet end of the curve when the gate is shut, full value when open,
-        // and monotonic between them (no "half on" dead zone).
-        // "off" is defined by the curve, not by a hardcoded zero: for every
-        // level gene the reference gates, the quiet end of the curve *is* off.
-        if (! near (gotOff, quietEnd (gi)) || ! near (gotOn, c.onExpect))
-        {
-            std::printf ("       %s: gate %.2f -> %.4g, %.2f -> %.4g (want 0 and %g)\n",
-                         c.id, c.offValue, gotOff, c.onValue, gotOn, c.onExpect);
-            ++bad;
-        }
-
-        float last = -1.0f;
-        for (float v = gi.gateLow; v <= gi.gateHigh + 1.0e-3f; v += 0.05f)
-        {
-            Genome g = neutralGenome();
-            g[c.gene] = v;
-            const float got = resolveAt (g).*(c.field);
-            if (got < last - 1.0e-4f)
-            {
-                std::printf ("       %s: %g -> %g then %g -> %g is not monotonic\n",
-                             c.id, v - 0.05f, last, v, got);
-                bad++;
-                break;
-            }
-            last = got;
-        }
-    }
-
-    // mod_sh's gate is the one whose "off" is not the quiet end of the curve:
-    // its curve at gene 0 is the *fastest* rate, so the destination needs
-    // gateOpen() rather than the clamped remap.
-    const GeneInfo& sh = kGenes[g_mod_sh];
-    Genome shOff = neutralGenome();  shOff[g_mod_sh] = 0.40f;            // below the gate
-    Genome shEdge = neutralGenome(); shEdge[g_mod_sh] = sh.gateLow;      // neutral == the gate edge
-    Genome shOpen = neutralGenome(); shOpen[g_mod_sh] = sh.gateLow + 0.01f;  // just opened
-    Genome shTop = neutralGenome();  shTop[g_mod_sh]  = 1.00f;
-
-    const VoiceParams qOff  = resolveAt (shOff);
-    const VoiceParams qEdge = resolveAt (shEdge);
-    const VoiceParams qOpen = resolveAt (shOpen);
-    const VoiceParams qTop  = resolveAt (shTop);
-
-    if (! near (qOff.modSampleHoldHz, 0.0f) || ! near (qEdge.modSampleHoldHz, 0.0f)
-        || qOpen.modSampleHoldHz < 5.0f || qTop.modSampleHoldHz > 0.2f
-        || qOpen.modSampleHoldHz <= qTop.modSampleHoldHz)
-    {
-        std::printf ("       mod_sh: %.4g / %.4g / %.4g / %.4g Hz "
-                     "(want off at and below the gate, then 8 Hz down to 0.1)\n",
-                     qOff.modSampleHoldHz, qEdge.modSampleHoldHz,
-                     qOpen.modSampleHoldHz, qTop.modSampleHoldHz);
-        ++bad;
-    }
-
-    // And gates are a *reading*: nothing may bake one into a genome, because a
-    // gate applied to stored values would make growth move values twice.
-    Genome g = neutralGenome();
-    g[g_vol_sus] = 0.2f;
-    if (! near (g[g_vol_sus], 0.2f))
-        ++bad;
-
-    check (bad == 0, "the six documented dead zones are real at both ends");
-}
-
-static void testRailsAndMixWarp()
-{
-    std::printf ("soft rails and the mix warp (5.7.4, 5.7.7)\n");
-
-    bool ok = true;
-
-    // 5.7.4: "nothing below 0.25, exact above 0.75, smooth in between".
-    if (! near (softRails (0.0f, 0.25f, 0.75f), 0.0f) || ! near (softRails (0.25f, 0.25f, 0.75f), 0.0f)
-        || ! near (softRails (0.5f, 0.25f, 0.75f), 0.5f) || ! near (softRails (0.75f, 0.25f, 0.75f), 1.0f)
-        || ! near (softRails (1.0f, 0.25f, 0.75f), 1.0f))
-        ok = false;
-
-    float last = -1.0f;
-    for (float v = 0.0f; v <= 1.0001f; v += 0.02f)
-    {
-        const float r = softRails (v, 0.25f, 0.75f);
-        if (r < last - 1.0e-4f || r < 0.0f || r > 1.0f)
-            ok = false;
-        last = r;
-    }
-
-    // Through the mapping layer: below the lower rail a key follow gene does
-    // nothing at all, whatever its signed value says.
-    Genome kf = neutralGenome();
-    kf[g_flt_kf] = 0.10f;                                   // far below the lower rail
-    const VoiceParams pk = resolveAt (kf, 84);
-    if (! near (pk.keyFollow, 0.0f))
-    {
-        std::printf ("       flt_kf at %.2f on key 84 gives %.4f oct (want 0)\n", 0.10f, pk.keyFollow);
-        ok = false;
-    }
-
-    Genome kfFull = neutralGenome();
-    kfFull[g_flt_kf] = 0.75f;                               // rails fully open, +0.5 oct/key
-    const VoiceParams pkf = resolveAt (kfFull, 84);
-    if (! near (pkf.keyFollow, 0.5f * 2.0f, 5.0e-3f))      // 2 keys above middle C
-    {
-        std::printf ("       flt_kf at 0.75 on key 84 gives %.3f oct, want %.3f\n",
-                     pkf.keyFollow, 1.0f);
-        ok = false;
-    }
-    check (ok, "flt_kf is soft-railed: nothing under a quarter, exact over three quarters");
-
-    // 5.7.7: the reference's 50/50 is at 0.79, not at the middle of the gene.
-    ok = true;
-    float worstAtNeutral = 1.0e9f;
-    for (int i = 0; i < 21; ++i)
-    {
-        Genome g = neutralGenome();
-        g[g_osc_mix] = 0.70f + 0.005f * static_cast<float> (i);   // 0.70 .. 0.80
-        const VoiceParams pv = resolveAt (g);
-        worstAtNeutral = std::min (worstAtNeutral, std::abs (pv.balance - 0.5f));
-    }
-
-    Genome aOnly = neutralGenome();  aOnly[g_osc_mix] = 0.0f;
-    Genome bOnly = neutralGenome();  bOnly[g_osc_mix] = 1.0f;
-    if (! near (resolveAt (aOnly).balance, 0.0f) || ! near (resolveAt (bOnly).balance, 1.0f))
-        ok = false;
-
-    const VoiceParams atNeutral = resolveAt (neutralGenome());
-    if (! near (atNeutral.balance, 0.5f))
-        ok = false;
-
-    check (ok && worstAtNeutral < 0.02f,
-           "osc_mix reaches equal power at the documented 0.79, ends stay at the ends");
-}
-
-//==============================================================================
 // 5.5: atonality 0 must mean "fully snapped", 1 must mean "free". Getting that
 // blend the other way round makes every branch sing a random pitch while the
 // atonality macro is closed, which is the one thing the guard rail promises not
@@ -669,220 +374,6 @@ static void testRatioSnapping()
     check (ok, "atonality 0 snaps to the ratio table, 1 leaves the gene free");
     std::printf ("       %d distinct offsets over 193 free values, worst pull %.2f st\n",
                  distinct, maxDeviation);
-
-    // The snapper is not wired into the engine any more. applyAtonality used to
-    // run every kFlagRatio gene through it at atonality 0.0 *whatever the
-    // atonality was*, which made b_freq a ladder value at every setting - the
-    // opposite of 5.5, where the snap is the atonality == 0 end of a blend. It
-    // comes back in M8 as part of converge(); until then b_freq is a free
-    // semitone offset bounded only by the pitch ceiling.
-    {
-        MutationParams mp;
-        mp.atonality = 1.0f;
-
-        Genome seed = neutralGenome();
-        const float oddSemitones = 11.1f;   // not on the ladder (nearest entries are 10 and 12)
-        seed[g_b_freq] = unmapGene (kGenes[g_b_freq], oddSemitones);
-
-        PlantSnapshot plant;
-        buildPlant (plant, hash::fromString ("free-b-freq"), seed, mp);
-
-        BranchTraits traits;
-        const Genome resolved = resolveBranchGenome (plant, 3, 0.0f, traits);
-        const float got = mapGene (g_b_freq, resolved[g_b_freq]);
-
-        check (std::abs (got - oddSemitones) < 0.01f,
-               "nothing snaps b_freq onto the ladder at generation time any more");
-        if (std::abs (got - oddSemitones) >= 0.01f)
-            std::printf ("       b_freq became %.3f st\n", got);
-    }
-}
-
-//==============================================================================
-// 5.7.1 + 11: "a gaussian centred on each gene's default, reflected at the
-// rails (spread of about a quarter of the range)... with softMin/softMax as an
-// extra per-gene clamp on top". The uniform-in-the-soft-range draw this replaces
-// was the reason a random seed was, on average, halfway to the extremes of every
-// range at once; centring on neutral is what makes "mostly nothing" the likely
-// outcome of a seed, and everything else in 5.7 assumes it.
-static void testSeedsClusterAroundNeutral()
-{
-    std::printf ("seeds are drawn around neutral (5.7.1, 11)\n");
-
-    constexpr int kRounds = 400;
-    std::vector<double> meanDev (kNumGenes, 0.0);
-    std::vector<float> maxDev (kNumGenes, 0.0f);
-    bool inRange = true, deterministic = true;
-
-    for (int round = 0; round < kRounds; ++round)
-    {
-        Genome g{}, again{};
-        Rng r (hash::mix (static_cast<uint64_t> (round) + 7000ull));
-        Rng r2 (hash::mix (static_cast<uint64_t> (round) + 7000ull));
-        randomizeGenome (g, r);
-        randomizeGenome (again, r2);
-
-        for (std::size_t i = 0; i < kNumGenes; ++i)
-        {
-            if (! std::isfinite (g[i]) || g[i] < 0.0f || g[i] > 1.0f)
-                inRange = false;
-            if (g[i] != again[i])
-                deterministic = false;
-
-            const float dev = std::abs (g[i] - neutralOf (kGenes[i]));
-            meanDev[i] += static_cast<double> (dev);
-            maxDev[i] = std::max (maxDev[i], dev);
-        }
-    }
-
-    check (inRange, "every drawn gene stays a normalized value");
-    check (deterministic, "the same rng seed draws the same genome");
-
-    // The bounded gaussian has a maximum excursion of its spread, and the soft
-    // range only ever narrows it. 0.25 is the documented quarter range.
-    bool spreadOk = true;
-    int worstGene = 0;
-    for (std::size_t i = 0; i < kNumGenes; ++i)
-    {
-        if ((kGenes[i].flags & kFlagPitch) != 0)
-            continue;   // drawn inside the atonality band, checked elsewhere
-        if (maxDev[i] > 0.251f)
-        {
-            spreadOk = false;
-            std::printf ("       %s reached %.3f from neutral\n", kGenes[i].id, maxDev[i]);
-        }
-        if (maxDev[i] > maxDev[static_cast<std::size_t> (worstGene)])
-            worstGene = static_cast<int> (i);
-    }
-    check (spreadOk, "no seed draws further from neutral than the documented spread");
-
-    // And the distribution is centred: a uniform draw across a soft range puts
-    // the mean a quarter of the range away from the middle, a gaussian around
-    // neutral puts it a sixth there at most. Compare the two on genes whose soft
-    // range is wide (a_form 0.05..0.95: uniform mean dev ~0.225, gaussian ~0.09).
-    bool clustered = true;
-    double worstMean = 0.0;
-    const char* wideOnes[] = { "a_form", "b_form", "a_color", "rvb_len", "b_sh" };
-    for (const char* id : wideOnes)
-    {
-        for (std::size_t i = 0; i < kNumGenes; ++i)
-        {
-            if (std::string (kGenes[i].id) != id)
-                continue;
-            const double mean = meanDev[i] / kRounds;
-            worstMean = std::max (worstMean, mean);
-            if (mean > 0.14)
-            {
-                clustered = false;
-                std::printf ("       %s mean distance from neutral %.3f\n", id, mean);
-            }
-        }
-    }
-    check (clustered, "seeds sit near neutral on the wide ranges, not across them");
-    std::printf ("       widest excursion %s at %.3f, worst mean distance on a wide range %.3f\n",
-                 kGenes[static_cast<std::size_t> (worstGene)].id, maxDev[static_cast<std::size_t> (worstGene)],
-                 worstMean);
-}
-
-//==============================================================================
-// 5.2 step 3, new in Rev 3: growth biases displacement toward the value where
-// nothing happens. With a direction of zero the term is everything, so that is
-// how it is measured exactly; then the same term is checked to be a bias and not
-// a clamp when the real direction pushes the other way.
-static void testPullToNeutral()
-{
-    std::printf ("growth pulls toward neutral (5.2)\n");
-
-    MutationParams mp;
-    mp.atonality = 1.0f;
-    mp.pullToNeutral = 0.6f;
-
-    // A seed deliberately parked at the edges of a few ranges - inside each
-    // gene's soft range, because softCompress anchors outside it and the pull
-    // would be measured against the boundary handling instead of against itself.
-    Genome seed = neutralGenome();
-    seed[g_a_form]  = 0.95f;   // kGenes[a_form].softMax
-    seed[g_lfo_bal] = 0.25f;   // softMin of lfo_bal
-    seed[g_flt_q]   = 0.60f;   // softMax of flt_q
-    seed[g_rvb_len] = 0.05f;   // softMin of rvb_len
-    seed[g_b_color] = 0.30f;   // softMin of the b_color extra
-
-    BranchDirection still{};   // zero direction: only the pull acts
-
-    bool movesCloser = true, exactAtZero = true, exemptOk = true;
-    for (float d = 0.05f; d <= 1.0001f; d += 0.25f)
-    {
-        const Genome out = applyDistance (seed, still, d, mp);
-        for (std::size_t i = 0; i < kNumGenes; ++i)
-        {
-            const GeneInfo& gi = kGenes[i];
-            const float before = std::abs (seed[i] - neutralOf (gi));
-            const float after  = std::abs (out[i] - neutralOf (gi));
-
-            if ((gi.flags & kFlagNever) != 0)
-            {
-                if (out[i] != seed[i])
-                {
-                    exemptOk = false;
-                    std::printf ("       %s moved from %g to %g at distance %g\n",
-                                 gi.id, seed[i], out[i], d);
-                }
-                continue;
-            }
-
-            if (before > 1.0e-4f && after >= before)
-            {
-                movesCloser = false;
-                std::printf ("       %s: %g -> %g away from neutral at distance %g\n",
-                             gi.id, before, after, d);
-            }
-        }
-    }
-
-    const Genome atZero = applyDistance (seed, still, 0.0f, mp);
-    for (std::size_t i = 0; i < kNumGenes; ++i)
-        if (atZero[i] != seed[i])
-            exactAtZero = false;
-
-    check (exactAtZero, "the pull cannot move anything at distance 0");
-    check (movesCloser, "with no direction, growth walks every gene toward its neutral");
-    check (exemptOk, "and never touches a growth exempt gene (5.7.6)");
-
-    // It is a bias, not a clamp: with the real directions of a plant, growth
-    // still spreads, it just ends up nearer the middle on average.
-    const uint64_t seedId = hash::fromString ("pull-comparison");
-    Genome spreadSeed{};
-    Rng rng (seedId);
-    randomizeGenome (spreadSeed, rng, mp.atonality);
-
-    float sumNoPull = 0.0f, sumPull = 0.0f;
-    MutationParams off = mp;  off.pullToNeutral = 0.0f;
-    PlantSnapshot a, b;
-    buildPlant (a, seedId, spreadSeed, off);
-    buildPlant (b, seedId, spreadSeed, mp);
-
-    for (int branch = 0; branch < kNumBranches; ++branch)
-    {
-        for (std::size_t i = 0; i < kNumGenes; ++i)
-        {
-            if ((kGenes[i].flags & kFlagNever) != 0)
-                continue;
-            sumNoPull += std::abs (applyDistance (spreadSeed, a.direction (branch), 1.0f, off)[i]
-                                   - neutralOf (kGenes[i]));
-            sumPull   += std::abs (applyDistance (spreadSeed, b.direction (branch), 1.0f, mp)[i]
-                                   - neutralOf (kGenes[i]));
-        }
-    }
-
-    const float per = 1.0f / static_cast<float> (static_cast<int> (kNumBranches)
-                                                   * static_cast<int> (kNumGenes));
-    std::printf ("       mean distance from neutral at length 1: %.4f without the pull, %.4f with\n",
-                 sumNoPull * per, sumPull * per);
-
-    check (sumPull * per < sumNoPull * per * 0.9f && sumPull > 1.0f,
-           "the pull moves the plant toward the middle but keeps it spread out");
-    check (mp.pullToNeutral > 0.0f && mp.pullToNeutral < 1.0f,
-           "and the shipped default is a nudge, not a clamp");
 }
 
 //==============================================================================
@@ -1085,17 +576,14 @@ struct RenderResult
 {
     float peak = 0.0f, rms = 0.0f, dc = 0.0f;
     bool finite = true;
-    std::vector<float> mono;   // only kept when wantMono is set (gate checks read it)
 };
 
-/// Render one branch of one plant. The shared body of every audio assertion in
-/// this file; M2 grows it into the createTest/performTest protocol of 13.
-static RenderResult renderScene (const PlantSnapshot& plant, int branch, float distance,
-                                 int note, float sampleRate, float seconds,
-                                 bool wantMono = false)
+static RenderResult renderBranch (const PlantSnapshot& plant, const MutationParams& /*mp*/,
+                                  int branch, float distance, int note, float sampleRate)
 {
     const int block = 128;
-    const int numSamples = static_cast<int> (sampleRate * seconds);
+    const int seconds = 2;
+    const int numSamples = static_cast<int> (sampleRate) * seconds;
 
     Synth synth;
     synth.prepare (sampleRate, block);
@@ -1115,6 +603,7 @@ static RenderResult renderScene (const PlantSnapshot& plant, int branch, float d
 
     std::vector<float> bufferL (static_cast<std::size_t> (numSamples), 0.0f);
     std::vector<float> bufferR (static_cast<std::size_t> (numSamples), 0.0f);
+    float* channels[2] = { bufferL.data(), bufferR.data() };
 
     RenderResult result;
     double sumSquares = 0.0, sum = 0.0;
@@ -1134,9 +623,6 @@ static RenderResult renderScene (const PlantSnapshot& plant, int branch, float d
         synth.render (blockChannels, 2, n);
     }
 
-    if (wantMono)
-        result.mono.resize (static_cast<std::size_t> (numSamples));
-
     for (int i = 0; i < numSamples; ++i)
     {
         const float l = bufferL[static_cast<std::size_t> (i)];
@@ -1149,84 +635,11 @@ static RenderResult renderScene (const PlantSnapshot& plant, int branch, float d
         result.peak = std::max (result.peak, std::abs (r));
         sumSquares += static_cast<double> (l) * l + static_cast<double> (r) * r;
         sum += static_cast<double> (l) + r;
-
-        if (wantMono)
-            result.mono[static_cast<std::size_t> (i)] = 0.5f * (l + r);
     }
 
     result.rms = static_cast<float> (std::sqrt (sumSquares / (2.0 * numSamples)));
     result.dc = static_cast<float> (sum / (2.0 * numSamples));
     return result;
-}
-
-static RenderResult renderBranch (const PlantSnapshot& plant, const MutationParams& /*mp*/,
-                                  int branch, float distance, int note, float sampleRate)
-{
-    return renderScene (plant, branch, distance, note, sampleRate, 2.0f);
-}
-
-static float dbDifference (float a, float b)
-{
-    if (a <= 0.0f || b <= 0.0f)
-        return 999.0f;
-    return std::abs (20.0f * std::log10 (a / b));
-}
-
-//==============================================================================
-// M1's gate, the audio half: "a gene at neutral changes nothing audible". The
-// mapping half is testMappingNeutralIsRest; this is the same claim made on the
-// output, using the one gate whose destination already exists (vol_sus). The
-// genome is planted as the seed at branch length 0, which resolveBranchGenome
-// returns bit exactly, so what is heard is exactly what was asked for.
-static void testNeutralGateIsAudible()
-{
-    std::printf ("a gene at neutral is inaudible, its gate is audible (5.7.3)\n");
-
-    MutationParams mp;
-    mp.atonality = 1.0f;   // nothing converged: the genome below is what is heard
-
-    auto plantOf = [&](const Genome& seed) {
-        PlantSnapshot plant;
-        buildPlant (plant, hash::fromString ("neutral-gate"), seed, mp);
-        return plant;
-    };
-
-    const float sr = 48000.0f;
-    const float seconds = 0.8f;
-
-    const Genome base = neutralGenome();
-    const RenderResult neutral = renderScene (plantOf (base), 0, 0.0f, 60, sr, seconds);
-
-    // Inside the dead zone of the same gate: the same sound, sample for sample.
-    Genome dead = base;
-    dead[g_vol_sus] = 0.2f;
-    const RenderResult inDeadZone = renderScene (plantOf (dead), 0, 0.0f, 60, sr, seconds);
-
-    // Open the gate and the note sustains, which is a different sound.
-    Genome open = base;
-    open[g_vol_sus] = 0.9f;
-    const RenderResult opened = renderScene (plantOf (open), 0, 0.0f, 60, sr, seconds);
-
-    std::printf ("       vol_sus 0.50/0.20/0.90 -> rms %.5f / %.5f / %.5f, peak %.3f/%.3f/%.3f\n",
-                 neutral.rms, inDeadZone.rms, opened.rms,
-                 neutral.peak, inDeadZone.peak, opened.peak);
-
-    bool ok = neutral.finite && inDeadZone.finite && opened.finite;
-
-    // The neutral plant has to make a sound at all, or "identical" is vacuous.
-    if (neutral.rms < 1.0e-5f)
-        ok = false;
-
-    // A gene inside its dead zone cannot reach the output: not "similar", but
-    // bit identical, because the mapping layer resolves both to the same value.
-    if (inDeadZone.rms != neutral.rms || inDeadZone.peak != neutral.peak)
-        ok = false;
-
-    // While opening the gate is a change a listener would call loud.
-    if (dbDifference (opened.rms, neutral.rms) < 1.0f)
-        ok = false;
-
-    check (ok, "dead zone is bit identical to neutral; opening the gate is audible");
 }
 
 //==============================================================================
@@ -1245,14 +658,11 @@ static void testNeutralGateIsAudible()
 // rewritten, not kept, in M4, the milestone that lands that behaviour.
 //==============================================================================
 // Atonality is a generation time ceiling on every pitch capable gene (a_freq,
-// b_freq, a_mod, b_mod, lfo_amt): at 0 the plant cannot touch pitch at all, at
-// 1 the whole range is available, and in between nothing may sit further from
-// its neutral point than the ceiling allows. It is applied to the seed, to the
-// branch directions and to the resolved genome, so it has to be idempotent:
-// planting a branch feeds a gated genome back in as the next seed. Note that
-// since M1 the ceiling is the *only* thing that keeps b_freq tonal: the
-// unconditional ratio snap of 5.5 is gone (it was applied at every atonality),
-// and the blended version arrives with M8 (R7, deviation D-4).
+// b_freq, lfo_amt, drift_amt, det_spread): at 0 the plant cannot touch pitch at
+// all, at 1 the whole range is available, and in between nothing may sit further
+// from its neutral point than the ceiling allows. It is applied to the seed, to
+// the branch directions and to the resolved genome, so it has to be idempotent:
+// planting a branch feeds a gated genome back in as the next seed.
 static void testAtonalityCeiling()
 {
     std::printf ("atonality ceiling (5.5)\n");
@@ -1608,18 +1018,12 @@ int main()
                  sizeof (PlantSnapshot) * 3);
     testTableMatchesDoc();
     testCurves();
-    testMappingNeutralIsRest();
-    testActivationGates();
-    testRailsAndMixWarp();
     testGrowthExempt();
     testRatioSnapping();
-    testSeedsClusterAroundNeutral();
-    testPullToNeutral();
     testAtonalityCeiling();
     testPitchStability();
     testGenome (mp);
     testFilter();
-    testNeutralGateIsAudible();
     testRender();
     testNoteBookkeeping();
 
