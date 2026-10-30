@@ -545,67 +545,6 @@ requirement. A baseline captured *before* M3 is the only way to know later what 
 rounds is clean (no NaN, no silence, no runaway DC).
 **Unlocks:** measurable gates for M3–M7 and the M10 tuning loop.
 
-**Status: landed 2026-10-30.** `Tests/Render.{h,cpp}` is the protocol; `Tests/EngineTests.cpp`
-is the assertions and the command line; **44 → 93 checks**, `ctest -j1` green in 45 s, and no
-file under `Source/` changed. The gate as written is met: `createTest`/`performTest` round-trip
-**bit exactly (max diff 0.0, 0 LSB) at all five sample rates**, `tolerance` is honoured in both
-directions (a one-byte change in a golden fails at tolerance 0 and passes at 0.01; a file whose
-header says 22 050 is refused by a 44 100 spec), the 12×5 batch prints the full metric set for
-every case, and `soak --rounds 1000` is clean of NaN, silence and DC. The documented golden set
-(300/300/300/150/60 s at the five rates, seed 1, density 10) is generated into `Tests/Golden/`
-with hash sidecars committed and audio gitignored; the full record is
-`Implementation-Status.md` §12.
-
-**Two findings, and they matter more than the tooling.**
-
-1. **§10 and §11's audio tables measured the seed, not the branches.** The old harness built a
-   `PlayState`, filled it in, and never called `synth.setPlayState()`, so every "per branch"
-   number in this plan's earlier milestones was rendered at the engine's default state: branch
-   lengths 0, wheel closed, default macros. "Branch spread 0.57 → 0.35 dB" is a **semitone**
-   spread. Nothing else in M0/M1 depends on it — those gates are gene-space or single-render —
-   but **M7 tunes against §12's numbers, not §11's**. `testM1BaselineAudio` reproduces those
-   twelve rms values through the new harness to **6.15e-07 relative** (keeping the old call's
-   stray sample offset of 8, which is part of what produced them), which is simultaneously the
-   proof that M2 changed no sample and the record of what the old harness did.
-2. **Branch-vs-seed loudness, measured for the first time: the ±6 dB target is not met.**
-   49 of 60 cases are inside it; growth is tracked to 0.1 dB up to length 0.25, and from 0.5
-   a *minority* of branches fall away by 17–24 dB rather than drifting (worst −23.6 dB,
-   loudest +1.64 dB). All eleven offenders are the same failure, and three metrics agree on
-   which: centroid 10–22 kHz against their seeds' 378–733 Hz, off-grid energy 0.26–0.92
-   against ≤0.03, hold level −7 to −19.5 dB against −5.7 to −7.0. They grew into a shrill
-   non-sustaining blip instead of a note. That is plan §6.3 arriving on schedule:
-   `loudnessCompensation`/`safetyScore` reason in raw gene space while `vol_sus` is gated, and
-   nothing compensates a note that stopped sustaining. **The eleven are M3's**, and the batch
-   gate is written as the measured distribution with the §13 target named as a constant, so M3
-   improves something visible instead of a tolerance being widened.
-
-Three things the bullet list did not anticipate:
-
-* **The metrics need their own tests before any engine number means anything.**
-  `testMetricsOnKnownSignals` checks each one against a signal built from its answer (a 440 Hz
-  tone, white noise, a 220 Hz harmonic stack with and without an inharmonic partial, a sampled
-  26.15 kHz tone that lands on 21.85 kHz, and three hand-written amplitude envelopes). Getting
-  that green corrected two estimator designs: an autocorrelation's *largest* peak is an
-  octave-low trap for harmonic-rich sound (use the first strong peak, then refine the spacing
-  on the spectrum), and a lone tone has no unique fundamental, so only the sieve's own
-  tolerance can be asserted. The 220 Hz + 1450 Hz case now matches an independent NumPy
-  implementation of the metric to four decimals.
-* **The "aliasing estimate" is an off-grid energy ratio**, because that is what is measurable
-  in a rendered file: energy that is not within a few bins of a multiple of the sounding
-  fundamental. Noise-coloured branches are legitimately off-grid, so it is a
-  milestone-to-milestone comparison instrument (the 48/96 kHz goldens carry 8% at density 10 —
-  that is M6's number to reduce), not an absolute.
-* **Articulation exists before the behaviour it measures.** Attack, hold level, release,
-  "sound over" and **self-ended** (the sound stops while the key is down) are measured and
-  asserted against synthetic envelopes, but no M2 gate is written in them. M3's acceptance
-  matrix ("measured attack/hold/release move in the direction `env_time`/`vol_sus`/`vol_fade`/
-  `env_loop`/`env_tilt` imply") is written in those fields; that is why M2 comes first.
-
-The soak also says something M7 owns: 3 scenes in 1000 pass full scale (worst peak 1.0104),
-and the dense goldens peak at 0.92–0.97 before master volume is involved. One unconditional
-soft clipper and sixteen summing voices is the thing §8.1's `Volume` curve + saturating
-limiter replaces.
-
 ### M3 — The shared envelope engine (design §6.1.1) — the core of this plan
 
 *Why here: this is the change that moves GenoMosh closest to the reference, and it decides what
@@ -628,10 +567,7 @@ limiter replaces.
   documented one, scaled by `VelSens × mod_vel`.
 - Recalibrate `safetyScore`/`applyCouplings` for the new genes: with duration-as-a-gene and
   `vol_sus` gated at 0.5, **silence becomes far more likely** — the doc calls this check
-  load-bearing. **M2 measured the audio consequence, and it is this milestone's to fix**: eleven
-  of the sixty batch cases are 17-24 dB quieter than their seed, all of them shrill
-  non-sustaining blips (`Implementation-Status.md` §12). The batch gate (`over 6 dB ≤ 11 of
-  60`) is set there for M3 to move. Add the new failure modes (period ≥ duration; cycle shorter than the shape;
+  load-bearing. Add the new failure modes (period ≥ duration; cycle shorter than the shape;
   `vol_fade` closing the note before it sounds). Today the test gate is "majority of far
   branches pass the safety score" (75%) and the last reported measurement was 720/720; raise the
   gate to a hard 100% of *resolved* branches, and let the harness report the ratio.
@@ -642,8 +578,7 @@ limiter replaces.
 
 **Gate:** articulation metrics track the genes across the 12×5 batch; `vol_sus < 0.5` measures no
 sustain; 100% of resolved branches pass the recalibrated safety score; bit-identical
-reruns at 3 sample rates. Plus the audio half of the §6.3 list: the eleven branches M2's
-batch measured beyond ±6 dB of their seed are inside the target by the end of this milestone.
+reruns at 3 sample rates.
 **Unlocks:** M4 (the mod envelope now *is* the note envelope — every modulator's shape depends on
 it) and the articulation half of M10.
 
@@ -878,11 +813,7 @@ the guard rails stop fighting the engine:
 sub_am/fm_amt` with Rev 1 meanings. After M3, M5 and M7 they must read: duration, gated sustain,
 `vol_fade`, loop period, **filter topology**, **shelves**, **clipper**, tracking cutoff. The
 reported 720/720 usable-branch rate and the ~1 dB level match are the regression to watch; both
-are hard gates at every milestone that changes them. **Measured at M2, the real position is**:
-49 of 60 grown cases within ±6 dB of their seed, eleven outliers (all shrill, non-sustaining),
-and no level problem whatsoever below branch length 0.25. The 720/720 figure is a
-safety-score claim, not an audio one — the audio version of it is the batch table in
-`Implementation-Status.md` §12.
+are hard gates at every milestone that changes them.
 
 ### 6.4 Stepped genes break "deviation grows with distance" *in audio space*
 `a_freq` (7) and `flt_type` (4) move in jumps, so a monotone audio-distance assertion becomes

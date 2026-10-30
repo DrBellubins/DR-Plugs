@@ -6,7 +6,7 @@ file(GLOB TEST_CORE_SOURCES
         "${CMAKE_SOURCE_DIR}/Source/Genetic/*.cpp"
         "${CMAKE_SOURCE_DIR}/Source/Engine/*.cpp")
 
-add_executable(GenoMosh_Tests EngineTests.cpp Render.cpp ${TEST_CORE_SOURCES})
+add_executable(GenoMosh_Tests EngineTests.cpp ${TEST_CORE_SOURCES})
 
 target_include_directories(GenoMosh_Tests PRIVATE "${CMAKE_SOURCE_DIR}/Source")
 target_compile_features(GenoMosh_Tests PRIVATE cxx_std_17)

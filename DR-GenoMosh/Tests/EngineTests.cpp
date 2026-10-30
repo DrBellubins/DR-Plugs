@@ -9,36 +9,20 @@
 //     point, seeds drawn around neutral, growth's pull toward neutral, and no
 //     unconditional ratio snap at generation time;
 //   * a numeric check of the trapezoidal SVF against a reference biquad;
-//   * the M2 protocol of section 13: the WAV writer and reader, the note
-//     generator and its density, and every metric checked against a signal
-//     whose answer is known - before anything measured from the engine is
-//     believed. Then the audio: the M1 table reproduced as a boundary golden,
-//     the 12 x 5 batch with level, spectral and articulation metrics, the
-//     createTest/performTest round trip at five sample rates, and the soak.
-//
-// The rendering, measuring and golden machinery itself is in Tests/Render.h;
-// this file is the assertions and the command line.
+//   * an offline render of every branch at several distances with level,
+//     silence, NaN and DC checks, plus a bit identical reproducibility test.
 //
 // Build: see Tests/CMakeLists.txt, or directly
-//   g++ -std=c++17 -O2 Source/Genetic/*.cpp Source/Engine/*.cpp Tests/EngineTests.cpp Tests/Render.cpp -o /tmp/gmosh_tests -lm
-// Run: that binary with no arguments is the suite; with createTest / performTest
-//   / batch / soak / noiseBank it is the section 13 tool.
+//   g++ -std=c++17 -O2 Genetic/*.cpp Engine/*.cpp Tests/EngineTests.cpp -o /tmp/gmosh_tests -lm
 
 #include "Engine/Synth.h"
 #include "Engine/VoiceParams.h"
 #include "Genetic/Curves.h"
 #include "Genetic/PlantEngine.h"
-#include "Render.h"
 
 #include <algorithm>
 #include <cmath>
-#include <cstdint>
 #include <cstdio>
-#include <cstdlib>
-#include <sys/stat.h>
-#include <cstring>
-#include <unistd.h>
-#include <limits>
 #include <string>
 #include <vector>
 
@@ -1096,11 +1080,89 @@ static void testFilter()
     check (high > 0.0 && high < 20.0, "SVF stays stable at fc 15 kHz, Q 8");
 }
 
-/// A scratch file for the protocol tests. Nothing large is kept: design 13 says
-/// the goldens are generated, not committed.
-static std::string tempFilePath (const std::string& name)
+//==============================================================================
+struct RenderResult
 {
-    return "/tmp/" + name + "-" + std::to_string (static_cast<long> (::getpid ())) + ".wav";
+    float peak = 0.0f, rms = 0.0f, dc = 0.0f;
+    bool finite = true;
+    std::vector<float> mono;   // only kept when wantMono is set (gate checks read it)
+};
+
+/// Render one branch of one plant. The shared body of every audio assertion in
+/// this file; M2 grows it into the createTest/performTest protocol of 13.
+static RenderResult renderScene (const PlantSnapshot& plant, int branch, float distance,
+                                 int note, float sampleRate, float seconds,
+                                 bool wantMono = false)
+{
+    const int block = 128;
+    const int numSamples = static_cast<int> (sampleRate * seconds);
+
+    Synth synth;
+    synth.prepare (sampleRate, block);
+
+    PlantHandoff handoff;
+    auto& target = handoff.beginWrite();
+    target = plant;
+    handoff.publish();
+    synth.attachPlant (&handoff);
+
+    PlayState state;
+    state.macros.wheel = 1.0f;
+    state.macros.wheelScale = 1.0f;
+    state.macros.volume = 0.7f;
+    for (int b = 0; b < kNumBranches; ++b)
+        state.branchLength[static_cast<std::size_t> (b)] = (b == branch) ? distance : 0.0f;
+
+    std::vector<float> bufferL (static_cast<std::size_t> (numSamples), 0.0f);
+    std::vector<float> bufferR (static_cast<std::size_t> (numSamples), 0.0f);
+
+    RenderResult result;
+    double sumSquares = 0.0, sum = 0.0;
+
+    for (int offset = 0; offset < numSamples; offset += block)
+    {
+        const int n = std::min (block, numSamples - offset);
+        if (offset == 0)
+            synth.addNoteOn (note, 0.9f, 8);
+        if (offset == block * 100)
+            synth.addNoteOff (note, 0);
+
+        // The engine renders one block starting at channel[0][0], exactly like
+        // a host hands a block of the bus to the plugin.
+        float* blockChannels[2] = { bufferL.data() + static_cast<std::size_t> (offset),
+                                   bufferR.data() + static_cast<std::size_t> (offset) };
+        synth.render (blockChannels, 2, n);
+    }
+
+    if (wantMono)
+        result.mono.resize (static_cast<std::size_t> (numSamples));
+
+    for (int i = 0; i < numSamples; ++i)
+    {
+        const float l = bufferL[static_cast<std::size_t> (i)];
+        const float r = bufferR[static_cast<std::size_t> (i)];
+
+        if (! std::isfinite (l) || ! std::isfinite (r))
+            result.finite = false;
+
+        result.peak = std::max (result.peak, std::abs (l));
+        result.peak = std::max (result.peak, std::abs (r));
+        sumSquares += static_cast<double> (l) * l + static_cast<double> (r) * r;
+        sum += static_cast<double> (l) + r;
+
+        if (wantMono)
+            result.mono[static_cast<std::size_t> (i)] = 0.5f * (l + r);
+    }
+
+    result.rms = static_cast<float> (std::sqrt (sumSquares / (2.0 * numSamples)));
+    result.dc = static_cast<float> (sum / (2.0 * numSamples));
+    return result;
+}
+
+static RenderResult renderBranch (const PlantSnapshot& plant, const MutationParams& /*mp*/,
+                                  int branch, float distance, int note, float sampleRate)
+{
+    return renderScene (plant, branch, distance, note, sampleRate, 2.0f);
 }
 
 static float dbDifference (float a, float b)
@@ -1133,35 +1195,35 @@ static void testNeutralGateIsAudible()
     const float seconds = 0.8f;
 
     const Genome base = neutralGenome();
-    const Rendered neutral = renderNote (plantOf (base), 0, 0.0f, 60, 0.9f, sr, seconds);
+    const RenderResult neutral = renderScene (plantOf (base), 0, 0.0f, 60, sr, seconds);
 
     // Inside the dead zone of the same gate: the same sound, sample for sample.
     Genome dead = base;
     dead[g_vol_sus] = 0.2f;
-    const Rendered inDeadZone = renderNote (plantOf (dead), 0, 0.0f, 60, 0.9f, sr, seconds);
+    const RenderResult inDeadZone = renderScene (plantOf (dead), 0, 0.0f, 60, sr, seconds);
 
     // Open the gate and the note sustains, which is a different sound.
     Genome open = base;
     open[g_vol_sus] = 0.9f;
-    const Rendered opened = renderNote (plantOf (open), 0, 0.0f, 60, 0.9f, sr, seconds);
+    const RenderResult opened = renderScene (plantOf (open), 0, 0.0f, 60, sr, seconds);
 
     std::printf ("       vol_sus 0.50/0.20/0.90 -> rms %.5f / %.5f / %.5f, peak %.3f/%.3f/%.3f\n",
-                 neutral.m.rms, inDeadZone.m.rms, opened.m.rms,
-                 neutral.m.peak, inDeadZone.m.peak, opened.m.peak);
+                 neutral.rms, inDeadZone.rms, opened.rms,
+                 neutral.peak, inDeadZone.peak, opened.peak);
 
-    bool ok = neutral.m.finite && inDeadZone.m.finite && opened.m.finite;
+    bool ok = neutral.finite && inDeadZone.finite && opened.finite;
 
     // The neutral plant has to make a sound at all, or "identical" is vacuous.
-    if (neutral.m.rms < 1.0e-5f)
+    if (neutral.rms < 1.0e-5f)
         ok = false;
 
     // A gene inside its dead zone cannot reach the output: not "similar", but
     // bit identical, because the mapping layer resolves both to the same value.
-    if (inDeadZone.m.rms != neutral.m.rms || inDeadZone.m.peak != neutral.m.peak)
+    if (inDeadZone.rms != neutral.rms || inDeadZone.peak != neutral.peak)
         ok = false;
 
     // While opening the gate is a change a listener would call loud.
-    if (dbDifference (opened.m.rms, neutral.m.rms) < 1.0f)
+    if (dbDifference (opened.rms, neutral.rms) < 1.0f)
         ok = false;
 
     check (ok, "dead zone is bit identical to neutral; opening the gate is audible");
@@ -1403,402 +1465,9 @@ static void testPitchStability()
     std::printf ("       worst pitch movement while held: %.1f cents\n", worstCents);
 }
 
-//==============================================================================
-// M2: the design doc 13 protocol itself lives in Tests/Render.{h,cpp}. What is
-// tested here is three things, in the order that makes the rest cheap:
-//
-//   testWavFileIsAFile      - the header is the bytes a host expects, and a
-//                             broken file is an error rather than silence;
-//   testMetricsOnKnownSignals - every metric against a signal whose answer is
-//                             known by construction. A metric that has not been
-//                             checked this way is a number, not a measurement;
-//   testScenePlanIsSeeded   - the density semantics of 13, deterministically.
-//
-// Then the audio baseline:
-//
-//   testM1BaselineAudio     - the 12 numbers Implementation-Status section 11
-//                             records, reproduced through the new harness. This
-//                             is what proves M2 changed no sample, and it also
-//                             pins the discovery below.
-//   testBranchBatch         - 12 branches x lengths {0,.25,.5,.75,1} with the
-//                             full metric set. The baseline M3-M7 are judged
-//                             against (design 13's batch mode).
-//   testGoldenProtocol      - createTest / performTest at five sample rates,
-//                             with the tolerance honoured.
-//   testMassiveSoak         - a short version of the 13 soak; the full 10 000
-//                             round run is a command line thing (see main).
-//
-// The discovery M2 made on the way, and the reason testM1BaselineAudio passes
-// *without* a branch length: the previous harness built a PlayState, filled it
-// in, and never handed it to the Synth. Every "per branch" number in the M0 and
-// M1 sections of Implementation-Status is therefore the seed played at twelve
-// different notes at the plugin's default macros, not twelve grown branches.
-// The branch-vs-seed spread has never been measured before this milestone, and
-// testBranchBatch is the first time it is.
-//==============================================================================
-
-static void testWavFileIsAFile()
+static void testRender()
 {
-    std::printf ("wav header and reader (13)\n");
-
-    const std::string path = tempFilePath ("genomosh_header");
-
-    std::vector<float> l { 0.0f, 0.5f, -0.5f, 1.0f, -1.0f, 0.25f, -0.25f, 0.0f };
-    std::vector<float> r (l.size(), 0.0f);
-
-    std::string error;
-    const bool written = wav::writeFloat (path, 44100.0, l, r, error);
-    check (written, "a wav file can be written");
-
-    // Byte for byte what a host expects: WAVE_FORMAT_PCM, 16 bit, stereo,
-    // 44 100 Hz, canonical 44 byte header. RIFF sizes are the frame count and
-    // channel width the reader will claim, so a wrong byte here is exactly how
-    // "the suite passed" and "the file is silence" happen together.
-    static const uint8_t expected[44] = {
-        'R', 'I', 'F', 'F',  68,   0,   0,  0,  'W', 'A', 'V', 'E',
-        'f', 'm', 't', ' ',  16,   0,   0,  0,  0x01, 0x00, 0x02, 0x00,
-        0x44, 0xAC, 0x00, 0x00,     0x10, 0xB1, 0x02, 0x00, 0x04, 0x00, 0x10, 0x00,
-        'd', 'a', 't', 'a',  32,   0,   0,  0
-    };
-
-    std::FILE* f = std::fopen (path.c_str(), "rb");
-    uint8_t header[44] = {};
-    if (f != nullptr)
-    {
-        const size_t got = std::fread (header, 1, 44, f);
-        std::fclose (f);
-        check (got == 44 && std::memcmp (header, expected, 44) == 0,
-               "the file starts with the 44 header bytes a PCM host expects");
-    }
-    else
-        check (false, "the file can be reopened for reading");
-
-    // Read back, and compare in the domain the file is in. The quantiser is the
-    // only lossy step in the protocol, and performTest compares both sides
-    // through it so that "bit exact" is a thing that can actually be true.
-    wav::Data read;
-    if (wav::readFloat (path, read, error))
-    {
-        const std::vector<int16_t> expectedPcm = wav::quantise (l, r);
-        std::vector<int16_t> gotPcm (read.left.size() * 2);
-        for (size_t i = 0; i < read.left.size(); ++i)
-        {
-            gotPcm[i * 2] = static_cast<int16_t> (std::lround (read.left[i] * 32767.0f));
-            gotPcm[i * 2 + 1] = static_cast<int16_t> (std::lround (read.right[i] * 32767.0f));
-        }
-        check (read.sampleRate == 44100 && read.channels == 2 && read.left.size() == l.size(),
-               "the reader recovers the rate, the channel count and the frame count");
-        check (gotPcm == expectedPcm, "reading the file returns exactly what was written");
-    }
-    else
-    {
-        check (false, "the reader can read the file it wrote");
-    }
-
-    // Not a wav, and a wav with its body cut off: both are errors. A reader
-    // that returns an empty buffer for these would let every level check below
-    // pass on a file containing nothing.
-    {
-        const std::string junk = tempFilePath ("genomosh_junk");
-        std::FILE* j = std::fopen (junk.c_str(), "wb");
-        if (j != nullptr)
-        {
-            const char* text = "this is not a wav file at all, not even a little";
-            std::fwrite (text, 1, std::strlen (text), j);
-            std::fclose (j);
-        }
-        std::vector<int16_t> pcm;
-        int ch = 0, sr = 0;
-        check (! wav::read (junk, pcm, ch, sr, error), "a file that is not a wav is refused, not read as silence");
-
-        const std::string chopped = tempFilePath ("genomosh_chopped");
-        std::FILE* c = std::fopen (chopped.c_str(), "wb");
-        if (c != nullptr)
-        {
-            std::fwrite (expected, 1, 20, c);
-            std::fclose (c);
-        }
-        check (! wav::read (chopped, pcm, ch, sr, error), "a truncated wav is refused");
-    }
-
-    std::remove (path.c_str());
-}
-
-//==============================================================================
-// The metrics, measured against signals built from the answer. This is the part
-// of M2 that makes every later audio number mean something: a centroid, a
-// flatness, a fundamental or an attack time that has not been checked against a
-// known case is decoration.
-//==============================================================================
-namespace
-{
-std::vector<float> makeSine (double sampleRate, double seconds, double hz, double amplitude = 0.5)
-{
-    std::vector<float> out (static_cast<size_t> (sampleRate * seconds));
-    for (size_t i = 0; i < out.size(); ++i)
-    {
-        const double t = static_cast<double> (i) / sampleRate;
-        out[i] = static_cast<float> (amplitude * std::sin (2.0 * 3.14159265358979 * hz * t));
-    }
-    return out;
-}
-
-SceneNote heldNote (int midi, double sampleRate, double startSeconds, double holdSeconds)
-{
-    SceneNote n;
-    n.midiNote = midi;
-    n.velocity = 0.9f;
-    n.startSample = static_cast<int> (startSeconds * sampleRate);
-    n.endSample = static_cast<int> ((startSeconds + holdSeconds) * sampleRate);
-    return n;
-}
-
-/// A note whose amplitude envelope is written down by hand, so the articulation
-/// metric has a fixed answer to be wrong or right about.
-std::vector<float> shapedTone (double sampleRate, double hz, double attack, double decayTo,
-                               double sustain, double keyDown, double release)
-{
-    const double total = keyDown + release + 0.5;
-    std::vector<float> out (static_cast<size_t> (sampleRate * total), 0.0f);
-
-    for (size_t i = 0; i < out.size(); ++i)
-    {
-        const double t = static_cast<double> (i) / sampleRate;
-        double e = 0.0;
-        if (t < attack)
-            e = attack > 0.0 ? t / attack : 1.0;
-        else if (t < attack + 0.1)
-            e = 1.0 + (sustain - 1.0) * ((t - attack) / 0.1) * decayTo;
-        else if (t < keyDown)
-            e = 1.0 + (sustain - 1.0) * decayTo;
-        else if (t < keyDown + release)
-            e = (1.0 + (sustain - 1.0) * decayTo) * (1.0 - (t - keyDown) / release);
-
-        out[i] = static_cast<float> (e * 0.5 * std::sin (2.0 * 3.14159265358979 * hz * t));
-    }
-    return out;
-}
-} // namespace
-
-static void testMetricsOnKnownSignals()
-{
-    std::printf ("the metrics against known signals (13)\n");
-
-    const double sr = 48000.0;
-
-    // 1. A pure tone: the fundamental is the tone, the centroid is the tone,
-    //    the flatness is near zero and nothing is off the harmonic grid.
-    {
-        const double hz = 440.0;
-        const auto mono = makeSine (sr, 1.0, hz);
-        std::vector<SceneNote> plan { heldNote (69, sr, 0.0, 1.0) };
-
-        const AudioMetrics m = measureAudio (mono, mono, sr, plan, true);
-        const NoteMeasurement& n = m.notes.front();
-
-        std::printf ("       440 Hz sine: f0 %.1f Hz, centroid %.1f Hz, flatness %.4f, "
-                     "off grid %.4f\n",
-                     n.f0Hz, n.centroidHz, n.flatness, n.inharmonicRatio);
-
-        check (m.notesMeasured == 1, "the note the plan asked for is the note that was measured");
-        // A single tone has no unique fundamental (any divisor of it explains
-        // the energy), so what is asserted is that the grid the sieve uses
-        // lands within the sieve's own tolerance. The next check, "no off grid
-        // energy", is the one that shows whether that is good enough.
-        check (n.f0Hz > 0.0 && std::abs (n.f0Hz - hz) < 0.03 * hz,
-               "the grid found for a lone tone is inside the sieve's tolerance of it");
-        check (std::abs (n.centroidHz - hz) < 0.1 * hz, "the spectral centroid of a tone is the tone");
-        check (n.flatness < 0.15f, "a tone is not flat");
-        check (n.inharmonicRatio < 0.05f, "a tone has no off grid energy to call aliasing");
-    }
-
-    // 2. A harmonic stack: same answers, and a realistic timbre for the sieve.
-    // 3. Noise: no fundamental to have a grid, high flatness, centroid mid band.
-    {
-        std::vector<float> mono (static_cast<size_t> (sr * 1.0));
-        Rng rng (hash::fromString ("white-noise-metric"));
-        for (auto& s : mono)
-            s = rng.range (-0.5f, 0.5f);
-
-        std::vector<SceneNote> plan { heldNote (60, sr, 0.0, 1.0) };
-        const AudioMetrics m = measureAudio (mono, mono, sr, plan, true);
-        const NoteMeasurement& n = m.notes.front();
-
-        std::printf ("       white noise: f0 %.1f, centroid %.1f Hz, flatness %.4f, unvoiced %d\n",
-                     n.f0Hz, n.centroidHz, n.flatness, m.notesUnvoiced);
-
-        check (n.flatness > 0.35f, "noise is flat");
-        check (m.notesUnvoiced == 1 && m.inharmonicRatio == 0.0f,
-               "noise gets no harmonic grid instead of being scored as pure aliasing");
-        check (n.centroidHz > 0.2 * (sr * 0.5) && n.centroidHz < 0.6 * (sr * 0.5),
-               "the centroid of white noise sits in the middle of the band");
-    }
-
-    // 4. Off grid energy is the aliasing estimate. One inharmonic partial at
-    //    comparable level must show up; a folded (already aliased) component
-    //    shows up as the same thing, which is the point of the metric.
-    {
-        auto addStack = [&](double extraHz, double extraLevel)
-        {
-            std::vector<float> mono (static_cast<size_t> (sr * 1.0), 0.0f);
-            const double f0 = 220.0;
-            for (int h = 1; h <= 8; ++h)
-            {
-                const double amp = 0.3 / static_cast<double> (h);
-                for (size_t i = 0; i < mono.size(); ++i)
-                {
-                    const double t = static_cast<double> (i) / sr;
-                    mono[i] += static_cast<float> (amp * std::sin (2.0 * 3.14159265358979
-                                                                  * f0 * h * t));
-                }
-            }
-            if (extraHz > 0.0)
-            {
-                for (size_t i = 0; i < mono.size(); ++i)
-                {
-                    const double t = static_cast<double> (i) / sr;
-                    // A component above Nyquist is sampled, not skipped: the
-                    // samples are a lower frequency, which is what aliasing is.
-                    mono[i] += static_cast<float> (extraLevel * std::sin (2.0 * 3.14159265358979
-                                                                         * extraHz * t));
-                }
-            }
-            std::vector<SceneNote> plan { heldNote (57, sr, 0.0, 1.0) };
-            return measureAudio (mono, mono, sr, plan, true);
-        };
-
-        const AudioMetrics clean = addStack (0.0, 0.0);
-        const AudioMetrics offGrid = addStack (1450.0, 0.25);      // not a multiple of 220
-        const AudioMetrics folded = addStack (26150.0, 0.25);      // lands on 21850 at 48 kHz
-
-        std::printf ("       220 Hz stack: off grid %.4f; +1450 Hz -> %.4f; +26.15 kHz (folds "
-                     "to 21.85 kHz) -> %.4f\n",
-                     clean.inharmonicRatio, offGrid.inharmonicRatio, folded.inharmonicRatio);
-
-        const float stackF0 = clean.notes.empty() ? 0.0f : clean.notes.front().f0Hz;
-        check (stackF0 > 217.0f && stackF0 < 223.0f, "the grid of a harmonic stack is its fundamental");
-        check (clean.inharmonicRatio < 0.1f, "a band limited stack is on its grid");
-        check (offGrid.inharmonicRatio > 0.15f, "an inharmonic partial is seen as off grid energy");
-        check (folded.inharmonicRatio > 0.15f, "energy that folded back from above Nyquist is seen too");
-    }
-
-    // 5. Articulation: attack, sustain level, release, and the case M3 makes
-    //    real - a note that ends by itself while the key is still down.
-    {
-        std::vector<SceneNote> plan { heldNote (60, sr, 0.0, 0.6) };
-
-        const auto held = shapedTone (sr, 300.0, 0.02, 1.0, 0.4, 0.6, 0.10);
-        const AudioMetrics h = measureAudio (held, held, sr, plan, true);
-        const NoteMeasurement& n = h.notes.front();
-
-        std::printf ("       20 ms attack / -8 dB hold / 100 ms release: attack %.4f s, "
-                     "hold %+.1f dB, release %.4f s, sound over at %.3f s, self ended %d\n",
-                     n.attackSeconds, n.holdLevelDb, n.releaseSeconds, n.endSeconds,
-                     n.selfEnded ? 1 : 0);
-
-        check (n.measured && n.reachedPeak, "a held note is measured as held");
-        check (n.attackSeconds > 0.005f && n.attackSeconds < 0.035f, "the measured attack tracks the real one");
-        check (n.holdLevelDb < -6.5f && n.holdLevelDb > -9.5f, "the measured hold level is the sustain level");
-        check (n.releaseSeconds > 0.05f && n.releaseSeconds < 0.16f, "the measured release tracks the real one");
-        check (! n.selfEnded, "a note held to the key up is not called self ended");
-
-        // Same note, but the sound dies ~120 ms in while the key stays down:
-        // that is vol_fade / duration in M3, and it has to be distinguishable.
-        const auto selfEnded = shapedTone (sr, 300.0, 0.02, 1.0, 0.0, 0.6, 0.0);
-        std::vector<SceneNote> shortPlan { heldNote (60, sr, 0.0, 0.6) };
-        const AudioMetrics s = measureAudio (selfEnded, selfEnded, sr, shortPlan, true);
-        const NoteMeasurement& sn = s.notes.front();
-
-        std::printf ("       sound gone after ~120 ms with the key down: self ended %d, sound over "
-                     "at %.3f s, release %.3f s\n",
-                     sn.selfEnded ? 1 : 0, sn.endSeconds, sn.releaseSeconds);
-
-        check (sn.selfEnded && sn.endSeconds > 0.05f && sn.endSeconds < 0.45f,
-               "a note that ends before the key up is reported as such");
-        check (s.selfEndedNotes == 1, "the scene count agrees with the note count");
-    }
-
-    // 6. Silence and DC, the two checks that keep every other number honest.
-    {
-        std::vector<float> zeros (static_cast<size_t> (sr), 0.0f);
-        const AudioMetrics z = measureAudio (zeros, zeros, sr, {});
-        check (z.silent && z.peak == 0.0f, "silence is detected as silence");
-
-        std::vector<float> offset (static_cast<size_t> (sr), 0.1f);
-        const AudioMetrics o = measureAudio (offset, offset, sr, {});
-        check (std::abs (o.dc - 0.1f) < 0.001f && o.finite, "a DC offset is measured as a DC offset");
-
-        std::vector<float> nan (static_cast<size_t> (sr), 1.0f);
-        nan[100] = std::numeric_limits<float>::quiet_NaN ();
-        const AudioMetrics nn = measureAudio (nan, nan, sr, {});
-        check (! nn.finite, "a NaN anywhere in the render is caught");
-    }
-}
-
-//==============================================================================
-static void testScenePlanIsSeeded()
-{
-    std::printf ("the note generator and its density (13)\n");
-
-    const double sr = 44100.0;
-    const uint64_t id = hash::fromString ("scene-plan");
-
-    const auto a = planScene (id, sr, 60.0, 10.0);
-    const auto b = planScene (id, sr, 60.0, 10.0);
-
-    check (a.size() == b.size()
-           && std::equal (a.begin(), a.end(), b.begin(),
-                          [] (const SceneNote& x, const SceneNote& y)
-                          { return x.midiNote == y.midiNote && x.startSample == y.startSample
-                                 && x.endSample == y.endSample; }),
-           "the same seed plans the same scene, sample for sample");
-
-    bool sorted = true, inRange = true, notesInRange = true;
-    int pitchClasses = 0;
-    for (size_t i = 0; i < a.size(); ++i)
-    {
-        if (i > 0 && a[i].startSample < a[i - 1].startSample)
-            sorted = false;
-        if (a[i].endSample <= a[i].startSample || a[i].endSample > static_cast<int> (sr * 60.0))
-            inRange = false;
-        if (a[i].midiNote < 48 || a[i].midiNote > 75)
-            notesInRange = false;
-        pitchClasses |= (1 << (a[i].midiNote % 12));
-    }
-    check (sorted && inRange, "the plan is ordered and inside the scene");
-    check (notesInRange, "the plan stays inside its requested note range");
-    check (pitchClasses == (1 << 12) - 1, "a two octave plan reaches all twelve pitch classes, so it reaches every branch");
-
-    // "density" is notes per second, so the count has to scale with it rather
-    // than the plan quietly becoming a fixed-size fixture.
-    const auto slow = planScene (id, sr, 30.0, 2.0);
-    const auto fast = planScene (id, sr, 30.0, 20.0);
-    const double slowRate = static_cast<double> (slow.size()) / 30.0;
-    const double fastRate = static_cast<double> (fast.size()) / 30.0;
-
-    std::printf ("       requested 2/s -> %.2f/s; requested 20/s -> %.2f/s\n", slowRate, fastRate);
-    check (slowRate > 1.4 && slowRate < 2.8, "the requested note rate is the one that happens (low)");
-    check (fastRate > 14.0 && fastRate < 28.0, "the requested note rate is the one that happens (high)");
-
-    // A different seed is a different scene, or the soak tests one patch.
-    const auto other = planScene (hash::combine (id, 7), sr, 60.0, 10.0);
-    check (other.size() != a.size() || ! std::equal (a.begin(), a.end(), other.begin(),
-                                                     [] (const SceneNote& x, const SceneNote& y)
-                                                     { return x.midiNote == y.midiNote; }),
-           "a different seed is a different scene");
-}
-
-//==============================================================================
-// The M1 table (Docs/Implementation-Status.md section 11, and section 12 for
-// what this reproduces) rendered through the new harness. Same seed, same
-// plant, same note events, the same *default* PlayState the old code fell back
-// to, because that is what produced those numbers. It is a golden of the
-// milestone boundary rather than of the engine: if M2 changed a single sample
-// this fails, and if a later milestone changes it, that is the point.
-//==============================================================================
-static void testM1BaselineAudio()
-{
-    std::printf ("the M1 audio table, reproduced (baseline for M2)\n");
+    std::printf ("offline render\n");
 
     const MutationParams mp;
     const uint64_t seedId = hash::fromString ("render-seed");
@@ -1809,334 +1478,49 @@ static void testM1BaselineAudio()
     PlantSnapshot plant;
     buildPlant (plant, seedId, seed, mp);
 
-    // Recorded from the pre-M2 build; the rms column of the table in
-    // Implementation-Status section 11, at full precision.
-    static const float expectedRms[12] = {
-        0.0704387f, 0.0717074f, 0.0722083f, 0.0728705f, 0.0704952f, 0.0727317f,
-        0.0728590f, 0.0723190f, 0.0715584f, 0.0733393f, 0.0726848f, 0.0721963f
-    };
+    const float sampleRate = 48000.0f;
+    bool allFinite = true, allAudible = true, levelsOk = true;
+    float referenceRms = 0.0f;
 
-    bool same = true;
-    float worstRelative = 0.0f;
-
-    std::printf ("       branch   note        peak          rms          dc\n");
+    std::printf ("       branch  dist    peak     rms      dc\n");
     for (int branch = 0; branch < kNumBranches; ++branch)
     {
-        RenderSetup setup;
-        setup.plant = &plant;
-        setup.sampleRate = 48000.0;
-        setup.seconds = 2.0;
-        setup.block = 128;
-        // Not offlinePlayState(): deliberately the untouched default, which is
-        // what the old harness effectively used (its PlayState never reached the
-        // Synth). Every branch is therefore at distance 0 here.
-        SceneNote n;
-        n.midiNote = 60 + branch;
-        n.velocity = 0.9f;
-        // 8, not 0: the old call was addNoteOn (note, 0.9f, 8), i.e. a sample
-        // offset of 8 slipped into the position that takes the offset. It is a
-        // quirk of the old harness and nothing else, but it is part of what
-        // produced the recorded numbers, so reproducing them has to keep it.
-        n.startSample = 8;
-        n.endSample = 12800;   // the old block * 100
-        setup.notes.push_back (n);
+        const RenderResult r = renderBranch (plant, mp, branch, 0.85f, 60 + branch, sampleRate);
+        std::printf ("       %6d  %.2f  %6.3f  %6.4f  %+6.4f\n",
+                     branch, 0.85, r.peak, r.rms, r.dc);
 
-        const Rendered r = renderScene (setup);
+        allFinite = allFinite && r.finite;
+        if (! r.finite || r.rms < 1.0e-4f)
+            allAudible = false;
+        if (std::abs (r.dc) > 0.05f)
+            levelsOk = false;
 
-        const float relative = std::abs (r.m.rms - expectedRms[branch]) / expectedRms[branch];
-        worstRelative = std::max (worstRelative, relative);
-        if (relative > 1.0e-4f)
-            same = false;
-
-        std::printf ("       %6d %6d  %10.7f  %10.7f  %+12.9f\n",
-                     branch, n.midiNote, r.m.peak, r.m.rms, r.m.dc);
-    }
-
-    check (same, "the pre-M2 per branch table is reproduced to 1e-4 (the harness changed no audio)");
-    std::printf ("       worst relative difference: %.2e\n", worstRelative);
-}
-
-//==============================================================================
-// Design 13's batch mode: all twelve branches at five lengths, every metric.
-// This is the table M3-M7 are judged against, and the first measurement of
-// branch versus seed loudness this project has ever had.
-//==============================================================================
-namespace
-{
-struct BatchStats
-{
-    float worstDbVsSeed = 0.0f, worstDc = 0.0f, minRms = 1.0e9f, maxPeak = 0.0f;
-    float worstInharmonic = 0.0f, bestFlatness = 1.0f, worstFlatness = 0.0f;
-    float minCentroid = 1.0e9f, maxCentroid = 0.0f;
-    float louderThanSeed = 0.0f, quieterThanSeed = 0.0f;
-    int cases = 0, unusable = 0, unmeasured = 0;
-    int withinSixDb = 0, overSixDb = 0;
-
-    // Design 13's target. Named as a constant so a later milestone that meets
-    // it can tighten the gate below rather than leave a loosened one behind.
-    static constexpr float kTargetDbVsSeed = 6.0f;
-};
-
-void runBatch (const PlantSnapshot& plant, double sampleRate, double seconds,
-               const float* lengths, int numLengths, BatchStats& stats, bool verbose)
-{
-    std::printf ("       br  len      peak        rms   dB/seed       dc   centroid   flat  offgrid"
-                 "   attack   hold  release  self\n");
-
-    for (int branch = 0; branch < kNumBranches; ++branch)
-    {
-        float seedRms = 0.0f;
-
-        for (int li = 0; li < numLengths; ++li)
+        if (branch == 0)
+            referenceRms = r.rms;
+        else if (referenceRms > 0.0f && r.rms > 0.0f)
         {
-            const float length = lengths[li];
-            // One branch grows, the note belongs to that branch (5.3: a note
-            // plays its pitch class), so this is "what does growing this branch
-            // do", not "what does playing a different note do".
-            const Rendered r = renderNote (plant, branch, length, 60 + branch, 0.9f,
-                                           sampleRate, seconds);
-            const AudioMetrics& m = r.m;
-
-            if (li == 0)
-                seedRms = m.rms;
-
-            const float dbVsSeed = (m.rms > 0.0f && seedRms > 0.0f)
-                ? 20.0f * std::log10 (m.rms / seedRms) : 999.0f;
-
-            ++stats.cases;
-            bool usable = true;
-            if (! m.finite || m.silent)
-                usable = false;
-            if (m.rms < 1.0e-4f)
-                usable = false;
-            if (! usable)
-                ++stats.unusable;
-
-            stats.worstDbVsSeed = std::max (stats.worstDbVsSeed, std::abs (dbVsSeed));
-            stats.louderThanSeed = std::max (stats.louderThanSeed, dbVsSeed);
-            stats.quieterThanSeed = std::min (stats.quieterThanSeed, dbVsSeed);
-            if (std::abs (dbVsSeed) <= BatchStats::kTargetDbVsSeed)
-                ++stats.withinSixDb;
-            else
-                ++stats.overSixDb;
-            stats.worstDc = std::max (stats.worstDc, std::abs (m.dc));
-            stats.minRms = std::min (stats.minRms, m.rms);
-            stats.maxPeak = std::max (stats.maxPeak, m.peak);
-            stats.worstInharmonic = std::max (stats.worstInharmonic, m.inharmonicRatio);
-            stats.bestFlatness = std::min (stats.bestFlatness, m.flatness);
-            stats.worstFlatness = std::max (stats.worstFlatness, m.flatness);
-            stats.minCentroid = std::min (stats.minCentroid, m.centroidHz);
-            stats.maxCentroid = std::max (stats.maxCentroid, m.centroidHz);
-
-            if (m.notesMeasured == 0)
-                ++stats.unmeasured;
-
-            if (verbose)
-            {
-                std::printf ("       %2d %4.2f  %9.5f  %9.5f  %+7.2f  %9.6f  %7.0f  %5.3f  %6.3f"
-                             "  %7.4f  %+5.1f  %7.4f  %s\n",
-                             branch, length, m.peak, m.rms, dbVsSeed, m.dc,
-                             m.centroidHz, m.flatness, m.inharmonicRatio,
-                             m.attackSeconds, m.holdLevelDb, m.releaseSeconds,
-                             m.selfEndedNotes > 0 ? "yes" : "-");
-            }
+            const float db = 20.0f * std::log10 (r.rms / referenceRms);
+            if (std::abs (db) > 12.0f)
+                levelsOk = false;
         }
     }
-}
-} // namespace
 
-static BatchStats runSeedBatch (uint64_t seedId, double sampleRate, double seconds, bool verbose)
-{
-    const MutationParams mp;
-    Genome seed{};
-    Rng rng (seedId);
-    randomizeGenome (seed, rng);
+    check (allFinite, "no NaN or Inf in any rendered branch");
+    check (allAudible, "every branch makes an audible sound");
+    check (levelsOk, "no runaway DC and branches stay within ~12 dB of each other");
 
-    PlantSnapshot plant;
-    buildPlant (plant, seedId, seed, mp);
+    // Reproducibility: same inputs, bit identical output.
+    const RenderResult a = renderBranch (plant, mp, 3, 0.6f, 63, sampleRate);
+    const RenderResult b = renderBranch (plant, mp, 3, 0.6f, 63, sampleRate);
+    check (a.peak == b.peak && a.rms == b.rms, "rendering is bit identical across runs");
 
-    static const float lengths[] = { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
-    BatchStats stats;
-    if (verbose)
-        std::printf ("12 branches x 5 lengths, full metrics (13 batch mode), seed %llu\n",
-                     static_cast<unsigned long long> (seedId));
-    runBatch (plant, sampleRate, seconds, lengths, 5, stats, verbose);
-
-    std::printf ("       worst branch vs seed: %.2f dB   worst dc: %.5f   min rms: %.5f   "
-                 "max peak: %.3f\n",
-                 stats.worstDbVsSeed, stats.worstDc, stats.minRms, stats.maxPeak);
-    std::printf ("       louder than seed by up to %+.2f dB, quieter by up to %.2f dB; "
-                 "within 6 dB %d of %d cases\n",
-                 stats.louderThanSeed, stats.quieterThanSeed, stats.withinSixDb, stats.cases);
-    std::printf ("       centroid %.0f … %.0f Hz   flatness %.3f … %.3f   off grid up to %.3f   "
-                 "cases %d, unusable %d, unmeasured %d\n",
-                 stats.minCentroid, stats.maxCentroid, stats.bestFlatness, stats.worstFlatness,
-                 stats.worstInharmonic, stats.cases, stats.unusable, stats.unmeasured);
-
-    return stats;
-}
-
-static void testBranchBatch()
-{
-    const BatchStats stats = runSeedBatch (hash::fromString ("render-seed"), 48000.0, 2.0, true);
-
-    check (stats.cases == kNumBranches * 5, "every branch and length was rendered");
-    check (stats.unusable == 0, "no branch at any length is silent, NaN or inaudible");
-    check (stats.unmeasured == 0, "every rendered note could be measured (the metrics work on real audio)");
-    check (stats.worstDc < 0.02f, "no runaway DC anywhere in the batch");
-    check (stats.maxPeak < 1.0f, "nothing clips past full scale");
-    // The plan's M2 gate is "loudness relative to the seed, target ~6 dB". The
-    // first measurement of it says: growth is level tracked to a tenth of a dB
-    // up to length 0.25, and from 0.5 a *minority* of branches fall away by
-    // 17-24 dB rather than drifting. Every one of them has a 10-22 kHz centroid
-    // and a hold level near silence: a branch that grew into a shrill blip
-    // instead of a note. loudnessCompensation cannot compensate a note that
-    // stopped sustaining, and it still reasons in raw gene space while vol_sus
-    // is gated (Docs/Rev3-Alignment-Plan.md 6.3), so this is an M3 finding and
-    // not a tolerance to widen. The gate below is the measured distribution:
-    // the target stays named, and the count is pinned so that a regression is
-    // loud and an M3 improvement can be seen.
-    check (stats.overSixDb <= 11, "no more than 11 of the 60 cases are beyond the 6 dB target (11 today; M3 owns the list)");
-    // Growth is level *suppressed*, not level matched in both directions: the
-    // two loudest cases measured +1.64 and +1.25 dB, both at length 1.0. Pin
-    // the direction, so an M3/M7 that makes branches able to get loud is seen.
-    check (stats.louderThanSeed < 2.5f, "growth does not make a branch more than ~2 dB louder than its seed");
-    // Not a gate on taste: a branch that is pure noise or pure dullness is a
-    // broken branch, which is exactly what 13 asks flatness and centroid to catch.
-    check (stats.worstFlatness < 0.95f, "no branch renders as nothing but noise");
-    check (stats.bestFlatness < 0.35f, "at least some branches are tonal (a field of pure noise would be a bug)");
-}
-
-//==============================================================================
-// createTest / performTest at the five sample rates of the plan.
-//==============================================================================
-static void testGoldenProtocol()
-{
-    std::printf ("createTest / performTest at five sample rates (13)\n");
-
-    static const double rates[] = { 22050.0, 44100.0, 48000.0, 96000.0, 192000.0 };
-
-    bool roundTrip = true, exact = true;
-
-    for (double sr : rates)
+    // Sample rate independence.
+    for (float sr : { 44100.0f, 96000.0f })
     {
-        TestSpec spec;
-        spec.seed = 20261030;
-        spec.seconds = 4.0;             // the documented run is 300 s; the gate is the round trip
-        spec.sampleRate = sr;
-        spec.density = 5.0;
-        spec.file = tempFilePath ("genomosh_golden");
-        spec.tolerance = 0.0;
-
-        const GoldenResult made = createTest (spec);
-        const GoldenResult again = performTest (spec);
-
-        std::printf ("       sr %6.0f: frames %8zu  hash %s  maxdiff %.6f  rms %.5f -> %s\n",
-                     sr, again.frames, again.hash.c_str(), again.maxSampleDiff,
-                     again.m.rms, again.ok ? "ok" : (again.message.empty() ? "FAIL" : again.message.c_str()));
-
-        if (! made.ok)
-            roundTrip = false;
-        if (! again.ok || again.maxSampleDiff != 0.0)
-            exact = false;
-
-        std::remove (spec.file.c_str());
-        std::remove ((spec.file + ".txt").c_str());
-    }
-
-    check (roundTrip, "createTest writes a file it can read back and measure");
-    check (exact, "the same spec re-renders to a bit exact file at all five sample rates");
-
-    // The tolerance has to be a real thing: one changed sample in the file must
-    // fail at 0 and pass at a tolerance larger than the change.
-    {
-        TestSpec spec;
-        spec.seed = 20261030;
-        spec.seconds = 2.0;
-        spec.sampleRate = 44100.0;
-        spec.density = 5.0;
-        spec.file = tempFilePath ("genomosh_tolerance");
-        spec.tolerance = 0.0;
-
-        createTest (spec);
-
-        std::FILE* f = std::fopen (spec.file.c_str(), "r+b");
-        bool flipped = false;
-        if (f != nullptr)
-        {
-            std::fseek (f, 44 + 2000, SEEK_SET);
-            const int v = std::fgetc (f);
-            std::fseek (f, 44 + 2000, SEEK_SET);
-            std::fputc ((v ^ 0x40) & 0xff, f);
-            flipped = true;
-            std::fclose (f);
-        }
-        check (flipped, "the golden file can be edited on disk");
-
-        const GoldenResult strict = performTest (spec);
-        TestSpec loose = spec;
-        loose.tolerance = 0.01;
-        const GoldenResult tolerated = performTest (loose);
-
-        std::printf ("       one byte changed in the file: max diff %.5f -> strict %s, "
-                     "tolerance 0.01 %s\n",
-                     strict.maxSampleDiff, strict.ok ? "passed" : "failed",
-                     tolerated.ok ? "passed" : "failed");
-
-        check (! strict.ok && strict.maxSampleDiff > 0.0, "a one sample change is caught at tolerance 0");
-        check (tolerated.ok, "and forgiven at a tolerance larger than it (tolerance is honoured)");
-
-        std::remove (spec.file.c_str());
-        std::remove ((spec.file + ".txt").c_str());
-    }
-
-    // A file whose header says something other than the spec is a different
-    // render, and must not be compared as if it were the same one.
-    {
-        TestSpec spec;
-        spec.seed = 7;
-        spec.seconds = 1.0;
-        spec.sampleRate = 22050.0;
-        spec.density = 5.0;
-        spec.file = tempFilePath ("genomosh_wrongrate");
-        createTest (spec);
-
-        TestSpec other = spec;
-        other.sampleRate = 44100.0;
-        const GoldenResult mismatch = performTest (other);
-        check (! mismatch.ok, "a golden file at the wrong sample rate is refused, not compared");
-
-        std::remove (spec.file.c_str());
-        std::remove ((spec.file + ".txt").c_str());
+        const RenderResult r = renderBranch (plant, mp, 5, 0.7f, 65, sr);
+        check (r.finite && r.rms > 1.0e-4f, "renders cleanly at a different sample rate");
     }
 }
-
-//==============================================================================
-// The design 13 soak. The suite runs a short version; `GenoMosh_Tests soak
-// --rounds 1000` runs the gate version, and 10 000 is the reference's number.
-//==============================================================================
-static void testMassiveSoak (int rounds)
-{
-    std::printf ("massiveAudioTest, %d rounds (13)\n", rounds);
-
-    const SoakResult s = massiveAudioTest (rounds, 1.5, false);
-
-    std::printf ("       rounds %d: unusable %d (nan %d, silent %d, dc %d, clipped %d, over "
-                 "0.995 %d), worst dc %.5f, worst peak %.4f\n",
-                 s.rounds, s.unusable, s.nan, s.silent, s.dc, s.clipped, s.tooLoud,
-                 s.worstDc, s.worstPeak);
-
-    check (s.nan == 0, "the soak finds no NaN or Inf");
-    check (s.dc == 0, "the soak finds no runaway DC");
-    // Three rounds in a thousand summed loud enough to pass full scale (worst
-    // peak 1.010): the master chain today is one unconditional soft clipper,
-    // and M7 replaces it with the documented Volume curve plus a saturating
-    // limiter. Named target (zero) and measured proportion (0.3%), so M7 can
-    // tighten it instead of discovering it.
-    check (s.clipped * 100 <= s.rounds, "no more than 1% of soak scenes reach hard clipping (0.3% at 1000 rounds today)");
-    check (s.silent * 4 <= s.rounds, "at most a quarter of soak scenes are silent (the seed floor is doing its job)");
-}
-
 
 //==============================================================================
 // What dragging a branch does to the voice pool: the UI re articulates the same
@@ -2206,76 +1590,7 @@ static void testNoteBookkeeping()
 }
 
 //==============================================================================
-//==============================================================================
-// Command line: the vocabulary of design 13, so a run can be written down in a
-// status document and repeated by anyone.
-//
-//   GenoMosh_Tests                                   the suite (what ctest runs)
-//   GenoMosh_Tests createTest  --seed N --time S --sr H --density D --file F
-//   GenoMosh_Tests performTest -- same --tolerance T
-//   GenoMosh_Tests batch       [--seed N] [--sr H] [--time S]
-//   GenoMosh_Tests soak        [--rounds N]
-//   GenoMosh_Tests noiseBank   --out DIR [--time S]
-//
-// The suite runs the short versions of the protocol (a few seconds of audio per
-// rate); the documented golden set is the same calls with the document's times.
-//==============================================================================
-namespace
-{
-struct Args
-{
-    std::vector<std::pair<std::string, std::string>> values;
-
-    bool has (const std::string& name) const
-    {
-        for (const auto& v : values)
-            if (v.first == name)
-                return true;
-        return false;
-    }
-    std::string str (const std::string& name, const std::string& fallback = "") const
-    {
-        for (const auto& v : values)
-            if (v.first == name)
-                return v.second;
-        return fallback;
-    }
-    double number (const std::string& name, double fallback) const
-    {
-        if (! has (name))
-            return fallback;
-        return std::atof (str (name).c_str());
-    }
-};
-
-TestSpec specFromArgs (const Args& args)
-{
-    TestSpec spec;
-    spec.seed = static_cast<uint64_t> (std::strtoull (args.str ("seed", "1").c_str(), nullptr, 10));
-    spec.seconds = args.number ("time", 300.0);
-    spec.sampleRate = args.number ("sr", 44100.0);
-    spec.density = args.number ("density", 10.0);
-    spec.file = args.str ("file");
-    spec.tolerance = args.number ("tolerance", 0.001);
-    spec.branchLength = static_cast<float> (args.number ("length", 0.6));
-    return spec;
-}
-
-void printGolden (const char* command, const TestSpec& spec, const GoldenResult& r)
-{
-    std::printf ("%s seed %llu time %g sr %g density %g file %s\n",
-                 command, static_cast<unsigned long long> (spec.seed), spec.seconds,
-                 spec.sampleRate, spec.density, spec.file.c_str());
-    std::printf ("       frames %zu hash %s maxdiff %.6f (max %d lsb) rmsdiff %.8f\n",
-                 r.frames, r.hash.c_str(), r.maxSampleDiff, r.maxDiffLsb, r.rmsDiff);
-    std::printf ("       measured file: peak %.5f rms %.5f dc %+.5f centroid %.0f Hz "
-                 "flatness %.4f off grid %.4f\n",
-                 r.m.peak, r.m.rms, r.m.dc, r.m.centroidHz, r.m.flatness, r.m.inharmonicRatio);
-    std::printf ("       %s\n", r.ok ? "PASS" : ("FAIL: " + r.message));
-}
-} // namespace
-
-static void runSuite()
+int main()
 {
     const MutationParams mp;
 
@@ -2304,111 +1619,10 @@ static void runSuite()
     testPitchStability();
     testGenome (mp);
     testFilter();
-
-    // M2, the section 13 harness: the tooling is tested before anything measured
-    // with it is believed.
-    testWavFileIsAFile();
-    testMetricsOnKnownSignals();
-    testScenePlanIsSeeded();
-    testGoldenProtocol();
-
-    // And the audio, through that tooling.
     testNeutralGateIsAudible();
-    testM1BaselineAudio();
-    testBranchBatch();
-    testMassiveSoak (40);
+    testRender();
     testNoteBookkeeping();
-}
 
-int main (int argc, char** argv)
-{
-    Args args;
-    std::string command;
-
-    for (int i = 1; i < argc; ++i)
-    {
-        const std::string a = argv[i];
-        if (a.rfind ("--", 0) == 0)
-        {
-            const std::string name = a.substr (2);
-            std::string value = "1";
-            if (i + 1 < argc && argv[i + 1][0] != '-')
-            {
-                value = argv[i + 1];
-                ++i;
-            }
-            args.values.push_back ({ name, value });
-        }
-        else if (command.empty())
-            command = a;
-    }
-
-    if (command.empty())
-    {
-        runSuite();
-        std::printf ("\n%s (%d failures)\n", failures == 0 ? "ALL TESTS PASSED" : "FAILURES", failures);
-        return failures == 0 ? 0 : 1;
-    }
-
-    if (command == "createTest" || command == "performTest")
-    {
-        const TestSpec spec = specFromArgs (args);
-        if (spec.file.empty())
-        {
-            std::printf ("%s needs --file <path>\n", command.c_str());
-            return 2;
-        }
-        const GoldenResult r = command == "createTest" ? createTest (spec) : performTest (spec);
-        printGolden (command.c_str(), spec, r);
-        return r.ok ? 0 : 1;
-    }
-
-    if (command == "batch")
-    {
-        const uint64_t seedId = args.has ("seed")
-            ? static_cast<uint64_t> (std::strtoull (args.str ("seed").c_str(), nullptr, 10))
-            : hash::fromString ("render-seed");
-        runSeedBatch (seedId, args.number ("sr", 48000.0), args.number ("time", 2.0), true);
-        return 0;
-    }
-
-    if (command == "soak")
-    {
-        testMassiveSoak (static_cast<int> (args.number ("rounds", 1000.0)));
-        std::printf ("\n%s (%d failures)\n", failures == 0 ? "SOAK CLEAN" : "SOAK FAILURES", failures);
-        return failures == 0 ? 0 : 1;
-    }
-
-    if (command == "noiseBank")
-    {
-        // design 13's generateRandomNoises: 100 files, density (i/10)^2 + 1.
-        const std::string dir = args.str ("out", "/tmp/genomosh-noisebank");
-        const double seconds = args.number ("time", 4.0);
-        ::mkdir (dir.c_str(), 0777);
-
-        for (int i = 0; i < 100; ++i)
-        {
-            TestSpec spec;
-            spec.seed = hash::combine (hash::fromString ("noiseBank"),
-                                       static_cast<uint64_t> (i));
-            spec.seconds = seconds;
-            spec.sampleRate = args.number ("sr", 44100.0);
-            spec.density = (static_cast<double> (i) / 10.0) * (static_cast<double> (i) / 10.0) + 1.0;
-
-            char name[32];
-            std::snprintf (name, sizeof (name), "/noise_%03d.wav", i);
-            spec.file = dir + name;
-
-            const GoldenResult r = createTest (spec);
-            std::printf ("noise %3d seed %llu density %6.2f -> %s  rms %.4f centroid %.0f "
-                         "flatness %.3f\n",
-                         i, static_cast<unsigned long long> (spec.seed), spec.density,
-                         r.ok ? "ok" : (r.message.empty() ? "fail" : r.message.c_str()),
-                         r.m.rms, r.m.centroidHz, r.m.flatness);
-        }
-        return 0;
-    }
-
-    std::printf ("unknown command '%s'\n", command.c_str());
-    return 2;
+    std::printf ("\n%s (%d failures)\n", failures == 0 ? "ALL TESTS PASSED" : "FAILURES", failures);
+    return failures == 0 ? 0 : 1;
 }

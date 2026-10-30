@@ -1,5 +1,0 @@
-# The golden audio of design doc 13 is generated, never committed (plan M2):
-# createTest writes these, prints a hash, and leaves a .txt sidecar with the
-# spec and the metrics next to each file. The sidecars ARE kept: they are the
-# record a later run is compared against. See Docs/Implementation-Status.md 12.
-*.wav

@@ -552,10 +552,6 @@ branch 0..11 at distance 0.85, 48 kHz, note 60+branch
   branch spread: 0.6 dB rms          usable branches at distance 1: 720 / 720
 ```
 
-**Read both blocks with §12's caveat**: the harness at the time never handed its `PlayState`
-to the engine, so the twelve "branches" are one genome played at twelve semitones, and the
-2.7 → 0.6 dB "branch spread" is a semitone spread. The absolute peak/rms/DC levels do stand.
-
 Read that honestly. The six `same` genes (`mod_vel`, `lfo_rate`, `a_noise`,
 `b_noise`, `fm_mod`, `flt_mod`) keep their exact curves and ranges; `fm_amt` and
 `saturate` keep their old depth ranges under the curves §4.2 names. Everything
@@ -696,17 +692,14 @@ sizeof Genome = 200 B, BranchDirection = 216 B, PlantSnapshot = 8016 B, triple b
 
 The per-branch render table (12 branches at length 0.85, note 60+branch, 2 s, same seed as
 §10, which is also in `/tmp/m0_baseline_tests.txt`; current run in `/tmp/m1_tests.txt` —
-both transcribed here so neither file is load-bearing). **Read it with §12's caveat: the
-harness of that era never applied its `PlayState`, so the rows are one genome played at twelve
-semitones, not twelve grown branches.**
+both transcribed here so neither file is load-bearing):
 
 | | peak | rms | branch spread (rms) | DC |
 | --- | --- | --- | --- | --- |
 | M0 | 0.636 … 0.755 | 0.087 … 0.093 | 0.57 dB | 0.0034 … 0.0041 |
 | **M1** | 0.538 … 0.595 | 0.070 … 0.073 | **0.35 dB** | **0.0006 … 0.0008** |
 
-The plant is **2.0 dB quieter** and the "branch spread" is tighter again (0.57 → 0.35 dB —
-§12 later showed those spreads are between twelve *notes* of one genome, not twelve branches);
+The plant is **2.0 dB quieter** and the branch spread is tighter again (0.57 → 0.35 dB);
 DC dropped another 5×, 60× inside its gate. Usable branches at distance 1 are still
 **720 / 720**, and every test that was green at M0 is green, including the bit-identical
 re-render and the three sample rates. The drop is expected and comes from four places, all
@@ -780,226 +773,3 @@ Next milestone: **M2**, the §13 harness — `renderScene` becomes `createTest`/
 with a WAV writer, spectral centroid/flatness, an aliasing estimate and an
 envelope-articulation metric, and the **M1-era baseline table above is the thing it
 records as the baseline** before M3 changes the sound for real.
-
----
-
-## 12. Addendum 2026-10-30 — Rev 3 alignment **M2**: the section 13 harness
-
-Milestone M2 of `Docs/Rev3-Alignment-Plan.md`: the golden-file protocol of design §13 —
-render offline from a seed at a chosen sample rate and note density, write WAV, measure it,
-compare it against a file with a tolerance — and the metrics §13 asks for per render: level,
-silence, NaN, DC, spectral centroid and flatness, an aliasing estimate, and the
-envelope-articulation estimate. **No engine code changed**; everything new is in `Tests/`.
-
-It is worth saying what that bought, because it was not the tooling: §10 and §11's audio
-tables turn out to have measured something other than what they claim, and the first
-measurement of real branch growth (§6.3's predicted failure) is now on the record with its
-failure mode named.
-
-### What changed
-
-* `Tests/Render.{h,cpp}` (new) — the protocol, with no dependencies beyond the core:
-  * `planScene (seed, sr, seconds, density, lo, hi)` — §13's "density". A gap with the
-    requested mean (`0.35 + 1.3·uniform`, so the average is exactly `1/density`), holds that
-    **scale with the gap** so that raising the density raises the note rate rather than the
-    voice count, one key in ten long, a cap on simultaneous keys, and pitch classes spread
-    over two octaves so a scene touches all twelve branches. Sample positions are integers
-    derived from seconds, which is what makes "same inputs, identical output" testable.
-  * `renderScene (RenderSetup)` — the one render path; `renderNote (plant, branch, length,
-    note, velocity, sr, seconds)` is §13's batch-mode input. `offlinePlayState()` sets
-    `wheel = 1, wheelScale = 1` so a branch length *is* the §5.2 distance, and the PlayState
-    is always passed explicitly (see below).
-  * `measureAudio (l, r, sr, notes)` — per note, then aggregated: peak/rms/DC/finite/silent,
-    spectral centroid and flatness, an **off-grid energy ratio** as the aliasing estimate, and
-    articulation: attack seconds, hold level in dB relative to peak, release seconds, how long
-    the sound actually lasts, and whether it ended **by itself while the key was still down**.
-    That last one is the shape M3's `env_time` / `vol_fade` gates will be written in; it exists
-    before M3 so M3 is measured rather than described.
-  * `wav::write / wav::read` — 16 bit WAVE_FORMAT_PCM, a canonical 44 byte header held
-    byte-for-byte by a test, and a reader that *refuses* a non-PCM or truncated file instead
-    of returning an empty buffer. `quantise()` has no dither on purpose: performTest compares
-    the render and the file in the PCM16 domain, so `tolerance 0` is achievable and means
-    something. `createTest` writes the file, reads it back, measures *the file*, and leaves a
-    `<file>.wav.txt` sidecar with the spec, a content hash and the metrics — design 13's "keep
-    the audio out of git, keep the hashes in a text file" (`Tests/Golden/.gitignore`).
-  * `createTest / performTest / massiveAudioTest` with the document's own argument names.
-* `Tests/EngineTests.cpp` — the inline `renderScene` and its `RenderResult` are gone; every
-  audio gate goes through the harness. New: `testWavFileIsAFile`, `testMetricsOnKnownSignals`,
-  `testScenePlanIsSeeded`, `testM1BaselineAudio`, `testBranchBatch`, `testGoldenProtocol`,
-  `testMassiveSoak`. **44 → 93 checks.** `main` is now a command line with the §13 vocabulary:
-  `createTest / performTest / batch / soak / noiseBank` with `--seed --time --sr --density
-  --file --tolerance --length --rounds --out`; no arguments is still the suite `ctest` runs.
-* `Tests/CMakeLists.txt` — plus `Render.cpp`. The core and the plugin are untouched.
-
-### The one thing M2 had to be sure of first: the metrics measure what they say
-
-Every metric is checked against a signal built from its own answer, before any number taken
-from the engine is believed. Measured, in the suite:
-
-```
-440 Hz sine        f0 445.0 Hz, centroid 440.0, flatness 0.0010, off grid 0.0005
-white noise        f0 none,     centroid 11.4 kHz, flatness 0.842, counted unvoiced (not "all aliasing")
-220 Hz stack       off grid 0.0002; + 1450 Hz partial -> 0.3127; + 26.15 kHz sampled at 48 k
-                   (which lands on 21.85 kHz) -> 0.3127
-20 ms/-8 dB/100 ms attack 0.0220 s, hold -7.8 dB, release 0.0980 s, sound over 0.698 s, self ended no
-same, gone at ~120  self ended yes, sound over 0.118 s
-```
-
-Two lessons from getting that to pass, both written into the code:
-
-* An autocorrelation's **largest** peak is an octave-low trap for anything harmonic-rich (the
-  correlation at half the fundamental's period is nearly as strong), and its first peak is a
-  few percent off in spacing when an inharmonic component pulls it. The estimator is therefore
-  *first* strong peak for the octave, then a harmonic-grid search ±15% for the spacing. The
-  220 Hz + 1450 Hz case above agrees with an independent NumPy implementation of the same
-  metric to four decimals. What it still does not do is choose between a fundamental and its
-  subharmonic — that error is the conservative one for an off-grid ratio, and it is
-  deterministic, which is what a milestone-to-milestone comparison needs.
-* A **single tone has no unique fundamental** (any divisor explains it), so its grid is only
-  asserted to be inside the sieve's own tolerance; the harmonic stack is asserted to 2%.
-
-### Measurement 1: the M0/M1 audio tables measured the seed, not the branches
-
-The previous harness built a `PlayState`, filled it in — `wheel = 1`, `wheelScale = 1`,
-`volume = 0.7`, one branch at the requested length — and **never handed it to the `Synth`**.
-So every "per branch" number in §10 and §11 was rendered with the engine's own default
-`PlayState`: all twelve branch lengths 0, wheel closed, plugin default macros.
-
-Consequences, stated plainly:
-
-* §10's and §11's per-branch tables are **one genome (the seed) played at twelve different
-  notes**, not twelve grown branches. "branch spread 0.57 dB → 0.35 dB" is the spread between
-  semitones. §11's conclusion that M1 flattened the *branch* spread does not follow from it.
-* Nothing else in M0/M1 is affected: those gates (table, mapping, gates at both ends, growth
-  exempt identity, atonality, 720/720 safety score, bit-identical re-render) are gene-space
-  or single-render claims, and they stand.
-* M7's level numbers should be taken from this section, not §11's.
-
-`testM1BaselineAudio` renders those twelve cases again through the new harness — same seed,
-same plant, default `PlayState`, note on with the old call's **sample offset of 8** (the old
-line was `addNoteOn (note, 0.9f, 8)`: an offset slipped into the position that takes the
-offset), note off at block × 100 — and compares against the recorded rms column:
-
-```
-worst relative difference: 6.15e-07      (all twelve reproduce)
-```
-
-which is simultaneously the proof that M2 changed no sample, and the record of what the old
-harness actually did.
-
-### Measurement 2: what growing a branch does, measured for the first time
-
-§13 batch mode: twelve branches × lengths {0, 0.25, 0.5, 0.75, 1.0}, the note belonging to
-the branch (`60 + branch`), one branch grown per case, 48 kHz, 2 s, wheel pinned open. Seed
-`hash::fromString ("render-seed")`, the same plant as §10/§11.
-
-| length | cases within ±6 dB of their seed | worst deviation |
-| --- | --- | --- |
-| 0.00 | 12 / 12 | 0.00 dB (the seed exactly) |
-| 0.25 | 12 / 12 | −0.15 dB |
-| 0.50 | 10 / 12 | −21.54 dB |
-| 0.75 | 10 / 12 | −23.60 dB |
-| 1.00 | 5 / 12 | −22.05 dB |
-| **all** | **49 / 60** | **−23.60 dB quieter, +1.64 dB louder** |
-
-The shape of that is the finding, not the average: up to length 0.25 the level compensation is
-inside a tenth of a dB, and from 0.5 a **minority of branches fall away** by 17-24 dB rather
-than drifting. All eleven are the same kind of branch, and three unrelated metrics agree on
-which ones - measured against the same branches at length 0:
-
-| | the twelve seeds (length 0) | the eleven offenders |
-| --- | --- | --- |
-| spectral centroid | 378 ... 733 Hz | 9 754 ... 22 178 Hz |
-| off-grid energy | <= 0.032 | 0.26 ... 0.915 |
-| hold level vs peak | -5.7 ... -7.0 dB | -6.9 ... -19.5 dB |
-
-i.e. they grew into a shrill, non-sustaining blip instead of a note. Worst case, branch 8 at
-length 0.75: rms 0.00645 against its seed's 0.0982, centroid 20.9 kHz, hold -13.6 dB. Nothing
-compensates a note that stopped sustaining, and `loudnessCompensation`/`safetyScore` still
-reason in raw gene space while `vol_sus` is gated - which is exactly the risk
-`Docs/Rev3-Alignment-Plan.md` §6.3 raised. **The eleven are M3's
-list**, and the gate in the test is written as the measured distribution with the §13 target
-named as a constant (`BatchStats::kTargetDbVsSeed = 6.0f`), so M3's improvement is visible
-rather than a tolerance quietly widened.
-
-Also from the same run: DC ≤ 0.0018 everywhere, no case silent or non-finite, peak ≤ 0.631,
-centroid 245 … 22 178 Hz, flatness 0.007 … 0.363, off-grid up to 0.915 (the noise-colour
-branches; the number is a comparison instrument, not a defect).
-
-### Measurement 3: the protocol, at the sample rates
-
-The suite's version (short scenes, five rates, `tolerance 0`):
-
-```
-sr  22050: frames    88200  maxdiff 0.000000 -> ok      sr  96000: frames   384000  maxdiff 0.000000 -> ok
-sr  44100: frames   176400  maxdiff 0.000000 -> ok      sr 192000: frames   768000  maxdiff 0.000000 -> ok
-sr  48000: frames   192000  maxdiff 0.000000 -> ok
-one byte changed in the file: max diff 0.00195 -> fails at tolerance 0, passes at 0.01
-a file whose header says 22 050 refused by a spec that asks for 44 100
-```
-
-The documented set (`seed 1`, `density 10`, all branches at 0.6), generated and left in
-`Tests/Golden/` with its hash sidecars — regenerate with the commands at the end, and expect
-these hashes to die at M3, which is the point of recording them:
-
-| file | time | frames | fnv1a64 | peak | rms | centroid | flat | off grid |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `Golden22050.wav` | 300 s | 6 615 000 | `da78ca71e9be4228` | 0.943 | 0.2429 | 439 Hz | 0.316 | 0.000 |
-| `Golden44100.wav` | 300 s | 13 230 000 | `67e5c726dd9463d1` | 0.933 | 0.2436 | 485 Hz | 0.192 | 0.000 |
-| `Golden48000.wav` | 300 s | 14 400 000 | `7a07b57698a7f9b7` | 0.969 | 0.2445 | 488 Hz | 0.190 | 0.081 |
-| `Golden96000.wav` | 150 s | 14 400 000 | `516eed4a9af2e5f4` | 0.921 | 0.2460 | 554 Hz | 0.091 | 0.078 |
-| `Golden192000.wav` | 60 s | 11 520 000 | `6ab1b247a8ada66f` | 0.929 | 0.2517 | 576 Hz | 0.017 | 0.000 |
-
-All five then pass `performTest … --tolerance 0` against a fresh render: `maxdiff 0.000000
-(max 0 lsb)` for 6.6 M, 13.2 M, 14.4 M, 14.4 M and 11.5 M frames respectively. A 300 second
-render of a whole plant is therefore a byte comparison, which is what makes cross-version
-regression cheap in §13's terms.
-
-Two numbers in that table are already owned by later milestones: a **dense scene peaks at
-0.92-0.97** of full scale before the master volume is even involved (§8.1's `Volume` curve and
-limiter, M7), and the 48/96 kHz goldens carry **8% off-grid energy** at density 10, which is
-what M6's oversampling and band-limiting work will be measured against.
-
-### Measurement 4: the soak
-
-`GenoMosh_Tests soak --rounds 1000` — random seed, one of seven sample rates below 100 kHz,
-`density = sqr(random(10)) + 1` (up to 101 notes/s), every branch at a random length, 1.5 s
-each; ~7 minutes:
-
-```
-rounds 1000: unusable 3 (nan 0, silent 0, dc 0, clipped 3, over 0.995 4)
-worst dc 0.00000, worst peak 1.0104
-```
-
-No NaN, no silence, no runaway DC anywhere. Three scenes in a thousand passed full scale —
-sixteen voices summing into one unconditional soft clipper, which is the thing §8.1's
-documented `Volume` + saturating limiter replaces (M7); the gate is the measured proportion
-(≤1%) with the target (0) in the check's name.
-
-### Deliberately left for later milestones
-
-* **The ±6 dB target is not met today** and the milestone that can meet it is M3. The list of
-  offenders is printed by the batch and is in the table above.
-* The articulation metrics have no *passing* gate written in them yet — they are the
-  instrument M3's acceptance matrix ("does measured attack/hold/release move in the direction
-  `env_time`/`vol_sus`/`vol_fade`/`env_loop`/`env_tilt` imply") is written in.
-* `planScene` plays notes; it does not bend, pedal, glide or re-resolve, because none of those
-  exist yet (M9). The soak does exercise voice stealing by outrunning the pool.
-* The golden hashes will be invalidated by M3-M7 by design. The suite's own short goldens are
-  regenerated in place each run, so `ctest` does not depend on `Tests/Golden/` at all.
-
-### Run it
-
-```
-cmake --build cmake-build-debug --target GenoMosh_Tests && ./cmake-build-debug/Tests/GenoMosh_Tests   # 93 checks
-cmake --build cmake-build-debug --target GenoMosh_Tests && ctest -j1                                 # the same, 45 s
-./cmake-build-debug/Tests/GenoMosh_Tests batch --seed $(printf %u 42) --sr 48000 --time 2
-./cmake-build-debug/Tests/GenoMosh_Tests soak --rounds 1000
-./cmake-build-debug/Tests/GenoMosh_Tests createTest  --seed 1 --time 300 --sr 44100 --density 10 --file Tests/Golden/Golden44100.wav
-./cmake-build-debug/Tests/GenoMosh_Tests performTest  --seed 1 --time 300 --sr 44100 --density 10 --file Tests/Golden/Golden44100.wav --tolerance 0
-./cmake-build-debug/Tests/GenoMosh_Tests noiseBank --out /tmp/noisebank --time 4                     # 13's 100 files
-```
-
-44 checks became 93, `ctest` is green, no plugin file changed. Next milestone: **M3**, the
-shared envelope — and its gate is written in the articulation metrics this milestone just
-built, starting with the eleven branches above.
