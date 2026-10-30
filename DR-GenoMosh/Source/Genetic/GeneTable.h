@@ -73,9 +73,7 @@ namespace gmosh
     X(lfo_rate,  "LFO Rate",      "Frequency of the one LFO; vibrato and tremolo share it.", Curve::Exp,    0.02f,  30.0f, 0.50f, 0.00f, 1.00f, GrpLfo,   0, 0.60f, 0.05f, 0.60f, 0) \
     X(lfo_amt,   "LFO Amount",    "LFO depth; the middle is none, below it A and B move in opposite directions.", Curve::Bipolar, -1.0f, 1.0f, 0.50f, 0.00f, 1.00f, GrpLfo, 0, 0.50f, 0.25f, 0.85f, kFlagPitch) \
     X(lfo_bal,   "Vibrato/Tremolo","0 is vibrato only, 0.5 both at one rate, 1 is tremolo only.", Curve::Linear, 0.0f, 1.0f, 0.50f, 0.00f, 1.00f, GrpLfo, 0, 0.50f, 0.25f, 0.75f, 0) \
-    /* lfo_dly's range is 4.2's "0 below 0.5, then 0 -> 8 s", which is what \ \
-       M4 wired: seconds the LFO depth fades in over. */ \
-    X(lfo_dly,   "LFO Delay",     "Delay before the LFO fades in; none below the middle.", Curve::Linear, 0.0f, 8.0f, 0.50f, 0.50f, 1.00f, GrpLfo, 0, 0.30f, 0.50f, 0.80f, 0) \
+    X(lfo_dly,   "LFO Delay",     "Delay before the LFO fades in; none below the middle.", Curve::Linear, 0.0f, 1.0f, 0.50f, 0.50f, 1.00f, GrpLfo, 0, 0.30f, 0.50f, 0.80f, 0) \
     /* --- 4.2 group 2: oscillator A (5) + FM/mix (4) + oscillator B (6) = 15 -- */ \
     X(a_form,    "A Waveform",    "Waveform morph for A: sine, then saw, then square, then pulse.", Curve::Linear, 0.0f, 1.0f, 0.50f, 0.00f, 1.00f, GrpOscA, 0, 0.50f, 0.05f, 0.95f, 0) \
     X(a_noise,   "A Noise",       "How much noise is mixed into A; 1.0 buries it.", Curve::Squared, 0.0f, 1.0f, 0.00f, 0.00f, 1.00f, GrpOscA, 0, 0.40f, 0.00f, 0.50f, 0) \

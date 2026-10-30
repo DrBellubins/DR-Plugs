@@ -32,13 +32,6 @@ namespace gmosh
 //                     pan law, and the four curvature genes become shape
 //                     exponents (M3), never seconds.
 //
-// Since M4 this is also the only place the modulation *budget* is decided: the
-// mod envelope's five destinations (a_mod/b_mod in semitones, fm_mod, mix_mod,
-// flt_mod), the two sample and hold rates (mod_sh on the mod value itself,
-// b_sh on oscillator B), and the one LFO's depth, polarity, pitch/tremolo split
-// and onset delay. Design 6.2's destination list and the voice's render loop
-// have to agree; they do, because the voice reads numbers, never genes.
-//
 // The shared envelope of design 6.1.1 is resolved here as an EnvShape (M3):
 // env_time is the duration, env_kf scales it by key, env_loop is the repeat
 // period, and env_time >= 0.9 is "infinite" (decision R3). The voice owns no
@@ -56,16 +49,6 @@ namespace gmosh
 inline constexpr float kNoteOffReleaseSeconds = 0.18f; ///< D-5: fixed note off release
 inline constexpr float kVoiceDetuneCents     = 12.0f;  ///< D-3: per voice spread of the detune
 inline constexpr float kVoiceDriftAmount     = 0.35f;  ///< D-3: per voice random walk depth
-
-/// The ceiling on a_mod / b_mod (design doc 4.2 "Bipolar -> up to +-12 st",
-/// decision R2). The gene endpoints are *full* swing - 0.0 is maximum negative,
-/// 1.0 maximum positive, with no dead zone around the middle - so this constant
-/// is the only thing that bounds what a held note can do to its own pitch.
-/// The other half of the bound is generation time: a_mod / b_mod / lfo_amt are
-/// kFlagPitch, so applyAtonality() pulls them to their neutral value as
-/// Atonality closes and a plant with Atonality 0 cannot move pitch at all.
-/// Tests/EngineTests.cpp (testPitchModulation) holds both halves.
-inline constexpr float kPitchModSemitoneCeiling = 12.0f;
 
 /// Host automatable macros (design doc 4.1). These are *not* genes: they never
 /// mutate, they scale what the player is already holding.
@@ -110,35 +93,15 @@ struct VoiceParams
 
     // mod_sh's documented destination is a sample and hold *rate* on the mod
     // envelope, gated to the top quarter and inverted (off below the gate). It
-    // is resolved here so the mapping layer is complete, and re-quantises the
-    // mod value the voice hands to every mod envelope destination (M4).
+    // is resolved here so the mapping layer is complete; the destination is M4.
     float modSampleHoldHz = 0.0f;
 
-    // lfo (4.2 group 1). One rate, two destinations: pitch and tremolo, split
-    // at equal power by lfo_bal. lfo_amt is bipolar and its sign is a *second*
-    // piece of information: above its neutral A and B move together, below it
-    // they move in opposite directions. The voice is what makes that sign
-    // audible (it applies opposite vibrato to A and B), so both halves are
-    // resolved here rather than being re-derived from the gene downstream.
-    float lfoRate = 1.0f, lfoDepth = 0.0f, lfoBalance = 0.5f, lfoDelaySeconds = 0.0f;
-    float lfoSignB = 1.0f;           ///< +1 both the same, -1 opposite phase on B
+    // lfo
+    float lfoRate = 1.0f, lfoAmount = 0.0f, lfoBalance = 0.5f, lfoDelaySeconds = 0.0f;
 
     // oscillators
-    float aForm = 0.0f, aColour = 0.5f, aNoise = 0.0f, aRatio = 0.0f;
-    float bForm = 0.0f, bColour = 0.5f, bNoise = 0.0f, bRatio = 0.0f;
-
-    // a_mod / b_mod: the mod envelope's bipolar amount *in semitones*, at the
-    // top of the envelope. R2 verbatim: "0.5 means no pitch modulation. 0.0 is
-    // the maximum negative, and 1.0 is the maximum positive" - identically on A
-    // and B, no dead zone, bounded by kPitchModSemitoneCeiling. The voice
-    // multiplies by the (velocity scaled, possibly S&H'd) mod value.
-    float aModSemis = 0.0f, bModSemis = 0.0f;
-
-    // b_sh: a real sample and hold rate on B (4.2). Below the middle of the
-    // gene the rate is a division of B's own frequency "for a consistent timbre
-    // across pitches"; at and above it, a free 0.5..16 Hz. bSampleHoldMix is
-    // the crossfade in from the neutral value (see resolveVoiceParams).
-    float bSampleHoldHz = 0.0f, bSampleHoldMix = 0.0f;
+    float aForm = 0.0f, aColour = 0.5f, aNoise = 0.0f, aRatio = 0.0f, aMod = 0.0f;
+    float bForm = 0.0f, bColour = 0.5f, bNoise = 0.0f, bRatio = 0.0f, bMod = 0.0f, bShape = 0.0f;
 
     // mix / cross modulation. balance is in *mix space*, not gene space: the
     // osc_mix warp of 5.7.7 is already applied, so 0.5 is equal power and 0 / 1

@@ -114,22 +114,14 @@ void resolveVoiceParams (const Genome& g, const BranchTraits& traits,
 
     // mod_sh is a sample and hold rate (4.2), gated to the top quarter and
     // inverted: the gate opening gives the fastest rate and the top of the gene
-    // the slowest. The voice re-quantises the mod value with it before any
-    // destination reads it (6.1.1), which is why it is resolved here and not
-    // derived in the DSP.
+    // the slowest. Nothing samples yet - M4 owns the destination.
     p.modSampleHoldHz = gateOpen (kGenes[g_mod_sh], g[g_mod_sh])
                       ? mapGene (g_mod_sh, gated (kGenes[g_mod_sh], g[g_mod_sh]))
                       : 0.0f;
     p.modVelocity = levelOf (g_mod_vel, g[g_mod_vel]);  // "below a tenth, none"
 
     p.lfoRate    = mapGene (g_lfo_rate, g[g_lfo_rate]);
-    // lfo_amt is bipolar: its magnitude is the depth and its sign is the
-    // documented polarity (4.2: "above 0.5 = A and B modulated together, below
-    // = in opposite directions"). Both halves come from the table's curve, so
-    // the neutral value has no depth and nothing to polarity.
-    const float lfoSigned = mapGene (g_lfo_amt, g[g_lfo_amt]);
-    p.lfoDepth   = std::abs (lfoSigned);
-    p.lfoSignB   = lfoSigned >= 0.0f ? 1.0f : -1.0f;
+    p.lfoAmount  = mapGene (g_lfo_amt,  g[g_lfo_amt]);   // bipolar, 0.5 = silent
     p.lfoBalance = g[g_lfo_bal];                         // 0 vibrato, .5 both, 1 tremolo
     p.lfoDelaySeconds = levelOf (g_lfo_dly, g[g_lfo_dly]); // no onset delay below 0.5
 
@@ -141,16 +133,13 @@ void resolveVoiceParams (const Genome& g, const BranchTraits& traits,
     p.aColour = g[g_a_color];
     p.aNoise  = mapGene (g_a_noise, g[g_a_noise]);
     p.aRatio  = mapGene (g_a_freq, g[g_a_freq]);   // octaves, quantised by the table
-    // a_mod / b_mod are pitch modulation from the mod envelope (decision R2),
-    // resolved here in semitones at the top of that envelope. Reading them as a
-    // timbre control was the Rev 1 behaviour; the history of that mistake and
-    // the test that replaced it are in plan 6.1.
-    p.aModSemis = mapGene (g_a_mod, g[g_a_mod]) * kPitchModSemitoneCeiling;
+    p.aMod    = mapGene (g_a_mod, g[g_a_mod]);
 
     p.bForm   = g[g_b_form];
     p.bNoise  = mapGene (g_b_noise, g[g_b_noise]);
     p.bRatio  = mapGene (g_b_freq, g[g_b_freq]);
-    p.bModSemis = mapGene (g_b_mod, g[g_b_mod]) * kPitchModSemitoneCeiling;  // as a_mod
+    p.bMod    = mapGene (g_b_mod, g[g_b_mod]);
+    p.bShape  = g[g_b_sh];                          // an S&H rate from M4
 
     // One shared colour source for both oscillators (design Q-7 as answered by
     // R1): the b_color extra is B's *offset* from it, silent at its neutral.
@@ -164,7 +153,7 @@ void resolveVoiceParams (const Genome& g, const BranchTraits& traits,
     // fm_amt is bipolar now (direction of the modulation); the direction itself
     // still comes from the structural trait, so only the depth is read here.
     p.fmAmount  = std::abs (mapGene (g_fm_amt, g[g_fm_amt]));
-    p.mixMod    = mapGene (g_mix_mod, g[g_mix_mod]);   // adds to balance, in mix space (M4)
+    p.mixMod    = mapGene (g_mix_mod, g[g_mix_mod]);   // read by M4
     p.subLevel  = mapGene (g_sub_am, g[g_sub_am]);
 
     // Per voice life is not a gene any more (D-3): the amount is a named
@@ -179,23 +168,6 @@ void resolveVoiceParams (const Genome& g, const BranchTraits& traits,
     // octave. Everything downstream reads these numbers.
     p.freqAHz = noteToHz (midiNote, p.tuneCents) * std::pow (2.0f, p.aRatio / 12.0f);
     p.freqBHz = p.freqAHz * std::pow (2.0f, p.bRatio / 12.0f);
-
-    // b_sh, the second sample and hold (4.2), is a consumer of that link rather
-    // than an independent rate: "below the middle the rate follows B's
-    // frequency". Below 0.5 it is B divided by 8..1, which is what makes it the
-    // same *timbral* effect at every pitch (5.7.5: deliberate quantisation,
-    // "continuity is not a virtue where a continuous value would sound
-    // unstable"); at and above the middle the rate is free, 0.5..16 Hz.
-    //
-    // The reference gives b_sh no dead zone, but its neutral value is 0 and
-    // 5.7.1 requires neutral to be inaudible, so the hold crossfades in over
-    // the first eighth of the gene instead of switching on at the first non zero
-    // value. That is the only way a seed at b_sh = 0.02 is the instrument at
-    // rest rather than a broken oscillator.
-    const float bsh = clamp01 (g[g_b_sh]);
-    p.bSampleHoldHz  = bsh < 0.5f ? p.freqBHz / lerpf (8.0f, 1.0f, bsh * 2.0f)
-                                  : lerpf (0.5f, 16.0f, (bsh - 0.5f) * 2.0f);
-    p.bSampleHoldMix = smoothStep (clamp01 (bsh / 0.125f));
 
     const float cutoffOctaves = mapGene (g_flt_freq, g[g_flt_freq]);
     p.filterHz = clampf (p.freqAHz * std::pow (2.0f, cutoffOctaves), 20.0f, 20000.0f);

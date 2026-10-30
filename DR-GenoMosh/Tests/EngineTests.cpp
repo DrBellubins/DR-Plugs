@@ -395,10 +395,9 @@ static void testMappingNeutralIsRest()
     // Pitch and timbre offsets: nothing offset, nothing modulated.
     expect ("a_freq offset", p.aRatio, 0.0f);
     expect ("b_freq offset", p.bRatio, 0.0f);
-    expect ("a_mod (semitones)", p.aModSemis, 0.0f);
-    expect ("b_mod (semitones)", p.bModSemis, 0.0f);
-    expect ("lfo depth", p.lfoDepth, 0.0f);
-    expect ("lfo B polarity is unity", p.lfoSignB, 1.0f);
+    expect ("a_mod", p.aMod, 0.0f);
+    expect ("b_mod", p.bMod, 0.0f);
+    expect ("lfo amount", p.lfoAmount, 0.0f);
     expect ("fm amount", p.fmAmount, 0.0f);
     expect ("fm envelope", p.fmMod, 0.0f);
     expect ("mix envelope", p.mixMod, 0.0f);
@@ -406,10 +405,7 @@ static void testMappingNeutralIsRest()
     expect ("a noise", p.aNoise, 0.0f);
     expect ("b noise", p.bNoise, 0.0f);
     expect ("noise colour offset", p.bColour, p.aColour);
-    // b_sh has a rate at every gene value below its middle (it is a division of
-    // B's frequency), so what has to be identity at neutral is the *mix*: the
-    // held signal is blended in by zero, i.e. B is unchanged, sample for sample.
-    expect ("b sample hold mix", p.bSampleHoldMix, 0.0f);
+    expect ("b sample hold", p.bShape, 0.0f);
 
     // Envelope: gated sustain is silence, the curve exponents are linear, the
     // S&H is off and velocity is ignored.
@@ -494,7 +490,7 @@ static void testActivationGates()
         { "vol_sus",  g_vol_sus,  0.20f, 1.00f, &VoiceParams::ampSustain,        1.0f },
         { "vol_fade", g_vol_fade, 0.40f, 1.00f, &VoiceParams::volFade,           1.0f },
         { "mod_vel",  g_mod_vel,  0.05f, 1.00f, &VoiceParams::modVelocity,       1.0f },
-        { "lfo_dly",  g_lfo_dly,  0.25f, 1.00f, &VoiceParams::lfoDelaySeconds,   8.0f },
+        { "lfo_dly",  g_lfo_dly,  0.25f, 1.00f, &VoiceParams::lfoDelaySeconds,   1.0f },
         { "rvb_atk",  g_rvb_atk,  0.30f, 1.00f, &VoiceParams::reverbBloomSeconds, 1.0f },
     };
 
@@ -1187,182 +1183,20 @@ static void testNeutralGateIsAudible()
 }
 
 //==============================================================================
-// M4: a_mod / b_mod are the mod envelope's pitch modulation (decision R2, plan
-// 6.1). This replaces the test the 2026-10-21 fix added, and it asserts the
-// opposite thing on purpose: a note *may* move its own pitch, but only inside a
-// stated ceiling, only when the genes ask for it, and never at all from a plant
-// with Atonality at 0. Keeping the old assertion and adding the behaviour would
-// have cancelled the milestone (plan 6.1), which is why this function replaces it
-// in the same commit.
+// 5.3: "Pitch is played as normal. The branch changes timbre and modulation,
+// not the played pitch, except through the oscillator offset genes." A note has
+// to hold the pitch it was pressed at. The mod envelope used to sweep
+// oscillator pitch by up to two thirds of an octave while it attacked, in
+// whichever direction the sign of a_mod happened to point, which is what made
+// every note sound randomly out of tune. The genome below tunes both
+// oscillators to the pressed note with no vibrato, no drift and no detune, and
+// asks for a large mod amount: if modulation reaches pitch at all, this shows it.
+//
+// Read this test as provisional (Docs/Rev3-Alignment-Plan.md 6.1): a_mod and
+// b_mod are documented *pitch* modulation now (decision R2), so with atonality 0
+// they are converged to neutral and the assertion above becomes vacuous. It is
+// rewritten, not kept, in M4, the milestone that lands that behaviour.
 //==============================================================================
-/// The autocorrelation's best period in samples (defined with the pitch tests).
-static int estimatePeriod (const std::vector<float>& mono, int start, int length,
-                           int minLag, int maxLag);
-
-/// The dominant frequency of a stretch of signal, inside a stated band (defined
-/// with the M4 modulation probes).
-static double peakHz (const std::vector<float>& mono, int start, int len, double sr,
-                      double loHz, double hiHz);
-/// Energy at one frequency (defined with the M4 modulation probes).
-static double binEnergy (const std::vector<float>& mono, int start, int len, double sr, double hz);
-/// How much a level envelope varies around its own mean (defined with the probes).
-static double envelopeVariation (const std::vector<float>& envSeq);
-
-/// Per window autocorrelation period (defined with the M4 modulation probes).
-static std::vector<float> windowPeriod (const std::vector<float>& mono, int start,
-                                        int count, int win, int hop, int minLag, int maxLag);
-
-/// One held note of the seed, mono (defined with the M4 probes below).
-static std::vector<float> renderHeldNote (const PlantSnapshot& plant, int midiNote,
-                                          float keyUpSeconds, float seconds, float sampleRate);
-
-static void testPitchModulation()
-{
-    std::printf ("a_mod / b_mod pitch modulation, bounded (6.2, R2)\n");
-
-    bool ok = true;
-    auto expect = [&](bool pass, const char* what) {
-        if (! pass) { std::printf ("       %s\n", what); ok = false; }
-    };
-
-    //------------------------------------------------------------------------
-    // 1. The mapping layer: centred at the middle, full swing at both ends,
-    // never past the ceiling, and identically on A and B (4.2's wording).
-    for (float gene = 0.0f; gene <= 1.001f; gene += 0.1f)
-    {
-        Genome g = neutralGenome();
-        g[g_a_mod] = gene;
-        g[g_b_mod] = gene;
-        const VoiceParams p = resolveAt (g);
-
-        const float want = mapGene (kGenes[g_a_mod], gene) * kPitchModSemitoneCeiling;
-        if (! near (p.aModSemis, want, 0.02f) || ! near (p.bModSemis, want, 0.02f))
-        {
-            std::printf ("       a_mod %g -> %.3f st (want %.3f)\n", gene, p.aModSemis, want);
-            ok = false;
-        }
-        if (std::abs (p.aModSemis) > kPitchModSemitoneCeiling + 1.0e-3f
-            || std::abs (p.bModSemis) > kPitchModSemitoneCeiling + 1.0e-3f)
-        {
-            std::printf ("       a_mod %g -> %.3f st, past the ceiling\n", gene, p.aModSemis);
-            ok = false;
-        }
-    }
-
-    const VoiceParams mid = resolveAt ([] { Genome g = neutralGenome(); return g; } ());
-    expect (near (mid.aModSemis, 0.0f) && near (mid.bModSemis, 0.0f),
-            "the middle of both genes is no pitch modulation at all");
-
-    const VoiceParams lo = resolveAt ([] { Genome g = neutralGenome(); g[g_a_mod] = 0.0f; g[g_b_mod] = 0.0f; return g; } ());
-    const VoiceParams hi = resolveAt ([] { Genome g = neutralGenome(); g[g_a_mod] = 1.0f; g[g_b_mod] = 1.0f; return g; } ());
-    expect (near (lo.aModSemis, -kPitchModSemitoneCeiling, 0.02f)
-            && near (hi.aModSemis, kPitchModSemitoneCeiling, 0.02f),
-            "the ends are maximum negative and maximum positive (no dead zone)");
-
-    //------------------------------------------------------------------------
-    // 2/3. The measured half. The mod envelope is asked to peak in the middle of
-    // a held note, and the pitch is read twice: once while the envelope is
-    // closed, once at its peak. A neutral plant must not move; an open one must,
-    // by a lot - and never by more than the ceiling allows.
-    const float sampleRate = 48000.0f;
-    const int note = 60;
-
-    auto seedWithMod = [] (float modGene) {
-        Genome g = neutralGenome();
-        g[g_a_mod] = modGene;   g[g_b_mod] = modGene;   // both the same: A and B stay in unison
-        g[g_vol_sus] = 0.9f;                            // hold the note open
-        // env_time is the note's clock; a slow one is deliberate. At 0.8 the shape
-        // is 7.2 s and its mod envelope reaches its peak at 5.7 s (env_tilt's
-        // neutral puts the peak at 0.79 of the shape), which is slow enough that a
-        // 100 ms analysis window sees under 25 cents of slew: the measurement is
-        // then exact enough to assert a ceiling in semitones.
-        g[g_env_time] = 0.8f;
-        g[g_env_loop] = 1.0f;      // a period longer than the duration = no repeats,
-                                   // so there is one dive to measure, not a cycling one
-        g[g_mod_atk] = 0.5f;   g[g_mod_dcy] = 0.5f;    // linear: peaks at the shape's peak
-        g[g_vol_atk] = 0.05f;                           // get to full level quickly
-        return g;
-    };
-
-    struct PitchTrack { float hzEarly = 0.0f, hzPeak = 0.0f, cents = 0.0f; };
-    const float noteHz = noteToHz (note);
-
-    /// The pitch at one instant, read where the mod envelope is at its peak (the
-    /// signal is momentarily steady there) and before it has opened. Both reads
-    /// are the same window of the same shape, so their difference is the
-    /// modulation and nothing else.
-    auto measure = [=] (const Genome& seed, float atonality) {
-        MutationParams mp;
-        mp.atonality = atonality;
-        PlantSnapshot plant;
-        buildPlant (plant, hash::fromString ("pitch-mod"), seed, mp);
-
-        const std::vector<float> mono = renderHeldNote (plant, note, 6.2f, 6.5f, sampleRate);
-        const int win = static_cast<int> (sampleRate * 0.1f);
-        // Band: the pressed note's own range plus the full ±12 st the gene may ask
-        // for, and nothing above it. Excluding the second harmonic matters here:
-        // a dove fundamental is a whole octave down and its partial is not.
-        const float lo = noteHz * 0.4f, hi = noteHz * 1.6f;
-        PitchTrack r;
-        std::printf ("         track:");
-        for (int k = 0; k < 13; ++k)
-            std::printf (" %.0f", peakHz (mono, static_cast<int> (sampleRate * (0.2f + 0.28f * k)),
-                                          win, sampleRate, lo, hi));
-        std::printf ("\n");
-        r.hzEarly = static_cast<float> (peakHz (mono, static_cast<int> (sampleRate * 0.50f),
-                                                win, sampleRate, lo, hi));
-        // The turn around: the mod envelope peaks at half of the shape, which at
-        // these genes is 4.2 s in. A window centred there has the pile up at the
-        // bottom of the dive in it, which is the whole point of the measurement.
-        r.hzPeak = static_cast<float> (peakHz (mono, static_cast<int> (sampleRate * 4.13f),
-                                               win, sampleRate, lo, hi));
-        // Against the pressed note: that is what "maximum negative" means in
-        // 4.2's wording. The early window is printed too, to show the dive
-        // arriving, but it is not the yard stick.
-        r.cents = 1200.0f * std::log2 (r.hzPeak / noteHz);
-        return r;
-    };
-
-    const PitchTrack atRest = measure (seedWithMod (0.5f), 1.0f);       // genes at neutral
-    const PitchTrack swung = measure (seedWithMod (0.0f), 1.0f);        // -12 st at the peak
-    const PitchTrack converged = measure (seedWithMod (0.0f), 0.0f);    // Atonality closes the gene
-
-    std::printf ("       a_mod 0.50: %.0f Hz -> %.0f Hz (%+.0f cents, want the pressed %.0f)\n",
-                 atRest.hzEarly, atRest.hzPeak, atRest.cents, noteHz);
-    std::printf ("       a_mod 0.00, atonality 1.0: %.0f Hz -> %.0f Hz (%+.0f cents)\n",
-                 swung.hzEarly, swung.hzPeak, swung.cents);
-    std::printf ("       a_mod 0.00, atonality 0.0: %.0f Hz -> %.0f Hz (%+.0f cents)\n",
-                 converged.hzEarly, converged.hzPeak, converged.cents);
-
-    // The probe, held to the note: if this is wrong the numbers below mean
-    // nothing, so say so rather than passing on an accident.
-    expect (std::abs (atRest.hzPeak / noteHz - 1.0f) < 0.03f
-            && std::abs (atRest.hzEarly / noteHz - 1.0f) < 0.03f,
-            "the spectral probe reads the pressed note (the probe, not the engine)");
-
-    // A note whose genes are neutral holds the pitch it was pressed at. That is
-    // the surviving half of the old test; the rest of it is replaced above.
-    expect (std::abs (atRest.cents) < 60.0f,
-            "neutral genes: the held note keeps its pitch");
-
-    // A gene at its bottom end is the maximum negative swing: the mod envelope's
-    // peak lands on an octave down - full swing, and never past the ceiling.
-    expect (swung.cents < -1050.0f, "an open gene dives by its full documented amount");
-    expect (swung.cents > -1300.0f, "and the dive is not bigger than the ceiling plus the drift");
-    // The ceiling is 12 semitones; the allowance is the per voice detune and
-    // drift (D-3, a few tens of cents) plus the smear of a 100 ms window on a
-    // pitch that is still moving at the top of the envelope.
-    expect (swung.hzPeak >= noteHz * std::pow (2.0f, -12.5f / 12.0f),
-            "and never past the ceiling");
-
-    // Atonality 0 means the plant cannot ask for this at all: the same seed that
-    // dove is silent on pitch, which is the generation time half of the bound.
-    expect (std::abs (converged.cents) < 60.0f
-            && std::abs (converged.hzPeak / noteHz - 1.0f) < 0.03f,
-            "atonality 0: the plant cannot touch pitch (R2, R7)");
-
-    check (ok, "pitch modulation is bounded, centred, and converged by atonality");
-}
 // Atonality is a generation time ceiling on every pitch capable gene (a_freq,
 // b_freq, a_mod, b_mod, lfo_amt): at 0 the plant cannot touch pitch at all, at
 // 1 the whole range is available, and in between nothing may sit further from
@@ -1472,801 +1306,116 @@ static int estimatePeriod (const std::vector<float>& mono, int start, int length
     return best;
 }
 
-//==============================================================================
-// M4: the modulation sources and their destinations (design 6.2, 6.4).
-static constexpr double kTwoPi = 6.2831853071795864769;
-
-//
-// Four things are measurable about a modulator, and all four are "something
-// walks at this rate":
-//
-//   vibrato    - the autocorrelation period of the note walks at the LFO rate;
-//   tremolo    - the windowed level walks at the LFO rate;
-//   S&H steps  - the waveform has discontinuities at the S&H rate, and 6.4 says
-//                those steps must survive, so counting them is the gate;
-//   a hold     - long runs in which the signal does not change at all.
-//
-// These probes work on a raw buffer rather than on a scene, because they answer a
-// question about one gene rather than about a whole render. If a later milestone
-// wants one it moves to Tests/Render.cpp with the rest of the section 13 metric
-// set - and gets the same treatment first: a probe is only believed after it has
-// been shown to report a known answer on a signal built to have one.
-//==============================================================================
-
-/// How many whole windows of 'win' samples, stepped by 'hop', fit in the buffer
-/// from 'start'. Every probe uses it, because a probe that reads past the end of
-/// a render is a crash, not a measurement.
-static int maxWindows (const std::vector<float>& mono, int start, int count, int win, int hop)
+static void testPitchStability()
 {
-    const int room = (static_cast<int> (mono.size()) - start - win) / hop;
-    return std::min (count, std::max (0, room));
-}
+    std::printf ("pitch stability (5.3)\n");
 
-/// One held note of the seed. Every branch length is 0, which is the seed genome
-/// exactly (5.1), so what is heard is the genome that was planted.
-static std::vector<float> renderHeldNote (const PlantSnapshot& plant, int midiNote,
-                                          float keyUpSeconds, float seconds,
-                                          float sampleRate)
-{
-    PlantHandoff handoff;
-    auto& target = handoff.beginWrite();
-    target = plant;
-    handoff.publish();
+    MutationParams mp;
+    mp.atonality = 0.0f;   // nothing in the plant may touch the pitch
 
-    Synth synth;
-    synth.prepare (sampleRate, 128);
-    synth.attachPlant (&handoff);
+    const uint64_t seedId = hash::fromString ("pitch-stability");
+    Genome seed {};
+    Rng rng (seedId);
+    randomizeGenome (seed, rng);
 
-    PlayState state = offlinePlayState();     // the wheel is not part of a gene test
-    state.macros.volume = 0.7f;
-    synth.setPlayState (state);
+    seed[g_a_freq]     = 0.5f;   // stepped middle = 0 semitones, both oscillators
+    seed[g_b_freq]     = 0.5f;
+    seed[g_lfo_amt]    = 0.5f;   // bipolar middle = no vibrato
+    seed[g_fm_amt]     = 0.5f;
+    seed[g_sub_am]     = 0.0f;
+    seed[g_a_noise]    = 0.0f;
+    seed[g_b_noise]    = 0.0f;
+    seed[g_env_loop]   = 0.0f;
+    seed[g_a_mod]      = 0.9f;   // large mod amount, both oscillators
+    seed[g_b_mod]      = 0.9f;
+    seed[g_mod_atk]    = 0.4f;   // peaks tens of ms after the note, decays over ~0.35 s
+    seed[g_mod_dcy]    = 0.55f;
+    seed[g_vol_atk]    = 0.05f;
 
-    const int block = 128;
-    const int total = static_cast<int> (sampleRate * seconds);
-    std::vector<float> left (static_cast<std::size_t> (total), 0.0f);
-    std::vector<float> right (static_cast<std::size_t> (total), 0.0f);
-    const int offSample = static_cast<int> (sampleRate * keyUpSeconds);
-
-    for (int offset = 0; offset < total; offset += block)
-    {
-        const int n = std::min (block, total - offset);
-        if (offset == 0)
-            synth.addNoteOn (midiNote, 0.9f, 8);
-        if (offset <= offSample && offset + n > offSample)
-            synth.addNoteOff (midiNote, offSample - offset);
-
-        float* channels[2] = { left.data() + static_cast<std::size_t> (offset),
-                               right.data() + static_cast<std::size_t> (offset) };
-        synth.render (channels, 2, n);
-    }
-
-    std::vector<float> mono (static_cast<std::size_t> (total), 0.0f);
-    for (int i = 0; i < total; ++i)
-        mono[static_cast<std::size_t> (i)] = 0.5f * (left[static_cast<std::size_t> (i)]
-                                                    + right[static_cast<std::size_t> (i)]);
-    return mono;
-}
-
-/// A level envelope the way a listener means it: RMS per window, stepped by hop.
-static std::vector<float> windowRms (const std::vector<float>& mono, int start,
-                                     int count, int win, int hop)
-{
-    count = maxWindows (mono, start, count, win, hop);
-    std::vector<float> out;
-    out.reserve (static_cast<std::size_t> (count));
-    for (int w = 0; w < count; ++w)
-    {
-        const int s = start + w * hop;
-        double acc = 0.0;
-        for (int i = 0; i < win; ++i)
-        {
-            const double v = mono[static_cast<std::size_t> (s + i)];
-            acc += v * v;
-        }
-        out.push_back (static_cast<float> (std::sqrt (acc / static_cast<double> (win))));
-    }
-    return out;
-}
-
-/// The autocorrelation peak a listener would call the pitch: the *first* lag that
-/// reaches 0.9 of the best score, not the best score itself. The global maximum
-/// octave-doubles a harmonic rich signal (Implementation-Status 12's metric
-/// caveats), and a pitch track that jumps an octave every other window is worse
-/// than useless to the two tests below - it reads as modulation that is not there.
-static int firstStrongPeriod (const std::vector<float>& mono, int start, int length,
-                              int minLag, int maxLag)
-{
-    std::vector<double> score;
-    score.reserve (static_cast<std::size_t> (maxLag - minLag + 1));
-    double best = -1.0e300;
-    for (int lag = minLag; lag <= maxLag; ++lag)
-    {
-        double sc = 0.0;
-        for (int i = 0; i + lag < length; ++i)
-            sc += static_cast<double> (mono[static_cast<std::size_t> (start + i)])
-                * static_cast<double> (mono[static_cast<std::size_t> (start + i + lag)]);
-        score.push_back (sc);
-        best = std::max (best, sc);
-    }
-    const double want = best * 0.9;
-    for (std::size_t k = 0; k < score.size(); ++k)
-    {
-        if (score[k] < want)
-            continue;
-        // a local maximum, so a rising shoulder of the real peak is not taken
-        if ((k > 0 && score[k - 1] > score[k])
-            || (k + 1 < score.size() && score[k + 1] > score[k]))
-            continue;
-        return minLag + static_cast<int> (k);
-    }
-    return estimatePeriod (mono, start, length, minLag, maxLag);
-}
-
-/// A pitch track the way a listener means it: the autocorrelation period per
-/// window. The lag range is deliberately narrow (the note's period plus or minus
-/// a fifth): a wide search is what makes a metric report the octave trap instead
-/// of the pitch (Implementation-Status 12's metric caveats).
-static std::vector<float> windowPeriod (const std::vector<float>& mono, int start,
-                                        int count, int win, int hop,
-                                        int minLag, int maxLag)
-{
-    count = maxWindows (mono, start, count, win, hop);
-    std::vector<float> out;
-    out.reserve (static_cast<std::size_t> (count));
-    for (int w = 0; w < count; ++w)
-        out.push_back (static_cast<float> (firstStrongPeriod (mono, start + w * hop, win,
-                                                              minLag, maxLag)));
-    return out;
-}
-
-/// How much a sampled sequence walks at hz. Returns 1.0 when it swings +-1
-/// around its own mean at that rate; with 'relative' it is divided by the mean
-/// instead, which is what "how deep is the tremolo" means. No window function:
-/// these sequences are tens of samples long and the frequency is the one the
-/// engine was asked for, so the shape of the leakage is not the question.
-static double swingAt (const std::vector<float>& seq, double seqRate, double hz,
-                       bool relative)
-{
-    const int n = static_cast<int> (seq.size());
-    if (n < 4)
-        return 0.0;
-
-    double mean = 0.0;
-    for (float v : seq)
-        mean += static_cast<double> (v);
-    mean /= static_cast<double> (n);
-
-    double re = 0.0, im = 0.0;
-    for (int i = 0; i < n; ++i)
-    {
-        const double x = static_cast<double> (seq[static_cast<std::size_t> (i)]) - mean;
-        const double ph = kTwoPi * hz * static_cast<double> (i) / seqRate;
-        re += x * std::cos (ph);
-        im -= x * std::sin (ph);
-    }
-
-    double amp = 2.0 * std::sqrt (re * re + im * im) / static_cast<double> (n);
-    if (relative)
-        return std::abs (mean) < 1.0e-9 ? 0.0 : amp / std::abs (mean);
-    return amp;
-}
-
-/// The frequency with most energy in a stretch of the signal, searched in
-/// [loHz, hiHz]: Hann window, a plain DFT at 2 Hz steps, parabolic refinement of
-/// the peak bin. Chosen over an autocorrelation period for the two tests that
-/// need a pitch across a *sweep*: the autocorrelation of a harmonic rich signal is
-/// ambiguous by an octave (Implementation-Status 12's metric caveats) and that
-/// ambiguity reads as modulation that is not there, while a spectral peak in a
-/// stated band is not. A 100 ms window resolves 10 Hz, and the parabola puts the
-/// peak inside about 0.5 Hz of that.
-static double peakHz (const std::vector<float>& mono, int start, int len, double sr,
-                      double loHz, double hiHz)
-{
-    const double step = 2.0;
-    const int bins = static_cast<int> ((hiHz - loHz) / step) + 1;
-    std::vector<double> mag (static_cast<std::size_t> (bins), 0.0);
-
-    for (int b = 0; b < bins; ++b)
-    {
-        const double hz = loHz + step * b;
-        const double ph = kTwoPi * hz / sr;
-        const double cs = std::cos (ph), sn = std::sin (ph);
-        double re = 0.0, im = 0.0, cw = 1.0, sw = 0.0;
-        for (int i = 0; i < len; ++i)
-        {
-            const double w = 0.5 - 0.5 * std::cos (kTwoPi * static_cast<double> (i)
-                                                   / static_cast<double> (len - 1));
-            const double x = static_cast<double> (mono[static_cast<std::size_t> (start + i)]) * w;
-            re += x * cw;
-            im += x * sw;
-            const double ncs = cw * cs - sw * sn;
-            sw = sw * cs + cw * sn;
-            cw = ncs;
-        }
-        mag[static_cast<std::size_t> (b)] = std::sqrt (re * re + im * im);
-    }
-
-    int best = 0;
-    for (int b = 1; b < bins; ++b)
-        if (mag[static_cast<std::size_t> (b)] > mag[static_cast<std::size_t> (best)])
-            best = b;
-    if (best == 0 || best == bins - 1)
-        return 0.0;   // the real peak is outside the stated band
-
-    // Then walk back down the series: the lowest bin that still reaches half the
-    // strongest partial and is a local maximum of its own is the fundamental.
-    // This synth puts more energy in the second partial than in the first (the
-    // colour term adds an octave above, and an A / B mix detuned by a few cents
-    // splits the fundamental), so the loudest bin is usually not the pitch.
-    int at = best;
-    for (int b = 1; b < best; ++b)
-    {
-        if (mag[static_cast<std::size_t> (b)] >= mag[static_cast<std::size_t> (best)] * 0.5
-            && mag[static_cast<std::size_t> (b)] >= mag[static_cast<std::size_t> (b - 1)]
-            && mag[static_cast<std::size_t> (b)] >= mag[static_cast<std::size_t> (b + 1)])
-        {
-            at = b;
-            break;
-        }
-    }
-    if (at == 0 || at >= bins - 1)
-        return 0.0;
-
-    const double y0 = mag[static_cast<std::size_t> (at - 1)];
-    const double y1 = mag[static_cast<std::size_t> (at)];
-    const double y2 = mag[static_cast<std::size_t> (at + 1)];
-    const double denom = y0 - 2.0 * y1 + y2;
-    const double pp = denom != 0.0 ? 0.5 * (y0 - y2) / denom : 0.0;
-    return loHz + step * (static_cast<double> (at) + pp);
-}
-
-/// Energy at one frequency (Goertzel, Hann), for "did that frequency stop being
-/// there" - which is how holding an oscillator is recognised: a held oscillator
-/// has no fundamental left.
-static double binEnergy (const std::vector<float>& mono, int start, int len, double sr, double hz)
-{
-    const double ph = kTwoPi * hz / sr;
-    const double cs = std::cos (ph), sn = std::sin (ph);
-    double re = 0.0, im = 0.0, cw = 1.0, sw = 0.0;
-    for (int i = 0; i < len; ++i)
-    {
-        const double w = 0.5 - 0.5 * std::cos (kTwoPi * static_cast<double> (i)
-                                               / static_cast<double> (len - 1));
-        const double x = static_cast<double> (mono[static_cast<std::size_t> (start + i)]) * w;
-        re += x * cw;
-        im += x * sw;
-        const double ncs = cw * cs - sw * sn;
-        sw = sw * cs + cw * sn;
-        cw = ncs;
-    }
-    return std::sqrt (re * re + im * im) / static_cast<double> (len);
-}
-
-/// How much a level envelope varies, as a fraction of its own mean. The
-/// amplitude modulator's signature, and deliberately not a single bin: with A and
-/// B in antiphase the amplitude walks at the LFO rate *and its harmonics* (the
-/// modulation index of that cancellation is many radians), so a narrow probe
-/// measures a fraction of it and can miss it entirely.
-static double envelopeVariation (const std::vector<float>& envSeq)
-{
-    if (envSeq.size() < 4)
-        return 0.0;
-    double mean = 0.0;
-    for (float v : envSeq)
-        mean += static_cast<double> (v);
-    mean /= static_cast<double> (envSeq.size());
-    if (mean < 1.0e-9)
-        return 0.0;
-    double var = 0.0;
-    for (float v : envSeq)
-    {
-        const double d = static_cast<double> (v) - mean;
-        var += d * d;
-    }
-    return std::sqrt (var / static_cast<double> (envSeq.size())) / mean;
-}
-
-/// Discontinuities in the waveform: runs where the step is many times the
-/// typical step, counted once each. An S&H step is a discontinuity by
-/// construction, and 6.4 asks for it to stay one.
-static int countEdges (const std::vector<float>& mono, int start, int len,
-                       double factor, int minGap)
-{
-    std::vector<double> d;
-    d.reserve (static_cast<std::size_t> (len));
-    double largest = 0.0;
-    for (int i = 0; i < len; ++i)
-    {
-        const double v = std::abs (static_cast<double> (mono[static_cast<std::size_t> (start + i + 1)])
-                                   - static_cast<double> (mono[static_cast<std::size_t> (start + i)]));
-        d.push_back (v);
-        largest = std::max (largest, v);
-    }
-    if (largest <= 1.0e-9)
-        return 0;
-
-    std::vector<double> sorted = d;
-    std::nth_element (sorted.begin(), sorted.begin() + static_cast<std::ptrdiff_t> (sorted.size() / 2),
-                      sorted.end());
-    const double median = sorted[sorted.size() / 2];
-    const double limit = std::max (median * factor, largest * 0.25);
-
-    int edges = 0, since = minGap;
-    for (double v : d)
-    {
-        if (v > limit)
-        {
-            if (since >= minGap)
-                ++edges;
-            since = 0;
-        }
-        ++since;
-    }
-    return edges;
-}
-
-/// The fraction of samples that do not change at all. This is what a sample and
-/// hold *is*: a sine has a few still points at its extremes, a held signal is
-/// almost nothing but them.
-static double flatFraction (const std::vector<float>& mono, int start, int len)
-{
-    double sumAbs = 0.0;
-    for (int i = 0; i < len; ++i)
-        sumAbs += std::abs (static_cast<double> (mono[static_cast<std::size_t> (start + i + 1)])
-                            - static_cast<double> (mono[static_cast<std::size_t> (start + i)]));
-    if (sumAbs < 1.0e-9)
-        return 1.0;
-    const double eps = 0.005 * sumAbs / static_cast<double> (len);
-
-    int flat = 0;
-    for (int i = 0; i < len; ++i)
-    {
-        const double d = std::abs (static_cast<double> (mono[static_cast<std::size_t> (start + i + 1)])
-                                   - static_cast<double> (mono[static_cast<std::size_t> (start + i)]));
-        if (d <= eps)
-            ++flat;
-    }
-    return static_cast<double> (flat) / static_cast<double> (len);
-}
-
-static void testModulationProbesOnKnownSignals()
-{
-    std::printf ("modulation probes against signals with known answers (6.2)\n");
-
-    const float sr = 48000.0f;
-    bool ok = true;
-
-    // 1. A tone with a known tremolo: 40% depth at 6 Hz.
-    {
-        std::vector<float> x (static_cast<std::size_t> (sr * 2.0f), 0.0f);
-        for (std::size_t i = 0; i < x.size(); ++i)
-        {
-            const double t = static_cast<double> (i) / sr;
-            x[i] = 0.5f * (1.0f + 0.4f * std::sin (kTwoPi * 6.0 * t))
-                 * static_cast<float> (std::sin (kTwoPi * 220.0 * t));
-        }
-        const int win = static_cast<int> (sr * 0.01f);
-        const int hop = static_cast<int> (sr * 0.005f);
-        const int count = (static_cast<int> (x.size()) - win - static_cast<int> (sr * 0.1f)) / hop;
-        const auto env = windowRms (x, static_cast<int> (sr * 0.05f), count, win, hop);
-        const double depth = swingAt (env, static_cast<double> (sr) / hop, 6.0, true);
-        std::printf ("       40% tremolo reads %.3f\n", depth);
-        if (depth < 0.30 || depth > 0.50)
-            ok = false;
-    }
-
-    // 2. A tone with a known vibrato: +-100 cents at 6 Hz. The period of a
-    // linear FM tone walks by P0 * dev/fMod, first order.
-    {
-        const double f0 = 220.0, fMod = 6.0;
-        const double dev = f0 * (std::pow (10.0, 100.0 / 1200.0) - 1.0);   // +-100 cents
-        const double index = dev / fMod;
-        std::vector<float> x (static_cast<std::size_t> (sr * 2.0f), 0.0f);
-        for (std::size_t i = 0; i < x.size(); ++i)
-        {
-            const double t = static_cast<double> (i) / sr;
-            x[i] = 0.5f * static_cast<float> (
-                std::sin (kTwoPi * f0 * t + index * std::sin (kTwoPi * fMod * t)));
-        }
-        const int win = static_cast<int> (sr * 0.02f);
-        const int hop = static_cast<int> (sr * 0.005f);
-        const int count = (static_cast<int> (x.size()) - win - static_cast<int> (sr * 0.1f)) / hop;
-        const int p0 = static_cast<int> (sr / f0);
-        const auto periods = windowPeriod (x, static_cast<int> (sr * 0.05f), count, win, hop,
-                                           static_cast<int> (p0 * 0.8), static_cast<int> (p0 * 1.25));
-        const double mean = static_cast<double> (p0);
-        const double amp = swingAt (periods, static_cast<double> (sr) / hop, 6.0, false);
-        const double relative = amp / mean;
-        std::printf ("       +-100 cent vibrato reads %.3f of the period (want ~%.3f)\n",
-                     relative, dev / f0);
-        if (relative < 0.10 || relative > 0.35)
-            ok = false;
-    }
-
-    // 3. A staircase: a known number of edges, and nearly all samples flat.
-    {
-        std::vector<float> x (static_cast<std::size_t> (sr * 1.0f), 0.0f);
-        const double stepHz = 8.0;
-        for (std::size_t i = 0; i < x.size(); ++i)
-        {
-            const double t = static_cast<double> (i) / sr;
-            const double held = std::floor (t * stepHz + 0.5) / stepHz;   // a 50 Hz tone, held
-            x[i] = 0.5f * static_cast<float> (std::sin (kTwoPi * 50.0 * held));
-        }
-        const int edges = countEdges (x, 0, static_cast<int> (x.size()) - 2, 8.0, 64);
-        const double flat = flatFraction (x, 0, static_cast<int> (x.size()) - 2);
-        std::printf ("       8 Hz staircase: %d edges (want %d), flat %.2f (want ~1)\n",
-                     edges, static_cast<int> (stepHz), flat);
-        if (edges < 6 || edges > 12 || flat < 0.9)
-            ok = false;
-
-        // and the same length of ordinary tone reports neither
-        std::vector<float> y (static_cast<std::size_t> (sr * 1.0f), 0.0f);
-        for (std::size_t i = 0; i < y.size(); ++i)
-            y[i] = 0.5f * static_cast<float> (std::sin (kTwoPi * 50.0 * static_cast<double> (i) / sr));
-        const int edges2 = countEdges (y, 0, static_cast<int> (y.size()) - 2, 8.0, 64);
-        const double flat2 = flatFraction (y, 0, static_cast<int> (y.size()) - 2);
-        std::printf ("       50 Hz tone: %d edges, flat %.3f (want low)\n", edges2, flat2);
-        if (edges2 > 3 || flat2 > 0.05)
-            ok = false;
-    }
-
-    // 4. The spectral probes: a known frequency in a known band, and the
-    // amplitude variation of a known tremolo.
-    {
-        const double fA = 220.0;
-        std::vector<float> x (static_cast<std::size_t> (sr * 0.5f), 0.0f);
-        for (std::size_t i = 0; i < x.size(); ++i)
-            x[i] = 0.5f * static_cast<float> (std::sin (kTwoPi * fA * static_cast<double> (i) / sr));
-        const double read = peakHz (x, 0, static_cast<int> (x.size()), sr, 90.0, 900.0);
-        std::printf ("       220 Hz tone reads %.2f Hz\n", read);
-        if (std::abs (read / fA - 1.0) > 0.01)
-            ok = false;
-
-        const int win = static_cast<int> (sr * 0.01f);
-        const int hop = static_cast<int> (sr * 0.005f);
-        std::vector<float> am (static_cast<std::size_t> (sr * 1.0f), 0.0f);
-        for (std::size_t i = 0; i < am.size(); ++i)
-        {
-            const double t = static_cast<double> (i) / sr;
-            am[i] = 0.5f * (1.0f + 0.4f * static_cast<float> (std::sin (kTwoPi * 6.0 * t)))
-                  * static_cast<float> (std::sin (kTwoPi * 220.0 * t));
-        }
-        auto e = windowRms (am, static_cast<int> (sr * 0.1f), 160, win, hop);
-        const double varied = envelopeVariation (e);
-        auto eFlat = windowRms (x, 0, 40, win, hop);
-        const double stillVaried = envelopeVariation (eFlat);
-        std::printf ("       40%% tremolo varies by %.3f (want ~0.28), steady tone by %.4f\n",
-                     varied, stillVaried);
-        if (varied < 0.20 || varied > 0.38 || stillVaried > 0.03)
-            ok = false;
-
-        // and a held oscillator has lost its fundamental, which is what binEnergy
-        // is for: compare a tone with the same tone held at 8 Hz.
-        const double tone = binEnergy (x, 0, static_cast<int> (x.size()), sr, fA);
-        std::vector<float> held (static_cast<std::size_t> (sr * 0.5f), 0.0f);
-        for (std::size_t i = 0; i < held.size(); ++i)
-        {
-            const double t = static_cast<double> (i) / sr;
-            const double heldT = std::floor (t * 8.0 + 0.5) / 8.0;
-            held[i] = 0.5f * static_cast<float> (std::sin (kTwoPi * 37.0 * heldT));
-        }
-        const double heldTone = binEnergy (held, 0, static_cast<int> (held.size()), sr, fA);
-    // A slow dive, which is the shape the pitch modulation test has to measure.
-    // Here the answer at every moment is known to the cent: it is a single sine.
-    {
-        std::vector<float> dive (static_cast<std::size_t> (sr * 6.0));
-        const double f0 = 261.0, f1 = 130.0, sweep = 5.7;
-        for (std::size_t i = 0; i < dive.size(); ++i)
-        {
-            const double x = static_cast<double> (i) / sr;
-            dive[i] = static_cast<float> (0.5 * std::sin (kTwoPi * (f0 * x + (f1 - f0) * x * x / (2.0 * sweep))));
-        }
-        double worstCents = 0.0;
-        for (double at = 0.5; at < 5.5; at += 0.5)
-        {
-            const double expect = f0 + (f1 - f0) * (at + 0.05) / sweep;
-            const double got = peakHz (dive, static_cast<int> (sr * at), static_cast<int> (sr * 0.1),
-                                       sr, 100.0, 300.0);
-            worstCents = std::max (worstCents, std::abs (1200.0 * std::log2 (got / expect)));
-        }
-        std::printf ("       a 261 to 130 Hz dive reads %.0f cents off at its worst (want under 60)\n", worstCents);
-        if (worstCents > 60.0)
-        {
-            std::printf ("       the probe cannot follow a slow dive, so no dive measured with it means anything\n");
-            ok = false;
-        }
-    }
-    std::printf ("       fundamental of a tone vs the same tone held at 8 Hz: %.4g vs %.4g\n",
-                     tone, heldTone);
-        if (heldTone > tone * 0.2)
-            ok = false;
-    }
-
-    check (ok, "every modulation probe reports a signal whose answer is known");
-}
-
-//==============================================================================
-// M4's gate, in the engine's own words: one rate produces vibrato and tremolo at
-// once at lfo_bal = 0.5; lfo_amt below its middle moves A and B in opposite
-// directions; the S&H sources step the sound rather than being smoothed away;
-// lfo_dly delays the modulation and nothing else; a mod envelope destination is
-// still bounded (testPitchModulation covers the pitch half of that).
-//==============================================================================
-static void testModulationSources()
-{
-    std::printf ("modulation sources and destinations (6.2, 6.4)\n");
+    PlantSnapshot plant;
+    buildPlant (plant, seedId, seed, mp);
 
     const float sampleRate = 48000.0f;
+    const int block = 128;
+    const int numSamples = static_cast<int> (sampleRate);
     const int note = 60;
-    const float seconds = 2.0f;
+    const double expectedPeriod = static_cast<double> (sampleRate) / 261.6256;
+
+    const int window = static_cast<int> (sampleRate * 0.05);
+    const int windowA = static_cast<int> (sampleRate * 0.06);
+    const int windowB = static_cast<int> (sampleRate * 0.55);
+
     bool ok = true;
+    float worstCents = 0.0f;
 
-    auto plantOf = [] (const Genome& seed) {
-        MutationParams mp;
-        mp.atonality = 1.0f;              // nothing converged: the genome is what is heard
-        PlantSnapshot plant;
-        buildPlant (plant, hash::fromString ("mod-sources"), seed, mp);
-        return plant;
-    };
-
-    // A sustaining note with nothing else modulating it, so whatever walks at the
-    // LFO's rate can only have come from the LFO.
-    auto base = [] {
-        Genome g = neutralGenome();
-        g[g_vol_sus]  = 0.95f;         // hold it open through the whole render
-        g[g_env_time] = 0.65f;         // long enough that the sustain is the measured part
-        g[g_vol_atk]  = 0.05f;
-        g[g_lfo_rate] = 0.78f;         // ~6.0 Hz through the table's Exp curve
-        g[g_lfo_amt]  = 0.90f;         // deep, in phase
-        g[g_lfo_bal]  = 0.50f;         // half vibrato, half tremolo
-        return g;
-    };
-
-    const float lfoHz = mapGene (kGenes[g_lfo_rate], 0.78f);
-    std::printf ("       lfo_rate 0.78 resolves to %.2f Hz\n", lfoHz);
-
-    const int win = static_cast<int> (sampleRate * 0.01f);
-    const int hop = static_cast<int> (sampleRate * 0.004f);
-    const int start = static_cast<int> (sampleRate * 0.7f);   // well inside the sustain
-    const int count = static_cast<int> ((static_cast<float> (sampleRate) * seconds
-                                         - 0.7f * sampleRate - static_cast<float> (win)) / hop) - 4;
-    const int p0 = static_cast<int> (sampleRate / noteToHz (note));
-
-    auto measureBoth = [&] (const Genome& seed) -> std::pair<double, double> {
-        const std::vector<float> mono = renderHeldNote (plantOf (seed), note, seconds - 0.15f,
-                                                        seconds, sampleRate);
-        const auto env = windowRms (mono, start, count, win, hop);
-        const auto periods = windowPeriod (mono, start, count, win, hop,
-                                           static_cast<int> (p0 * 0.8), static_cast<int> (p0 * 1.25));
-        const double trem = swingAt (env, static_cast<double> (sampleRate) / hop, lfoHz, true);
-        const double vib = swingAt (periods, static_cast<double> (sampleRate) / hop, lfoHz, false)
-                         / static_cast<double> (p0);
-        return { trem, vib };
-    };
-
-    //------------------------------------------------------------------------
-    // One rate, two destinations (4.2's lfo_bal, 6.2's list).
-    const auto both = measureBoth (base ());
-    Genome vibOnly = base ();  vibOnly[g_lfo_bal] = 0.0f;
-    Genome tremOnly = base (); tremOnly[g_lfo_bal] = 1.0f;
-    const auto onlyVib = measureBoth (vibOnly);
-    const auto onlyTrem = measureBoth (tremOnly);
-
-    std::printf ("       lfo_bal 0.0 / 0.5 / 1.0 -> trem %.3f / %.3f / %.3f, vib %.3f / %.3f / %.3f\n",
-                 onlyVib.first, both.first, onlyTrem.first,
-                 onlyVib.second, both.second, onlyTrem.second);
-
-    if (both.first < 0.05 || both.second < 0.01)
+    for (int branch = 0; branch < kNumBranches; ++branch)
     {
-        std::printf ("       lfo_bal 0.5 does not reach both destinations\n");
-        ok = false;
-    }
-    // The ends are not silent in the literal sense: vibrato through a mix of two
-    // slightly detuned oscillators makes some amplitude, and a tremolo moves the
-    // level, so each end leaks a little into the other. What has to hold is that
-    // the balance moves each destination monotonically and the other one hardly
-    // at all - which is the thing lfo_bal is documented to be able to select.
-    if (onlyTrem.second > both.second * 0.15)
-    {
-        std::printf ("       tremolo=1 still has vibrato\n");
-        ok = false;
-    }
-    if (onlyVib.first > both.first * 0.25 || onlyTrem.first < both.first * 1.15)
-    {
-        std::printf ("       the balance does not move the level destination\n");
-        ok = false;
-    }
-    if (onlyVib.second < both.second * 1.15)
-    {
-        std::printf ("       the balance does not move the pitch destination\n");
-        ok = false;
-    }
+        PlantHandoff handoff;
+        auto& target = handoff.beginWrite();
+        target = plant;
+        handoff.publish();
 
-    // The walk is at the rate the gene asked for, not somewhere near it: a
-    // modulator measured half way off is a bug that happens to be moving.
-    {
-        const auto offHalf = measureBoth ([&] { Genome g = base (); g[g_lfo_rate] = 0.60f; return g; } ());
-        std::printf ("       measured at 6 Hz with the rate moved to %.2f Hz: trem %.3f (want small)\n",
-                     mapGene (kGenes[g_lfo_rate], 0.60f), offHalf.first);
-        if (offHalf.first > both.first * 0.5)
+        Synth synth;
+        synth.prepare (sampleRate, block);
+        synth.attachPlant (&handoff);
+
+        PlayState state;
+        state.macros.wheel = 1.0f;
+        state.macros.wheelScale = 1.0f;
+        state.macros.volume = 0.7f;
+        for (int b = 0; b < kNumBranches; ++b)
+            state.branchLength[static_cast<std::size_t> (b)] = (b == branch) ? 0.85f : 0.0f;
+        synth.setPlayState (state);
+
+        std::vector<float> left (static_cast<std::size_t> (numSamples), 0.0f);
+        std::vector<float> right (static_cast<std::size_t> (numSamples), 0.0f);
+
+        for (int offset = 0; offset < numSamples; offset += block)
         {
-            std::printf ("       the tremolo did not follow the rate\n");
+            const int n = std::min (block, numSamples - offset);
+            if (offset == 0)
+                synth.addNoteOn (note, 0.9f, 8);
+            if (offset == static_cast<int> (sampleRate) * 7 / 10)
+                synth.addNoteOff (note, 0);
+
+            float* channels[2] = { left.data() + static_cast<std::size_t> (offset),
+                                   right.data() + static_cast<std::size_t> (offset) };
+            synth.render (channels, 2, n);
+        }
+
+        std::vector<float> mono (static_cast<std::size_t> (numSamples), 0.0f);
+        for (int i = 0; i < numSamples; ++i)
+            mono[static_cast<std::size_t> (i)] = 0.5f * (left[static_cast<std::size_t> (i)]
+                                                        + right[static_cast<std::size_t> (i)]);
+
+        const int periodA = estimatePeriod (mono, windowA, window, 40, 700);
+        const int periodB = estimatePeriod (mono, windowB, window, 40, 700);
+
+        // The two windows of one note must agree, and the pitch found has to be
+        // the pressed note (or a harmonic of it, which the autocorrelation may
+        // lock onto for a bright timbre).
+        const double driftCents = 1200.0 * std::log10 (static_cast<double> (periodB)
+                                                       / static_cast<double> (periodA));
+        worstCents = std::max (worstCents, std::abs (static_cast<float> (driftCents)));
+
+        bool onNote = false;
+        for (int harmonic = 1; harmonic <= 4; ++harmonic)
+        {
+            if (std::abs (static_cast<double> (periodA) * harmonic - expectedPeriod)
+                < 0.02 * expectedPeriod)
+                onNote = true;
+        }
+
+        if (std::abs (driftCents) > 15.0f || ! onNote)
+        {
+            std::printf ("       branch %d: period %d -> %d (%.1f cents), expected %.0f\n",
+                         branch, periodA, periodB, driftCents, expectedPeriod);
             ok = false;
         }
     }
 
-    //------------------------------------------------------------------------
-    // lfo_amt's polarity (4.2): above its middle A and B move together, below it
-    // they move in opposite directions. With A and B in unison and mixed 50/50
-    // that has an exact signature: two equal vibratos in phase stay a phase
-    // modulation, and two in antiphase cancel into an amplitude modulation
-    // (sin(x+d) + sin(x-d) = 2 sin x cos d). So the two depths swap.
-    Genome samePhaseVib = base ();   samePhaseVib[g_lfo_bal] = 0.0f;
-    Genome oppositeVib  = base ();   oppositeVib [g_lfo_bal] = 0.0f;
-    oppositeVib [g_lfo_amt] = 0.10f;
-    const auto sameV = measureBoth (samePhaseVib);
-    const auto anti  = measureBoth (oppositeVib);
-    // Two oscillators vibrating in opposite directions cancel and re-form twice
-    // per LFO period, so a mix of them at equal pitch has its level modulation at
-    // *twice* the LFO rate; two in phase never cancel. The fixed few cents of per
-    // voice detune (D-3) beats at a few Hz and makes its own level variation, of
-    // the same size as the effect, which is why this looks at one frequency
-    // instead of measuring how much the level varies at all.
-    auto amAtTwiceTheRate = [&] (const PlantSnapshot& plant) {
-        const auto env = windowRms (renderHeldNote (plant, note, seconds - 0.15f, seconds, sampleRate),
-                                    start, count, win, hop);
-        return std::sqrt (std::abs (swingAt (env, static_cast<double> (sampleRate) / hop,
-                                            2.0 * lfoHz, true)));
-    };
-    const double sameVar = amAtTwiceTheRate (plantOf (samePhaseVib));
-    const double antiVar = amAtTwiceTheRate (plantOf (oppositeVib));
-    std::printf ("       vibrato only: level at twice the LFO rate: %.3f in phase, %.3f in opposite phase\n",
-                 sameVar, antiVar);
-    // Asserted at the mapping layer, not here: see the note under the mapping
-    // test. The direction is measured to be right (bigger in opposite phase), but
-    // its size is confounded by the fixed per voice detune and phase, which beat
-    // the A / B mix at a comparable level and are not a gene that can be closed.
-    if (antiVar <= sameVar)
-    {
-        std::printf ("       lfo_amt below its middle did not turn A/B into an amplitude modulation\n");
-        ok = false;
-    }
-
-    //------------------------------------------------------------------------
-    // mod_sh: the mod envelope's output is re-quantised, and the steps have to
-    // survive (6.4). Open the gate and the waveform gains discontinuities at the
-    // S&H rate; with it shut, the same genes sweep continuously instead.
-    // A continuous mod envelope and a re quantised one differ in one measurable
-    // way: the pitch of a re quantised one *jumps*. A ramp has a steady slope, so
-    // the jump detector below, which compares each step against three times the
-    // typical movement, sees nothing but slope; a 4 Hz hold sees a jump every
-    // quarter second. The envelope is deliberately fast here (0.61 s to its peak)
-    // so that the ramp's own slope is far above the probe's wobble.
-    auto modShGenes = [&] (float gene) {
-        Genome g = neutralGenome();
-        g[g_env_time] = 0.5f;        // a 1.2 s shape: the mod sweeps 12 st in 0.6 s
-        g[g_vol_sus]  = 0.95f;
-        g[g_vol_atk]  = 0.05f;
-        g[g_mod_sh]   = gene;        // 0.79 is just past the gate: ~4 Hz
-        g[g_a_mod]    = 1.0f;        // the mod envelope has the pitch all to itself
-        g[g_b_mod]    = 1.0f;
-        g[g_mod_atk]  = 0.5f;        // linear: a continuous ramp when not held
-        return g;
-    };
-    const std::vector<float> held = renderHeldNote (plantOf (modShGenes (0.79f)), note,
-                                                     1.15f, 1.35f, sampleRate);
-    const std::vector<float> swept = renderHeldNote (plantOf (modShGenes (0.50f)), note,
-                                                     1.15f, 1.35f, sampleRate);
-    auto jumpHz = [&] (const std::vector<float>& buf) {
-        const int w = static_cast<int> (sampleRate * 0.06f);
-        const int h = static_cast<int> (sampleRate * 0.025f);
-        const int from = static_cast<int> (sampleRate * 0.25f);
-        const int to   = static_cast<int> (sampleRate * 1.05f);
-        const double lo = noteToHz (note) * 0.5, hi = noteToHz (note) * 2.5;
-        std::vector<double> cents;
-        double previous = 0.0;
-        for (int at = from; at + w <= to; at += h)
-        {
-            const double hz = peakHz (buf, at, w, sampleRate, lo, hi);
-            if (hz <= 0.0)
-                continue;
-            if (previous > 0.0)
-                cents.push_back (1200.0 * std::log2 (hz / previous));
-            previous = hz;
-        }
-        if (cents.size() < 6)
-            return 0.0;
-        std::vector<double> magnitudes = cents;
-        for (double& v : magnitudes)
-            v = std::abs (v);
-        std::sort (magnitudes.begin(), magnitudes.end());
-        const double typical = magnitudes[magnitudes.size() / 2];
-        const double threshold = std::max (typical * 3.0, 120.0);
-        int jumps = 0;
-        for (double v : cents)
-            if (v > threshold || v < -threshold)
-                ++jumps;
-        return static_cast<double> (jumps) / static_cast<double> (to - from) * sampleRate;
-    };
-    const double heldJumps = jumpHz (held);
-    const double sweptJumps = jumpHz (swept);
-    const float shHz = mapGene (kGenes[g_mod_sh], gated (kGenes[g_mod_sh], 0.79f));
-    std::printf ("       mod_sh %.2f (%.1f Hz): %.1f pitch jumps a second, off: %.1f\n",
-                 0.79f, shHz, heldJumps, sweptJumps);
-    if (heldJumps < shHz * 0.5 || sweptJumps > shHz * 0.5)
-    {
-        std::printf ("       the S&H steps were smoothed away\n");
-        ok = false;
-    }
-
-    //------------------------------------------------------------------------
-    // b_sh: a real second sample and hold, on oscillator B. Measured as the thing
-    // it is - a signal that stops changing. osc_mix at B alone so nothing else is
-    // in the way, and the free half of the gene (0.75 -> ~8 Hz).
-    auto bshGenes = [&] (float gene) {
-        Genome g = base ();
-        g[g_b_sh]    = gene;
-        g[g_osc_mix] = 1.0f;        // B alone
-        g[g_vol_sus] = 1.0f;        // amp holds exactly: "unchanged" must mean unchanged
-        return g;
-    };
-    const std::vector<float> bheld = renderHeldNote (plantOf (bshGenes (0.75f)), note,
-                                                     seconds - 0.15f, seconds, sampleRate);
-    const std::vector<float> bplain = renderHeldNote (plantOf (bshGenes (0.0f)), note,
-                                                      seconds - 0.15f, seconds, sampleRate);
-    const int bFrom = static_cast<int> (sampleRate * 1.6f);
-    const int bSpan = static_cast<int> (sampleRate * 0.35f);
-    const double toneHeld = binEnergy (bheld, bFrom, bSpan, sampleRate, noteToHz (note));
-    const double tonePlain = binEnergy (bplain, bFrom, bSpan, sampleRate, noteToHz (note));
-    std::printf ("       b_sh 0.75: %.3f of B's fundamental is left, b_sh 0.0: %.3f\n",
-                 toneHeld / tonePlain, 1.0);
-    if (toneHeld > tonePlain * 0.3 || tonePlain < 1.0e-4)
-    {
-        std::printf ("       b_sh is not holding B\n");
-        ok = false;
-    }
-    // (The 5.7.1 half - a neutral b_sh is the same signal, sample for sample - is
-    // held by testMappingNeutralIsRest, which reads the resolved mix of 0. There is
-    // no audio way to say it that is not the same sentence twice.)
-
-    //------------------------------------------------------------------------
-    // lfo_dly: the documented silent onset is an onset of the *modulation*. The
-    // note sounds from the start; the tremolo arrives after the delay.
-    auto delayGenes = [&] (float gene) {
-        Genome g = base ();
-        g[g_lfo_dly] = gene;          // 0.5625 is one second through the gate
-        return g;
-    };
-    const double delaySeconds = mapGene (kGenes[g_lfo_dly], gated (kGenes[g_lfo_dly], 0.6f));
-    // The first tenth of the delay: the depth is a ramp, so "silent onset" is
-    // measured as "not yet arrived", not as literal silence.
-    const int earlyStart = static_cast<int> (sampleRate * 0.05f);
-    const int lateStart = static_cast<int> (sampleRate * (delaySeconds + 0.7f));
-    const int depthWindows = static_cast<int> (sampleRate * 0.45f / hop);
-
-    auto tremInWindow = [&] (const std::vector<float>& mono, int at) {
-        const auto env = windowRms (mono, at, depthWindows, win, hop);
-        return swingAt (env, static_cast<double> (sampleRate) / hop, lfoHz, true);
-    };
-
-    const float delaySeconds2 = 3.0f;
-    const std::vector<float> delayed = renderHeldNote (plantOf (delayGenes (0.5625f)), note,
-                                                       delaySeconds2 - 0.15f, delaySeconds2, sampleRate);
-    const std::vector<float> undelayed = renderHeldNote (plantOf (delayGenes (0.0f)), note,
-                                                         delaySeconds2 - 0.15f, delaySeconds2, sampleRate);
-    const double dEarly = tremInWindow (delayed, earlyStart);
-    const double dLate = tremInWindow (delayed, lateStart);
-    const double uEarly = tremInWindow (undelayed, earlyStart);
-    std::printf ("       lfo_dly %.2f s: trem %.3f before, %.3f after; no delay: %.3f at the same place\n",
-                 delaySeconds, dEarly, dLate, uEarly);
-    if (dEarly > uEarly * 0.35 || dLate < uEarly * 0.6 || uEarly < 0.15)
-    {
-        std::printf ("       lfo_dly did not measure an onset of the documented length\n");
-        ok = false;
-    }
-
-    check (ok, "one LFO drives pitch and level at one rate; its polarity, delay and both S&H sources are real");
+    check (ok, "a held note keeps the pitch it was pressed at");
+    std::printf ("       worst pitch movement while held: %.1f cents\n", worstCents);
 }
 
 //==============================================================================
@@ -2280,38 +1429,12 @@ static void testModulationSources()
 //                             checked this way is a number, not a measurement;
 //   testScenePlanIsSeeded   - the density semantics of 13, deterministically.
 //
-// M4 adds the modulation gates. They are deliberately audio gates: every one of
-// them reads a rendered note, because "the gene reached the mapping layer" is not
-// the claim the design makes.
-//
-//   testPitchModulation     - 6.2 and R2. a_mod / b_mod are bounded bipolar pitch
-//                             modulation: neutral holds the pressed note, an open
-//                             gene dives the documented octave, the ceiling holds,
-//                             and atonality 0 cannot ask for pitch at all. This
-//                             replaced testPitchStability, which asserted the
-//                             2026-10-21 behaviour (no mod to pitch at all) and is
-//                             wrong under Rev 3.
-//   testModulationProbesOnKnownSignals
-//                           - the six probes the two tests below are built out of
-//                             (spectral peak, single bin energy, envelope
-//                             variation, per window rms and period, jump counting)
-//                             against signals whose answer is known by
-//                             construction, including a slow dive. Read this one
-//                             first when a modulation number looks wrong.
-//   testModulationSources   - one LFO at one rate with depth, polarity and a
-//                             vibrato / tremolo balance, its onset delay, and the
-//                             two sample and hold sources (mod_sh on the mod
-//                             envelope, b_sh on oscillator B). The steps are
-//                             measured as steps: pitch jumps per second for
-//                             mod_sh, and the collapse of B's fundamental for b_sh.
-//
 // Then the audio baseline:
 //
-//   testM2BaselineAudio     - the 12 per branch rms numbers of the instrument at
-//                             rest, re-pinned at each milestone that is allowed to
-//                             change the audio (post M4 now). Reproducing them to
-//                             1e-4 is what proves a later milestone changed nothing
-//                             it did not intend to.
+//   testM1BaselineAudio     - the 12 numbers Implementation-Status section 11
+//                             records, reproduced through the new harness. This
+//                             is what proves M2 changed no sample, and it also
+//                             pins the discovery below.
 //   testBranchBatch         - 12 branches x lengths {0,.25,.5,.75,1} with the
 //                             full metric set. The baseline M3-M7 are judged
 //                             against (design 13's batch mode).
@@ -2320,7 +1443,7 @@ static void testModulationSources()
 //   testMassiveSoak         - a short version of the 13 soak; the full 10 000
 //                             round run is a command line thing (see main).
 //
-// The discovery M2 made on the way, and the reason the baseline test takes no branch length
+// The discovery M2 made on the way, and the reason testM1BaselineAudio passes
 // *without* a branch length: the previous harness built a PlayState, filled it
 // in, and never handed it to the Synth. Every "per branch" number in the M0 and
 // M1 sections of Implementation-Status is therefore the seed played at twelve
@@ -3097,7 +2220,7 @@ static void testEnvelopeArticulation()
 //==============================================================================
 static void testM2BaselineAudio()
 {
-    std::printf ("the audio table, re-pinned after M4 (baseline for M5+)\n");
+    std::printf ("the M2 audio table, re-pinned after M3 (baseline for M4)\n");
 
     const MutationParams mp;
     const uint64_t seedId = hash::fromString ("render-seed");
@@ -3116,8 +2239,8 @@ static void testM2BaselineAudio()
     // sitting at full level. That is the design, and M7's Volume curve is the
     // milestone that re-tunes the output for it.
     static const float expectedRms[12] = {
-        0.0252168f, 0.0248398f, 0.0293937f, 0.0234855f, 0.0231596f, 0.0234624f,
-        0.0248778f, 0.0277567f, 0.0277592f, 0.0230166f, 0.0309153f, 0.0269386f
+        0.0273958f, 0.0278022f, 0.0277919f, 0.0277034f, 0.0270448f, 0.0277866f,
+        0.0275757f, 0.0271672f, 0.0267898f, 0.0271518f, 0.0270851f, 0.0268318f
     };
 
     bool same = true;
@@ -3156,7 +2279,7 @@ static void testM2BaselineAudio()
                      branch, n.midiNote, r.m.peak, r.m.rms, r.m.dc);
     }
 
-    check (same, "the post M4 per branch table is reproduced to 1e-4 (M4's audio is pinned)");
+    check (same, "the post M3 per branch table is reproduced to 1e-4 (M3's audio is pinned)");
     std::printf ("       worst relative difference: %.2e\n", worstRelative);
 }
 
@@ -3322,15 +2445,7 @@ static void testBranchBatch()
     // itself; the measured spread is pinned one notch above what M3 got so that
     // M5's real topologies have somewhere to fail in before the gate does.
     check (stats.overSixDb == 0, "every one of the 60 cases is inside the 6 dB target (M3's gate)");
-    // M4 widened this from 3.64 dB to 5.29 dB, and the cause is known: three
-    // genes now reach the output that did not reach it before (b_sh takes B
-    // through a sample and hold, which the DC blocker then mostly removes;
-    // mix_mod moves a 50/50 mix; a_mod / b_mod move the whole voice an octave).
-    // The guard rail has learned duration (M3) but not those three, which is
-    // exactly plan 6.3's warning and M5's job (it owns a loudness model that
-    // knows topology, separation and the sources of level). The gate therefore
-    // stays at the target itself, one notch of slack above the measurement.
-    check (stats.worstDbVsSeed < 6.0f, "measured spread stays inside the 6 dB target (M4 reached 5.29)");
+    check (stats.worstDbVsSeed < 5.0f, "measured spread stays under 5 dB (M3 reached 3.64)");
     // Growth was level *suppressed* under M2; the duty term now lifts short and
     // percussive branches toward their seed, so a branch may come out a little
     // louder. Pin the direction and the amount anyway: +4 dB is the point where
@@ -3636,15 +2751,14 @@ static void runSuite()
     testSeedsClusterAroundNeutral();
     testPullToNeutral();
     testAtonalityCeiling();
-    testPitchModulation();
+    testPitchStability();
     testGenome (mp);
     testFilter();
 
     // M2, the section 13 harness: the tooling is tested before anything measured
-    // with it is believed. The M4 modulation probes get the same treatment.
+    // with it is believed.
     testWavFileIsAFile();
     testMetricsOnKnownSignals();
-    testModulationProbesOnKnownSignals();
     testScenePlanIsSeeded();
     testGoldenProtocol();
 
@@ -3652,7 +2766,6 @@ static void runSuite()
     testNeutralGateIsAudible();
     testSharedEnvelope();
     testEnvelopeArticulation();
-    testModulationSources();
     testM2BaselineAudio();
     testBranchBatch();
     testMassiveSoak (40);

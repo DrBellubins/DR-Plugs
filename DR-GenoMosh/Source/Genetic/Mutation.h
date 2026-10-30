@@ -84,17 +84,10 @@ struct BranchDirection
 ///                 gives it the four topologies plus the loudness model they
 ///                 need. Nothing is hidden by removing it: until M5 the voice is
 ///                 lowpass only, which is what a seed already is.
-//
-// What is left is two things a gene cannot be: which oscillator modulates which,
-// and whether B is hard synced or ring modulated. oscBMode's "sample & hold"
-// mode went away at M4 for exactly R10's reason: holding B is what the b_sh
-// *gene* does, at a rate both the player and growth can set, so a trait that
-// also did it was a second unaddressable copy of a documented control. Mode 0 is
-// "no trait", which is what a branch that has not crossed its threshold gets.
 struct BranchTraits
 {
     unsigned char fmDirection = 0;///< 0 = B modulates A, 1 = A modulates B
-    unsigned char oscBMode = 0;   ///< 0 = no trait, 1 = sync, 2 = ring mod
+    unsigned char oscBMode = 0;   ///< 0 = sync, 1 = ring mod, 2 = sample & hold
 };
 
 //==============================================================================

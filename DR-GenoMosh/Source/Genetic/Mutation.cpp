@@ -190,9 +190,7 @@ BranchTraits resolveTraits (uint64_t seedHash, float distance, const MutationPar
     const float t3 = rng.uniform();
 
     if (p > t1) traits.fmDirection = static_cast<unsigned char> (rng.integer (2));
-    // Mode 0 is "no trait", so a trait that fires picks one of the two real
-    // structural modes rather than a third of the time picking nothing.
-    if (p > t3) traits.oscBMode = static_cast<unsigned char> (1 + rng.integer (2));
+    if (p > t3) traits.oscBMode = static_cast<unsigned char> (rng.integer (3));
 
     return traits;
 }
@@ -258,27 +256,7 @@ float loudnessCompensation (const Genome& g)
     const float duty = std::max (0.12f, envelopeDuty (g));
     const float dutyGain = std::min (3.0f, 1.0f / std::sqrt (duty));
 
-    // ... and so does an amplitude modulator (M4). A tremolo of depth d multiplies
-    // the level by 1 + d*sin, whose RMS over any window longer than its period is
-    // sqrt(1 + d^2/2) times the unmodulated level - so a branch that grew a
-    // tremolo is not louder to a listener in a way the gene list shows, and the
-    // batch's level match would be chasing it forever. lfo_bal decides how much of
-    // the LFO's depth is the level destination at all (equal power, so its square
-    // is the power share).
-    const float lfoDepth = std::abs (mapGene (kGenes[g_lfo_amt], g[g_lfo_amt]));
-    constexpr float kHalfPi = 1.5707963267948966f;   // Genetic/ does not include Dsp.h
-    const float tremShare = std::sin (clamp01 (g[g_lfo_bal]) * kHalfPi);
-    // Only a tremolo that completes a few cycles inside the note averages out; a
-    // slow one is a swell, and dividing its level as if it had averaged is how a
-    // guard rail ends up quieter than the thing it is compensating (M4 measured
-    // this: the batch's worst branch went from 3.6 dB to 5.3 dB when this term
-    // first went in unconditioned).
-    const float lfoHz = mapGene (kGenes[g_lfo_rate], g[g_lfo_rate]);
-    const float cycles = lfoHz * kNominalNoteSeconds;
-    const float averaged = clamp01 ((cycles - 1.0f) / 3.0f);
-    const float tremBoost = averaged * 0.5f * lfoDepth * lfoDepth * tremShare * tremShare;
-
-    return dutyGain / std::sqrt (boost + tremBoost);
+    return dutyGain / std::sqrt (boost);
 }
 
 //==============================================================================
