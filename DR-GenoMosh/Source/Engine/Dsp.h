@@ -13,7 +13,6 @@ namespace gmosh
 // All of them are allocation free after prepare() and sample rate aware
 // (design doc section 10).
 //==============================================================================
-
 constexpr float kPi = 3.14159265358979323846f;
 
 inline float softClip (float x)
@@ -277,12 +276,14 @@ public:
         }
 
         phase += phaseInc;
+
         if (phase >= 1.0f)
             phase -= 1.0f;
 
         if (outerInc > 0.0f)
         {
             outerPos += outerInc;
+
             if (outerPos > 1.0f)
                 outerPos = 1.0f;
         }
@@ -290,6 +291,7 @@ public:
         if (stage == Releasing)
         {
             gateLevel -= gateLevel * releaseCoef;
+
             if (gateLevel < 1.0e-4f)
             {
                 gateLevel = 0.0f;
@@ -315,6 +317,7 @@ public:
     float outerValue() const { return outerOf() * gateLevel; }
 
     bool isIdle() const { return stage == Idle; }
+
     void reset() { stage = Idle; amp = mod = 0.0f; gateLevel = 0.0f; phase = 0.0f; outerPos = 0.0f; }
 
 private:
@@ -322,23 +325,30 @@ private:
     {
         if (ph <= 0.0f)
             return 0.0f;
+
         if (ph < peak)
         {
             const float u = ph / peak;
             return std::pow (u, riseExp);
         }
+
         const float window = (1.0f - peak) * std::max (fallWindow, 0.0f);
+
         if (window <= 1.0e-6f)
             return 0.0f;
+
         const float w = (ph - peak) / window;
+
         if (w >= 1.0f)
             return 0.0f;
+
         return std::pow (1.0f - w, fallExp);
     }
 
     void buildTable (float* t, float peak, float riseExp, float fallExp, float fallWindow)
     {
         peak = clampf (peak, 0.005f, 0.98f);
+
         for (int i = 0; i < kTableSize; ++i)
             t[i] = curveAt (static_cast<float> (i) / static_cast<float> (kTableSize - 1),
                             peak, riseExp, fallExp, fallWindow);
@@ -347,11 +357,13 @@ private:
     static float readTable (const float* t, float ph)
     {
         ph = clamp01 (ph);
+
         const float pos = ph * static_cast<float> (kTableSize - 1);
         const float posFloor = std::floor (pos);
         const int i0 = static_cast<int> (posFloor);
         const int i1 = i0 + 1 < kTableSize ? i0 + 1 : i0;
         const float frac = pos - posFloor;
+
         return t[i0] + (t[i1] - t[i0]) * frac;
     }
 
@@ -359,11 +371,15 @@ private:
     {
         if (outerInc <= 0.0f)
             return 1.0f;
+
         const float floorL = clamp01 (shape.floorLevel);
+
         if (outerPos <= 0.0f)
             return 1.0f;
+
         if (outerPos >= 1.0f)
             return floorL;
+
         // Counted from the top down: (1 - q) is exact at both ends, and a floor
         // of zero lands on exactly zero rather than on a rounding error.
         return floorL + (1.0f - floorL) * std::pow (1.0f - outerPos, shape.outerExp);
@@ -371,11 +387,12 @@ private:
 
     enum Stage : unsigned char { Idle, Running, Releasing };
 
-    Shape shape;
     float sr = 44100.0f;
     float phaseInc = 0.0f, outerInc = 0.0f, releaseCoef = 0.01f;
     float phase = 0.0f, outerPos = 0.0f, gateLevel = 0.0f;
     float amp = 0.0f, mod = 0.0f;
+
+    Shape shape;
     Stage stage = Idle;
 
     float curve[kTableSize] {};
@@ -401,12 +418,15 @@ public:
     {
         if (inc <= 0.0f)
             return x;
+
         phase += inc;
+
         if (phase >= 1.0f)
         {
             phase -= 1.0f;
             value = x;
         }
+
         return value;
     }
 
@@ -438,6 +458,7 @@ public:
     float process()
     {
         phase += inc;
+
         if (phase >= 1.0f)
         {
             phase -= 1.0f;
@@ -486,6 +507,7 @@ public:
             counter = interval;
             target = rng.gaussianClamped (1.0f);
         }
+
         value += (target - value) * smooth;
         return value;
     }
