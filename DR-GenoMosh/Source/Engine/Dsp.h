@@ -388,7 +388,18 @@ private:
 };
 
 //==============================================================================
-/// Free running modulator: sine / triangle / sample and hold, chosen per voice.
+/// The three LFO shapes, named, for Modulator::setShape().
+enum LfoShape : unsigned char { kLfoSine = 0, kLfoTriangle = 1, kLfoSampleHold = 2 };
+
+/// Free running modulator: sine / triangle / sample and hold.
+///
+/// Since M4 the voice asks for the sine and keeps only a random *phase*: the LFO
+/// is one documented source with one rate and two destinations (pitch and
+/// tremolo), and a shape that changed per voice made the same patch sound like a
+/// different synth on every key press (plan M4: "stop randomising the LFO shape
+/// per voice (keep a phase offset)"). The other shapes stay, because the
+/// 5.7.5 "swap which source drives a destination" trait is the one possible
+/// future consumer, and an S&H LFO is exactly what it would want.
 class Modulator
 {
 public:
@@ -433,6 +444,62 @@ public:
 private:
     float inc = 0.0f, phase = 0.0f, holdValue = 0.0f, holdPhase = 0.0f;
     unsigned char wave = 0;
+};
+
+//==============================================================================
+/// Sample and hold re-quantiser (design doc 4.2 mod_sh / b_sh, 6.1.1, 6.4).
+///
+/// Two documented destinations use one: mod_sh re-quantises the *modulation
+/// envelope's output* ("optionally re-quantised by an S&H at rate mod_sh"), and
+/// b_sh holds oscillator B. They are different objects of this class with
+/// different rates, which is why it is a class rather than a branch in the voice.
+///
+/// 6.4 is the reason it exists on its own clock: "S&H outputs must not be
+/// smoothed through their step - the step is the sound." So the step boundary is
+/// reported to the caller (process() returns true) and the voice applies the
+/// targets that depend on it with no ramp. Nothing here smooths, filters or
+/// blends: a held value is a discontinuity by construction.
+///
+/// rate <= 0 means "off", which is how the mapping layer switches it (the
+/// mod_sh gate is shut below its 0.75 rail, and b_sh is at its neutral 0).
+class SampleHold
+{
+public:
+    void setRateHz (float hz, double sampleRate)
+    {
+        inc = hz > 0.0f ? std::min (hz, static_cast<float> (sampleRate) * 0.45f)
+                        / static_cast<float> (sampleRate)
+                        : 0.0f;
+    }
+
+    /// A note on: the next sample primes the hold, so a new note never starts
+    /// from a value left over from the last one.
+    void reset() { phase = 0.0f; primed = false; held = 0.0f; }
+
+    bool active() const { return inc > 0.0f; }
+
+    /// Returns true when this sample began a new step.
+    bool process (float in)
+    {
+        if (inc <= 0.0f)
+            return false;
+
+        phase += inc;
+        if (! primed || phase >= 1.0f)
+        {
+            primed = true;
+            phase -= std::floor (phase);
+            held = in;
+            return true;
+        }
+        return false;
+    }
+
+    float value() const { return held; }
+
+private:
+    float inc = 0.0f, phase = 0.0f, held = 0.0f;
+    bool primed = false;
 };
 
 //==============================================================================

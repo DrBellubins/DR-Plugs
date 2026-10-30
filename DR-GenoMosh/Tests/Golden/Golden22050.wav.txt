@@ -1,3 +1,3 @@
 seed 1 time 300 sr 22050 density 10 branchLength 0.600 frames 6615000
-fnv1a64 8b316307a96f05e9
-peak 0.874966 rms 0.101812 dc +0.000934 centroid 666.8 flatness 0.3174 inharmonic 0.2042
+fnv1a64 1291315fb7df286e
+peak 0.820856 rms 0.076715 dc +0.000813 centroid 771.9 flatness 0.3499 inharmonic 0.0000

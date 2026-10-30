@@ -714,6 +714,45 @@ ceiling and is **zero at atonality 0** (this replaces `testPitchStability`'s cur
 see §6.1).
 **Unlocks:** M5 (filter cutoff now has a defined modulator budget) and M8's `converge()` coupling.
 
+**Status: landed 2026-10-30.** **113 → 116 checks**, all green, VST3/Standalone build clean. Full
+record: `Implementation-Status.md` §14. `a_mod`/`b_mod` are bipolar pitch modulation with
+`kPitchModSemitoneCeiling = 12 st` in the mapping layer and Atonality's convergence as the
+generation-time bound; one sine LFO drives vibrato and tremolo at one rate with an equal-power
+`lfo_bal` split, an `lfo_amt` polarity (`lfoSignB`) and an `lfo_dly` onset ramp; both S&H sources
+are real (`SampleHold` in Dsp.h, re-quantising the mod envelope after `modScale`, and a rate on B);
+`mix_mod` moves the A/B balance in mix space through the same equal-power curve as `osc_mix`; the
+fixed LFO→filter path is gone and the per-voice random LFO shape is gone with it; `b_sh` left
+`oscBMode`, which is now 0 = none / 1 = sync / 2 = ring mod. `lfo_dly`'s gene range was corrected to
+the documented 8 s. Measured, from renders: neutral genes hold the pressed note (+0 cents);
+`a_mod = 0` dives **−1194 cents** at the envelope peak and never past the ceiling; the same plant at
+**atonality 0** does not move at all; 6 Hz is 6 Hz (tremolo 0.528 there, 0.084 when only the rate is
+moved); the balance runs 0.061 / 0.528 / 0.770 across its three ends; `mod_sh 0.79` produces 2.5
+pitch steps a second against 0.0 off; `b_sh 0.75` leaves 5.3 % of B's fundamental.
+
+Two parts of the gate were re-read, and both are documented in code rather than quietly dropped.
+(1) "S&H steps visible in the waveform (edge-slope metric)" is measured as *pitch steps per second*
+and *the collapse of B's fundamental*: an edge count on a filtered engine waveform measured the
+waveform's own zero crossings (270 held vs 283 off) and said nothing. (2) "`lfo_amt < 0.5`
+decorrelates A and B in opposite phase" is asserted at the mapping layer (`lfoSignB` = −1 / +1 at
+equal depth) and only in *direction* in audio (level modulation at 2× the LFO rate: 0.122 in phase,
+0.144 opposite), because the fixed per-voice detune and phase of D-3 beat the A/B mix at a
+comparable level and are not a gene that can be closed. `testPitchStability` was deleted as §6.1
+said it must be.
+
+Two things the bullet list did not anticipate: the neutral `env_loop` maps to a 1.22 s period, so any
+test that wants a single slow dive has to set `env_loop` above the duration (R3 working as designed),
+and `b_sh` has no dead zone in the reference, so its hold is crossfaded in over the first 1/8 of the
+gene — the same compromise as `flt_kf`'s rails, and it belongs in the same paragraph of §2.
+
+The branch spread went 3.64 dB → **5.29 dB** while every case stayed inside the 6 dB target (60 of
+60). Cause named: three genes reached the output in this milestone and `loudnessCompensation` knows
+none of them — a held B loses most of its energy in the DC blocker, `mix_mod` moves a 50/50 mix, and
+the guard rail still assumes a pitch that does not move. That is §6.3's warning verbatim. **M5
+inherits**: a loudness model that knows topology, `flt_sep`, `b_sh`, `mix_mod` and a moving pitch;
+**M7 inherits**: the output re-tune (the dense scene is now 12 dB quieter than the M3 goldens and
+peaks at 0.76-0.85) and a re-read of the off-grid metric, which now reports LFO sidebands (0.285 at
+44.1 kHz) as if they were aliasing.
+
 ### M5 — The filter network as documented
 
 *Why here: it needs M1's stepped mapping and M4's modulation budget, and it changes the loudness

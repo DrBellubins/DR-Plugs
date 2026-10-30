@@ -1165,3 +1165,215 @@ bash /tmp/gen_golden.sh                                            # regenerate 
 allowed to change the audio — that is what the milestone is for. Next: **M4**, whose modulator
 is now this same clock (`a_mod`/`b_mod` as bipolar pitch modulation, `mix_mod`, the two S&H
 sources), and which must rewrite `testPitchStability` in the same commit.
+
+---
+
+## 14. Addendum 2026-10-30 — Rev 3 alignment **M4**: one LFO, two sample-and-holds, and the mod envelope reaches the pitch again
+
+Milestone M4 of `Docs/Rev3-Alignment-Plan.md`. What was already true after M3 — one clock, whose
+`modValue()` is the note's envelope and nothing else — is now pointed at the output: `a_mod`,
+`b_mod`, `mix_mod`, `lfo_*`, `mod_sh`, `b_sh`. 113 checks became **116**, all green; the VST3 and
+Standalone targets build with no new warnings.
+
+### What landed
+
+*`Source/Engine/Dsp.h`*
+* `SampleHold`, one re-quantizer used by both S&H sources. `process()` reports whether this sample
+  began a new step, which is how the voice knows to re-target without a ramp.
+* `enum LfoShape { kLfoSine, kLfoTriangle, kLfoSampleHold }`; the voice uses the sine.
+
+*`Source/Engine/VoiceParams.{h,cpp}`* — the mapping layer resolves the amounts, the voice applies them.
+* `aModSemis` / `bModSemis` in **semitones**, `mapGene` (bipolar, so `0.5` = 0 st, `0.0` = −12 st,
+  `1.0` = +12 st) × `kPitchModSemitoneCeiling = 12.0f`. The ceiling is the mapping layer's hard
+  bound; Atonality's convergence is the generation-time bound (R2, R7). Both are tested.
+* `lfo_amt` becomes `lfoDepth` (magnitude) + `lfoSignB` (±1: below the middle, B's LFO runs in the
+  opposite direction — the documented polarity).
+* `b_sh` becomes `bSampleHoldHz` (below neutral: B's own frequency ÷ 8…1, note-synced; above: free
+  0.5…16 Hz) + `bSampleHoldMix` (see the deviation below).
+* `mod_sh`'s `modSampleHoldHz` (resolved in M3, unused) now has its consumer.
+
+*`Source/Engine/Voice.{h,cpp}`*
+* The mod value is `env.modValue() * p.modScale` and *then* `modHold` — scale first, hold second,
+  which is the design's order and the one that keeps velocity a depth rather than a step size.
+* When a hold fires: `updateControlTargets(...)` then `applyTargetsImmediately()`. **The step is the
+  sound** (plan §6.4); ramping it away is what makes `mod_sh` inaudible.
+* `mix_mod` is added to the balance in *mix space* before the equal-power curve, so it slides over
+  the same 0.79 point `osc_mix` uses, and the two A/B gains become control-rate targets.
+* Tremolo per sample (`amp *= 1 + depth · lfoV`), vibrato at the control rate, both from one LFO;
+  `lfo_bal` is the equal-power split, `lfo_dly` a linear depth ramp after the documented onset.
+* The fixed LFO→filter path is gone (R6). The mod envelope stays a filter modulator; the LFO's
+  second destination is level, which is what gives `lfo_bal` a meaning.
+* Per-voice random LFO *shape* removed, random phase kept.
+* `b_sh` is a real second S&H on B's output, not an `oscBMode` mode.
+
+*`Source/Genetic/GeneTable.h`* — `lfo_dly`'s range corrected from 1.0 s to the documented **8.0 s**.
+
+*`Source/Genetic/Mutation.{h,cpp}`*
+* `BranchTraits::oscBMode` renumbered: `0` no trait, `1` sync, `2` ring mod. Ring-mod and sync stay
+  structural traits (R10); `b_sh` semantics no longer live in a trait. `resolveTraits` picks
+  `1 + rng.integer(2)`.
+* `loudnessCompensation` learned tremolo: a rising `√(1 + d²/2)` for a depth `d` at the balance's
+  sin² weight — but only scaled by how many LFO cycles fit inside a nominal note (`cycles − 1` over
+  3). Ungated it over-corrected slow LFOs, because a note that contains one and a half cycles is
+  not the same signal as a tremolo.
+
+### Deviations, on purpose
+
+1. **`b_sh` at neutral must be silent, and the reference gives the gene no dead zone.** The gene's
+   neutral is `0.0`, its range starts at `0.0`, so there is nowhere to put a gate. The mapping layer
+   crossfades the hold in over the first 1/8 of the range (`bSampleHoldMix = smoothStep(v/0.125)`):
+   the neutral genome is bit-identical in its resolved mix (0) and the gene is audible immediately
+   above it. This is the same compromise as `flt_kf`'s rails in M1 and belongs in the same paragraph
+   of §2 if the reference is ever re-read.
+2. **The ceiling lives in the mapping layer, not in the voice.** `kPitchModSemitoneCeiling` is a
+   named constant so a test can state the bound against the gene table rather than against a magic
+   number in DSP code.
+3. **A repeat is still a whole envelope** (M3's deviation) and it bit this milestone: the neutral
+   `env_loop` maps to a 1.22 s period, so a long `env_time` *repeats* at 1.22 s. Any test that wants
+   one slow dive must set `env_loop` above the duration. That is not a bug and it is not a
+   deviation; it is the R3 reading working, and the test now says so in a comment.
+
+### Measurement 1 — the pitch gates, and a probe that had to be replaced
+
+`testPitchStability` is **deleted**; `testPitchModulation` replaces it, in audio:
+
+| case | measured |
+| --- | --- |
+| genes at neutral | 261 Hz → 262 Hz, **+0 cents** over the note (the surviving half of the old gate) |
+| `a_mod = 0.0`, atonality 1 | 238 Hz → **131 Hz**, **−1194 cents** at the peak of the mod envelope |
+| same, atonality 0 | +0 cents, and the dive is gone — the plant cannot ask for it |
+| ceiling | never below `2^(-12.5/12)` of the pressed note, with the ±tens of cents of per-voice detune and drift allowed for (D-3) |
+
+The first version of this measured **−360 cents** for a true octave, twice over for two separate
+reasons, and both are now fixed in the test code:
+
+* cents are `1200 · log2`, not `1200 · log10`. Three places in this file had the second; it
+  understates every interval by ×1.667 and had been passing because its thresholds were tuned
+  against it. Found only because a measured octave looked wrong.
+* Autocorrelation period tracking is **useless on a sweeping pitch**: over a wide lag range it
+  alternates between the fundamental and an octave above, and that reads as modulation that is not
+  there. The pitch tests now use `peakHz`, a Hann-windowed DFT over a *stated band* with parabolic
+  interpolation, which picks the **lowest partial reaching half the strongest** — this synth puts
+  more energy in the second partial than in the first (the colour term adds an octave up, and an A/B
+  mix detuned by a few cents splits the fundamental), so the loudest bin is usually not the pitch.
+  `testModulationProbesOnKnownSignals` now feeds that probe a synthetic 261→130 Hz dive whose
+  instantaneous frequency is known to the cent: it reads **0 cents off**. That gate is what makes
+  every number above mean something.
+
+One more trap worth recording, because it cost two runs: the file's `kTwoPi` already contains the
+2π. A hand-written `2.0 * kTwoPi` doubles every analysed frequency, which is exactly why "the 220 Hz
+tone reads 110 Hz".
+
+### Measurement 2 — one LFO, its balance, its delay, its polarity
+
+* `lfo_rate 0.78` resolves to 6.00 Hz and everything moves at 6.00 Hz: tremolo depth measured at
+  6 Hz is **0.528** at `lfo_bal = 0.5`, and moving only the rate to 1.61 Hz drops it to **0.084**.
+* The balance is a continuum, not two switches: `lfo_bal` 0.0 / 0.5 / 1.0 → tremolo **0.061 /
+  0.528 / 0.770** against period modulation 0.092 / 0.065 / 0.000. The gate asserts the response is
+  monotone and the ends are dominant, not that they are exclusive — a 0.5 split of two *quadrature*
+  destinations is not a switch, and the first version of this assertion failed on a correct engine.
+* `lfo_dly` measures an onset, not silence: at a 1.60 s delay the tremolo is **0.195** before it and
+  **0.434** after, against **0.571** with no delay at the same place. The depth ramps in (the design
+  says "onset fade"); asking for literal silence at t = 0.1 × delay was a test bug.
+* **The `lfo_amt < 0.5` polarity half of the gate is asserted at the mapping layer, and only its
+  direction in audio.** A/B in opposite phase cancels twice per LFO period, so its level modulation
+  sits at *twice* the LFO rate: measured 0.122 in phase, **0.144** in opposite. The direction is
+  right and the effect is small because the fixed per-voice detune and phase (D-3, not a gene, and
+  not closable) beat the A/B mix at a comparable level. The mapping test asserts the thing that is
+  actually decided: `lfoSignB` is −1 below the middle, +1 above, with the same depth magnitude.
+  Making the audio half of this strong would need either a per-voice detune gene (Rev 3 does not
+  have one) or a second measurement that resolves 6 Hz and 3.5 Hz apart, which is a longer window
+  than a note of this length gives.
+
+### Measurement 3 — the two sample-and-holds, measured as steps
+
+* `mod_sh 0.79` (resolved 4.0 Hz): the pitch jumps **2.5 times a second** across the note, against
+  **0.0** with the gene at neutral. Counting the *steps* rather than the waveform's edges is the
+  difference: the earlier edge metric gave 270 steps held against 283 off, i.e. it measured the
+  waveform's own zero crossings. The jump detector compares each step against three times the
+  typical movement, which is what separates a re-quantised ramp from a smooth one.
+* `b_sh 0.75`: only **5.3 %** of B's fundamental is left in the spectrum, against 100 % at neutral
+  (with `osc_mix` at B alone and the amp held at unity). "A held oscillator has no fundamental" is
+  the honest way to see a hold through a DC blocker; a flatness metric on the waveform read 0.05
+  held against 0.004 unheld, because a filtered held step still rings.
+
+### Measurement 4 — the batch, and the spread going up on purpose
+
+| | M3 | M4 |
+| --- | --- | --- |
+| cases inside ±6 dB | 60 / 60 | **60 / 60** |
+| worst branch vs seed | +3.64 / −1.58 dB | **+1.00 / −5.29 dB** |
+| worst DC | 0.00325 | 0.00349 |
+| quietest case rms | 0.0578 | 0.0597 |
+| loudest peak | 0.734 | 0.734 |
+| centroid range | 238 … 1470 Hz | 272 … 1470 Hz |
+
+The gate is now the target itself (60 of 60 inside ±6 dB) with one notch of slack, and the spread
+widening is a known, named consequence rather than a mystery: three genes reached the output in this
+milestone that did not reach it before. `b_sh` puts B through a sample-and-hold, and the DC blocker
+then removes most of its energy; `mix_mod` moves a 50/50 mix under the equal-power curve; `a_mod` /
+`b_mod` move the whole voice an octave while the guard rail still assumes a static pitch.
+`loudnessCompensation` learned duration in M3 and tremolo here, and has not learned those three.
+That is plan §6.3's warning verbatim, and M5 owns the loudness model that knows topology,
+separation and the sources of level — with M7's output stage and limiter behind it. The branch that
+moved most is branch 0 at lengths 0.75 and 1.0 (−3.82 / −5.29 dB, hold level −12.4 / −15.0 dB): a
+non-sustaining branch whose genes now do more, i.e. the same shape as M3's eleven, and it is
+measurable in the batch's per-case table rather than hidden in a summary.
+
+The baseline table in `testM2BaselineAudio` was re-pinned (it prints "the audio table, re-pinned
+after M4 (baseline for M5+)"); reproducing it is exact to **1.80e-06 relative**, which is the half
+of this milestone that proves nothing unintended changed. Post-M4, instrument at rest, 12 branches of
+the `render-seed` seed at 48 kHz / 2 s, rms: 0.0252168, 0.0248398, 0.0293937, 0.0234855, 0.0231596,
+0.0234624, 0.0248778, 0.0277567, 0.0277592, 0.0230166, 0.0309153, 0.0269386. These are ~0.7 dB
+under M3's table: the pitch modulation moves energy around the fixed part of the filter response.
+
+### Measurement 5 — the goldens, re-hashed
+
+The documented set (`seed 1`, `density 10`, all branches at 0.6) regenerated in `Tests/Golden/`:
+
+| file | time | frames | fnv1a64 | peak | rms | centroid | flat | off grid |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `Golden22050.wav` | 300 s | 6 615 000 | `1291315fb7df286e` | 0.821 | 0.0767 | 772 Hz | 0.350 | 0.000 |
+| `Golden44100.wav` | 300 s | 13 230 000 | `c782443ba7b676a0` | 0.770 | 0.0773 | 941 Hz | 0.225 | **0.285** |
+| `Golden48000.wav` | 300 s | 14 400 000 | `671438168f3fca6e` | 0.763 | 0.0773 | 844 Hz | 0.149 | **0.168** |
+| `Golden96000.wav` | 150 s | 14 400 000 | `81aa765b0b252e3f` | 0.848 | 0.0811 | 385 Hz | 0.023 | 0.000 |
+| `Golden192000.wav` | 60 s | 11 520 000 | `990872e2bd05aef8` | 0.769 | 0.0910 | 574 Hz | 0.009 | 0.000 |
+
+All five then pass `performTest … --tolerance 0` against a fresh render: `maxdiff 0.000000 (max 0
+lsb)`. Two things changed in that table and both are owned by later milestones:
+
+* **The dense scene is 12 dB quieter than the M3 goldens** (rms 0.077 vs 0.24) and peaks at
+  0.76-0.85 rather than 0.92-0.97. M3 said the instrument at rest is ~8 dB quieter; at density 10
+  the difference is larger, because the mod envelope's attack and the sustain floor apply to every
+  voice in a dense scene. M7 tunes this.
+* **Off-grid energy appeared at 44.1/48 kHz** (0.285 / 0.168, where M3 measured 0.000 / 0.081).
+  Vibrato and tremolo are sidebands: a 6 Hz LFO puts energy ±6 Hz around every partial, and the
+  metric calls energy that is not on the note's harmonic grid off-grid. This is not aliasing and it
+  is not a bug — but it means M6's oversampling work must be judged against a scene that has
+  modulation in it, and the metric needs an octave of tolerance around each partial before it can
+  keep being an aliasing instrument. Filed as an M6 note.
+
+### Measurement 6 — the soak, and the headroom going the other way
+
+`soak --rounds 1000`: **0 unusable** — no NaN, no silence, no DC, and for the first time **no
+scene reached hard clipping at all** (M3 measured 3 in 1000, worst peak 1.0104). Read the printed
+`worst peak 0.0000` correctly: `Render.cpp` only accumulates `worstPeak` above 0.995 and `worstDc`
+above 0.05, so a zero there means *nothing came close*, not *nothing was measured*. Nothing is
+clipping because nothing is loud: M3's envelope and M4's modulation took the dense scene down ~12 dB
+(Measurement 5). M7's `Volume` curve and limiter therefore have to *make up* level, not only bound
+it, and its gate should be stated as a target rms rather than as a clipping rate.
+
+### Run it
+
+```
+cmake --build cmake-build-debug --target GenoMosh_Tests && ./cmake-build-debug/Tests/GenoMosh_Tests   # 116 checks
+cmake --build cmake-build-debug && cd cmake-build-debug && ctest -j1
+./cmake-build-debug/Tests/GenoMosh_Tests batch                     # the per case table, with the ±6 dB names
+./cmake-build-debug/Tests/GenoMosh_Tests soak --rounds 1000
+bash /tmp/gen_golden.sh                                            # regenerate + verify the five goldens
+```
+
+Next: **M5**, the filter network as documented (`flt_type` as a gene, four topologies, crossfaded
+changes, `flt_sep`, `flt_kf`) — and with it the loudness model that has to learn topologies,
+separation, `b_sh`, `mix_mod` and a pitch that moves, because the branch spread is now 5.29 dB and
+the 6 dB target has one notch left.
