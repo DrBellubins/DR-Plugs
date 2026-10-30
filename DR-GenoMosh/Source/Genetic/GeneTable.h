@@ -29,8 +29,8 @@ namespace gmosh
 // offsets, vibrato, drift, per voice detune). Atonality is a ceiling on those
 // genes at generation time, see Mutation.h / applyAtonality.
 //
-// Gene semantics below follow the design document (4.2); the curves, ranges,
-// sensitivities and soft ranges are our own choices. Tune by ear.
+// Everything here is an [inferred] guess from the reference product's parameter
+// names, exactly as flagged in the design document. Tune by ear.
 #define GENO_MOSH_GENE_LIST(X) \
     /* --- amplitude envelope ------------------------------------------------ */ \
     X(vol_atk,   "Amp Attack",   Curve::Exp,     0.001f,   4.0f,  GrpAmp,   0.50f, 0.02f, 0.75f, 0) \
@@ -145,7 +145,7 @@ inline Group geneGroup (std::size_t gene) { return kGenes[gene].group; }
 // Plant layout.
 enum
 {
-    kNumBranches = 12,        ///< one branch per pitch class
+    kNumBranches = 12,        ///< one branch per pitch class [inferred]
     kNumDirections = 3,       ///< guard rail retries (5.6 "silence rejection")
 };
 
