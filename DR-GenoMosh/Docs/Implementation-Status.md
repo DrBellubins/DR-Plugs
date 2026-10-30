@@ -442,3 +442,139 @@ The macro column is split by what the controls actually are:
 
 `Layout` in `PluginEditor` now carries `knobRowTop`, `knobRowBottom` and
 `macroPlate` instead of one column rect.
+
+## 10. Addendum 2026-10-30 — the envelope becomes a pluck; the modulator follows it
+
+The Rev 3 / Rev 4 work was reverted (it stopped sounding organic and had audible
+bugs), but two parts of it were wanted: the envelope, and the modulation. This
+addendum is what landed on top of the reverted code. **The genetic engine was
+not touched**: `GeneTable` (43 genes, ranges, curves, sensitivities, soft
+ranges), `Mutation` (directions, distance response, traits, couplings, safety
+score, atonality, loudness compensation), `PlantEngine`, growth and the UI all
+still behave exactly as before, so a seed still grows the same plants and the
+same kind of variety.
+
+### What the envelope is now
+
+`Source/Engine/Dsp.h`: `Env` (the smoothed ADSR) is gone. `SharedEnv` is one
+clock and two curves multiplied:
+
+```
+amp(t) = pluck (phase)  ×  outer (t / duration)  ×  gate
+mod(t) = pluckM(phase)  ×  outer (t / duration)  ×  gate
+```
+
+* the **pluck** starts at zero, rises to a single peak, falls back to zero. It
+  never plateaus, and it repeats at `period`. Its fall is a fixed curve
+  (`kPluckFallExponent = 0.6`: fast drop, long tail) — a gene is allowed to bend
+  the *rise*, never the fall, because a gene that can flatten the fall is what
+  turned the pluck into a straight ramp with a linear window.
+* the **outer** curve is a level applied to the whole train of plucks: 1.0 →
+  `vol_sus` over `env_time`, bent by `vol_dcy`. `env_time ≥ 0.9` means *no
+  outer decay at all* — endless plucks until the key is released. Nothing to
+  settle to (`vol_sus ≈ 0`) means the note ends by itself and frees its voice.
+* **note off** is a fade from wherever the level currently is (`vol_rel`), so a
+  voice can be released in the middle of a pluck without clicking.
+* both curves are evaluated through a 512 entry wavetable built at note on, so
+  the sample loop does no `pow()` and a parameter can never zipper a held note.
+
+`Voice` holds one `SharedEnv` instead of three envelopes (`ampEnv`, `modEnv`,
+`loopEnvOneShot`), and the voice stealing meter (`ampLevel()`) became a slow
+peak follower: with a pluck envelope a voice is at zero twice per cycle, and it
+must not be stolen for being "quiet" between two of its own plucks.
+
+### What the genes mean now (mapping layer only, `VoiceParams.cpp`)
+
+| gene | before | now |
+| --- | --- | --- |
+| `env_time` | loop period / shape time | the level decay over the repeats; ≥0.9 = none |
+| `env_loop` | 0..1 "loop amount" | the period of one pluck, 30 ms … 16 s |
+| `env_tilt` | triangle duty | where the peak sits in the cycle (neutral = 6 % = a plain pluck, top = swell) |
+| `vol_atk` | attack time | curvature of the pluck's rise (0.5 = straight) |
+| `vol_dcy` | decay time | how the outer fade bends (high = holds, then collapses) |
+| `vol_sus` | sustain level | the floor the repeats settle at (unchanged value semantics) |
+| `vol_rel` | release time | unchanged |
+| `mod_atk` / `mod_dcy` | mod ADSR times | where the modulator's peak sits relative to the level's, and how much of the level's fall window it uses |
+| `mod_sh` | exponent on the mod curve | sample and hold on the modulator, off until 0.75, 8 Hz → 0.1 Hz |
+| `a_mod` / `b_mod` | oscillator *timbre* amount | bounded **pitch** modulation per pluck, hard capped at ±12 st in the mapping layer |
+| `lfo_bal` | pitch / filter split | equal power **vibrato / tremolo** split; the LFO is free (never envelope scaled) |
+
+Two things worth flagging, both deliberate:
+
+1. **The table still documents the old units.** `vol_atk`, `vol_dcy`,
+   `mod_atk`, `mod_dcy` are `Exp` seconds and `env_loop` is a `Linear` amount in
+   `GeneTable.h`, and only the mapping layer interprets them as curvature and as
+   a period. Every gene's *direction* is preserved (a plant that was punchy is
+   still punchy), which is why the same seeds stay recognisable. Making the table
+   metadata honest is a separate change to `curve/min/max` only — sensitivities
+   and soft ranges would not move, so it is still a genetics decision and was
+   left to the operator.
+2. **`vol_sus` is *not* gated at 0.5** the way the failed Rev 3 design gated it.
+   A plant's sustain is used as the floor directly. That is a large part of why
+   this did not reproduce the failed design's level collapse.
+
+### Modulation
+
+`modSource` stays a structural trait, and its three values still mean "this
+branch modulates from something else", but the sources are the new ones: 0 = the
+pluck's own curve (the default), 1 = the outer curve only (a slow modulator that
+follows the note rather than each pluck), 2 = the LFO. Velocity scales the
+modulator once (`VelSens × mod_vel`), `mod_sh` re-quantises it and is *not*
+smoothed (the step is the sound). Destinations: pitch (`a_mod` / `b_mod`,
+bounded), filter cutoff (`flt_mod`), FM index (`fm_mod`). The LFO adds vibrato
+and tremolo at one rate for the whole note, and the drift generators are
+unchanged. The old `a_mod` → oscillator colour route is gone; timbre movement
+comes from the filter, the FM and the pluck itself.
+
+### Measured
+
+`GenoMosh_Tests`: **56 checks, 0 failures** (was 20). `cmake --build
+cmake-build-debug` builds VST3 + Standalone + tests, no new warnings.
+
+New tests, all of them asserting a property rather than a snapshot:
+
+* `testEnvelopeMapping` (17 checks) — the mapping layer: no outer decay at the
+  top of `env_time`, period monotone in `env_loop` and never longer than the
+  note, peak position monotone in `env_tilt` and a plain pluck at neutral,
+  `vol_sus` as the floor, straight curves at 0.5, the modulator's peak inside
+  the cycle, the `mod_sh` gate, pitch amounts bounded at an octave and zero at
+  neutral, the equal power vibrato/tremolo split.
+* `testPluckEnvelope` (13 checks) — the block: peaks where tilt says, reaches
+  full level, never plateaus, returns to zero, repeats identically, the outer
+  curve lands exactly on the floor and holds, `vol_dcy` bends it, a note with no
+  floor ends by itself, note off fades without a click (largest sample to sample
+  step < 0.02), and the modulator can finish while the level is still up.
+* `testModulationReachesAudio` (5 checks) — pitch measured off real audio by
+  interpolated upward zero crossings (an autocorrelation cannot read a pulsed
+  level): 1 cent of excursion with `a_mod` neutral, 910 cents with it open, never
+  past the octave; the tremolo half moves the level of a held note
+  (0.060 … 0.075 relative wiggle at ~2 Hz) and does not change its mean level
+  (+2.6 dB).
+
+Level table (`testRender`, 12 branches at distance 0.85, 48 kHz, seed
+`render-seed`, before → after): peaks 0.44…0.58 → 0.45…0.54, rms 0.064…0.087 →
+0.055…0.070, DC ≤ 5e-4 everywhere, every branch still audible, all twelve still
+inside 12 dB of each other.
+
+Peaks are unchanged; the average level came down ~1.3 dB. No makeup gain was
+added — the pluck's duty (0.62 for a neutral shape) is *higher* than the old
+ADSR's, so the difference is only the outer decay doing its job. The first
+attempt at this did collapse the level by 6 dB: that was slow `env_loop` values
+leaving the voice rising for longer than the note, and it is fixed by the rule
+the reference itself states — **a pluck longer than the note is one pluck
+spanning the note** (`period = min (period, duration)`), which is asserted in
+`testEnvelopeMapping`.
+
+### Known holes left open on purpose
+
+* `testPitchStability` keeps its assertion but its seed now sets `a_mod` /
+  `b_mod` to neutral, so it measures "nothing *else* moves the pitch". What the
+  modulator does when it is open is `testModulationReachesAudio`.
+* `a_mod` / `b_mod` are not `kFlagPitch`, so atonality does not converge them.
+  The octave ceiling in the mapping layer is what keeps that playable. Adding the
+  flag is a one line genetics change for the operator to make or refuse.
+* The LFO's waveform is still random per voice (sine / triangle / sample and
+  hold). The failed design forced a sine; nothing here asked for that, and the
+  random shape is part of the current variety — but it is why the tremolo probe
+  asserts "moves the level, keeps the mean" rather than "vibrato leaves the level
+  completely alone".

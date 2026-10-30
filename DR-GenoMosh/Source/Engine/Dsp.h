@@ -188,77 +188,232 @@ private:
 };
 
 //==============================================================================
-// Envelopes.
+// The envelope.
 //
-// Deliberately built as smoothed first order stages rather than hard ramps:
-// they can never click when a parameter moves, which matters because branch
-// lengths and the wheel move under a held note.
+// Not an ADSR. The instrument's envelope is *one clock and two curves that are
+// multiplied together*:
+//
+//     amp(t) = pluck (phase)  x  outer (t / duration)  x  gate
+//     mod(t) = pluckM(phase)  x  outer (t / duration)  x  gate
+//
+// The inner curve is a pluck: it starts at zero, rises to a single peak and
+// falls back to zero. It never plateaus, and it repeats at `period`. Rapidly
+// repeating plucks on a held key are the intended sound.
+//
+// The outer curve is not a second envelope shape, it is a level decay applied
+// to the whole train of plucks: it falls from 1.0 to `floor` over `duration`
+// seconds. `duration <= 0` means no decay at all, i.e. the pluck train runs at
+// full level until the key is released.
+//
+// The modulator is the *same* curve on the *same* clock, with its own peak
+// position and its own fall window; it has no shape of its own. Everything the
+// mapping layer needs to decide is in Shape; this class derives nothing.
+//
+// Both curves are evaluated through a small wavetable built when the voice is
+// started, so the audio loop does no pow() and moving a parameter never clicks
+// mid note (a fresh note is always built from scratch).
 //==============================================================================
-class Env
+class SharedEnv
 {
 public:
-    enum Stage : unsigned char { Idle, Attack, Decay, Release };
+    // The pluck's fall is deliberately not a parameter: that curve is what
+    // makes the shape a pluck. Giving it a gene is what turns it into a
+    // straight ramp and the voice into a click.
+    static constexpr float kPluckFallExponent = 0.6f;   // <1 = fast drop, long tail
+    static constexpr int   kTableSize = 512;
+
+    struct Shape
+    {
+        float period = 1.0f;        ///< pluck period in seconds (<0 = one very long pluck)
+        float peakPos = 0.06f;      ///< where the pluck peaks, as a fraction of the period
+        float riseExp = 1.0f;       ///< curvature of the rise into the peak (1 = linear)
+        float fallExp = kPluckFallExponent;
+        float duration = 0.0f;      ///< outer decay time; <= 0 = no outer decay
+        float outerExp = 1.0f;      ///< curvature of the outer decay (1 = linear)
+        float floorLevel = 0.0f;    ///< where the outer decay settles
+        float release = 0.25f;      ///< note off fade, from the level it is at
+        float modPeak = 0.06f;      ///< the modulator's own peak position
+        float modFallScale = 1.0f;  ///< fraction of the level's fall window the mod uses
+    };
 
     void setSampleRate (double sampleRate) { sr = static_cast<float> (sampleRate); }
 
-    void setTimes (float attack, float decay, float sustain, float release)
+    void setShape (const Shape& s)
     {
-        aC = timeCoef (attack);
-        dC = timeCoef (decay);
-        rC = timeCoef (release);
-        sus = sustain;
+        shape = s;
+
+        // A period of about an hour is "one pluck that never gets to repeat";
+        // anything faster than 2 ms is treated as an audio rate tremolo.
+        const float period = (s.period > 0.002f ? s.period : 3600.0f);
+        phaseInc = 1.0f / (period * sr);
+
+        outerInc = (s.duration > 0.0f) ? 1.0f / (s.duration * sr) : 0.0f;
+        releaseCoef = 1.0f - std::exp (-1.0f / (std::max (s.release, 0.01f) * sr));
+
+        buildTable (curve, s.peakPos, s.riseExp, s.fallExp, 1.0f);
+        buildTable (modCurve, s.modPeak, s.riseExp, s.fallExp, s.modFallScale);
     }
 
     void gateOn()
     {
-        if (stage != Attack)
-            stage = Attack;
+        phase = 0.0f;
+        outerPos = 0.0f;
+        gateLevel = 1.0f;
+        stage = Running;
     }
 
     void gateOff()
     {
-        if (stage != Idle)
-            stage = Release;
+        if (stage == Running)
+            stage = Releasing;
     }
 
-    float process()
+    void process()
     {
-        switch (stage)
+        if (stage == Idle)
         {
-            case Attack:
-                value += (1.0f - value) * aC;
-                if (value > 0.999f) { value = 1.0f; stage = Decay; }
-                break;
-            case Decay:
-                value += (sus - value) * dC;
-                break;
-            case Release:
-                value += (0.0f - value) * rC;
-                if (value * value < 1.0e-7f) { value = 0.0f; stage = Idle; }
-                break;
-            case Idle:
-            default:
-                value = 0.0f;
-                break;
+            amp = mod = 0.0f;
+            return;
+        }
+
+        phase += phaseInc;
+        if (phase >= 1.0f)
+            phase -= 1.0f;
+
+        if (outerInc > 0.0f)
+        {
+            outerPos += outerInc;
+            if (outerPos > 1.0f)
+                outerPos = 1.0f;
+        }
+
+        if (stage == Releasing)
+        {
+            gateLevel -= gateLevel * releaseCoef;
+            if (gateLevel < 1.0e-4f)
+            {
+                gateLevel = 0.0f;
+                stage = Idle;
+            }
+        }
+
+        const float outer = outerOf();
+        amp = readTable (curve, phase) * outer * gateLevel;
+        mod = readTable (modCurve, phase) * outer * gateLevel;
+
+        // A note with nothing to settle to ends by itself. The outer curve is
+        // exactly zero at that point, so this cannot click.
+        if (stage == Running && outerPos >= 1.0f && shape.floorLevel <= 1.0e-3f)
+            stage = Idle;
+    }
+
+    float ampValue() const { return amp; }
+    float modValue() const { return mod; }
+
+    /// The outer curve on its own: a slow modulator that follows the note as a
+    /// whole instead of following every pluck.
+    float outerValue() const { return outerOf() * gateLevel; }
+
+    bool isIdle() const { return stage == Idle; }
+    void reset() { stage = Idle; amp = mod = 0.0f; gateLevel = 0.0f; phase = 0.0f; outerPos = 0.0f; }
+
+private:
+    static float curveAt (float ph, float peak, float riseExp, float fallExp, float fallWindow)
+    {
+        if (ph <= 0.0f)
+            return 0.0f;
+        if (ph < peak)
+        {
+            const float u = ph / peak;
+            return std::pow (u, riseExp);
+        }
+        const float window = (1.0f - peak) * std::max (fallWindow, 0.0f);
+        if (window <= 1.0e-6f)
+            return 0.0f;
+        const float w = (ph - peak) / window;
+        if (w >= 1.0f)
+            return 0.0f;
+        return std::pow (1.0f - w, fallExp);
+    }
+
+    void buildTable (float* t, float peak, float riseExp, float fallExp, float fallWindow)
+    {
+        peak = clampf (peak, 0.005f, 0.98f);
+        for (int i = 0; i < kTableSize; ++i)
+            t[i] = curveAt (static_cast<float> (i) / static_cast<float> (kTableSize - 1),
+                            peak, riseExp, fallExp, fallWindow);
+    }
+
+    static float readTable (const float* t, float ph)
+    {
+        ph = clamp01 (ph);
+        const float pos = ph * static_cast<float> (kTableSize - 1);
+        const float posFloor = std::floor (pos);
+        const int i0 = static_cast<int> (posFloor);
+        const int i1 = i0 + 1 < kTableSize ? i0 + 1 : i0;
+        const float frac = pos - posFloor;
+        return t[i0] + (t[i1] - t[i0]) * frac;
+    }
+
+    float outerOf() const
+    {
+        if (outerInc <= 0.0f)
+            return 1.0f;
+        const float floorL = clamp01 (shape.floorLevel);
+        if (outerPos <= 0.0f)
+            return 1.0f;
+        if (outerPos >= 1.0f)
+            return floorL;
+        // Counted from the top down: (1 - q) is exact at both ends, and a floor
+        // of zero lands on exactly zero rather than on a rounding error.
+        return floorL + (1.0f - floorL) * std::pow (1.0f - outerPos, shape.outerExp);
+    }
+
+    enum Stage : unsigned char { Idle, Running, Releasing };
+
+    Shape shape;
+    float sr = 44100.0f;
+    float phaseInc = 0.0f, outerInc = 0.0f, releaseCoef = 0.01f;
+    float phase = 0.0f, outerPos = 0.0f, gateLevel = 0.0f;
+    float amp = 0.0f, mod = 0.0f;
+    Stage stage = Idle;
+
+    float curve[kTableSize] {};
+    float modCurve[kTableSize] {};
+};
+
+//==============================================================================
+/// Sample and hold on an existing signal. Used on the modulator (mod_sh), which
+/// turns "a pluck following the envelope" into "a squared envelope that still
+/// follows the envelope". The step is the sound, so nothing here smooths it.
+class SampleHold
+{
+public:
+    void setSampleRate (double sampleRate) { sr = static_cast<float> (sampleRate); }
+
+    /// 0 Hz means pass through.
+    void setRateHz (float hz)
+    {
+        inc = hz > 0.0f ? std::min (hz / sr, 0.5f) : 0.0f;
+    }
+
+    float process (float x)
+    {
+        if (inc <= 0.0f)
+            return x;
+        phase += inc;
+        if (phase >= 1.0f)
+        {
+            phase -= 1.0f;
+            value = x;
         }
         return value;
     }
 
-    bool isIdle() const { return stage == Idle; }
-    float valueOf() const { return value; }
-    void reset() { value = 0.0f; stage = Idle; }
+    void reset() { phase = 0.0f; value = 0.0f; }
 
 private:
-    float timeCoef (float seconds) const
-    {
-        const float t = seconds < 0.0005f ? 0.0005f : seconds;
-        return 1.0f - std::exp (-1.0f / (t * sr));
-    }
-
-    float sr = 44100.0f;
-    float aC = 1.0f, dC = 1.0f, rC = 1.0f, sus = 0.0f;
-    float value = 0.0f;
-    Stage stage = Idle;
+    float sr = 44100.0f, inc = 0.0f, phase = 0.0f, value = 0.0f;
 };
 
 //==============================================================================

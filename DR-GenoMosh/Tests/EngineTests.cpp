@@ -3,6 +3,11 @@
 //   * phase 1/2 acceptance: curve round trips, ratio snapping direction (5.5),
 //     determinism, distance 0 returns the seed, deviation grows with distance,
 //     guard rails hold;
+//   * the envelope: what the vol_*/env_* genes resolve to (mapping layer), and
+//     what SharedEnv does with them (a pluck, repeated, with a level decay over
+//     the repeats);
+//   * the modulation: bounded pitch modulation from the pluck, and a free LFO
+//     whose tremolo half rides on top of the envelope;
 //   * a numeric check of the trapezoidal SVF against a reference biquad;
 //   * an offline render of every branch at several distances with level,
 //     silence, NaN and DC checks, plus a bit identical reproducibility test.
@@ -516,8 +521,11 @@ static void testPitchStability()
     seed[g_a_noise]    = 0.0f;
     seed[g_b_noise]    = 0.0f;
     seed[g_env_loop]   = 0.0f;
-    seed[g_a_mod]      = 0.9f;   // large mod amount, both oscillators
-    seed[g_b_mod]      = 0.9f;
+    // This test is about everything *except* the mod envelope: a_mod / b_mod are
+    // at neutral (no pitch modulation) so the assertion below measures the rest
+    // of the voice. What a_mod does when it is open is testModulationReachesAudio.
+    seed[g_a_mod]      = 0.5f;
+    seed[g_b_mod]      = 0.5f;
     seed[g_mod_atk]    = 0.4f;   // peaks tens of ms after the note, decays over ~0.35 s
     seed[g_mod_dcy]    = 0.55f;
     seed[g_vol_atk]    = 0.05f;
@@ -606,6 +614,507 @@ static void testPitchStability()
 
     check (ok, "a held note keeps the pitch it was pressed at");
     std::printf ("       worst pitch movement while held: %.1f cents\n", worstCents);
+}
+
+//==============================================================================
+// The envelope mapping: what the vol_*/env_* genes mean now.
+//
+// This is asserted at the mapping layer rather than in audio on purpose: these
+// are the numbers the DSP is handed, and a plant's articulation is decided
+// here, not in the sample loop.
+//==============================================================================
+static void testEnvelopeMapping()
+{
+    std::printf ("envelope + modulation mapping\n");
+
+    const MutationParams mp;
+    const uint64_t seedId = hash::fromString ("mapping-seed");
+    Genome seed {};
+    Rng rng (seedId);
+    randomizeGenome (seed, rng);
+
+    auto resolve = [] (const Genome& g) {
+        VoiceParams p;
+        BranchTraits traits {};   // default traits, no growth
+        MacroValues macros;       // the plugin's macros
+        resolveVoiceParams (g, traits, macros, 60, 1.0f, p);
+        return p;
+    };
+
+    // env_time at the top of its range means no level decay at all: the pluck
+    // train runs at full level until the key is released.
+    Genome g = seed;
+    g[g_env_time] = 0.95f;
+    check (resolve (g).envShape.duration <= 0.0f,
+           "env_time at the top of its range asks for no outer decay");
+    g[g_env_time] = 0.5f;
+    const float midTime = resolve (g).envShape.duration;
+    check (midTime > 0.0f, "env_time below that gate resolves to a real decay time");
+
+    // env_loop is the period of one pluck, monotone, and never longer than the
+    // note it sits in (a longer pluck is one pluck spanning the note).
+    float lastPeriod = -1.0f;
+    bool monotone = true, clamped = true;
+    for (float v = 0.0f; v <= 1.0f; v += 0.1f)
+    {
+        g[g_env_loop] = v;
+        const VoiceParams p = resolve (g);
+        if (p.envShape.period < lastPeriod) monotone = false;
+        if (p.envShape.period > midTime + 1.0e-4f) clamped = false;
+        lastPeriod = p.envShape.period;
+    }
+    check (monotone, "env_loop raises the pluck period monotonically");
+    check (clamped, "a pluck is never longer than the note it repeats in");
+
+    // env_tilt moves the peak along the cycle. Neutral must stay a plain pluck.
+    g[g_env_loop] = 0.5f;
+    float lastPeak = -1.0f;
+    bool peakMonotone = true, peakSane = true;
+    for (float v = 0.0f; v <= 1.0f; v += 0.1f)
+    {
+        g[g_env_tilt] = v;
+        const float pk = resolve (g).envShape.peakPos;
+        if (pk < lastPeak) peakMonotone = false;
+        if (pk < 0.005f || pk > 0.96f) peakSane = false;
+        lastPeak = pk;
+    }
+    g[g_env_tilt] = 0.5f;
+    check (peakMonotone && peakSane, "env_tilt moves the pluck peak along the cycle, in range");
+    check (resolve (g).envShape.peakPos < 0.12f, "env_tilt at neutral is a plain pluck, not a swell");
+
+    // vol_sus is the floor the repeats settle at; vol_atk / vol_dcy only bend
+    // the curves (a gene at 0.5 is a straight line, both ways).
+    check (resolve (g).envShape.floorLevel == clamp01 (g[g_vol_sus]),
+           "vol_sus is the level the outer curve settles at");
+    g[g_vol_atk] = 0.5f;
+    g[g_vol_dcy] = 0.5f;
+    const VoiceParams straight = resolve (g);
+    check (std::abs (straight.envShape.riseExp - 1.0f) < 1.0e-4f
+           && std::abs (straight.envShape.outerExp - 1.0f) < 1.0e-4f,
+           "vol_atk / vol_dcy at neutral are a straight rise and a straight fade");
+    g[g_vol_atk] = 0.05f;
+    check (resolve (g).envShape.riseExp < straight.envShape.riseExp,
+           "vol_atk low is a punchy rise, high is a soft one");
+
+    // The modulator is the same curve with its own timing, and it can only ever
+    // sit inside the cycle. mod_sh is a sample and hold that stays off until
+    // well up its range, fastest just past the gate.
+    g[g_mod_atk] = 0.0f;
+    const float early = resolve (g).envShape.modPeak;
+    g[g_mod_atk] = 1.0f;
+    const float late = resolve (g).envShape.modPeak;
+    check (late > early && early >= 0.004f && late <= 0.96f,
+           "mod_atk moves the modulator's peak inside the cycle, monotonically");
+    g[g_mod_sh] = 0.5f;
+    check (resolve (g).modHoldHz == 0.0f, "mod_sh stays off over most of its range");
+    g[g_mod_sh] = 0.95f;
+    const float atTop = resolve (g).modHoldHz;
+    g[g_mod_sh] = 0.8f;
+    const float justOpened = resolve (g).modHoldHz;
+    check (atTop > 0.0f && justOpened > atTop,
+           "mod_sh opens as a sample and hold rate, slowest at the top of its range");
+
+    // Pitch modulation is bounded by the mapping layer, and neutral means the
+    // note keeps the pitch it was pressed at.
+    g[g_a_mod] = 0.5f;
+    g[g_b_mod] = 0.5f;
+    const VoiceParams calm = resolve (g);
+    check (calm.aModSemis == 0.0f && calm.bModSemis == 0.0f,
+           "a_mod / b_mod at neutral ask for no pitch modulation");
+    g[g_a_mod] = 1.0f;
+    g[g_b_mod] = 0.0f;
+    const VoiceParams wild = resolve (g);
+    check (wild.aModSemis > 0.0f && wild.bModSemis < 0.0f
+           && wild.aModSemis <= 12.0f && -wild.bModSemis <= 12.0f,
+           "a_mod / b_mod resolve in opposite directions and never past an octave");
+
+    // The LFO is split between vibrato and tremolo at one rate, equal power.
+    g[g_lfo_amt] = 0.9f;
+    g[g_lfo_bal] = 0.0f;
+    const VoiceParams vibratoOnly = resolve (g);
+    g[g_lfo_bal] = 1.0f;
+    const VoiceParams tremoloOnly = resolve (g);
+    check (vibratoOnly.vibSemis > 6.0f && vibratoOnly.tremDepth < 0.05f
+           && tremoloOnly.tremDepth > 0.3f && tremoloOnly.vibSemis < 0.5f,
+           "lfo_bal at one end is vibrato only, at the other it is tremolo only");
+    g[g_lfo_bal] = 0.5f;
+    const VoiceParams both = resolve (g);
+    check (std::abs (both.vibSemis - vibratoOnly.vibSemis * 0.7071f) < 0.2f
+           && std::abs (both.tremDepth - tremoloOnly.tremDepth * 0.7071f) < 0.05f,
+           "lfo_bal at neutral splits vibrato and tremolo equal power");
+    g[g_lfo_amt] = 0.0f;
+    const VoiceParams noLfo = resolve (g);
+    check (noLfo.vibSemis == 0.0f && noLfo.tremDepth == 0.0f,
+           "lfo_amt at zero leaves the LFO silent, as the table says it should");
+}
+
+//==============================================================================
+// The envelope block itself: a pluck, repeated, with a level decay applied to
+// the whole train. Everything here is a property of the shape, so it is tested
+// without a plant in the way.
+//==============================================================================
+static void testPluckEnvelope()
+{
+    std::printf ("the envelope is a pluck with a decay over the repeats\n");
+
+    SharedEnv e;
+    e.setSampleRate (48000.0);
+
+    constexpr int sr = 48000;
+    auto restart = [] (SharedEnv& env, const SharedEnv::Shape& s) {
+        env.setShape (s);
+        env.gateOn();
+    };
+
+    SharedEnv::Shape s;
+    s.period = 0.25f; s.peakPos = 0.30f; s.riseExp = 1.0f;
+    s.duration = 0.0f; s.floorLevel = 0.0f;
+    restart (e, s);
+
+    const int periodSamples = static_cast<int> (s.period * sr);
+    std::vector<float> one (static_cast<std::size_t> (periodSamples), 0.0f);
+    for (int i = 0; i < periodSamples; ++i) { e.process(); one[static_cast<std::size_t> (i)] = e.ampValue(); }
+
+    int peakAt = 0;
+    float peak = 0.0f;
+    for (int i = 0; i < periodSamples; ++i)
+        if (one[static_cast<std::size_t> (i)] > peak)
+            { peak = one[static_cast<std::size_t> (i)]; peakAt = i; }
+
+    check (std::abs (static_cast<float> (peakAt) / static_cast<float> (periodSamples) - s.peakPos) < 0.02f,
+           "the pluck peaks where env_tilt says it should");
+    check (peak > 0.99f, "the pluck reaches full level at its peak");
+
+    int nearFull = 0;
+    for (const float v : one)
+        if (v > 0.95f * peak) ++nearFull;
+    check (nearFull < periodSamples / 12,
+           "the pluck never plateaus (no hold inside it)");
+    check (one[static_cast<std::size_t> (periodSamples - 2)] < 0.05f,
+           "the pluck is back at zero at the end of its cycle");
+
+    // It repeats at the period, and the repeats are identical while the outer
+    // curve is off.
+    float secondPeak = 0.0f, thirdPeak = 0.0f;
+    for (int i = 0; i < periodSamples * 4; ++i)
+    {
+        e.process();
+        const float v = e.ampValue();
+        if (i >= periodSamples && i < 2 * periodSamples) secondPeak = std::max (secondPeak, v);
+        if (i >= 3 * periodSamples) thirdPeak = std::max (thirdPeak, v);
+    }
+    check (std::abs (secondPeak - peak) < 1.0e-3f && std::abs (thirdPeak - peak) < 1.0e-3f,
+           "the train repeats at env_loop with the same level (env_time off)");
+
+    // The outer curve is a level applied to the train, not a second envelope:
+    // it lands exactly on the floor and stays there.
+    s.duration = 1.0f; s.floorLevel = 0.5f; s.outerExp = 1.0f;
+    restart (e, s);
+    for (int i = 0; i < sr; ++i) e.process();
+    const float settled = e.outerValue();
+    for (int i = 0; i < sr; ++i) e.process();
+    check (std::abs (settled - 0.5f) < 1.0e-3f && std::abs (e.outerValue() - 0.5f) < 1.0e-3f,
+           "the outer curve settles on vol_sus and holds there");
+
+    float mid = 0.0f;
+    restart (e, s);
+    for (int i = 0; i < sr / 2; ++i) e.process();
+    mid = e.outerValue();
+    check (mid > 0.5f && mid < 0.85f, "the level decays over the repeats rather than falling at once");
+
+    // vol_dcy bends that decay: a low exponent holds, then collapses.
+    s.outerExp = 0.3f;
+    restart (e, s);
+    for (int i = 0; i < sr / 2; ++i) e.process();
+    check (e.outerValue() > mid, "vol_dcy high collapses late, vol_dcy low fades early");
+
+    // Nothing to settle to means the note ends by itself and stops running.
+    s.duration = 0.3f; s.floorLevel = 0.0f; s.outerExp = 1.0f;
+    restart (e, s);
+    int i = 0;
+    while (! e.isIdle() && i < sr * 4) { e.process(); ++i; }
+    check (e.isIdle() && e.ampValue() == 0.0f, "a note with no floor ends by itself");
+
+    // Note off is a fade from wherever the level happens to be, never a jump.
+    s.period = 0.25f; s.duration = 0.0f; s.floorLevel = 0.0f; s.release = 0.05f;
+    restart (e, s);
+    for (i = 0; i < sr / 4; ++i) e.process();
+    float worstJump = 0.0f, previous = e.ampValue();
+    e.gateOff();
+    for (i = 0; i < sr && ! e.isIdle(); ++i)
+    {
+        e.process();
+        worstJump = std::max (worstJump, std::abs (e.ampValue() - previous));
+        previous = e.ampValue();
+    }
+    check (e.isIdle(), "a released note finishes and stops running");
+    check (worstJump < 0.02f, "note off fades from the current level without clicking");
+
+    // The modulator is the same clock with its own peak and its own fall
+    // window: it can be over long before the level is.
+    s.modPeak = 0.05f; s.modFallScale = 0.2f;
+    restart (e, s);
+    float modPeakAt = 0.0f, modPeak = 0.0f, ampAtModEnd = 0.0f;
+    for (i = 0; i < periodSamples; ++i)
+    {
+        e.process();
+        if (e.modValue() > modPeak)
+            { modPeak = e.modValue(); modPeakAt = static_cast<float> (i) / static_cast<float> (periodSamples); }
+        if (i == static_cast<int> (0.30f * static_cast<float> (periodSamples)))
+            ampAtModEnd = e.ampValue();
+    }
+    check (modPeak > 0.5f && std::abs (modPeakAt - s.modPeak) < 0.03f,
+           "the modulator follows its own peak position, not the level's");
+    check (ampAtModEnd > 0.2f, "the modulator can finish while the level is still up");
+}
+
+//==============================================================================
+// A held note rendered from a hand written seed, plus the two probes that read
+// one destination at a time off it.
+//==============================================================================
+static std::vector<float> renderHeldNote (const Genome& seed, uint64_t seedId,
+                                          float sampleRate, float seconds)
+{
+    MutationParams mp;
+    PlantSnapshot plant;
+    buildPlant (plant, seedId, seed, mp);
+
+    Synth synth;
+    synth.prepare (sampleRate, 128);
+
+    PlantHandoff handoff;
+    handoff.beginWrite() = plant;
+    handoff.publish();
+    synth.attachPlant (&handoff);
+
+    PlayState state;                       // every branch at length 0: the seed
+    synth.setPlayState (state);
+
+    const int numSamples = static_cast<int> (sampleRate * seconds);
+    std::vector<float> left (static_cast<std::size_t> (numSamples), 0.0f);
+    std::vector<float> right (static_cast<std::size_t> (numSamples), 0.0f);
+
+    constexpr int block = 128;
+    for (int offset = 0; offset < numSamples; offset += block)
+    {
+        const int n = std::min (block, numSamples - offset);
+        if (offset == 0)
+            synth.addNoteOn (60, 0.9f, 8);
+        float* channels[2] = { left.data() + static_cast<std::size_t> (offset),
+                               right.data() + static_cast<std::size_t> (offset) };
+        synth.render (channels, 2, n);
+    }
+
+    std::vector<float> mono (static_cast<std::size_t> (numSamples), 0.0f);
+    for (int i = 0; i < numSamples; ++i)
+        mono[static_cast<std::size_t> (i)] = 0.5f * (left[static_cast<std::size_t> (i)]
+                                                    + right[static_cast<std::size_t> (i)]);
+    return mono;
+}
+
+// A plain voice: one sine oscillator, nothing else in the plant allowed to move
+// pitch or level, so the probes below measure one thing at a time.
+static Genome modTestSeed (Rng& rng)
+{
+    Genome seed {};
+    randomizeGenome (seed, rng);
+
+    seed[g_a_freq] = 0.5f;   seed[g_b_freq] = 0.5f;   // unison
+    seed[g_balance] = 0.0f;                           // only oscillator A
+    seed[g_a_form] = 0.0f;    seed[g_b_form] = 0.0f;  // sine
+    seed[g_a_noise] = 0.0f;   seed[g_b_noise] = 0.0f;
+    seed[g_fm_amt] = 0.0f;    seed[g_sub_am] = 0.0f;
+    seed[g_det_spread] = 0.0f; seed[g_drift_amt] = 0.0f;
+    seed[g_lfo_amt] = 0.0f;
+    seed[g_flt_freq] = 0.8f;  seed[g_flt_q] = 0.0f;   seed[g_flt_mod] = 0.5f;
+    seed[g_env_time] = 0.95f;                         // no outer decay
+    seed[g_env_loop] = 0.58f;                         // one pluck a second
+    seed[g_env_tilt] = 0.0f;                          // a plain pluck
+    seed[g_vol_sus] = 0.7f;
+    seed[g_mod_atk] = 0.5f;   seed[g_mod_dcy] = 0.9f; // mod follows the pluck
+    seed[g_mod_sh] = 0.0f;
+    seed[g_a_mod] = 0.5f;     seed[g_b_mod] = 0.5f;   // the probes set these
+    seed[g_sat_drive] = 0.0f; seed[g_flt_sep] = 0.0f;
+    seed[g_fx_mix] = 0.0f;                            // dry only: the probe reads the voice
+    return seed;
+}
+
+// Where the pitch actually is, by counting zero crossings: unlike an
+// autocorrelation this cannot lock onto the wrong octave when the level is
+// pulsed, which is exactly what a pluck envelope does to it.
+static float measuredHz (const std::vector<float>& mono, int start, int length, float sampleRateHz)
+{
+    float hi = 0.0f;
+    for (int i = 0; i < length; ++i)
+        hi = std::max (hi, std::abs (mono[static_cast<std::size_t> (start + i)]));
+    if (hi < 1.0e-3f)
+        return 0.0f;
+
+    // Arm on the first real peak, then count upward going through zero
+    // crossings with their position interpolated: that is accurate to well under
+    // one percent over a window this short, which a threshold crossing counter
+    // is not.
+    const float th = hi * 0.2f;
+    bool armed = false;
+    int count = 0;
+    double first = 0.0, last = 0.0;
+
+    for (int i = 0; i + 1 < length; ++i)
+    {
+        const float a = mono[static_cast<std::size_t> (start + i)];
+        const float b = mono[static_cast<std::size_t> (start + i + 1)];
+        if (! armed)
+        {
+            if (a > th) armed = true;
+            continue;
+        }
+        if (a < 0.0f && b >= 0.0f)
+        {
+            const double t = static_cast<double> (i) - static_cast<double> (a) / static_cast<double> (b - a);
+            if (count == 0) first = t;
+            last = t;
+            ++count;
+        }
+    }
+
+    if (count < 4 || last <= first)
+        return 0.0f;
+    return static_cast<float> (static_cast<double> (count - 1) * sampleRateHz / (last - first));
+}
+
+// How far the pitch strays from the pressed note, in cents, over the note.
+static float worstPitchExcursion (const std::vector<float>& mono, float sampleRate)
+{
+    const int window = static_cast<int> (sampleRate * 0.06);
+    float worst = 0.0f;
+
+    for (float t = 0.05f; t < 1.4f; t += 0.1f)
+    {
+        const int start = static_cast<int> (t * sampleRate);
+        if (start + window >= static_cast<int> (mono.size()))
+            break;
+        const float hz = measuredHz (mono, start, window, sampleRate);
+        if (hz <= 0.0f)
+            continue;
+        const float cents = 1200.0f * std::log (hz / 261.6256f) / std::log (2.0f);
+        worst = std::max (worst, std::abs (cents));
+    }
+    return worst;
+}
+
+// How much the level wiggles at audio modulation rates on a note that is
+// otherwise being held: the window rms sequence with everything slower than a
+// few hertz taken out, so the pluck's own slow rise cannot answer this.
+static float levelWiggle (const std::vector<float>& mono, float sampleRate, float& outMean)
+{
+    // Windows long enough to hold a whole number of cycles of the measured
+    // tone (a short window reads the tone itself as a wiggle), and everything
+    // slower than a couple of hertz smoothed out.
+    const int win = static_cast<int> (sampleRate * 0.04f);
+    const int smooth = static_cast<int> (sampleRate * 0.6f) / win;
+    outMean = 0.0f;
+    if (smooth < 2)
+        return 0.0f;
+
+    std::vector<float> levels;
+    for (int start = static_cast<int> (sampleRate * 0.5f); start + win < static_cast<int> (mono.size()); start += win)
+    {
+        double sum = 0.0;
+        for (int i = 0; i < win; ++i)
+        {
+            const double v = mono[static_cast<std::size_t> (start + i)];
+            sum += v * v;
+        }
+        levels.push_back (static_cast<float> (std::sqrt (sum / static_cast<double> (win))));
+    }
+    if (static_cast<int> (levels.size()) < 3 * smooth)
+        return 0.0f;
+
+    double var = 0.0, mean = 0.0;
+    int counted = 0;
+    for (int i = smooth; i + smooth < static_cast<int> (levels.size()); ++i)
+    {
+        double local = 0.0;
+        for (int k = -smooth; k <= smooth; ++k)
+            local += levels[static_cast<std::size_t> (i + k)];
+        const double slow = local / static_cast<double> (2 * smooth + 1);
+        const double d = levels[static_cast<std::size_t> (i)] - slow;
+        var += d * d;
+        mean += slow;
+        ++counted;
+    }
+    if (counted == 0 || mean <= 0.0) return 0.0f;
+    mean /= static_cast<double> (counted);
+    outMean = static_cast<float> (mean);
+    return static_cast<float> (std::sqrt (var / static_cast<double> (counted)) / mean);
+}
+
+static void testModulationReachesAudio()
+{
+    std::printf ("the modulator reaches pitch and level\n");
+
+    constexpr float sampleRate = 48000.0f;
+    Rng rng (hash::fromString ("mod-probe"));
+
+    // Neutral mod amounts: the note holds the pitch it was pressed at.
+    Genome calm = modTestSeed (rng);
+    calm[g_a_mod] = 0.5f;
+    calm[g_b_mod] = 0.5f;
+    const float calmCents = worstPitchExcursion (renderHeldNote (calm, hash::fromString ("mod-probe-a"),
+                                                                 sampleRate, 1.5f), sampleRate);
+
+    // Open the mod envelope's pitch amount: each pluck now bends, and it stays
+    // inside the octave the mapping layer promised.
+    Genome wild = modTestSeed (rng);
+    wild[g_a_mod] = 0.9f;
+    wild[g_b_mod] = 0.9f;
+    const float wildCents = worstPitchExcursion (renderHeldNote (wild, hash::fromString ("mod-probe-b"),
+                                                                 sampleRate, 1.5f), sampleRate);
+
+    std::printf (       "       pitch excursion: calm %.0f cents, a_mod wide open %.0f cents\n",
+                       calmCents, wildCents);
+    check (calmCents < 40.0f, "nothing moves the pitch when a_mod is neutral");
+    check (wildCents > 200.0f, "a_mod bends the pitch of each pluck when it is open");
+    check (wildCents < 1300.0f, "and never past the octave the mapping layer bounds it to");
+
+    // The LFO's tremolo half rides on top of the envelope instead of replacing
+    // it: with the same rate and depth on the vibrato side of the split, the
+    // level of a held note must stay put. Repeated over a few plant seeds, since
+    // the LFO's waveform and phase are deliberately random per voice.
+    Genome lfoBase = modTestSeed (rng);
+    lfoBase[g_env_loop] = 1.0f;      // one very slow pluck: the level is held
+    lfoBase[g_lfo_amt] = 0.9f;
+    lfoBase[g_lfo_rate] = 0.63f;     // a couple of Hz, slow enough for the probe
+
+    float vibSum = 0.0f, tremSum = 0.0f, vibMean = 0.0f, tremMean = 0.0f, meanRatio = 0.0f;
+    for (int probe = 0; probe < 3; ++probe)
+    {
+        const std::string name = "lfo-probe-" + std::to_string (probe);
+
+        Genome vibratoOnly = lfoBase;
+        vibratoOnly[g_lfo_bal] = -1.0f;      // vibrato only
+        Genome tremoloOnly = lfoBase;
+        tremoloOnly[g_lfo_bal] = 1.0f;       // tremolo only
+
+        const float vib = levelWiggle (renderHeldNote (vibratoOnly, hash::fromString ((name + "-vib").c_str()),
+                                                       sampleRate, 4.0f), sampleRate, vibMean);
+        const float trem = levelWiggle (renderHeldNote (tremoloOnly, hash::fromString ((name + "-trem").c_str()),
+                                                        sampleRate, 4.0f), sampleRate, tremMean);
+        std::printf (       "       level wiggle on a held note: vibrato %.3f, tremolo %.3f\n", vib, trem);
+        vibSum += vib;
+        tremSum += trem;
+        meanRatio += std::log10 (std::max (tremMean, 1.0e-6f) / std::max (vibMean, 1.0e-6f));
+    }
+
+    // The vibrato side of the split can still wiggle the level a little (the
+    // LFO's waveform is random per voice, and a step in pitch through the filter
+    // is not silent), so what is asserted here is the two things that matter:
+    // the tremolo half moves the level, and it rides on top of the envelope
+    // instead of taking the note's level away.
+    meanRatio /= 3.0f;
+    std::printf ("       mean level with tremolo vs vibrato: %+.1f dB\n", 20.0f * meanRatio);
+    check (tremSum > 0.06f * 3.0f, "the LFO's tremolo half moves the level of a held note");
+    check (std::abs (meanRatio) < 0.15f, "a strong tremolo does not change the note's mean level");
 }
 
 static void testRender()
@@ -742,6 +1251,9 @@ int main()
     testCurves();
     testRatioSnapping();
     testAtonalityCeiling();
+    testEnvelopeMapping();
+    testPluckEnvelope();
+    testModulationReachesAudio();
     testPitchStability();
     testGenome (mp);
     testFilter();

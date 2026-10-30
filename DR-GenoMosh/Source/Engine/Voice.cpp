@@ -20,9 +20,8 @@ namespace
 void Voice::prepare (double sampleRateHz, int /*maxBlockSamples*/)
 {
     sampleRate = sampleRateHz;
-    ampEnv.setSampleRate (sampleRateHz);
-    modEnv.setSampleRate (sampleRateHz);
-    loopEnvOneShot.setSampleRate (sampleRateHz);
+    env.setSampleRate (sampleRateHz);
+    modHold.setSampleRate (sampleRateHz);
     filter1.setSampleRate (sampleRateHz);
     filter2.setSampleRate (sampleRateHz);
     dcBlock.setSampleRate (sampleRateHz);
@@ -34,7 +33,6 @@ void Voice::start (const VoiceParams& params, int midiNote, uint64_t plantHash)
     p = params;
     note = midiNote;
     active = true;
-    gate = true;
     startedAt = sampleCount;
     peak = 0.0f;
 
@@ -46,11 +44,9 @@ void Voice::start (const VoiceParams& params, int midiNote, uint64_t plantHash)
 
     oscA.reset();
     oscB.reset();
-    ampEnv.reset();
-    modEnv.reset();
-    loopEnvOneShot.reset();
+    env.reset();
+    modHold.reset();
     lfo.reset();
-    loopMod.reset();
     filter1.reset();
     filter2.reset();
     dcBlock.reset();
@@ -72,24 +68,21 @@ void Voice::start (const VoiceParams& params, int midiNote, uint64_t plantHash)
     oscA.setPhase (rng.uniform());
     oscB.setPhase (rng.uniform());
 
-    ampEnv.setTimes (p.ampAttack, p.ampDecay, p.ampSustain, p.ampRelease);
-    ampEnv.gateOn();
+    // The envelope is resolved once, here, from the voice's own snapshot: a
+    // branch growing under a held note cannot change the pluck that note is
+    // playing (design doc 3).
+    env.setShape (p.envShape);
+    env.gateOn();
+    modHold.setRateHz (p.modHoldHz);
 
-    modEnv.setTimes (p.modAttack, p.modDecay, 0.0f, p.modDecay * 0.5f);
-    modEnv.gateOn();
-
-    // One shot version of the loop envelope, crossfaded against the looping
-    // one by env_loop.
-    loopEnvOneShot.setTimes (p.loopTime * 0.25f, p.loopTime * 0.75f, 0.0f, p.loopTime * 0.25f);
-    loopEnvOneShot.gateOn();
+    // The level meter used for voice stealing, with a slow release, so a voice
+    // is never "quiet" in the gap between two of its own plucks.
+    levelTrack = 0.0f;
+    levelDecayCoef = std::exp (-1.0f / (0.35f * static_cast<float> (sampleRate)));
 
     lfo.setRateHz (p.lfoRate, sampleRate);
     lfo.setShape (rng.integer (3), rng);
     lfo.setPhase (rng.uniform());
-
-    loopMod.setRateHz (1.0f / p.loopTime, sampleRate);
-    loopMod.setShape (1, rng);
-    loopMod.setPhase (rng.uniform());
 
     driftPitch.prepare (sampleRate, rng, 0.25f);
     driftFilter.prepare (sampleRate, rng, 0.11f);
@@ -125,10 +118,7 @@ void Voice::release()
     if (! active)
         return;
 
-    gate = false;
-    ampEnv.gateOff();
-    modEnv.gateOff();
-    loopEnvOneShot.gateOff();
+    env.gateOff();
 }
 
 //==============================================================================
@@ -138,54 +128,34 @@ float Voice::whiteNoise()
 }
 
 //==============================================================================
-float Voice::tiltTriangle (float phase, float tilt) const
-{
-    const float duty = clampf (0.5f + tilt * 0.45f, 0.02f, 0.98f);
-    return phase < duty ? (phase / duty) * 2.0f - 1.0f
-                        : 1.0f - (phase - duty) / (1.0f - duty) * 2.0f;
-}
-
-//==============================================================================
-void Voice::updateControlTargets (float modMix, float lfoPitch, float lfoFilter,
+void Voice::updateControlTargets (float modValue, float lfoV,
                                  float driftP, float driftF)
 {
     const float driftCents = driftP * p.driftAmount * 12.0f;
 
-    // Pitch (5.3): vibrato from the LFO, split by lfo_bal, plus a few cents of
-    // drift. The mod envelope is deliberately *not* in this sum: a_mod / b_mod
-    // used to add modMix * 0.75 octaves, so every note dived or rose by up to
-    // two thirds of an octave while the mod envelope attacked, in whichever
-    // direction the sign of the gene happened to point. That is the "the note
-    // changes pitch when I play it" bug. A pitch envelope, if it is ever wanted,
-    // should be its own gene rather than a side effect of timbre modulation.
-    const float pitchModA = lfoPitch * 0.5f;
-    const float pitchModB = lfoPitch * 0.5f;
+    // Pitch (5.3). a_mod / b_mod are the mod envelope's amount on each
+    // oscillator's pitch: with the envelope being a pluck, this is the dive or
+    // rise of each individual pluck rather than a sweep across the note. The
+    // depth is bounded in the mapping layer (kPitchModSemitoneCeiling), so the
+    // worst case is an octave, in the direction the gene points.
+    // aModSemis / vibSemis are semitones, centsToRatio takes cents.
+    const float centsA = (p.aModSemis * modValue + p.vibSemis * lfoV) * 100.0f;
+    const float centsB = (p.bModSemis * modValue + p.vibSemis * lfoV * 0.7f) * 100.0f;
 
-    // Timbre: a_mod / b_mod are the mod envelope's amount on each oscillator's
-    // own spectrum (pulse width, added partials), which is the destination their
-    // names suggest and leaves the played pitch alone.
-    constexpr float kModColourDepth = 0.35f;
-    colourATo = clampf (p.aColour + p.aMod * modMix * kModColourDepth, 0.0f, 1.0f);
-    colourBTo = clampf (p.bColour + p.bMod * modMix * kModColourDepth, 0.0f, 1.0f);
+    freqATo = clampFreq (baseFreqA * centsToRatio (detuneA + driftCents + centsA), sampleRate);
+    freqBTo = clampFreq (baseFreqB * centsToRatio (detuneB + driftCents * 0.7f + centsB), sampleRate);
 
-    freqATo = clampFreq (baseFreqA * centsToRatio (detuneA + driftCents)
-                                    * std::pow (2.0f, pitchModA), sampleRate);
-    freqBTo = clampFreq (baseFreqB * centsToRatio (detuneB + driftCents * 0.7f)
-                                    * std::pow (2.0f, pitchModB), sampleRate);
-
-    // Filter: key follow was pre computed at note on, mod sources add up to
-    // three octaves of deviation.
+    // Filter: key follow was pre computed at note on, the mod envelope adds up
+    // to three octaves of deviation, and the drift adds a slow wander.
     const float oct = p.keyFollow
-                    + p.filterMod * modMix * 3.0f
-                    + lfoFilter * 1.5f
+                    + p.filterMod * modValue * 3.0f
                     + driftF * p.driftAmount * 0.12f;
 
     const float maxCut = static_cast<float> (sampleRate) * 0.45f;
     cutoff1To = clampf (p.filterHz * std::pow (2.0f, oct), 20.0f, maxCut);
     cutoff2To = clampf (cutoff1To * std::pow (2.0f, p.filterSep), 20.0f, maxCut);
 
-    fmIndexTo = std::max (0.0f, p.fmAmount * (1.0f + p.fmMod * modMix) * 3.0f);
-
+    fmIndexTo = std::max (0.0f, p.fmAmount * (1.0f + p.fmMod * modValue) * 3.0f);
 }
 
 //==============================================================================
@@ -208,31 +178,33 @@ void Voice::render (float* outL, float* outR, int numSamples)
     const bool hasNoiseA = p.aNoise > 0.001f;
     const bool hasNoiseB = p.bNoise > 0.001f;
     const bool hasSub = p.subLevel > 0.001f;
-    const bool hasLoop = p.loopAmount > 0.001f;
 
     for (int i = 0; i < numSamples; ++i)
     {
         //--------------------------------------------------------------------
-        // Modulators.
-        const float modEnvV = std::pow (modEnv.process(), p.modShape);
-        const float loopV = hasLoop
-                          ? tiltTriangle (loopMod.process() * 0.5f + 0.5f, p.loopTilt)
-                          : 0.0f;
-        const float oneShotV = loopEnvOneShot.process() * 2.0f - 1.0f;
+        // The one clock, then the modulators that are free (LFO, drift).
+        env.process();
         const float lfoV = lfo.process();
         const float driftP = driftPitch.process (rng);
         const float driftF = driftFilter.process (rng);
 
-        float modMix = 0.0f;
+        // What drives the modulation destinations. Default is the envelope's own
+        // pluck. A branch whose structural trait says otherwise gets a modulator
+        // that follows the note as a whole, or the LFO, instead: that choice is
+        // what makes two branches of the same plant modulate differently.
+        float modBase;
         switch (p.modSource)
         {
-            case 0: modMix = modEnvV * 2.0f - 1.0f; break;
-            case 1: modMix = hasLoop ? loopV : oneShotV; break;
-            default: modMix = lfoV; break;
+            case 1:  modBase = env.outerValue(); break;                    // the note, not each pluck
+            case 2:  modBase = 0.5f + 0.5f * lfoV; break;                 // the LFO
+            default: modBase = env.modValue(); break;                      // the pluck
         }
 
-        const float lfoPitch = lfoV * p.lfoAmount * (0.5f - 0.5f * p.lfoBalance);
-        const float lfoFilter = lfoV * p.lfoAmount * (0.5f + 0.5f * p.lfoBalance);
+        // Velocity scales the modulator once. mod_sh re quantises it: the step
+        // is the sound, so nothing here is smoothed.
+        float modValue = modBase * p.modScale;
+        if (p.modHoldHz > 0.0f)
+            modValue = modHold.process (modValue);
 
         //--------------------------------------------------------------------
         // Control rate update + ramp (design doc 6.4).
@@ -242,7 +214,7 @@ void Voice::render (float* outL, float* outR, int numSamples)
             constexpr float kCtrlInv = 1.0f / static_cast<float> (kCtrlPeriod);
             const float fromA = freqA, fromB = freqB, fromC1 = cutoff1, fromC2 = cutoff2, fromF = fmIndex;
             const float fromCA = colourA, fromCB = colourB;
-            updateControlTargets (modMix, lfoPitch, lfoFilter, driftP, driftF);
+            updateControlTargets (modValue, lfoV, driftP, driftF);
             freqASlope = (freqATo - fromA) * kCtrlInv;
             freqBSlope = (freqBTo - fromB) * kCtrlInv;
             cutoff1Slope = (cutoff1To - fromC1) * kCtrlInv;
@@ -311,11 +283,21 @@ void Voice::render (float* outL, float* outR, int numSamples)
         const float f2 = filter2.process (f1, lpMix, bpMix, hpMix);
         const float filtered = dcBlock.process (f2);
 
-        const float amp = ampEnv.process();
+        // The tremolo half of the LFO is free too: it rides on top of the
+        // envelope instead of replacing it, so it is still there in the middle
+        // of a long note.
+        float amp = env.ampValue();
+        if (p.tremDepth > 0.0f)
+            amp *= std::max (0.0f, 1.0f + p.tremDepth * lfoV);
+
+        levelTrack = std::max (amp, levelTrack * levelDecayCoef);
+
         float out = filtered * amp * p.gain * p.velocity;
 
-        if (! gate && amp <= 0.0f)
+        if (env.isIdle() && amp <= 0.0f)
         {
+            // Either the key is up and the release has run out, or the outer
+            // curve settled on a floor of nothing and the note ended by itself.
             active = false;
             for (int j = i; j < numSamples; ++j)
             {

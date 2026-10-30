@@ -12,13 +12,16 @@ namespace gmosh
 //          [Osc B] ---+-> balance -> dual filter -> amp env -> pan
 //          [Sub]  ---+
 //
-// Modulation: mod envelope, looping/tilt envelope, LFO and two slow drift
-// generators, all per voice, plus per voice random detune and phase start.
+// Modulation: one shared envelope (a pluck with a level decay over its
+// repeats) drives the amp and, on the same clock, the modulation destinations.
+// The LFO and the two slow drift generators run free, plus per voice random
+// detune and phase start.
 //
-// Pitch policy (design doc 5.3, "the branch changes timbre and modulation, not
-// the played pitch"): the played pitch is the note plus the a_freq / b_freq
-// offset genes, then vibrato from the LFO and a few cents of drift. The mod
-// envelope has no destination in pitch, it moves timbre.
+// Pitch policy (design doc 5.3): the played pitch is the note plus the a_freq /
+// b_freq offset genes, then the mod envelope's bounded dive or rise (a_mod /
+// b_mod, hard capped in VoiceParams), vibrato from the LFO and a few cents of
+// drift. Everything that can move the pitch has a ceiling the voice cannot
+// exceed; only the drift and detune are always tiny.
 //==============================================================================
 {
 class Voice
@@ -38,12 +41,16 @@ public:
     int noteNumber() const { return note; }
     float currentPeak() const { return peak; }
     std::int64_t startSample() const { return startedAt; }
-    float ampLevel() const { return ampEnv.valueOf(); }
+    bool isFinished() const { return env.isIdle(); }
+
+    /// A slow peak follower, not the instantaneous level: with a pluck envelope
+    /// the voice sits at zero twice per cycle, and a voice must not be stolen
+    /// just because the note on it happens to be between two plucks.
+    float ampLevel() const { return levelTrack; }
 
 private:
     float whiteNoise();
-    float tiltTriangle (float phase, float tilt) const;
-    void updateControlTargets (float modMix, float lfoPitch, float lfoFilter,
+    void updateControlTargets (float modValue, float lfoV,
                                float driftP, float driftF);
 
     // Control rate: modulation targets are evaluated every kCtrlPeriod samples
@@ -63,7 +70,6 @@ private:
     VoiceParams p;
     int note = 60;
     bool active = false;
-    bool gate = false;
     std::int64_t startedAt = 0;
     std::int64_t sampleCount = 0;
     float peak = 0.0f;
@@ -71,8 +77,9 @@ private:
     MorphOsc oscA, oscB;
     float subPhase = 0.0f, subInc = 0.0f;
 
-    Env ampEnv, modEnv, loopEnvOneShot;
-    Modulator lfo, loopMod;
+    SharedEnv env;
+    SampleHold modHold;
+    Modulator lfo;
     Drift driftPitch, driftFilter;
     Rng rng { 0 };
 
@@ -83,6 +90,7 @@ private:
     float detuneA = 0.0f, detuneB = 0.0f;
     float panGainL = 0.7f, panGainR = 0.7f;
     float noiseState = 0.0f;
+    float levelTrack = 0.0f, levelDecayCoef = 0.999f;
 };
 
 } // namespace gmosh
