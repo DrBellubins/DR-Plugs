@@ -411,13 +411,7 @@ static void testMappingNeutralIsRest()
     // S&H is off and velocity is ignored.
     expect ("amp sustain", p.ampSustain, 0.0f);
     expect ("vol_fade", p.volFade, 0.0f);
-    // M3: the four curvature genes are exponents of the shared shape, so the
-    // neutral genome sits exactly on linear, and the envelope's own duration is
-    // env_time's neutral value rather than a made up ADSR.
-    expect ("amp attack curvature", p.ampAttackExp, 1.0f);
-    expect ("amp decay curvature", p.ampDecayExp, 1.0f);
-    expect ("mod attack curvature", p.modAttackExp, 1.0f);
-    expect ("mod decay curvature", p.modDecayExp, 1.0f);
+    expect ("mod shape", p.modShape, 1.0f);
     expect ("mod sample hold", p.modSampleHoldHz, 0.0f);
     expect ("mod velocity", p.modVelocity, 0.0f);
 
@@ -1007,12 +1001,7 @@ static void testGenome (const MutationParams& mp)
     }
     check (safe, "all resolved genomes stay finite and inside [0,1]");
     std::printf ("       usable branches at distance 1: %d / %d\n", usable, total);
-    // M3 raised this from "majority" to the hard gate the plan asks for: every
-    // resolved branch has to pass the recalibrated safety score, because the
-    // score is now the thing that reads gated sustain and duration (5.6's
-    // silence rejection is load bearing precisely because vol_sus has a gate and
-    // env_time is a length). The ratio stays printed, not just the verdict.
-    check (usable == total, "every resolved branch passes the safety score");
+    check (usable > total * 3 / 4, "majority of far branches pass the safety score");
 }
 
 //==============================================================================
@@ -1141,11 +1130,7 @@ static void testNeutralGateIsAudible()
     };
 
     const float sr = 48000.0f;
-    // Long enough that the difference between "no sustain" and "sustain" is
-    // inside the held part of the note: with duration now a gene, the shape of
-    // a neutral plant runs 1.2 s, and a 0.8 s render would measure the attack
-    // of both cases and call them the same sound.
-    const float seconds = 3.0f;
+    const float seconds = 0.8f;
 
     const Genome base = neutralGenome();
     const Rendered neutral = renderNote (plantOf (base), 0, 0.0f, 60, 0.9f, sr, seconds);
@@ -1804,423 +1789,16 @@ static void testScenePlanIsSeeded()
 }
 
 //==============================================================================
-// M3: the shared envelope (design 6.1.1).
-//
-// Two halves, deliberately. The first is the clock itself, driven from an
-// EnvShape: repeats, one shots, the infinite duration of decision R3, and the
-// fixed note off release. The second is the articulation matrix the plan asks
-// for, measured off rendered audio with the section 13 metrics, because "the
-// gene says X and the engine does Y" is exactly the bug class the M2 harness
-// exists to catch. Every assertion here is a *direction* (attack got longer,
-// the note ended itself, the hold moved), never a recorded number.
+// The M1 table (Docs/Implementation-Status.md section 11, and section 12 for
+// what this reproduces) rendered through the new harness. Same seed, same
+// plant, same note events, the same *default* PlayState the old code fell back
+// to, because that is what produced those numbers. It is a golden of the
+// milestone boundary rather than of the engine: if M2 changed a single sample
+// this fails, and if a later milestone changes it, that is the point.
 //==============================================================================
-namespace
+static void testM1BaselineAudio()
 {
-struct Articulation
-{
-    bool measured = false;
-    float attackSeconds = -1.0f, holdDb = 0.0f, releaseSeconds = -1.0f;
-    float endSeconds = -1.0f, peak = 0.0f;
-    bool selfEnded = false;
-    int notMeasured = 0;      // notesTooShort + notesSilent, for debugging a bad case
-};
-
-/// Render one note of one genome and read its articulation off the output.
-Articulation articulate (const Genome& seed, uint64_t tag, int midiNote,
-                        double sampleRate, double seconds, double holdSeconds)
-{
-    const MutationParams mp;
-    PlantSnapshot plant;
-    buildPlant (plant, hash::combine (hash::fromString ("envelope-articulation"), tag),
-                seed, mp);
-
-    RenderSetup setup;
-    setup.plant = &plant;
-    setup.sampleRate = sampleRate;
-    setup.seconds = seconds;
-    setup.play = offlinePlayState ();          // branch length 0: this is the seed
-    setup.keepAudio = true;
-
-    SceneNote n;
-    n.midiNote = midiNote;
-    n.velocity = 0.9f;
-    n.startSample = 0;
-    n.endSample = static_cast<int> (std::llround (holdSeconds * sampleRate / 128.0) * 128);
-    setup.notes.push_back (n);
-
-    Articulation a;
-    const Rendered r = renderScene (setup);
-    if (! r.m.finite || r.m.silent)
-    {
-        a.notMeasured = -1;
-        return a;
-    }
-
-    const AudioMetrics m = measureAudio (r.left, r.right, sampleRate, setup.notes, true);
-    a.notMeasured = m.notesTooShort + m.notesSilent + m.notesUnvoiced;
-    if (m.notes.empty ())
-        return a;
-
-    const NoteMeasurement& nm = m.notes.front ();
-    a.measured = nm.measured;
-    a.attackSeconds = nm.attackSeconds;
-    a.holdDb = nm.holdLevelDb;
-    a.releaseSeconds = nm.releaseSeconds;
-    a.endSeconds = nm.endSeconds;
-    a.peak = nm.peak;
-    a.selfEnded = nm.selfEnded;
-    return a;
-}
-
-/// A seed at rest with a handful of genes moved, so every case below differs
-/// from the instrument at rest by exactly the genes it names.
-Genome seedWith (std::initializer_list<std::pair<std::size_t, float>> moves)
-{
-    Genome g = neutralGenome ();
-    for (const auto& m : moves)
-        g[m.first] = m.second;
-    applyCouplings (g);
-    return g;
-}
-
-/// Count the times the clock re triggered: one pass of the shape is one rise
-/// followed by a clear fall away from its own maximum. The threshold is
-/// relative, because a slow shape falls by a hair per sample.
-int countPeaks (SharedEnv& env, int samples)
-{
-    int peaks = 0;
-    float runMax = 0.0f;
-    bool peaked = false;
-    for (int i = 0; i < samples; ++i)
-    {
-        const float v = env.process();
-        if (v > runMax)
-        {
-            runMax = v;
-            peaked = runMax > 0.05f;
-        }
-        else if (peaked && v < runMax * 0.9f)
-        {
-            ++peaks;
-            peaked = false;
-            runMax = v;
-        }
-    }
-    return peaks;
-}
-} // namespace
-
-static void testSharedEnvelope()
-{
-    std::printf ("the shared envelope clock (6.1.1, M3)\n");
-
-    const double sr = 48000.0;
-
-    //------------------------------------------------------------------------
-    // What the mapping layer decides, before any audio exists.
-    {
-        VoiceParams p;
-        const BranchTraits traits;
-        MacroValues macros;
-        resolveVoiceParams (seedWith ({{ g_env_time, 0.95f }}), traits, macros, 60, 0.9f, p);
-
-        const float baseAt09 = mapGene (kGenes[g_env_time], 0.9f);
-        check (p.envDuration == EnvShape::kInfiniteDuration,
-               "env_time >= 0.9 resolves to an infinite duration (R3)");
-        check (p.envRepeats && p.envShapeSeconds < EnvShape::kInfiniteDuration * 0.5f
-               && p.envShapeSeconds > 0.05f,
-               "an infinite duration still has a finite shape base, never an infinite one (R3)");
-
-        // A period longer than the fallback base is not a repeat: the shape
-        // takes the base, then holds. That is the only reading in which
-        // vol_fade can end a note that has no duration.
-        resolveVoiceParams (seedWith ({{ g_env_time, 0.95f }, { g_env_loop, 1.0f }}),
-                            traits, macros, 60, 0.9f, p);
-        check (! p.envRepeats && std::abs (p.envShapeSeconds - baseAt09) < 1.0e-3f,
-               "past the fallback base there are no repeats and the shape takes it");
-
-        resolveVoiceParams (seedWith ({{ g_env_time, 0.95f }, { g_env_loop, 0.2f }}),
-                            traits, macros, 60, 0.9f, p);
-        check (p.envRepeats && std::abs (p.envShapeSeconds - mapGene (kGenes[g_env_loop], 0.2f)) < 1.0e-3f,
-               "with a period inside it, the shape repeats at that period (endless sweep)");
-
-        resolveVoiceParams (seedWith ({{ g_env_time, 0.5f }, { g_env_loop, 0.5f }}),
-                            traits, macros, 60, 0.9f, p);
-        check (! p.envRepeats,
-               "env_loop equal to the duration means no repeats (4.2: longer than the duration)");
-
-        // env_kf: above the middle, high keys shorten the note (4.2).
-        const Genome kf = seedWith ({{ g_env_kf, 1.0f }});
-        VoiceParams low, high;
-        resolveVoiceParams (kf, traits, macros, 48, 0.9f, low);
-        resolveVoiceParams (kf, traits, macros, 72, 0.9f, high);
-        check (high.envDuration < low.envDuration * 0.26f && low.envDuration > high.envDuration,
-               "env_kf shortens the duration on high keys and lengthens it on low ones");
-
-        VoiceParams noneLow, noneHigh;
-        resolveVoiceParams (neutralGenome (), traits, macros, 48, 0.9f, noneLow);
-        resolveVoiceParams (neutralGenome (), traits, macros, 72, 0.9f, noneHigh);
-        check (noneLow.envDuration == noneHigh.envDuration,
-               "env_kf at neutral is exactly nothing at any key");
-
-        // Curvature genes are exponents with the neutral value exactly linear.
-        resolveVoiceParams (seedWith ({{ g_vol_atk, 0.0f }}), traits, macros, 60, 0.9f, p);
-        check (std::abs (p.ampAttackExp - 0.5f) < 1.0e-4f,
-               "vol_atk maps to 2^(2(v-0.5)): the bottom of the range is 0.5");
-    }
-
-    //------------------------------------------------------------------------
-    // The clock itself.
-    {
-        SharedEnv env;
-        env.setSampleRate (sr);
-
-        // One shot, no sustain: sounds, and is over at its duration.
-        EnvShape oneShot;
-        oneShot.duration = 0.5f;
-        oneShot.shapeSeconds = 0.5f;
-        oneShot.sustain = 0.0f;
-        env.start (oneShot);
-        float atEnd = 1.0f, atPeak = 0.0f;
-        int peakSample = -1;
-        for (int i = 0; i < static_cast<int> (sr * 0.4); ++i)
-        {
-            const float v = env.process();
-            if (v > atPeak) { atPeak = v; peakSample = i; }
-        }
-        const int expectPeakAt = static_cast<int> (sr * 0.25f);
-        check (std::abs (peakSample - expectPeakAt) <= 2 && atPeak > 0.999f,
-               "a symmetric shape peaks exactly at half its duration");
-        for (int i = 0; i < static_cast<int> (sr * 0.3); ++i)
-            atEnd = env.process();
-        check (atEnd < 1.0e-6f && env.selfEnded() && env.finished(),
-               "with no sustain the shape ends at silence and the note is over by itself");
-
-        // Sustain holds, and the second fade takes that hold to silence.
-        EnvShape held = oneShot;
-        held.sustain = 0.5f;
-        env.start (held);
-        for (int i = 0; i < static_cast<int> (sr * 2); ++i)
-            env.process();
-        check (std::abs (env.ampValue() - 0.5f) < 1.0e-4f && ! env.finished(),
-               "vol_sus is the floor the decay aims at, and it holds indefinitely");
-
-        EnvShape faded = held;
-        faded.fade = 1.0f;
-        env.start (faded);
-        for (int i = 0; i < static_cast<int> (sr * 2); ++i)
-            env.process();
-        check (env.ampValue() < 1.0e-5f && env.finished(),
-               "vol_fade alone closes a note that has no duration of its own (R3)");
-
-        // Repeats: one whole envelope per period, and none at all when the
-        // period is not inside the duration.
-        EnvShape loop;
-        loop.duration = 2.0f;
-        loop.repeats = true;
-        loop.loopPeriod = 0.25f;
-        loop.shapeSeconds = 0.25f;
-        env.start (loop);
-        const int peaks = countPeaks (env, static_cast<int> (sr * 2.1));
-
-        check (peaks == 8, "a loop period inside the duration re triggers the shape that many times");
-
-        EnvShape noLoop = loop;
-        noLoop.duration = 0.2f;   // the period is past it: no repeats (4.2)
-        noLoop.repeats = false;
-        noLoop.shapeSeconds = 0.2f;
-        env.start (noLoop);
-        const int single = countPeaks (env, static_cast<int> (sr * 2));
-        check (single == 1,
-               "a period at or beyond the duration gives exactly one pass");
-
-        // Note off: stop looping, fixed release from wherever the shape is.
-        env.start (loop);
-        for (int i = 0; i < static_cast<int> (sr * 0.05); ++i)
-            env.process();
-        const float levelAtOff = env.ampValue();
-        env.release();
-        int samplesToSilence = 0;
-        while (env.sounding () && samplesToSilence < static_cast<int> (sr * 2))
-        {
-            env.process();
-            ++samplesToSilence;
-        }
-        const float expected = kNoteOffReleaseSeconds * static_cast<float> (sr);
-        check (std::abs (samplesToSilence - expected) <= 2.0f,
-               "note off is a fixed release (D-5), sample accurate, not an env_time release");
-        check (levelAtOff > 0.0f, "the release starts from the level the shape was at");
-
-        // The mod envelope shares the clock and always returns to nothing.
-        EnvShape mod;
-        mod.duration = 1.0f;
-        mod.shapeSeconds = 1.0f;
-        mod.sustain = 1.0f;   // amp holds at full, mod must not
-        env.start (mod);
-        for (int i = 0; i < static_cast<int> (sr); ++i)
-            env.process();
-        check (std::abs (env.ampValue() - 1.0f) < 1.0e-4f && env.modValue() < 1.0e-4f,
-               "the mod envelope returns to nothing on the same clock the amp sustains on");
-    }
-}
-
-static void testEnvelopeArticulation()
-{
-    std::printf ("articulation tracks the genes (13, M3's matrix)\n");
-
-    const double sr = 22050.0;
-    bool ok = true;
-
-    auto expect = [&ok] (bool good, const char* what)
-    {
-        if (! good)
-        {
-            ok = false;
-            std::printf ("       !! failed: %s\n", what);
-        }
-    };
-
-    auto show = [] (const char* name, const Articulation& a)
-    {
-        std::printf ("       %-22s measured %d attack %7.3f s  hold %+6.1f dB  release %6.3f s"
-                     "  sound over %7.3f s  self ended %s\n",
-                     name, a.measured ? 1 : 0, a.attackSeconds, a.holdDb,
-                     a.releaseSeconds, a.endSeconds, a.selfEnded ? "yes" : "no");
-    };
-
-    // env_time is the length of the note: two durations, nothing else changed.
-    // env_loop is parked above both so neither repeats (4.2's own rule).
-    const Articulation shortNote = articulate (seedWith ({ { g_env_time, 0.30f }, { g_env_loop, 1.0f } }),
-                                               1, 60, sr, 3.0, 2.4);
-    const Articulation longNote = articulate (seedWith ({ { g_env_time, 0.55f }, { g_env_loop, 1.0f } }),
-                                              2, 60, sr, 6.0, 5.0);
-    show ("env_time short", shortNote);
-    show ("env_time long", longNote);
-    expect (!(! (shortNote.measured && longNote.measured)), "! (shortNote.measured && longNote.measured)");
-    expect (!(! (shortNote.selfEnded && longNote.selfEnded)), "! (shortNote.selfEnded && longNote.selfEnded)");
-    expect (!(! (longNote.endSeconds > shortNote.endSeconds * 1.8f)), "! (longNote.endSeconds > shortNote.endSeconds * 1.8f)");
-    expect (!(! (shortNote.endSeconds > 0.2f && shortNote.endSeconds < 0.7f)), "! (shortNote.endSeconds > 0.2f && shortNote.endSeconds < 0.7f)");
-
-    // vol_sus: below the gate there is no sustain to measure, above it there is.
-    // (At neutral env_time, so the guard rail of 5.6 has no reason to intervene
-    // in either case: it exists to stop a branch going *silent*, not to keep a
-    // branch sustaining.)
-    const Articulation noSus = articulate (seedWith ({ { g_vol_sus, 0.45f } }), 3, 60, sr, 4.0, 3.5);
-    const Articulation withSus = articulate (seedWith ({ { g_vol_sus, 0.95f } }), 4, 60, sr, 4.0, 3.5);
-    show ("vol_sus below gate", noSus);
-    show ("vol_sus open", withSus);
-    expect (!(! (noSus.measured && withSus.measured)), "! (noSus.measured && withSus.measured)");
-    expect (!(! noSus.selfEnded), "! noSus.selfEnded");
-    expect (!(withSus.selfEnded), "withSus.selfEnded");                       // it holds to the key up
-    expect (!(! (withSus.holdDb > -12.0f && noSus.holdDb < -40.0f)), "! (withSus.holdDb > -12.0f && noSus.holdDb < -40.0f)");
-    expect (!(! (withSus.releaseSeconds > 0.0f && withSus.releaseSeconds < 0.25f)), "! (withSus.releaseSeconds > 0.0f && withSus.releaseSeconds < 0.25f)");
-
-    // Inside the dead zone it is bit identical, which is 5.7.3 restated as
-    // "vol_sus < 0.5 measures no sustain".
-    const Articulation otherDead = articulate (seedWith ({ { g_vol_sus, 0.30f } }), 3, 60, sr, 4.0, 3.5);
-    expect (!(! (std::abs (otherDead.peak - noSus.peak) < 1.0e-6f)), "! (std::abs (otherDead.peak - noSus.peak) < 1.0e-6f)");
-
-    // env_tilt is the attack/decay split of the shape, so it moves measured
-    // attack in the documented direction and nothing else changes the timing.
-    const Articulation fastAttack = articulate (seedWith ({ { g_env_time, 0.5f }, { g_env_loop, 1.0f },
-                                                           { g_env_tilt, 0.1f } }), 5, 60, sr, 3.0, 2.4);
-    const Articulation slowAttack = articulate (seedWith ({ { g_env_time, 0.5f }, { g_env_loop, 1.0f },
-                                                           { g_env_tilt, 0.9f } }), 6, 60, sr, 3.0, 2.4);
-    show ("env_tilt fast attack", fastAttack);
-    show ("env_tilt slow attack", slowAttack);
-    expect (!(! (fastAttack.measured && slowAttack.measured)), "! (fastAttack.measured && slowAttack.measured)");
-    expect (!(! (slowAttack.attackSeconds > fastAttack.attackSeconds * 3.0f)), "! (slowAttack.attackSeconds > fastAttack.attackSeconds * 3.0f)");
-    expect (!(! (fastAttack.attackSeconds > 0.05f && fastAttack.attackSeconds < 0.4f)), "! (fastAttack.attackSeconds > 0.05f && fastAttack.attackSeconds < 0.4f)");
-
-    // vol_atk is the curvature of that same attack: front weighted versus back
-    // weighted, at an unchanged split.
-    const Articulation front = articulate (seedWith ({ { g_env_time, 0.5f }, { g_env_loop, 1.0f },
-                                                      { g_vol_atk, 0.0f } }), 7, 60, sr, 3.0, 2.4);
-    const Articulation back = articulate (seedWith ({ { g_env_time, 0.5f }, { g_env_loop, 1.0f },
-                                                     { g_vol_atk, 1.0f } }), 8, 60, sr, 3.0, 2.4);
-    show ("vol_atk front weighted", front);
-    show ("vol_atk back weighted", back);
-    expect (!(! (front.measured && back.measured)), "! (front.measured && back.measured)");
-    expect (!(! (back.attackSeconds > front.attackSeconds * 1.5f)), "! (back.attackSeconds > front.attackSeconds * 1.5f)");
-
-    // env_kf: the same plant at a low key and a high one.
-    const Articulation lowKey = articulate (seedWith ({ { g_env_time, 0.45f }, { g_env_loop, 1.0f },
-                                                       { g_env_kf, 1.0f } }), 9, 48, sr, 4.0, 3.5);
-    const Articulation highKey = articulate (seedWith ({ { g_env_time, 0.45f }, { g_env_loop, 1.0f },
-                                                        { g_env_kf, 1.0f } }), 9, 72, sr, 4.0, 3.5);
-    show ("env_kf note 48", lowKey);
-    show ("env_kf note 72", highKey);
-    expect (!(! (lowKey.measured && highKey.measured)), "! (lowKey.measured && highKey.measured)");
-    expect (!(! (highKey.endSeconds < lowKey.endSeconds * 0.6f)), "! (highKey.endSeconds < lowKey.endSeconds * 0.6f)");
-
-    // The infinite duration (R3), rendered: the note is stopped by the key, not
-    // by its shape, and it keeps sounding past what the shape's base asks for.
-    const Articulation endless = articulate (seedWith ({ { g_env_time, 0.95f }, { g_env_loop, 1.0f },
-                                                        { g_vol_sus, 0.9f } }), 10, 60, sr, 20.0, 18.0);
-    show ("env_time >= 0.9", endless);
-    expect (!(! endless.measured), "! endless.measured");
-    expect (!(endless.selfEnded), "endless.selfEnded");               // still sounding when the key came up
-    expect (!(! (endless.holdDb > -12.0f)), "! (endless.holdDb > -12.0f)");    // and at its sustain, not at silence
-    expect (!(! (endless.releaseSeconds > 0.0f && endless.releaseSeconds < 0.25f)), "! (endless.releaseSeconds > 0.0f && endless.releaseSeconds < 0.25f)");
-
-    // vol_fade is the documented second fade after the attack, and its
-    // destination is silence: the one gene that can end a note on its own.
-    const Articulation unfaded = articulate (seedWith ({ { g_env_time, 0.45f }, { g_env_loop, 1.0f },
-                                                        { g_vol_sus, 0.9f } }), 11, 60, sr, 4.0, 3.5);
-    const Articulation faded = articulate (seedWith ({ { g_env_time, 0.45f }, { g_env_loop, 1.0f },
-                                                      { g_vol_sus, 0.9f }, { g_vol_fade, 1.0f } }),
-                                          12, 60, sr, 4.0, 3.5);
-    show ("no second fade", unfaded);
-    show ("vol_fade at full", faded);
-    expect (!(! (unfaded.measured && faded.measured)), "! (unfaded.measured && faded.measured)");
-    expect (!(unfaded.selfEnded), "unfaded.selfEnded");
-    expect (!(! faded.selfEnded), "! faded.selfEnded");
-    expect (!(! (faded.holdDb < -40.0f && unfaded.holdDb > -12.0f)), "! (faded.holdDb < -40.0f && unfaded.holdDb > -12.0f)");
-
-    // Below the gate (0.75) the second fade is not switched on at all, and the
-    // render is bit identical to the one without it. Same tag on purpose: the
-    // per voice noise/detune stream hangs off the plant's seed id, so a
-    // different tag would compare two different voices rather than the gate.
-    const Articulation fadeShut = articulate (seedWith ({ { g_env_time, 0.45f }, { g_env_loop, 1.0f },
-                                                         { g_vol_sus, 0.9f }, { g_vol_fade, 0.6f } }),
-                                             11, 60, sr, 4.0, 3.5);
-    expect (!(fadeShut.selfEnded), "fadeShut.selfEnded");
-    expect (!(std::abs (fadeShut.peak - unfaded.peak) > 1.0e-6f), "std::abs (fadeShut.peak - unfaded.peak) > 1.0e-6f");
-
-    std::printf ("       durations: short %.3f s vs long %.3f s; endless shape base %.2f s\n",
-                 shortNote.endSeconds, longNote.endSeconds, mapGene (kGenes[g_env_time], 0.9f));
-    check (ok, "measured attack, hold, sound over and self ending move as the genes say");
-
-    //------------------------------------------------------------------------
-    // Determinism of the new clock: the same scene, twice, at three sample
-    // rates, bit for bit.
-    bool identical = true;
-    for (const double rate : { 22050.0, 48000.0, 96000.0 })
-    {
-        const Genome g = seedWith ({ { g_env_time, 0.6f }, { g_env_loop, 0.3f }, { g_vol_sus, 0.8f } });
-        const Articulation a = articulate (g, 14, 60, rate, 2.0, 1.5);
-        const Articulation b = articulate (g, 14, 60, rate, 2.0, 1.5);
-        if (! (a.measured && b.measured)) identical = false;
-        if (a.peak != b.peak || a.attackSeconds != b.attackSeconds
-            || a.endSeconds != b.endSeconds || a.holdDb != b.holdDb)
-            identical = false;
-    }
-    check (identical, "the shared envelope renders bit identically when re rendered, at 3 sample rates");
-}
-
-//==============================================================================
-// The M2 table (Docs/Implementation-Status.md section 12) rendered through the
-// same harness. Same seed, same plant, same note events, the same *default*
-// PlayState the old harness fell back to, because that is what produced those
-// numbers (section 12's first finding). It is a golden of a milestone boundary
-// rather than of the engine: M2 proved it changed no sample, and this table
-// re-pinned at M3 is the one M4 onwards are measured against. When it moves, a
-// milestone changed the audio of the instrument at rest, which is worth knowing
-// in decibels rather than by ear.
-//==============================================================================
-static void testM2BaselineAudio()
-{
-    std::printf ("the M2 audio table, re-pinned after M3 (baseline for M4)\n");
+    std::printf ("the M1 audio table, reproduced (baseline for M2)\n");
 
     const MutationParams mp;
     const uint64_t seedId = hash::fromString ("render-seed");
@@ -2231,16 +1809,11 @@ static void testM2BaselineAudio()
     PlantSnapshot plant;
     buildPlant (plant, seedId, seed, mp);
 
-    // Recorded from the post M3 build; the rms column of the table in
-    // Implementation-Status section 13, at full precision. The pre M3 column
-    // (0.0704387 … 0.0721963) is kept in section 12: the shared envelope took
-    // the instrument at rest down by about 8 dB, because its note now spends
-    // half of env_time attacking and lands on a sustain floor instead of
-    // sitting at full level. That is the design, and M7's Volume curve is the
-    // milestone that re-tunes the output for it.
+    // Recorded from the pre-M2 build; the rms column of the table in
+    // Implementation-Status section 11, at full precision.
     static const float expectedRms[12] = {
-        0.0273958f, 0.0278022f, 0.0277919f, 0.0277034f, 0.0270448f, 0.0277866f,
-        0.0275757f, 0.0271672f, 0.0267898f, 0.0271518f, 0.0270851f, 0.0268318f
+        0.0704387f, 0.0717074f, 0.0722083f, 0.0728705f, 0.0704952f, 0.0727317f,
+        0.0728590f, 0.0723190f, 0.0715584f, 0.0733393f, 0.0726848f, 0.0721963f
     };
 
     bool same = true;
@@ -2279,7 +1852,7 @@ static void testM2BaselineAudio()
                      branch, n.midiNote, r.m.peak, r.m.rms, r.m.dc);
     }
 
-    check (same, "the post M3 per branch table is reproduced to 1e-4 (M3's audio is pinned)");
+    check (same, "the pre-M2 per branch table is reproduced to 1e-4 (the harness changed no audio)");
     std::printf ("       worst relative difference: %.2e\n", worstRelative);
 }
 
@@ -2329,27 +1902,6 @@ void runBatch (const PlantSnapshot& plant, double sampleRate, double seconds,
 
             const float dbVsSeed = (m.rms > 0.0f && seedRms > 0.0f)
                 ? 20.0f * std::log10 (m.rms / seedRms) : 999.0f;
-
-            if (std::abs (dbVsSeed) > BatchStats::kTargetDbVsSeed)
-            {
-                // Name the offender rather than count it: the resolved genome and
-                // the numbers the mapping layer made from it, which is the only
-                // way a level regression can be read instead of guessed at.
-                BranchTraits traits;
-                const Genome rg = resolveBranchGenome (plant, branch, length, traits);
-                VoiceParams vp;
-                resolveVoiceParams (rg, traits, offlinePlayState().macros, 60 + branch, 0.9f, vp);
-                std::printf ("       !! br %d len %.2f  sus %.2f fade %.2f  env %.2fs loop %.2fs rep %d"
-                             " tilt %+.2f  flt %.0fHz q %.1f top %.2f mode %d sep %+.1f"
-                             "  noise %.2f/%.2f form %.2f/%.2f  q %.2f sat %.2f  gain %.3f duty %.2f\n",
-                             branch, length, rg[g_vol_sus], rg[g_vol_fade],
-                             vp.envDuration, vp.envLoopSeconds, vp.envRepeats ? 1 : 0,
-                             vp.envTilt, vp.filterHz, vp.filterQ, rg[g_flt_type],
-                             vp.filterSep,
-                             rg[g_a_noise], rg[g_b_noise], rg[g_a_form], rg[g_b_form],
-                             rg[g_flt_q], rg[g_saturate],
-                             loudnessCompensation (rg), envelopeDuty (rg));
-            }
 
             ++stats.cases;
             bool usable = true;
@@ -2433,24 +1985,22 @@ static void testBranchBatch()
     check (stats.unmeasured == 0, "every rendered note could be measured (the metrics work on real audio)");
     check (stats.worstDc < 0.02f, "no runaway DC anywhere in the batch");
     check (stats.maxPeak < 1.0f, "nothing clips past full scale");
-    // The plan's M2 gate was "loudness relative to the seed, target ~6 dB", and
-    // the M2 measurement missed it in 11 of 60 cases. M3 found the cause, and it
-    // was not the envelope: it was the filterMode *trait*, which replaced the
-    // filter topology outright (decision R10) and left the branches that grew
-    // into "band" or "high" with a 5-20 kHz pass band where their fundamental
-    // should have been - exactly the three metric signature section 12 named.
-    // Removing that trait (see Genetic/Mutation.h) plus the duration aware duty
-    // term in loudnessCompensation put the whole batch inside the target:
-    // worst +3.64 dB, quietest -1.58 dB, 60 of 60. The gate is now the target
-    // itself; the measured spread is pinned one notch above what M3 got so that
-    // M5's real topologies have somewhere to fail in before the gate does.
-    check (stats.overSixDb == 0, "every one of the 60 cases is inside the 6 dB target (M3's gate)");
-    check (stats.worstDbVsSeed < 5.0f, "measured spread stays under 5 dB (M3 reached 3.64)");
-    // Growth was level *suppressed* under M2; the duty term now lifts short and
-    // percussive branches toward their seed, so a branch may come out a little
-    // louder. Pin the direction and the amount anyway: +4 dB is the point where
-    // M7's limiter has to be in the picture.
-    check (stats.louderThanSeed < 4.0f, "growth does not make a branch more than ~4 dB louder than its seed");
+    // The plan's M2 gate is "loudness relative to the seed, target ~6 dB". The
+    // first measurement of it says: growth is level tracked to a tenth of a dB
+    // up to length 0.25, and from 0.5 a *minority* of branches fall away by
+    // 17-24 dB rather than drifting. Every one of them has a 10-22 kHz centroid
+    // and a hold level near silence: a branch that grew into a shrill blip
+    // instead of a note. loudnessCompensation cannot compensate a note that
+    // stopped sustaining, and it still reasons in raw gene space while vol_sus
+    // is gated (Docs/Rev3-Alignment-Plan.md 6.3), so this is an M3 finding and
+    // not a tolerance to widen. The gate below is the measured distribution:
+    // the target stays named, and the count is pinned so that a regression is
+    // loud and an M3 improvement can be seen.
+    check (stats.overSixDb <= 11, "no more than 11 of the 60 cases are beyond the 6 dB target (11 today; M3 owns the list)");
+    // Growth is level *suppressed*, not level matched in both directions: the
+    // two loudest cases measured +1.64 and +1.25 dB, both at length 1.0. Pin
+    // the direction, so an M3/M7 that makes branches able to get loud is seen.
+    check (stats.louderThanSeed < 2.5f, "growth does not make a branch more than ~2 dB louder than its seed");
     // Not a gate on taste: a branch that is pure noise or pure dullness is a
     // broken branch, which is exactly what 13 asks flatness and centroid to catch.
     check (stats.worstFlatness < 0.95f, "no branch renders as nothing but noise");
@@ -2764,9 +2314,7 @@ static void runSuite()
 
     // And the audio, through that tooling.
     testNeutralGateIsAudible();
-    testSharedEnvelope();
-    testEnvelopeArticulation();
-    testM2BaselineAudio();
+    testM1BaselineAudio();
     testBranchBatch();
     testMassiveSoak (40);
     testNoteBookkeeping();

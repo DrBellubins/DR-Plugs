@@ -6,19 +6,15 @@ namespace gmosh
 {
 namespace
 {
-    /// The gene value at which env_time stops being a duration (decision R3:
-    /// "Above 0.9, the Envelope will have infinite duration, stopped only by
-    /// releasing the key or vol_fade fades out"). Read from the table rather
-    /// than written as a literal, so the two cannot drift apart.
-    constexpr float kInfiniteDurationGene = 0.9f;
-
-    /// The shape time base for an infinite duration with no repeats: the
-    /// duration that env_time = 0.9 maps to. A literal phase += dt/inf freezes
-    /// the shape at its start and the note never opens, so "infinite duration"
-    /// has to mean "no end to the note", never "no end to the shape".
-    float infiniteShapeSeconds()
+    /// vol_atk / vol_dcy / mod_atk / mod_dcy are *curvature* controls in the
+    /// Rev 3 table (4.2), while the ADSR that still runs until the shared
+    /// envelope engine lands (M3) needs seconds. Neutral curvature therefore maps
+    /// to a usable default time and the ends of the gene scale it by a factor.
+    /// Provisional scaffolding on purpose: M3 deletes it together with Env, when
+    /// these four become exponents of a shape that has no seconds in it at all.
+    float provisionalSeconds (float curvature, float baseSeconds, float factor)
     {
-        return mapGene (kGenes[g_env_time], kInfiniteDurationGene);
+        return baseSeconds * std::pow (factor, curvature); // curvature in -1..+1
     }
 
     /// mapGene() through the gene's activation gate (5.7.3). Reading a gated
@@ -27,15 +23,6 @@ namespace
     float levelOf (std::size_t gene, float norm)
     {
         return mappedGated (kGenes[gene], norm);
-    }
-
-    /// A curvature gene into an exponent: 4.2 asks for 2^(2(v-0.5)), so the
-    /// neutral value is exactly linear, the bottom of the range is front
-    /// weighted and the top is back weighted, and the curve never inverts.
-    float curvatureExponent (std::size_t gene, float norm)
-    {
-        const float m = mapGene (kGenes[gene], norm);   // Bipolar, -1..+1
-        return std::exp2 (m);
     }
 }
 
@@ -52,69 +39,29 @@ void resolveVoiceParams (const Genome& g, const BranchTraits& traits,
     const float effectScale = lerpf (0.25f, 1.25f, clamp01 (macros.effect));
 
     //------------------------------------------------------------------------
-    // The shared envelope clock (design 6.1.1, M3).
-    //
-    // env_time is the duration of the sound and env_kf scales it by key, so the
-    // voice's whole notion of "how long" is decided here, once, in seconds.
-    // Above 0.9 the *duration* is infinite while the shape still needs a finite
-    // base, which is decision R3, and the whole of it lives in these lines:
-    //
-    //   env_loop < duration  -> the shape repeats, one whole envelope per
-    //                           period. "Infinite" is then heard as an endless
-    //                           sweep, exactly as the reference describes it.
-    //   env_loop >= duration -> one pass, no repeats. For an infinite duration
-    //                           that pass takes what env_time = 0.9 maps to
-    //                           (infiniteShapeSeconds), then holds at sustain -
-    //                           or closes to silence under vol_fade, which is
-    //                           the only way such a note ends by itself.
-    //
-    // A repeat takes the whole shape rather than a slice of it: the design
-    // sketch let a short period truncate the shape, which makes env_time and
-    // env_loop fight over the same envelope and leaves a fast period near
-    // silence. The note is still the shape env_time asks for; env_loop only
-    // decides how often it is re sounded.
-    const float envGene = g[g_env_time];
-    const bool infinite = envGene >= kInfiniteDurationGene;
+    // Envelope clock. envTime is the duration of the sound (4.2); until M3 the
+    // old loop generator is what consumes it, hence the field names.
+    p.envTime   = mapGene (g_env_time, g[g_env_time]);
+    p.envRepeat = g[g_env_loop];              // stays the loop crossfade until M3
+    p.envTilt   = mapGene (g_env_tilt, g[g_env_tilt]);
+    p.envKeyFollow = mapGene (g_env_kf, g[g_env_kf]);   // octaves of time scaling, M3
 
-    const float kfOct = mapGene (g_env_kf, g[g_env_kf]);   // octaves of time
-    const float keyScaleOct = clampf (-kfOct * static_cast<float> (midiNote - 60) / 12.0f,
-                                      -6.0f, 6.0f);
-    p.envKeyFollow = kfOct;
-    p.envLoopSeconds = mapGene (g_env_loop, g[g_env_loop]);
-
-    if (infinite)
-    {
-        p.envDuration = EnvShape::kInfiniteDuration;
-        p.envRepeats  = p.envLoopSeconds < infiniteShapeSeconds();
-        p.envShapeSeconds = p.envRepeats ? p.envLoopSeconds : infiniteShapeSeconds();
-    }
-    else
-    {
-        const float t = mapGene (g_env_time, envGene) * std::pow (2.0f, keyScaleOct);
-        p.envDuration = clampf (t, 0.01f, EnvShape::kInfiniteDuration * 0.1f);
-        p.envRepeats = p.envLoopSeconds < p.envDuration;
-        p.envShapeSeconds = p.envRepeats ? p.envLoopSeconds : p.envDuration;
-    }
-
-    p.envTilt = mapGene (g_env_tilt, g[g_env_tilt]);   // -1..1 attack/decay skew
-
-    // Curvature, never seconds (4.2: "0.5 is linear").
-    p.ampAttackExp = curvatureExponent (g_vol_atk, g[g_vol_atk]);
-    p.ampDecayExp  = curvatureExponent (g_vol_dcy, g[g_vol_dcy]);
-    p.modAttackExp = curvatureExponent (g_mod_atk, g[g_mod_atk]);
-    p.modDecayExp  = curvatureExponent (g_mod_dcy, g[g_mod_dcy]);
-
-    // 5.7.3: "vol_sus < 0.5 = none". Read through the gate this is exactly the
+    p.ampAttack  = provisionalSeconds (mapGene (g_vol_atk, g[g_vol_atk]), 0.02f, 8.0f);
+    p.ampDecay   = provisionalSeconds (mapGene (g_vol_dcy, g[g_vol_dcy]), 0.35f, 8.0f);
+    // 5.7.3: "vol_sus < 0.5 = none". Read through the gate this is the
     // documented max(0, 2(v-0.5)) of 6.1.1, and the neutral value is silence.
     p.ampSustain = levelOf (g_vol_sus, g[g_vol_sus]);
     p.ampRelease = kNoteOffReleaseSeconds;    // D-5: fixed note off release, no gene
-    // No second fade below 0.75 (4.2); above it, the depth of the droop that
-    // closes a note which has no duration of its own.
-    p.volFade    = levelOf (g_vol_fade, g[g_vol_fade]);
+    p.volFade    = levelOf (g_vol_fade, g[g_vol_fade]); // no second fade below 0.75; read by M3
 
+    p.modAttack  = provisionalSeconds (mapGene (g_mod_atk, g[g_mod_atk]), 0.006f, 8.0f);
+    p.modDecay   = provisionalSeconds (mapGene (g_mod_dcy, g[g_mod_dcy]), 0.30f, 8.0f);
     // mod_sh is a sample and hold rate (4.2), gated to the top quarter and
     // inverted: the gate opening gives the fastest rate and the top of the gene
-    // the slowest. Nothing samples yet - M4 owns the destination.
+    // the slowest. Nothing samples yet - M4 owns the destination - so the mod
+    // envelope's curve exponent is left at the identity rather than being driven
+    // by a gene that does not mean "curve" any more.
+    p.modShape   = 1.0f;
     p.modSampleHoldHz = gateOpen (kGenes[g_mod_sh], g[g_mod_sh])
                       ? mapGene (g_mod_sh, gated (kGenes[g_mod_sh], g[g_mod_sh]))
                       : 0.0f;
@@ -215,16 +162,19 @@ void resolveVoiceParams (const Genome& g, const BranchTraits& traits,
     const float ampSens = clamp01 (macros.velSens);
     p.velocity = 1.0f - ampSens * (1.0f - vel);
 
-    // 6.1.1: the mod envelope is what velocity scales - one place, which is
-    // also what makes mix_mod/fm_mod/a_mod share the same velocity curve when
-    // M4 wires them up. The destination amounts stay raw and bipolar.
     const float modSens = clamp01 (p.modVelocity);
-    p.modScale = 1.0f - modSens * (1.0f - vel);
+    const float modScale = 1.0f - modSens * (1.0f - vel);
+    p.aMod *= modScale;
+    p.bMod *= modScale;
+    p.fmMod *= modScale;
+    p.filterMod *= modScale;
 
     // Guard rail 5.6: level compensation so branches sit near the seed.
     p.gain = loudnessCompensation (g) * p.velocity;
 
+    p.filterMode = traits.filterMode;
     p.fmDirection = traits.fmDirection;
+    p.modSource = traits.modSource;
     p.oscBMode = traits.oscBMode;
 }
 

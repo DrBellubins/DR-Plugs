@@ -644,44 +644,6 @@ limiter replaces.
 sustain; 100% of resolved branches pass the recalibrated safety score; bit-identical
 reruns at 3 sample rates. Plus the audio half of the §6.3 list: the eleven branches M2's
 batch measured beyond ±6 dB of their seed are inside the target by the end of this milestone.
-**Status: landed 2026-10-30.** `Dsp.h` has no `Env` any more: `EnvShape` + `SharedEnv` are the
-clock, `VoiceParams` resolves it (duration, key follow, loop period, whether it repeats, the
-shape's finite base, the four curvatures as exponents, the gated sustain, the fade depth, the
-note-off release) and `Voice` only runs it. `loopEnvOneShot`, `loopMod`, the `modSource`
-selector and the four `provisionalSeconds` time genes are gone; the mod envelope is the same
-clock through `mod_atk`/`mod_dcy`, scaled once by `VelSens × mod_vel` instead of at every
-destination. `safetyScore`, `applyCouplings` and `loudnessCompensation` read *effective*
-values (`effectiveSustain`, `effectiveDurationSeconds`, `envelopeDuty` in `Mutation.h`), which
-is the §6.3 item this milestone owned.
-
-**The eleven were not the envelope.** Named rather than counted (the batch now prints a `!!`
-line for every case outside the target), every offender had one cause and it was a trait:
-`filterMode`, a structural trait that *replaced* the filter topology outright, against R10, had
-grown a branch into "band" or "high" and left a 5-20 kHz pass band where its fundamental used
-to be. That is the whole three-metric signature of §12: centroid 2-22 kHz, hold level near
-silence, 17-25 dB down. The same reasoning had already scheduled that trait's removal for M5;
-M3's measurement is what made it a one line deletion now. With it gone, and with the
-duration-aware duty term in `loudnessCompensation`, the batch is **60 of 60 inside ±6 dB**,
-worst **+3.64 dB**, quietest **-1.58 dB**, worst deviation by branch length 0.00 / 0.19 / 0.43
-/ 1.42 / 3.64 dB, centroid range 238-1219 Hz, safety score **720 / 720**.
-
-**Two things to know before M4.** (1) The instrument at rest is about **8.4 dB quieter** than
-§12's table (rms 0.0274 against 0.072): a note now spends half of `env_time` attacking and
-lands on a sustain floor instead of sitting at full level. That is the design, and **M7 tunes
-the output against §13's numbers**, exactly as it was told to. The post-M3 baseline is pinned in
-`testM2BaselineAudio`. (2) A repeat is a whole envelope at the loop rate. The §6.1.1 sketch let
-a short period *truncate* the shape, which makes `env_time` and `env_loop` fight over one
-envelope and leaves a fast period near silence; the deviation is argued in the comment above the
-envelope block in `VoiceParams.cpp`. Related: past the fallback base `env_loop` stops repeating
-at all, which is the only reading in which "`vol_fade` alone ends a note that has no duration"
-is a real behaviour — and it is tested as one.
-
-The gate is now the target itself: `overSixDb == 0` for the batch, every resolved branch
-passing the safety score, `testSharedEnvelope` (the clock: repeats, one shots, the R3 infinite
-case, the fixed release) and `testEnvelopeArticulation` (measured attack, hold, sound-over,
-self ending and key follow move as the genes say). Full record:
-`Implementation-Status.md` §13.
-
 **Unlocks:** M4 (the mod envelope now *is* the note envelope — every modulator's shape depends on
 it) and the articulation half of M10.
 

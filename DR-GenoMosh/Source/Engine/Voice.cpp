@@ -20,7 +20,9 @@ namespace
 void Voice::prepare (double sampleRateHz, int /*maxBlockSamples*/)
 {
     sampleRate = sampleRateHz;
-    env.setSampleRate (sampleRateHz);
+    ampEnv.setSampleRate (sampleRateHz);
+    modEnv.setSampleRate (sampleRateHz);
+    loopEnvOneShot.setSampleRate (sampleRateHz);
     filter1.setSampleRate (sampleRateHz);
     filter2.setSampleRate (sampleRateHz);
     dcBlock.setSampleRate (sampleRateHz);
@@ -32,6 +34,7 @@ void Voice::start (const VoiceParams& params, int midiNote, uint64_t plantHash)
     p = params;
     note = midiNote;
     active = true;
+    gate = true;
     startedAt = sampleCount;
     peak = 0.0f;
 
@@ -43,8 +46,11 @@ void Voice::start (const VoiceParams& params, int midiNote, uint64_t plantHash)
 
     oscA.reset();
     oscB.reset();
-    env.reset();
+    ampEnv.reset();
+    modEnv.reset();
+    loopEnvOneShot.reset();
     lfo.reset();
+    loopMod.reset();
     filter1.reset();
     filter2.reset();
     dcBlock.reset();
@@ -69,14 +75,24 @@ void Voice::start (const VoiceParams& params, int midiNote, uint64_t plantHash)
     oscA.setPhase (rng.uniform());
     oscB.setPhase (rng.uniform());
 
-    // The one clock (design 6.1.1). Everything in the shape - duration, key
-    // follow, loop period, curvatures, sustain, the second fade, the note off
-    // release - is resolved by VoiceParams; the voice only runs it.
-    env.start (p.envShape());
+    ampEnv.setTimes (p.ampAttack, p.ampDecay, p.ampSustain, p.ampRelease);
+    ampEnv.gateOn();
+
+    modEnv.setTimes (p.modAttack, p.modDecay, 0.0f, p.modDecay * 0.5f);
+    modEnv.gateOn();
+
+    // One shot version of the loop envelope, crossfaded against the looping
+    // one by env_repeat (env_loop until M3 makes it the period it documents).
+    loopEnvOneShot.setTimes (p.envTime * 0.25f, p.envTime * 0.75f, 0.0f, p.envTime * 0.25f);
+    loopEnvOneShot.gateOn();
 
     lfo.setRateHz (p.lfoRate, sampleRate);
     lfo.setShape (rng.integer (3), rng);
     lfo.setPhase (rng.uniform());
+
+    loopMod.setRateHz (1.0f / p.envTime, sampleRate);
+    loopMod.setShape (1, rng);
+    loopMod.setPhase (rng.uniform());
 
     driftPitch.prepare (sampleRate, rng, 0.25f);
     driftFilter.prepare (sampleRate, rng, 0.11f);
@@ -117,9 +133,10 @@ void Voice::release()
     if (! active)
         return;
 
-    // The clock owns the note off behaviour now (D-5): stop repeating, ramp to
-    // silence over the fixed release from wherever the shape currently is.
-    env.release();
+    gate = false;
+    ampEnv.gateOff();
+    modEnv.gateOff();
+    loopEnvOneShot.gateOff();
 }
 
 //==============================================================================
@@ -129,7 +146,15 @@ float Voice::whiteNoise()
 }
 
 //==============================================================================
-void Voice::updateControlTargets (float modEnvV, float lfoPitch, float lfoFilter,
+float Voice::tiltTriangle (float phase, float tilt) const
+{
+    const float duty = clampf (0.5f + tilt * 0.45f, 0.02f, 0.98f);
+    return phase < duty ? (phase / duty) * 2.0f - 1.0f
+                        : 1.0f - (phase - duty) / (1.0f - duty) * 2.0f;
+}
+
+//==============================================================================
+void Voice::updateControlTargets (float modMix, float lfoPitch, float lfoFilter,
                                  float driftP, float driftF)
 {
     const float driftCents = driftP * p.driftAmount * 12.0f;
@@ -146,13 +171,10 @@ void Voice::updateControlTargets (float modEnvV, float lfoPitch, float lfoFilter
 
     // Timbre: a_mod / b_mod are the mod envelope's amount on each oscillator's
     // own spectrum (pulse width, added partials), which is the destination their
-    // names suggest and leaves the played pitch alone. The envelope itself is
-    // 0..1 (6.1.1); the bipolar gene is what gives the movement a sign, so a
-    // note starts at its pressed colour and moves away from it as the envelope
-    // opens. M4 moves these two to pitch, which is what the reference documents.
+    // names suggest and leaves the played pitch alone.
     constexpr float kModColourDepth = 0.35f;
-    colourATo = clampf (p.aColour + p.aMod * modEnvV * kModColourDepth, 0.0f, 1.0f);
-    colourBTo = clampf (p.bColour + p.bMod * modEnvV * kModColourDepth, 0.0f, 1.0f);
+    colourATo = clampf (p.aColour + p.aMod * modMix * kModColourDepth, 0.0f, 1.0f);
+    colourBTo = clampf (p.bColour + p.bMod * modMix * kModColourDepth, 0.0f, 1.0f);
 
     freqATo = clampFreq (baseFreqA * centsToRatio (detuneA + driftCents)
                                     * std::pow (2.0f, pitchModA), sampleRate);
@@ -163,7 +185,7 @@ void Voice::updateControlTargets (float modEnvV, float lfoPitch, float lfoFilter
     // pre computed at note on through its soft rails (5.7.4); the mod sources
     // add up to three octaves of deviation.
     const float oct = p.keyFollow
-                    + p.filterMod * modEnvV * 3.0f
+                    + p.filterMod * modMix * 3.0f
                     + lfoFilter * 1.5f
                     + driftF * p.driftAmount * 0.12f;
 
@@ -171,7 +193,7 @@ void Voice::updateControlTargets (float modEnvV, float lfoPitch, float lfoFilter
     cutoff1To = clampf (p.filterHz * std::pow (2.0f, oct), 20.0f, maxCut);
     cutoff2To = clampf (cutoff1To * std::pow (2.0f, cutoffSepOct), 20.0f, maxCut);
 
-    fmIndexTo = std::max (0.0f, p.fmAmount * (1.0f + p.fmMod * modEnvV) * 3.0f);
+    fmIndexTo = std::max (0.0f, p.fmAmount * (1.0f + p.fmMod * modMix) * 3.0f);
 
 }
 
@@ -181,11 +203,9 @@ void Voice::render (float* outL, float* outR, int numSamples)
     if (! active)
         return;
 
-    // Lowpass, always, until M5: flt_type is the topology gene (4.2), the voice
-    // has no topology of its own any more, and the structural trait that used to
-    // pick one was removed by M3 (decision R10, see Genetic/Mutation.h). The
-    // parallel sum, the notch mix and the band/high taps all belong to M5.
-    const float lpMix = 1.0f, bpMix = 0.0f, hpMix = 0.0f;
+    const float lpMix = p.filterMode == 0 ? 1.0f : 0.0f;
+    const float bpMix = p.filterMode == 1 ? 1.0f : 0.0f;
+    const float hpMix = p.filterMode == 2 ? 1.0f : 0.0f;
 
     // p.balance is already in equal power mix space (0.5 = 50/50): the osc_mix
     // warp of 5.7.7 was applied by VoiceParams, so the law here stays symmetric
@@ -208,21 +228,28 @@ void Voice::render (float* outL, float* outR, int numSamples)
     const bool hasNoiseA = p.aNoise > 0.001f;
     const bool hasNoiseB = p.bNoise > 0.001f;
     const bool hasSub = p.subLevel > 0.001f;
+    const bool hasLoop = p.envRepeat > 0.001f;
 
     for (int i = 0; i < numSamples; ++i)
     {
         //--------------------------------------------------------------------
-        // The one clock (design 6.1.1): the amp is the shape through the volume
-        // curvatures, the modulator is the same position through the mod
-        // curvatures, scaled once by VelSens x mod_vel. Sample accurate, per
-        // 6.4 - with duration as a gene, an envelope that lags its own shape is
-        // an envelope that does not measure what the harness measures.
-        const float ampEnvV = env.process();
-        const float modMix = env.modValue() * p.modScale;
-
+        // Modulators.
+        const float modEnvV = std::pow (modEnv.process(), p.modShape);
+        const float loopV = hasLoop
+                          ? tiltTriangle (loopMod.process() * 0.5f + 0.5f, p.envTilt)
+                          : 0.0f;
+        const float oneShotV = loopEnvOneShot.process() * 2.0f - 1.0f;
         const float lfoV = lfo.process();
         const float driftP = driftPitch.process (rng);
         const float driftF = driftFilter.process (rng);
+
+        float modMix = 0.0f;
+        switch (p.modSource)
+        {
+            case 0: modMix = modEnvV * 2.0f - 1.0f; break;
+            case 1: modMix = hasLoop ? loopV : oneShotV; break;
+            default: modMix = lfoV; break;
+        }
 
         const float lfoPitch = lfoV * lfoDepth * lfoBalanceCos;
         const float lfoFilter = lfoV * lfoDepth * lfoBalanceSin;
@@ -304,14 +331,10 @@ void Voice::render (float* outL, float* outR, int numSamples)
         const float f2 = filter2.process (f1, lpMix, bpMix, hpMix);
         const float filtered = dcBlock.process (f2);
 
-        const float amp = ampEnvV;
+        const float amp = ampEnv.process();
         float out = filtered * amp * p.gain * p.velocity;
 
-        // Done in both directions: the key came up and the release finished, or
-        // the note ended itself (its duration is over with nothing to sustain,
-        // or vol_fade closed it) while the key is still down. The second one is
-        // what keeps a field of one shot notes from holding voices open.
-        if (env.finished() && amp <= 0.0f)
+        if (! gate && amp <= 0.0f)
         {
             active = false;
             for (int j = i; j < numSamples; ++j)

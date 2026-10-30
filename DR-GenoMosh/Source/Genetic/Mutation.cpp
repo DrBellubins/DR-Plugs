@@ -111,14 +111,12 @@ void applyCouplings (Genome& g)
         g[g_a_form] = 0.12f + (0.12f - energy) * 0.5f;
 
     // --- ...and never let the amplitude envelope close everything off: a
-    //     branch that cannot sound is not a branch, it is a bug (5.6). This is
-    //     duration aware since M3, and reads gated values: what has to be saved
-    //     is the audible part of the note, so a short but genuinely percussive
-    //     branch is allowed while a branch its gate closed is not (plan 6.3).
-    const float audible = std::max (effectiveSustain (g),
-                                    0.55f * std::min (1.0f, effectiveDurationSeconds (g)));
-    if (audible < 0.16f || envelopeDuty (g) < 0.07f)
-        g[g_vol_sus] = 0.68f;   // just above the gate of 4.2, not at its edge
+    //     branch that cannot sound is not a branch, it is a bug. The sustain
+    //     gate of 4.2 (< 0.5 = no sustain) lands with M1, which is also where
+    //     this gets a duration aware version.
+    const float ampOpen = std::max (g[g_vol_sus], 0.35f * (1.0f - g[g_vol_dcy]));
+    if (ampOpen < 0.08f)
+        g[g_vol_sus] = 0.18f;
 
     // --- keep the two filters from stacking their resonance into a howl.
     if (g[g_flt_sep] > 0.5f && g[g_flt_q] > 0.5f)
@@ -186,10 +184,14 @@ BranchTraits resolveTraits (uint64_t seedHash, float distance, const MutationPar
     // flips once as a branch grows and stays flipped.
     Rng rng (hash::combine (seedHash, 0x5EED1E5ull));
 
+    const float t0 = rng.uniform();
     const float t1 = rng.uniform();
+    const float t2 = rng.uniform();
     const float t3 = rng.uniform();
 
+    if (p > t0) traits.filterMode = static_cast<unsigned char> (rng.integer (3));
     if (p > t1) traits.fmDirection = static_cast<unsigned char> (rng.integer (2));
+    if (p > t2) traits.modSource = static_cast<unsigned char> (rng.integer (3));
     if (p > t3) traits.oscBMode = static_cast<unsigned char> (rng.integer (3));
 
     return traits;
@@ -201,20 +203,11 @@ float safetyScore (const Genome& g)
     // Rough "will this be an audible, non horrible sound" score. Used only to
     // pick between the kNumDirections variants of a branch (5.6 silence
     // rejection); it is deliberately cheap and coarse.
-    //
-    // M3 recalibrated it for the two things 6.3 warned about: the sustain gate
-    // (a raw vol_sus of 0.55 is 0.1 of sustain, and the score used to read the
-    // raw gene) and the fact that env_time is the length of the note, which
-    // makes "almost silent" reachable in three ways rather than one - no
-    // sustain, a shape shorter than the note, or vol_fade closing the note
-    // before it sounds. The score reads the effective values, which is what
-    // makes 5.6's silence rejection able to see any of them.
     float score = 1.0f;
 
-    // Needs to be able to sound at all, and to keep sounding.
-    score -= 0.9f * std::max (0.0f, 0.12f - std::max (effectiveSustain (g),
-                                                      0.4f * std::min (1.0f, effectiveDurationSeconds (g))));
-    score -= 0.8f * std::max (0.0f, 0.22f - envelopeDuty (g));
+    // Needs to be able to sound at all.
+    score -= 0.9f * std::max (0.0f, 0.10f - std::max (g[g_vol_sus],
+                                                      0.4f * (1.0f - g[g_vol_dcy])));
 
     // Needs something to hear: source energy and an open enough filter.
     const float energy = std::max (std::max (g[g_a_form], g[g_a_noise]),
@@ -244,19 +237,7 @@ float loudnessCompensation (const Genome& g)
                       + 0.5f * std::max (g[g_a_noise], g[g_b_noise])
                       + 0.9f * g[g_saturate];
 
-    // ... and the envelope is now one of them (M3). Loudness over a fixed
-    // window is energy, so a branch whose note is only audible for part of it
-    // reads quieter, and 5.6's compensation has to account for the duty the
-    // envelope implies or the guard rails are chasing a difference they cannot
-    // see (the eleven offenders of Implementation-Status 12).
-    //
-    // The correction is capped: bringing a 60 ms blip up to the RMS of a note
-    // that holds a whole key costs ~14 dB of peak level, which is how the
-    // batch's clipping cases start. M7's limiter owns the rest of that.
-    const float duty = std::max (0.12f, envelopeDuty (g));
-    const float dutyGain = std::min (3.0f, 1.0f / std::sqrt (duty));
-
-    return dutyGain / std::sqrt (boost);
+    return 1.0f / std::sqrt (boost);
 }
 
 //==============================================================================

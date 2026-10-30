@@ -12,9 +12,8 @@ namespace gmosh
 //          [Osc B] ---+-> balance -> dual filter -> amp env -> pan
 //          [Sub]  ---+
 //
-// Modulation: the shared envelope of design 6.1.1 (one clock for amp and mod),
-// the LFO, and two slow drift generators, all per voice, plus per voice random
-// detune and phase start.
+// Modulation: mod envelope, looping/tilt envelope, LFO and two slow drift
+// generators, all per voice, plus per voice random detune and phase start.
 //
 // What this class does *not* do is arithmetic on genes. Every value it reads
 // comes from VoiceParams, which is the one mapping layer (design doc 3, 5.7.2):
@@ -45,11 +44,12 @@ public:
     int noteNumber() const { return note; }
     float currentPeak() const { return peak; }
     std::int64_t startSample() const { return startedAt; }
-    float ampLevel() const { return env.ampValue(); }
+    float ampLevel() const { return ampEnv.valueOf(); }
 
 private:
     float whiteNoise();
-    void updateControlTargets (float modEnv, float lfoPitch, float lfoFilter,
+    float tiltTriangle (float phase, float tilt) const;
+    void updateControlTargets (float modMix, float lfoPitch, float lfoFilter,
                                float driftP, float driftF);
 
     // Control rate: modulation targets are evaluated every kCtrlPeriod samples
@@ -73,6 +73,7 @@ private:
     VoiceParams p;
     int note = 60;
     bool active = false;
+    bool gate = false;
     std::int64_t startedAt = 0;
     std::int64_t sampleCount = 0;
     float peak = 0.0f;
@@ -80,8 +81,8 @@ private:
     MorphOsc oscA, oscB;
     float subPhase = 0.0f, subInc = 0.0f;
 
-    SharedEnv env;          // one clock: amp and modulation (design 6.1.1)
-    Modulator lfo;
+    Env ampEnv, modEnv, loopEnvOneShot;
+    Modulator lfo, loopMod;
     Drift driftPitch, driftFilter;
     Rng rng { 0 };
 

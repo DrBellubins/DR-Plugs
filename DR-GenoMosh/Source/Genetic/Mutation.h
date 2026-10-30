@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Curves.h"
 #include "GeneTable.h"
 #include "Rng.h"
 
@@ -72,76 +71,16 @@ struct BranchDirection
 
 /// Discrete, distance gated structural changes (design doc 5.4).
 /// Decision R10: a trait may only offset a stepped gene by one step and swap
-/// which source drives a destination, never replace a gene. Two traits went away
-/// because of exactly that:
-///
-///   modSource   - M3: there is one envelope now (6.1.1), nothing left to select.
-///   filterMode  - removed by M3, which measured it. It replaced the filter
-///                 topology outright, and every branch that grew into "band" or
-///                 "high" lost its fundamental to a 5-20 kHz pass band: 16 of
-///                 the 60 batch cases came out 17-25 dB under their seed with a
-///                 2-22 kHz centroid. The gene for topology is flt_type, and M5
-///                 gives it the four topologies plus the loudness model they
-///                 need. Nothing is hidden by removing it: until M5 the voice is
-///                 lowpass only, which is what a seed already is.
+/// which source drives a destination, never replace a gene. filterMode is on its
+/// way out for exactly that reason (M5 makes flt_type the gene the document
+/// describes); the three below only ever swap a source.
 struct BranchTraits
 {
+    unsigned char filterMode = 0; ///< 0 = low, 1 = band, 2 = high
     unsigned char fmDirection = 0;///< 0 = B modulates A, 1 = A modulates B
+    unsigned char modSource = 0;  ///< 0 = mod env, 1 = loop env, 2 = LFO
     unsigned char oscBMode = 0;   ///< 0 = sync, 1 = ring mod, 2 = sample & hold
 };
-
-//==============================================================================
-// What the guard rails actually hear (plan 6.3, milestone M3).
-//
-// 5.6's checks reason about genomes, but since M1 a genome is read through
-// gates, rails and curves, and since M3 env_time is the length of the note.
-// A rail that reads raw gene values is therefore lying: with vol_sus gated at
-// 0.5, a raw 0.55 is barely a sustain at all, and a branch with a 60 ms
-// duration is quiet for a reason the level compensator cannot see. These four
-// helpers are the effective values, computed the same way the mapping layer
-// computes them, and the couplings, the safety score and the loudness estimate
-// all read *them*.
-inline float effectiveSustain (const Genome& g)
-{
-    return mappedGated (kGenes[g_vol_sus], g[g_vol_sus]);
-}
-
-inline float effectiveFade (const Genome& g)
-{
-    return mappedGated (kGenes[g_vol_fade], g[g_vol_fade]);
-}
-
-/// The gene's duration in seconds. The table's own curve decides it; >= 0.9 is
-/// the reference's "infinite", which for a level estimate means "as long as the
-/// key is held", so it is reported as the cap.
-inline float effectiveDurationSeconds (const Genome& g)
-{
-    constexpr float kCap = 8.0f;   // beyond this, the note is as long as any key
-    if (g[g_env_time] >= 0.9f)
-        return kCap;
-    return std::min (kCap, mapGene (kGenes[g_env_time], g[g_env_time]));
-}
-
-/// The note length the guard rails treat as "a whole note", i.e. the duty a
-/// sustaining note has. Pinned to about what env_time's neutral value maps to
-/// (1.2 s), so the compensator neither favours nor punishes a neutral plant.
-inline constexpr float kNominalNoteSeconds = 1.2f;
-
-/// How much of a held note the envelope actually sounds, 0..1. This is what a
-/// listener measures as loud over a fixed window, and the only reason the
-/// batch's worst offenders were 17-24 dB under their seed: a note that stops
-/// sustaining has no RMS to compensate.
-inline float envelopeDuty (const Genome& g)
-{
-    const float sus  = effectiveSustain (g);
-    const float dur  = effectiveDurationSeconds (g);
-    const float fade = effectiveFade (g);
-
-    // A sustaining note sounds for as long as the key is down; a one shot is
-    // audible for about its shape, shortened by the second fade.
-    const float oneShot = clamp01 (dur / kNominalNoteSeconds) * (1.0f - 0.6f * fade);
-    return clampf (lerpf (oneShot, 1.0f, sus), 0.05f, 1.0f);
-}
 
 /// Deterministic identity of a branch of a given seed.
 inline uint64_t branchHash (uint64_t seedId, int branch, int variant = 0)
