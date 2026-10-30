@@ -13,14 +13,7 @@ D9: yes, but only when the user is dragging a branch in the UI
 D10: current initially, leave option for continous
 D11: atonlity should be a blend, with it affecting the amount of vibrato (and other things affecting pitch), but it should not be a gene
 D12: keep removed, its a UI semantic I don't care about
-D13: Unchanged (more on distortion in A2)
-D14: keep, leaving the option for hybrid (shown in A1 below)
+D13: UNSURE
+D14: UNSURE
 D15: break them
 D16: 16, unchanged, but with a real fade on stolen voices
-
-
-Addendums:
-A1: Hybrid: keep directions on the wire, add a per-branch cache in Synth keyed by (snapshot.revision, quantised distance). Note-on becomes a lookup in the common case, recomputing only when the plant or the distance actually changed — ~15 lines, gives you the doc's "voice captures a plain array of floats" verbatim without giving up the live wheel.
-
-A2:
-Synplant has a per-voice soft-clipper with an adj_clip gene, it is per-voice pre-filter saturation with asymmetry. After that there is a saturate parameter that controls post-filter saturation on all voices, but before reverb.
