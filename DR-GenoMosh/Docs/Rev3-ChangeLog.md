@@ -110,24 +110,58 @@ default 0.6875), `fm_mod`, `mix_mod`, `flt_q`, `rvb_len`, `rvb_damp`, `rvb_chor`
 
 ## 5. Conflicts to settle with the operator (design doc §15)
 
+**All of these were answered on 2026-10-29; the record is §5.1 below.** Kept as asked, since they
+are the conflicts Rev 3 could not settle itself.
+
 1. **`saturate` vs `adj_clip` placement.** The reference's own description: `saturate` = per-voice, `adj_clip` = master after
    volume. `Docs/Rev2-Answers.md` addendum A2: the opposite (per-voice `adj_clip` pre-filter with
-   asymmetry, master post-filter `saturate`). Rev 3 defaults to the reference's description and flags it.
+   asymmetry, master post-filter `saturate`). Rev 3 defaults to the reference's description and flags it. **Still unanswered — the default stands.**
 2. **Atonality's reach.** As the reference describes it: converges `a_mod`/`b_mod` only. Rev 2 answer D7 says "atonality
    should not affect pitch movement"; D11 says it should be a blend affecting vibrato amount. D11 and
-   the reference's description agree; D7 does not.
+   the reference's description agree; D7 does not. **Closed by R7.**
 3. **The asterisk on `lfo_amt`**, plus the fact that the three gene-page screenshots in `Pictures/`
    (`2026-10-22-0854xx/0855xx_hyprshot.png`) have **no `.txt` description** — they should, per the
-   project's own convention.
-4. **`layers` / `Bulb Mode` / `Tempo Sync` / `Wheel Target` enumerations**: their existence is documented, their values are not.
+   project's own convention. **Unanswered; the sidecars are an M0 housekeeping item.**
+4. **`layers` / `Bulb Mode` / `Tempo Sync` / `Wheel Target` enumerations**: their existence is documented, their values are not. **Still open, off the critical path.**
+
+### 5.1 Operator answers, 2026-10-29 (Rev 3 alignment R1–R12, D5/D6/D13/D16)
+
+Verbatim, with the effect each one had. The decision table itself is `Rev3-Alignment-Plan.md` §4.
+
+| # | Answer as given | Effect |
+| --- | --- | --- |
+| R1 | "48 genes + documented extras" | §4.2's 48 stay verbatim; `b_color`/`fx_width` kept in a marked extras block after them → new design deviation **D-7**, `kNumGenes` = 50, new `Group::Extras`. `vol_rel`/`det_spread`/`drift_amt` still deleted (their behaviour is D-3/D-5 engine behaviour). Answers design Q-7. |
+| R2 | "According to synplant's description: *a_mod is bipolar and determines the pitch modulation amount from the Modulation Envelope. 0.5 means no pitch modulation. 0.0 is the maximum negative, and 1.0 is the maximum positive modulation.* this applies to b_mod too" | Pitch modulation confirmed, centred-silent at 0.5, full swing at both ends, **no dead zone**, identically on B. Ceiling + `converge()` stay; `testPitchStability` is rewritten with the behaviour, not kept. |
+| R3 | "According to synplants description: *env_time controls the total duration of the sound. Above 0.9, the Envelope will have infinite duration, stopped only by releasing the key or vol_fade fades out.*" | Shape times are fractions of the cycle, **and** the ∞ case is normative. §6.1.1's code sketch was corrected: `T = ∞` is the *duration*; the shape takes a finite base (the `env_loop` period, else `kInfiniteShapeSeconds`) so the note actually opens. |
+| R4 | "No, rotation isn't needed." | Design doc corrected: §2 vocabulary, §3 rules, §4.1 macro table and scope, §5.3 note map and heading, §9 MIDI-learn and persistence, §12 plant view, §14 phase 6. Rev 2 D12 closed as originally ruled. |
+| R5 | "Per-voice wet paths with heavily optimized reverb (since quality per-voice isn't needed when the wet signals are combined together)" | Against the plan's default. Reverb moves into `Voice` (§7 graph, §8 architecture rewritten); `rvb_atk` and the `Release` gate become per-voice; optimizations listed; `WetPath` interface keeps the shared-bus variant for A/B; **per-voice CPU at 1/4/8/16 voices becomes an M7 gate**. Closes design Q-8 and Q-9. |
+| R6 | "Not as a fixed route. Keep it only as a rare structural routing (§6.3, our D-6)" | Unchanged. |
+| R7 | "Yes (converge(x,at) at generation time), plus the D-4 ratio snap on b_freq blended by the same value. Drop the 5-gene hard ceiling" | Closed as described; answers design Q-6. |
+| R8 | "Yes, with the §10 quantised per-branch cache" | Unchanged; cache stays in M8. |
+| R9 | "Its store. Gene parameters are AudioParameterFloats in a Genome unit whose listener writes the seed genome; XML stays the patch serialisation" | Written into design §9 as a rule. |
+| R10 | "Stepped genes are authoritative; a trait may offset a stepped gene by ±1 step and swap source/destination, never replace a gene" | Unchanged; `filterMode` trait removed. |
+| R11 | "Refuse to load, warn, keep the instance at a fresh plant. Add modelVersion; no fake migration" | Design §11's "write a converter" line replaced. |
+| R12 | "Implement as documented, with a variance-bounding coupling if chords smear" | Unchanged; M10 listens first. |
+| D5 | "Unchanged: stop looping, fixed 180 ms release, named constant" | Unchanged (deviation D-5). |
+| D6 (the Rev-2 **D9** held-note question) | "No (as before). It is the only way to see §5.4's crossfades, so it becomes an M6 debug-mode affordance rather than default behaviour" | Design §3's "optionally crossfade" line marked as a debug affordance, not behaviour. |
+| D13 | "Keep" | Deviation D-1 stands. |
+| D16 | "Keep, with a real fade on stolen voices" | Stands — and note it interacts with R5: a faded/stolen voice must keep its per-voice tail alive until silent. |
+| D3, D4, D8, D10, D11, D12, D15 | "Closed or reopened by Rev 3 …" | As tabulated in `Rev3-Alignment-Plan.md` §4; D12 is now closed as originally ruled (no Rotation). |
+
+Three of these changed the shape of the work rather than its details: **R1** (a 50-slot table with
+a marked extras block and a new deviation row), **R4** (the design document itself had to be
+corrected, not just the plan), **R5** (the reverb moved into the voice and brought a CPU budget
+with it). Everything else was a confirmation.
 
 ## 6. What this means for the code and the other documents
 
 - `Source/Genetic/GeneTable.h` is still **Rev 1's 43-gene table**. Migration (design doc §4.2
-  "Migration"): rename `fx_*→rvb_*`, `balance→osc_mix`, `sat_drive→saturate`; delete `b_color`,
-  `det_spread`, `drift_amt`, `vol_rel`; add `env_kf`, `vol_fade`, `lfo_dly`, `mix_mod`, `flt_type`,
-  `rvb_atk`, `adj_bass`, `adj_treb`, `adj_pan`, `adj_clip`; set `kFlagNever` on `rvb_size` + `adj_*`;
-  add `neutral`, `gateLow/gateHigh`, `steps`, `helpText`, `colour` to `GeneInfo`.
+  "Migration", as settled by R1): rename `fx_*→rvb_*`, `balance→osc_mix`, `sat_drive→saturate`;
+  delete `det_spread`, `drift_amt`, `vol_rel`; keep `b_color`, `fx_width` as the D-7 extras block
+  **after** the 48; add `env_kf`, `vol_fade`, `lfo_dly`, `mix_mod`, `flt_type`, `rvb_atk`,
+  `adj_bass`, `adj_treb`, `adj_pan`, `adj_clip`; set `kFlagNever` on `rvb_size` + `adj_*`;
+  add `neutral`, `gateLow/gateHigh`, `steps`, `helpText`, `colour` to `GeneInfo`. Result: 48 core
+  genes in the reference's order + 2 extras = 50 slots.
 - Re-semantified, not just renamed: `vol_atk/dcy` and `mod_atk/dcy` become curvature exponents,
   `env_time` becomes the note duration, `*_sh` become S&H rates, `a_freq` becomes 7 octaves,
   `flt_freq` becomes a tracking ratio, `a_color` becomes a noise spectrum, `sub_am` becomes true AM,
@@ -139,4 +173,5 @@ default 0.6875), `fm_mod`, `mix_mod`, `flt_q`, `rvb_len`, `rvb_damp`, `rvb_chor`
   closes, reopens or overturns marked as such.
 - `Docs/Implementation-Status.md` describes the built state and stays as-is; its next entry should
   report the usable-branch ratio under the new table.
-- Presets written by the Rev 1 table are unreadable under Rev 3: bump `modelVersion`, reject or migrate.
+- Presets written by the Rev 1 table are unreadable under Rev 3: bump `modelVersion` and **refuse to
+  load them with a warning** (decision R11) — no partial migration.
