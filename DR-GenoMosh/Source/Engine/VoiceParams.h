@@ -39,10 +39,12 @@ namespace gmosh
 // and onset delay. Design 6.2's destination list and the voice's render loop
 // have to agree; they do, because the voice reads numbers, never genes.
 //
-// The shared envelope of design 6.1.1 is resolved here as an EnvShape (M3):
-// env_time is the duration, env_kf scales it by key, env_loop is the repeat
-// period, and env_time >= 0.9 is "infinite" (decision R3). The voice owns no
-// envelope arithmetic of its own, it runs the clock this struct describes.
+// The shared envelope of design 6.1.1 (Rev 4 / M4b) is resolved here as an
+// EnvShape: a pluck repeated at env_loop, under an outer volume decay whose
+// length is env_time x env_kf. env_time >= 0.9 simply means "no outer decay";
+// the retired R3 special case is gone because the note's length and the curve's
+// shape are no longer the same number. The voice owns no envelope arithmetic of
+// its own, it runs the clock this struct describes.
 //
 // Gates, rails and warps are *not* applied to genomes: the genome is the truth
 // the player sees and grows, this is how it is read. Voice reads resolved values
@@ -56,6 +58,20 @@ namespace gmosh
 inline constexpr float kNoteOffReleaseSeconds = 0.18f; ///< D-5: fixed note off release
 inline constexpr float kVoiceDetuneCents     = 12.0f;  ///< D-3: per voice spread of the detune
 inline constexpr float kVoiceDriftAmount     = 0.35f;  ///< D-3: per voice random walk depth
+
+/// env_tilt -> where a pluck peaks within its period (design 6.1.1 Rev 4, plan
+/// M4b gate 2). This is the single most character-defining pair of numbers in
+/// the instrument, so it is named here rather than buried in the mapping layer:
+/// the neutral gene must be the reference's plain pluck (5.7.1: neutral is
+/// inaudible, and "a pluck" is what the instrument does at rest), and only the
+/// top of the gene grows the slow rise that falls off a cliff.
+inline constexpr float kPluckPeakFast    = 0.010f; ///< env_tilt = -1: as snappy as it gets
+inline constexpr float kPluckPeakNeutral = 0.060f; ///< env_tilt =  0: a regular pluck
+inline constexpr float kPluckPeakSwell   = 0.950f; ///< env_tilt = +1: rise, then a cliff
+
+/// How far mod_atk may move the modulation pluck's peak away from the level's,
+/// as a fraction of the period. mod_atk has no curvature meaning (D-8).
+inline constexpr float kModPeakOffsetRange = 0.40f;
 
 /// The ceiling on a_mod / b_mod (design doc 4.2 "Bipolar -> up to +-12 st",
 /// decision R2). The gene endpoints are *full* swing - 0.0 is maximum negative,
@@ -81,25 +97,36 @@ struct MacroValues
 
 struct VoiceParams
 {
-    // Envelope clock (4.2 group 1). Since M3 this *is* the length of the note:
-    // envDuration is env_time scaled by env_kf, or EnvShape::kInfiniteDuration
-    // once env_time reaches 0.9 (decision R3). envLoopSeconds is env_loop; the
-    // shape's finite time base is derived from the two by SharedEnv, which is
-    // the only place that reading of "infinite" lives (R3).
+    // Envelope clock (4.2 group 1). Since M4b this is a pluck under a volume
+    // decay: envDuration is how long the whole train of plucks takes to fade
+    // (EnvShape::kInfiniteDuration = no decay at all, design 6.1.1), and
+    // envPeriodSeconds is one pluck - env_loop when the note repeats, the whole
+    // note when it does not. envPeakPosition is env_tilt (where the pluck
+    // peaks), and nothing here is a duration the shape has to fit into.
     float envDuration = 1.0f, envLoopSeconds = 0.0f, envTilt = 0.0f;
-    bool  envRepeats = false;    ///< env_loop shorter than the duration (4.2)
-    float envShapeSeconds = 1.0f; ///< one pass of the shape, always finite (R3)
+    bool  envRepeats = false;    ///< env_loop shorter than the note (4.2)
+    float envPeriodSeconds = 1.0f; ///< one pluck, always finite
+    float envPeakPosition = 0.06f; ///< env_tilt -> peak position within the period
     float envKeyFollow = 0.0f;   ///< resolved octaves/key of time scaling, for M8
 
-    // Shape curvatures. vol_atk / vol_dcy / mod_atk / mod_dcy are exponents of
-    // the shared shape (4.2: "0.5 is linear"), so the neutral gene maps to 1.0
-    // and nothing here is ever a number of seconds (5.7.7).
-    float ampAttackExp = 1.0f, ampDecayExp = 1.0f;
-    float modAttackExp = 1.0f, modDecayExp = 1.0f;
+    // The pluck and the decay under it. vol_atk is the curvature of the rise
+    // into the peak, vol_dcy the curvature of the *outer* volume decay over the
+    // repeats (deviation D-8: it has no say in the pluck's own fall). Both are
+    // exponents, 1.0 = linear, never seconds (5.7.7).
+    float pluckRiseExp = 1.0f, outerDecayExp = 1.0f;
+    // The modulation envelope has no shape of its own (design 6.1.1, Rev 4):
+    // mod_atk offsets its peak within the same period, mod_dcy scales its decay
+    // time relative to the level's. Both are silent at their neutral value.
+    float modPeakOffset = 0.0f, modTimeScale = 1.0f;
 
-    // Levels, read through their gates (5.7.3).
+    // Levels, read through their gates (5.7.3). vol_sus is the floor of the
+    // outer curve, vol_fade pulls that floor to silence.
     float ampSustain = 0.0f;     ///< max(0, 2(v-0.5)): below the gate, no sustain
-    float volFade = 0.0f;        ///< the second fade after the attack, 0..1
+    float volFade = 0.0f;        ///< pulls the outer floor to silence, 0..1
+    /// The one floor the clock is given: vol_sus with vol_fade already folded in
+    /// for a note that has a length, and (1 - vol_fade) or 1.0 for one that has
+    /// none. 1.0 means "this note cannot end by itself" (design 6.1.1 Rev 4).
+    float envOuterFloor = 0.0f;
     float ampRelease = kNoteOffReleaseSeconds;   ///< D-5: fixed note off release
 
     // Modulation envelope depth: VelSens x mod_vel, applied *once*, to the mod
@@ -189,17 +216,15 @@ struct VoiceParams
     EnvShape envShape() const
     {
         EnvShape s;
-        s.duration       = envDuration;
+        s.noteSeconds    = envDuration;
+        s.periodSeconds  = envPeriodSeconds;
         s.repeats        = envRepeats;
-        s.loopPeriod     = envLoopSeconds;
-        s.shapeSeconds   = envShapeSeconds;
-        s.tilt           = envTilt;
-        s.attackExp      = ampAttackExp;
-        s.decayExp       = ampDecayExp;
-        s.modAttackExp   = modAttackExp;
-        s.modDecayExp    = modDecayExp;
-        s.sustain        = ampSustain;
-        s.fade           = volFade;
+        s.peak           = clampf (envPeakPosition, 1.0e-3f, 0.999f);
+        s.riseExp        = pluckRiseExp;
+        s.outerExp       = outerDecayExp;
+        s.outerFloor     = clamp01 (envOuterFloor);
+        s.modPeak        = clampf (s.peak + modPeakOffset, 1.0e-3f, 0.999f);
+        s.modTimeScale   = modTimeScale;
         s.releaseSeconds = ampRelease;
         return s;
     }

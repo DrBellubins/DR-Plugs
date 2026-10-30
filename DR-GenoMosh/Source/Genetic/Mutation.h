@@ -134,20 +134,52 @@ inline float effectiveDurationSeconds (const Genome& g)
 /// (1.2 s), so the compensator neither favours nor punishes a neutral plant.
 inline constexpr float kNominalNoteSeconds = 1.2f;
 
+/// The floor the outer volume decay settles on: vol_sus through its gate, pulled
+/// toward silence by vol_fade (design 6.1.1 Rev 4). Zero means the note ends by
+/// itself; above zero the pluck train keeps going for as long as the key is down.
+inline float effectiveOuterFloor (const Genome& g)
+{
+    return lerpf (effectiveSustain (g), 0.0f, effectiveFade (g));
+}
+
+/// The level a note of these genes actually puts through a window as long as
+/// kNominalNoteSeconds: the outer curve's mean over the note, plus whatever the
+/// floor is still contributing after the note's length is over. Normalised so
+/// the instrument at rest measures 1.0 - the same convention as
+/// kNominalNoteSeconds, for the same reason: the guard rails must neither favour
+/// nor punish a neutral plant.
+///
+/// This is what a train of plucks sounds like over a fixed window, and it is the
+/// part the trapezoid model could not see. Two genomes with the same duration are
+/// not equally audible: one may fade to nothing at its length while the other
+/// settles on a floor and keeps plucking, and a 20% floor is worth -14 dB, not
+/// "sustaining".
+inline float outerLevelRatio (const Genome& g)
+{
+    constexpr float kNeutralAverage = 0.5f;  // vol_sus gated to 0, vol_dcy linear
+    if (g[g_env_time] >= 0.9f)
+        return 1.0f / kNeutralAverage;       // no outer decay at all
+
+    const float f = clamp01 (effectiveOuterFloor (g));
+    const float e = std::exp2 (mapGene (kGenes[g_vol_dcy], g[g_vol_dcy]));
+    const float t = std::min (1.0f, effectiveDurationSeconds (g) / kNominalNoteSeconds);
+
+    // mean over the sounding part, then the floor's share of what is left.
+    const float during = f * t + (1.0f - f) * t * (1.0f - std::pow (1.0f - t, e + 1.0f))
+                                          / (e + 1.0f);
+    const float after  = f * (1.0f - t);
+    return (during + after) / kNeutralAverage;
+}
+
 /// How much of a held note the envelope actually sounds, 0..1. This is what a
 /// listener measures as loud over a fixed window, and the only reason the
 /// batch's worst offenders were 17-24 dB under their seed: a note that stops
-/// sustaining has no RMS to compensate.
+/// sustaining has no RMS to compensate. Since M4b the *shape* of the note is not
+/// part of it - one pluck and a train of them are equally audible per unit of
+/// outer level; what varies is how long the note lasts and how its level falls.
 inline float envelopeDuty (const Genome& g)
 {
-    const float sus  = effectiveSustain (g);
-    const float dur  = effectiveDurationSeconds (g);
-    const float fade = effectiveFade (g);
-
-    // A sustaining note sounds for as long as the key is down; a one shot is
-    // audible for about its shape, shortened by the second fade.
-    const float oneShot = clamp01 (dur / kNominalNoteSeconds) * (1.0f - 0.6f * fade);
-    return clampf (lerpf (oneShot, 1.0f, sus), 0.05f, 1.0f);
+    return clampf (outerLevelRatio (g), 0.05f, 1.0f);
 }
 
 /// Deterministic identity of a branch of a given seed.

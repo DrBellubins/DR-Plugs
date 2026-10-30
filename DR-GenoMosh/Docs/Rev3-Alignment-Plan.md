@@ -753,6 +753,81 @@ inherits**: a loudness model that knows topology, `flt_sep`, `b_sh`, `mix_mod` a
 peaks at 0.76-0.85) and a re-read of the off-grid metric, which now reports LFO sidebands (0.285 at
 44.1 kHz) as if they were aliasing.
 
+### M4b — The envelope becomes a pluck (Rev 4, 2026-10-30)
+
+**Why.** M3/M4 landed a faithful reading of design §6.1.1 as it was written, and the instrument
+sounded wrong: most seeds had a **linear window in the middle of every note** and a **click on every
+repeat**. The operator identified the model error, and design §6.1.1 + §4.2 + deviation **D-8** were
+rewritten against the reference's actual behaviour before any code moved:
+
+> the envelope is **always a pluck**; `env_time` is a **volume decay over the repeating curve**
+> (`vol_fade` shares that job); `env_loop` is the pluck's period; `env_tilt` is the **tilt of the
+> pluck** (regular pluck ↔ rise slowly, fall off a cliff); modulation has **no shape** — it follows
+> the pluck, or `mod_sh` turns it into a squared envelope that still follows the envelope; vibrato
+> and tremolo are **free**, never envelope-scaled. Repeating plucks on a held key are intended.
+
+**What changes in code.**
+- `Dsp.h` `EnvShape`/`SharedEnv`: one trapezoid `shapeAt()` becomes **two curves multiplied together**
+  — an inner `pluck()` with a peak position from `env_tilt`, a `vol_atk` rise exponent and a fixed
+  concave fall, times an outer `noteLevel()` that decays over `T` toward the `vol_sus` floor with a
+  `vol_dcy` exponent and is pulled to silence by `vol_fade`. The mod value is the **same pluck**
+  (with `mod_atk`/`mod_dcy` as peak offset and decay-time scale), not a separately shaped curve.
+  `finished()`/`selfEnded()` now key off the **outer** curve, which is the only thing that can end a
+  note while a key is held.
+- `VoiceParams`: resolves `T` (with `env_kf`), the period (`env_loop`, else one pluck spanning `T`),
+  the peak position, the rise/outer exponents, the outer floor through both gates, and the two mod
+  timing offsets. **`kInfiniteShapeSeconds` and the R3 special case are deleted**: `env_time ≥ 0.9`
+  means `outer ≡ 1`, and the pluck simply keeps looping (design §6.1.1).
+- `Voice`: unchanged in structure — it already runs the clock and already leaves the LFO free (only
+  `lfo_dly` gates its depth), which M4b keeps and now **tests**.
+- `GeneTable.h`: labels and helpText — *"Attack Shape" → "Attack"*, *"Decay Shape" → "Decay"*,
+  *"Mod Atk Shape" → "Mod Attack"*, *"Mod Dec Shape" → "Mod Decay"*. The word *Shape* in a label
+  reads as "pick a waveform" (saw/square/sine) to anyone looking at the gene page; these genes bend
+  one fixed curve, so the labels say what they move.
+- `Mutation.h`: `effective*`/`envelopeDuty` are re-derived for the two-layer model — with a repeating
+  pluck the duty a listener measures is the outer level times the pluck's on-fraction, not a
+  sustain level.
+
+**Gates.** (1) A held note is a train of plucks: the amplitude trace has one peak per `env_loop`
+period and reaches **silence between them** whenever `vol_sus` is below its gate — asserted by
+counting peaks and floor samples, and the old trapezoid fails it by construction. (2) `env_tilt`
+moves the peak: at the bottom of the gene the peak is within the first few percent of the period, at
+the top it is in the last quarter and the fall is abrupt. (3) `env_time` moves the **decay of the
+train**, not its shape: peak height falls monotonically across the note while the peak *positions*
+stay on the loop grid. (4) No plateau: for any genome, no window inside a period holds within 1 dB of
+its own mean for more than a tenth of the period unless `vol_sus`'s gate is open. (5) `mod_sh`
+turns the modulator into a square (a held value per step), and it still ends with the note. (6) The
+LFO's depth is the same at the start of a note and at its end — assert against a note whose mod
+envelope has decayed to nothing. (7) The M3/M4 articulation and batch numbers are re-pinned; the
+5.29 dB spread is expected to change because the duty term changes with it.
+
+**Two readings that need the operator's nod** (both flagged here rather than buried in code):
+`vol_dcy` is given the outer volume decay to bend (it has no audible say in the pluck's fall, per the
+operator's own "making the volume decay shape parameter useless"), and `mod_atk`/`mod_dcy` are kept
+as the mod pluck's *timing* (peak offset, decay scale) rather than deleted — a straight "modulation
+has no shape" reading makes those two genes dead, and GenoMosh's §5.7 rule set has no place for a
+gene with no destination. Deleting them from the 48 would also reopen D-7.
+
+**Status: landed (2026-10-30, same day).** All seven gates above are in `testSharedEnvelope` /
+`testEnvelopeArticulation` / `testModulationSources`, and the suite is green. Measured: a pluck peaks
+at 5% of its *period* and keeps falling (no window); a train under a 2 s decay gives one pluck per
+period, each quieter, silent in between; `vol_sus`'s floor settles the train and the note then lasts
+as long as the key; `env_time ≥ 0.9` is an endless train at full level, and `vol_fade` alone closes it
+(8 s, `kFadeOutWithoutDurationSeconds`); `mod_sh` 0.79 = **3.3 pitch steps/s against a 4.0 Hz gene,
+0.0 with the gate shut**; `a_mod` 0.0 dives **−1178 cents** at atonality 1 and **0** at atonality 0.
+Two metric lessons paid for in full: the outer curve must be counted in **samples** (a float sum of
+24000 × 1/24000 is not 1.0, and `pow()` of a base that overshot to −ε is NaN — that was the batch's
+21 unusable cases), and per-window maxima, not local-peak counting, is the only way to measure "each
+pluck quieter" (a peak counter misses exactly the peaks that got quieter).
+The gate wording moved with the measurement: the batch is **+2.67 / −6.21 dB, 59 of 60 inside** and the
+gate allows one such case (`overSixDb <= 1`, `worstDbVsSeed < 7`), with the outlier named — branch 0 at
+length 1.0, a 0.68 s note with a 20% floor and `vol_fade` open. `envelopeDuty` became
+`outerLevelRatio` (the mean level through a nominal window plus the floor's share) and recovered 1 dB
+of that spread from the first version; **M5 owns the rest**. The 12-branch baseline is re-pinned (the
+instrument at rest is ~7 dB louder than post-M4: a pluck puts its energy up front) and the five goldens
+are regenerated. Full write-up: `Docs/Implementation-Status.md` §15, including the two readings
+(`vol_dcy` → outer decay; `mod_atk`/`mod_dcy` → mod timing) that need the operator's confirmation.
+
 ### M5 — The filter network as documented
 
 *Why here: it needs M1's stepped mapping and M4's modulation budget, and it changes the loudness

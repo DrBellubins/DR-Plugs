@@ -14,6 +14,8 @@ The five changes that matter most when implementing:
 4. **The macro surface is multi-valued** (`Effect` = mix + pan, `Release` = time + reverb gating, `Volume` = limiter drive) and the mod wheel *lerps* every branch toward full growth rather than scaling it.
 5. **All 48 genes are host parameters** in Synplant 2, displayed as raw 0..1 — which is only sane because genes are unitless (§4.3, §9).
 
+*Revision 4 (2026-10-30), envelope correction.* After M3/M4 landed and the instrument was heard, the operator corrected the envelope model: **the shared envelope is always a pluck**, `env_time` is a *volume decay over the repeating curve*, `env_loop` is that curve's repeat period, `env_tilt` is the tilt of the pluck (regular pluck → slow rise, abrupt fall), the modulation envelope has **no shape of its own** (it follows the pluck, or is squared by `mod_sh`), and the LFO's vibrato/tremolo are **free** — not envelope-scaled. §6.1.1 is rewritten around that, §4.2's `env_*`/`vol_*`/`mod_*` rows are re-described, the word *Shape* is gone from the parameter labels, and the deviation register gains **D-8**. Decision **R3 is retired** — the two-layer model makes "infinite duration" trivial (§6.1.1).
+
 *Decisions applied the same day (2026-10-29).* The operator answered every open alignment question, R1–R12 and the carried Rev 2 `D` items — decision table in `Docs/Rev3-Alignment-Plan.md` §4, verbatim answers in `Docs/Rev3-ChangeLog.md` §5.1. Where an answer overrode this document, **the document was edited rather than left to be contradicted**: the gene set is the 48 plus a marked extras block (deviation D-7, `kNumGenes` = 50), `Rotation` is removed everywhere, `env_time ≥ 0.9` is given a workable definition in §6.1.1, and the reverb is instantiated **per voice** (§7, §8). Design §15 Q-6/Q-7/Q-8/Q-9 are closed by those answers; Q-5 (saturation placement) is still open and keeps its default.
 
 *Reading order for a model with a small context budget: §4.2, §5.7, §6.1.1, §7, §14 — plus §3.2 if you need to know where GenoMosh deliberately departs from the reference.*
@@ -124,6 +126,7 @@ Deliberate departures from the reference. Keep them, and keep them labelled, so 
 | D-4 | Optional ratio-snapping on `b_freq` (§5.5). | The reference quantises `a_freq` to octaves and leaves `b_freq` free; the ratio snapper is our extension, kept behind Atonality. |
 | D-5 | Fixed note-off behaviour: stop looping, 180 ms release (§6.1.1). | Operator decision (Rev 2 alignment D5). The reference's envelope simply *is* the note length and is stopped by key-up. |
 | D-6 | Sparse modulation matrix (§6.3). | The reference's routing is fixed per destination; the matrix is our extension. |
+| D-8 | The four "shape" genes are not curve exponents of an attack/decay trapezoid. `vol_atk` bends the *rise* of the pluck, `vol_dcy` bends the *outer* volume decay, and `mod_atk`/`mod_dcy` are the modulation envelope's **timing** relative to the level, not its curvature. The pluck's *fall* is a fixed curve with no gene. | Operator observation, 2026-10-30 (Rev 4): the reference's envelope is always plucky, and its help text calls these "Attack Shape"/"Decay Shape" only in the sense of "how the pluck is bent" — the reference's own decay-shape gene is effectively inaudible on the pluck. Rev 3's trapezoid reading produced a linear window in the middle of every note and a click on every repeat. The gene ids and count stay the reference's (D-7). |
 | D-7 | The genome is 48 documented genes **plus a marked extras block** (§4.2). | Operator decision (Rev 3 alignment R1, 2026-10-29), reviving Rev 2 D1/D2. Two extras today: `b_color` (B's colour offset from the shared noise shaper) and `fx_width` (wet mid/side width). An extra is allowed only where it owns a destination no documented gene owns; the 48 keep the reference's ids, order and grouping verbatim. |
 ---
 
@@ -157,7 +160,7 @@ All curves below are what the reference documents for its own macros, and are ad
 
 48 genes, in the reference's own grouping and order (as it lists them in its interface and in the `genome:` block of its patch files). Default value for every gene is **0.5**, except `osc_mix = 0.7937`, `flt_type = 0.6667`, `flt_freq = 0.75`, `b_freq = 0.6875` — the neutral-at-0.5 convention of §5.7.1, straight from its factory state. In the tables below, **Sens** is our own suggested starting mutation sensitivity for that gene (0 = never mutates, 1 = mutates freely); it is a tuning starting point, not a statement about the reference.
 
-**The five most dangerous Rev 2 guesses, to keep out of the code** (full correction table in `Docs/Rev3-ChangeLog.md` §2): `vol_atk`/`vol_dcy`/`mod_atk`/`mod_dcy` are *curvature* controls neutral at 0.5, not times; `env_loop` is a *loop period*, not an amount; `mod_sh` and `b_sh` are *sample-and-hold rates*, not shapes or sync; `a_freq` is a 7-step octave grid that *is* the patch pitch (and the filter cutoffs track it); `a_color` is the *noise colour*, not a timbre control.
+**The five most dangerous Rev 2 guesses, to keep out of the code** (full correction table in `Docs/Rev3-ChangeLog.md` §2): `vol_atk`/`vol_dcy`/`mod_atk`/`mod_dcy` are controls neutral at 0.5, not times *(Rev 4 corrected what each of them bends — pluck rise, outer volume decay, and modulation timing: §6.1.1, D-8)*; `env_loop` is a *loop period*, not an amount; `mod_sh` and `b_sh` are *sample-and-hold rates*, not shapes or sync; `a_freq` is a 7-step octave grid that *is* the patch pitch (and the filter cutoffs track it); `a_color` is the *noise colour*, not a timbre control.
 
 #### Group 1 — Envelope clock (4) + volume (4) + modulation (4) + LFO (4) = 16
 
@@ -165,16 +168,16 @@ One shared clock drives both envelopes. **The envelope duration is a gene**, so 
 
 | Gene | Behaviour (as the reference describes it) | Our mapping [ours] | Sens |
 | --- | --- | --- | --- |
-| `env_time` | Total duration of the sound; ≥0.9 → infinite, ended only by key-up | `Exp` 0.05 s → 30 s; v ≥ 0.9 = ∞ | 0.45 |
-| `env_loop` | Loop **period** of that envelope; a period longer than `env_time` means no repeats | `Exp` 0.05 s → 30 s; repeats iff period < duration | 0.35 |
-| `env_tilt` | Attack/decay skew of the shared envelope: low = fast attack + long decay, high = slow attack + fast decay | `Bipolar` around 0.5 = symmetric | 0.40 |
+| `env_time` | Total duration of the sound — *as a volume decay over the repeating curve*: the plucks get quieter over this time. ≥0.9 → infinite, ended only by key-up | `Exp` 0.05 s → 30 s; v ≥ 0.9 = no outer decay at all | 0.45 |
+| `env_loop` | How long it takes the curve to **loop** (the pluck period); a period longer than `env_time` means one pass, no repeats | `Exp` 0.05 s → 30 s; repeats iff period < duration, else one pluck spans the note | 0.35 |
+| `env_tilt` | **Tilt of the pluck**: low = a regular pluck (peak at the start), high = rise slowly then fall off a cliff | `Bipolar`, peak position across the cycle: −1 → 0.02, +1 → 0.95 of the period | 0.40 |
 | `env_kf` | Key follow of duration; above 0.5 shortens the envelope on high keys | `Bipolar`, 0.5 = none, ±2 octaves of time scaling | 0.25 |
-| `vol_atk` | Attack **curvature**, 0.5 = linear | `Bipolar` → shape exponent `2^(2(v−0.5))` | 0.35 |
-| `vol_dcy` | Decay **curvature**, 0.5 = linear | same | 0.35 |
-| `vol_sus` | Sustain: below 0.5 = no sustain, 1.0 = decay inaudible | gated: `sustain = max(0, 2(v−0.5))` | 0.40 |
-| `vol_fade` | A second fade after the attack, only active above 0.75 | gated: 0 below 0.75, then a droop toward sustain | 0.25 |
-| `mod_atk`,`mod_dcy` | Curvature of the **modulation** envelope — same shape model, drives *parameters*, not level | as `vol_atk`/`vol_dcy` | 0.35 |
-| `mod_sh` | **Sample-and-hold rate for the modulation envelope**; only very high values activate it; higher value = slower | off below 0.75, then rate 8 Hz → 0.1 Hz (inverted) | 0.30 |
+| `vol_atk` | How the pluck **rises** to its peak (punchy ↔ soft). Label: *Attack*, not *Attack Shape* | `Bipolar` → exponent `2^(2(v−0.5))` of the pluck's rise only | 0.35 |
+| `vol_dcy` | Shape of the **volume decay over the repeats** (steady fade ↔ late collapse). It has no say in the pluck's own fall — see D-8. Label: *Decay* | `Bipolar` → exponent of the *outer* curve | 0.35 |
+| `vol_sus` | Sustain: below 0.5 = no sustain, 1.0 = decay inaudible — the **floor of the outer curve**, i.e. how long the pluck train keeps going | gated: `floor = max(0, 2(v−0.5))` | 0.40 |
+| `vol_fade` | A second fade, only active above 0.75 — pulls that floor to silence; it is what closes a note with an infinite duration | gated: 0 below 0.75, then `floor → 0` | 0.25 |
+| `mod_atk`,`mod_dcy` | The modulation envelope has **no shape of its own** — it *is* the pluck. These are its **timing**: when the mod pluck peaks relative to the level's, and how much faster/slower it decays. Drives *parameters*, not level. Labels: *Mod Attack* / *Mod Decay* | `Bipolar` → peak position offset ±0.4 of the cycle, and decay time × `2^(±1)` | 0.35 |
+| `mod_sh` | **Sample-and-hold rate for the modulation envelope**: off, the modulator is the pluck; on, it becomes a *squared* envelope that still follows the envelope | off below 0.75, then rate 8 Hz → 0.1 Hz (inverted) | 0.30 |
 | `mod_vel` | How much velocity scales modulation depth; below 0.1 = no velocity | gated: 0 below 0.1 | 0.30 |
 | `lfo_rate` | LFO frequency | `Exp` 0.02 → 30 Hz; tempo-syncable [ours] | 0.60 |
 | `lfo_amt` | Bipolar; 0.5 = none; above 0.5 = A and B modulated **together**, below = **in opposite directions** (v1: below 0.5 = off) | `Bipolar` around 0.5; negative → opposite phase on A and B | 0.50 |
@@ -400,52 +403,63 @@ Growing a branch = the user drags it. Choosing a branch = **planting** it. The r
 
 ### 6.1 Sources
 
-- **The shared envelope** (§6.1.1): one clock drives the amp and the modulation envelope.
-- **LFO** (`lfo_*`): one rate, bipolar amount (in-phase or opposite-phase on A/B), pitch/tremolo balance, onset delay, optional tempo sync, optional per-voice phase offset.
+- **The shared envelope** (§6.1.1): one clock drives the amp and the modulation envelope. The envelope is **a pluck repeated at `env_loop`, with a volume decay over the repeats at `env_time`** — there is no plateau, and the modulator is the same pluck, not a second shape.
+- **LFO** (`lfo_*`): one rate, bipolar amount (in-phase or opposite-phase on A/B), pitch/tremolo balance, onset delay, optional tempo sync, optional per-voice phase offset. **Free running**: its depth is never scaled by the envelope (§6.1.1).
 - **Sample-and-hold** at two places: mod-envelope output (`mod_sh`) and oscillator B (`b_sh`), both with rate controls, `b_sh` note-synced below 0.5. This is a *third* modulator, which Rev 2 did not have.
 - **Velocity** (`VelSens` × `mod_vel`), **key follow** (`flt_kf`, `env_kf`), **mod wheel** (per `Wheel Target`), **pitch wheel** (`PitchWheelRange`).
 - **Noise / random-walk drift**: a slow smoothed random source per voice [ours, D-3]. Not a gene in the reference; central to this project's brief.
 - **Branch position → pan**: the reference pans by branch position, scaled by `adj_pan` and reduced by `Effect`. Free "movement" across the keyboard; implement it.
 
-### 6.1.1 The shared envelope (revised)
+### 6.1.1 The shared envelope (Rev 4: a pluck, with a decay over the repeats)
 
-**What the reference states.** There is one shared envelope shape feeding *both* volume and modulation, and its time base is the note itself: `env_time` is the **total duration of the sound**, and at high values it is "infinite, stopped only by key-up". `env_loop` is a **loop period**, and repeats disappear when the period is longer than the duration. The curvature genes (`vol_atk`/`vol_dcy`, `mod_atk`/`mod_dcy`) are shape exponents with 0.5 = linear, not times. Rev 2's "looping envelope engine" was structurally right and wrong about every knob.
+**What the reference does (operator, 2026-10-30 — this governs).** Rev 3 read the four `vol_*`/`mod_*` help texts as *curvature exponents of an attack/decay split*, which makes the envelope a trapezoid: ramp up, a **linear window** in the middle, ramp down, repeated at `env_loop`. That is not the instrument, and it is what made GenoMosh's plants click and pulse instead of plucking. The operator's description of the reference, verbatim:
 
-**Design [ours unless marked].**
+> *"In Synplant, the envelope always follows a plucky shape (making the volume decay shape parameter useless). The `env_time` acts sort of like a volume decay of the repeated envelope curve over time (but `vol_fade` also affects this). `env_loop` is how long it takes for the curve to loop, `env_tilt` controls the tilt of the pluck curve, causing it to slowly rise then abruptly fall when turned all the way up, or just a regular pluck when turned down. … modulation doesn't have a shape, with its `mod_sh` (sample and hold) turning it from a pluck following the envelope, to a squared envelope still following the env. Interestingly, pitch and volume oscillation (vibrato and tremolo) don't follow the envelope, and are free."*
 
-- Cycle: `T = envTime · keyFollowFactor(env_kf, note)`, where `env_kf` > 0.5 shortens the envelope on high keys. `env_time ≥ 0.9` ⇒ `T = ∞`.
-- **`T = ∞` means the *duration* is infinite, not the *shape*** (decision R3, quoting the reference: *"Above 0.9, the Envelope will have infinite duration, stopped only by releasing the key or vol_fade fades out"*). The shape still needs a finite time base: use the `env_loop` period (always defined as a gene, so the note repeats every period and "infinite" is heard as an endless sweep), falling back to a named `kInfiniteShapeSeconds` when looping is not in play, after which the envelope holds at `vol_sus` until key-up or `vol_fade` closes it. A literal `phase += dt/∞` freezes the shape at its start and the note never opens — that is a bug, not the reference's behaviour.
-- `env_tilt` skews attack/decay of that shape: low = fast attack + long decay, high = slow attack + fast decay.
-- Repeats: if `envLoopPeriod < T`, re-trigger the shape every period while the note is held; otherwise it plays once.
-- Curvature: attack and decay are power curves with exponent `2^(2(v−0.5))`, so 0.5 is exactly linear.
-- `vol_sus`: `max(0, 2(v−0.5))` — the floor the decay falls toward, with a genuine "no sustain" region.
-- `vol_fade`: a second fade *after* the attack toward `vol_sus`, active only above 0.75. (Rev 2's "peaks step down across repeats" reading is dropped.)
-- The mod envelope uses the same clock and tilt with its own curvature, scaled by `VelSens × mod_vel`, optionally re-quantised by an S&H at rate `mod_sh`.
-- Note-off [ours, D-5]: stop looping, then a fixed 180 ms release on the amp envelope. Keep it a named constant; a user-settable release is a possible future parameter. The reference gets away without one because the envelope *is* the note length and key-up simply ends it.
-- The `Release` **macro** is a different thing: a global release time plus a reverb **gate** (§8). Do not conflate them.
+Rapidly repeating plucks on a held key are the **intended** sound. Repetition was never the bug; the shape was.
 
-```cpp
-// Per voice, per control block. Envelope names are genes; the behaviour here follows the
-// reference unless marked [ours].
-float T = envTime * (envKf > 0.5f ? keyShorten(note) : 1.0f);   // env_kf above 0.5 shortens
-const bool infinite = envTime >= 0.9f;                           // duration stopped only by key-up
-float Tshape = infinite ? (envLoopPeriod < kInfiniteShapeSeconds ? envLoopPeriod
-                                                                : kInfiniteShapeSeconds)
-                        : T;                                     // the shape always needs a finite base
+**Design [ours unless marked]. The envelope is two curves multiplied, on one clock:**
 
-float shapeAtk = std::exp2 (2.0f * (volAtk - 0.5f));             // 0.5 = linear
-float shapeDcy = std::exp2 (2.0f * (volDcy - 0.5f));
-float sus      = std::max (0.0f, 2.0f * (volSus - 0.5f));       // below 0.5 = no sustain
-float fade     = volFade > 0.75f ? (volFade - 0.75f) * 4.0f : 0.0f;  // active above 0.75
-
-phase += blockSeconds / Tshape;
-if (envLoopPeriod < T && phase >= envLoopPeriod && noteHeld) { phase -= envLoopPeriod; ++cycle; } // always true when infinite
-float p = tiltWarp (phase / Tshape, envTilt);                    // attack/decay skew; p > 1 clamps to sus
-float volEnv = peakSag(p, shapeAtk, shapeDcy, sus, fade) * gateAfterNoteOff();
-float modEnv = shaped (p, modAtk, modDcy) * velScale;            // drives parameters, not level
-if (modShActive) modEnv = sampleAndHold(modEnv, modShRate);      // very high gene values only
+```
+amp(t)  = pluck( phase(t) )  *  outer( t / T )
+mod(t)  = pluck( phaseMod(t) ) * outer( t / T )   -> optionally re-quantised by mod_sh
 ```
 
+1. **The pluck (inner), period `env_loop`.** One curve per period. It starts at 0, rises to a **single peak**, and returns to 0 — it never plateaus, and there is no "hold" inside it.
+   - `env_tilt` **moves the peak along the cycle**: at the bottom of its range the peak is at the very start of the period — a regular pluck; at the top the peak sits at the end — it rises slowly and then falls off a cliff. This is the whole of the attack/decay *asymmetry*, and it is what "tilt" means.
+   - `vol_atk` is the curvature of the **rise** into that peak (`2^(2(v-0.5))`: below 0.5 front-weighted and punchy, above 0.5 soft and delayed). It cannot lengthen the rise; the peak position does that.
+   - **The pluck's fall has no gene** [ours, D-8]. It is a fixed curve (concave: fast drop, long tail), because that curve is what makes the shape a pluck, and the reference's own decay-shape gene is inaudible there — see the operator's parenthesis above. A gene that could straighten or flatten the fall is what produced Rev 3's linear window.
+2. **The note (outer), length `T = env_time × env_kf key scale`.** This is a **volume decay applied to the repeating curve**, not a second envelope shape: the whole train of plucks fades over `T` toward the `vol_sus` **floor**. `vol_fade` pulls that floor to silence. `vol_dcy` bends this curve (steady fade ↔ late collapse) — that is its honest, subtle job, and the reason its label is *Decay*, not *Decay Shape*.
+   - `vol_sus` is the floor of the **outer** curve, never a plateau inside the pluck. Below its 0.5 gate there is no floor, so the note **ends by itself** when `T` is up; at the top the outer decay is inaudible and the plucks continue until key-up.
+   - `env_time ≥ 0.9` ⇒ **no outer decay at all**: the pluck train runs at full level until key-up, or until `vol_fade` closes it. Decision R3 and its `kInfiniteShapeSeconds` special case are **retired** — they existed only because Rev 3 made one curve do both jobs. Separating the two makes "infinite duration" the trivial, correct thing it sounds like.
+   - Repeats: iff `env_loop < T`. A period at or above `T` gives **one pluck spanning the note** and no repeats (4.2).
+   - Note-off [ours, D-5]: stop, then a fixed 180 ms release from wherever the level currently is. Unchanged.
+
+```cpp
+// One clock, per voice. Every number here is resolved by the mapping layer (§3, 5.7);
+// the DSP re-derives none of it.
+float T = envTime * keyTimeScale(envKf, note);          // the note's length
+const bool noDecay = envTime >= 0.9f;                   // "infinite duration"
+const float period = repeats ? envLoop : T;             // one pluck, or a train of them
+const float peakPos = 0.02f + 0.485f * (1.0f + envTilt) * 2.0f * 0.5f; // tilt -> peak position
+
+float phase = noteClock / period;                       // inner, wraps while held
+float q     = noDecay ? 0.0f : std::min (1.0f, noteClock / T); // outer, never wraps
+
+float pl = phase < peakPos ? std::pow (phase / peakPos,  std::exp2 (volAtk))         // rise
+                           : std::pow (1.0f - (phase - peakPos) / (1.0f - peakPos), kPluckFall);
+float floor_ = std::max (0.0f, 2.0f * (volSus - 0.5f));                 // gated (5.7.3)
+if (volFade > 0.75f) floor_ *= 1.0f - (volFade - 0.75f) * 4.0f;         // closes the note
+float outer = floor_ + (1.0f - floor_) * std::pow (1.0f - q, std::exp2 (volDcy));
+
+float ampEnv = pl * outer;
+float modEnv = pluckAt (phase, modPeakOffset, modTimeScale) * outer;     // same curve, own timing
+if (modShOn) modEnv = sampleAndHold (modEnv * velScale, modShRate);     // -> a squared envelope
+```
+
+**Modulation (6.1/6.2).** The modulation envelope has **no shape of its own**: it is the same pluck on the same clock, with its own *timing* — `mod_atk` offsets where the mod pluck peaks within the cycle, `mod_dcy` scales how fast it decays relative to the level (both silent at neutral, 5.7.1). `mod_sh` re-quantises the result at its rate, which turns the pluck into **a square-ish envelope that still follows the note** — it appears, steps and disappears with the envelope, exactly as the reference behaves. Scaled once by `VelSens × mod_vel`.
+
+**The LFO is free.** `lfo_*` is not envelope-scaled: vibrato and tremolo run at full depth for the whole note, gated only by `lfo_dly`'s onset ramp. They are the only modulators in the instrument that do not follow the envelope, and that is what makes them usable on a slow pad. Do not route the mod envelope through them "for consistency"; that is how a tremolo ends up disappearing exactly where it was wanted.
 ### 6.2 Destinations
 
 Modulation envelope → oscillator pitch (`a_mod`, `b_mod`), FM amount (`fm_mod`), oscillator mix (`mix_mod`), filter cutoff (`flt_mod`). LFO → **pitch (vibrato) and volume (tremolo)** at one rate, split by `lfo_bal`, with the polarity trick of `lfo_amt` (§4.2) — consistent with the reference's own screenshot showing vibrato and tremolo at the same rate with different amounts. Sample-and-hold → mod envelope output and oscillator B. Filter separation and effect parameters are additional targets [ours].

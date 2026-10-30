@@ -188,56 +188,72 @@ private:
 };
 
 //==============================================================================
-// The shared envelope (design doc 6.1.1, plan milestone M3).
+// The shared envelope (design doc 6.1.1, Rev 4 / plan milestone M4b).
 //
-// One clock, feeding both the amplitude and the modulation envelope. This is
-// the structure the reference describes; it replaces the Rev 1 ADSR, which had
-// three unrelated time genes and no notion of "how long the note is".
+// One clock, feeding both the amplitude and the modulation envelope. The shape
+// is **a pluck with a volume decay over the repeats**, which is what the
+// reference actually does; Rev 3's reading (one attack/window/decay trapezoid
+// repeated at env_loop) is what made every plant pulse and click.
 //
-//   * env_time *is* the duration: T = env_time x key follow, and env_time at
-//     or above 0.9 means the *duration* is infinite (decision R3).
-//   * The shape always needs a finite base (R3 again): a literal T = infinity
-//     would freeze the clock at its start and the note would never open, which
-//     is a bug rather than the reference's behaviour. The base is the loop
-//     period when the envelope repeats, else T, else - only in the infinite,
-//     non repeating case - the duration env_time = 0.9 maps to.
-//   * env_loop repeats the shape; a period at or above the duration means no
-//     repeats at all (4.2).
-//   * vol_atk / vol_dcy / mod_atk / mod_dcy are curvature exponents of *this*
-//     shape (1.0 = exactly linear), never seconds. env_tilt is where the shape
-//     splits into attack and decay.
-//   * vol_sus is the floor the decay aims at; vol_fade is the documented second
-//     fade after the attack, and its destination is silence, which is how a note
-//     with an infinite duration can still end by itself.
-//   * Note off (D-5): stop looping, then a fixed release.
+//   * The inner curve is a pluck: it rises to one peak and falls back to zero.
+//     It never plateaus, and its fall has no gene - that fixed concave curve is
+//     what makes the shape a pluck (deviation D-8).
+//   * env_loop is how long that pluck takes, and how often it is re sounded.
+//   * env_tilt is the *tilt of the pluck*: low is a regular pluck with the peak
+//     at the start of the period, high rises slowly and then falls off a cliff.
+//   * vol_atk bends the rise into the peak. Nothing bends the fall.
+//   * The outer curve is a volume decay applied to the whole train of plucks:
+//     env_time (scaled by env_kf) is how long that decay takes, vol_dcy is its
+//     shape, vol_sus is the floor it settles at and vol_fade pulls that floor to
+//     silence. env_time at or above 0.9 means no outer decay at all - the
+//     plucks continue until key-up or until vol_fade closes them. Decision R3
+//     and its kInfiniteShapeSeconds special case are retired: separating the
+//     note's length from the curve's shape is what made that hack necessary.
+//   * The modulation value is the *same pluck* (mod_atk / mod_dcy move its
+//     peak position and its decay time relative to the level), scaled once by
+//     VelSens x mod_vel in the mapping layer and optionally re-quantised by
+//     mod_sh into a squared envelope that still follows the note.
+//   * Note off (D-5): stop, then a fixed release from wherever the level is.
 //
 // Sample accurate, with no first order smoothing anywhere: the design asks for
-// it (6.4), and with the duration being a gene, an envelope that lags its own
-// shape is an envelope that does not measure what the harness measures.
+// it (6.4), and an envelope that lags its own shape is an envelope that does
+// not measure what the harness measures.
 //==============================================================================
 
 /// Everything the clock needs, resolved once per note in VoiceParams. Nothing
 /// here is a gene: gates, rails and ranges are already applied.
 struct EnvShape
 {
-    /// "Infinite duration" as a number the sample loop can compare with. Kept
+    /// "No outer decay" as a number the sample loop can compare with. Kept
     /// finite on purpose: 1e9 s is far beyond any block, and no IEEE special
     /// case (inf, nan) is ever produced per sample.
     static constexpr float kInfiniteDuration = 1.0e9f;
 
-    float duration = 1.0f;        ///< T in seconds, or kInfiniteDuration (R3)
-    bool  repeats = false;        ///< env_loop shorter than the duration (4.2)
-    float loopPeriod = 0.0f;      ///< re trigger interval, only when repeats
-    float shapeSeconds = 1.0f;    ///< finite base of one pass of the shape (R3)
-    float tilt = 0.0f;            ///< -1..1, fast attack at -1, slow attack at +1
+    /// The pluck's fall is a fixed curve (deviation D-8): exponent < 1 is the
+    /// concave "drops fast, long tail" of a plucked string. A gene here is what
+    /// turned Rev 3's pluck into a linear window.
+    static constexpr float kPluckFallExponent = 0.6f;
 
-    float attackExp = 1.0f;       ///< vol_atk curvature, 1 = linear
-    float decayExp  = 1.0f;       ///< vol_dcy curvature, 1 = linear
-    float modAttackExp = 1.0f;    ///< mod_atk curvature
-    float modDecayExp  = 1.0f;    ///< mod_dcy curvature
+    /// How long a spent one-shot shape takes to fade in the level it settles on.
+    static constexpr float kHoldFadeSeconds = 0.05f;
 
-    float sustain = 0.0f;         ///< max(0, 2(v-0.5)), the floor of the decay
-    float fade    = 0.0f;         ///< vol_fade depth 0..1 (gate already applied)
+    /// T: how long the outer volume decay takes. "It never decays" is expressed
+    /// as an outer floor of 1.0 (the curve cannot fall below it) and/or this
+    /// number, which no block ever reaches - never an IEEE infinity, so the
+    /// sample loop contains no special case.
+    float noteSeconds = 1.0f;
+    float periodSeconds = 1.0f;   ///< one pluck: env_loop, or T when there is no repeat
+    bool  repeats = false;        ///< env_loop shorter than the note (4.2)
+
+    float peak = 0.06f;           ///< env_tilt: where the pluck peaks in the period
+    float riseExp = 1.0f;         ///< vol_atk curvature of the rise, 1 = linear
+
+    float outerExp = 1.0f;        ///< vol_dcy curvature of the outer decay
+    float outerFloor = 0.0f;      ///< vol_sus, pulled toward 0 by vol_fade
+
+    float modPeak = 0.06f;        ///< the mod pluck's peak position (mod_atk offset)
+    float modTimeScale = 1.0f;    ///< mod_dcy: mod pluck time relative to the level's
+
     float releaseSeconds = 0.18f; ///< D-5: filled in from kNoteOffReleaseSeconds
 };
 
@@ -251,39 +267,43 @@ public:
     /// Note on (and re articulation of a note that is already held).
     ///
     /// Every number here is resolved by VoiceParams, including the decision
-    /// about whether the shape repeats and how long one pass of it is; the
-    /// clock's job is only to run it. That is deliberate: the R3 reading of
-    /// "env_time >= 0.9 means infinite duration" belongs to the mapping layer,
-    /// where it can be tested against the gene table, and this class must not
-    /// re-derive it a second way.
+    /// about whether the note repeats and how long one pluck is; the clock's
+    /// job is only to run it. That is deliberate: "env_time >= 0.9 means no
+    /// outer decay" belongs to the mapping layer, where it can be tested against
+    /// the gene table, and this class must not re-derive it a second way.
     void start (const EnvShape& s)
     {
         shape = s;
 
-        repeat = shape.repeats && shape.loopPeriod > 1.0e-4f;
+        period = clampf (shape.periodSeconds, 1.0e-4f, EnvShape::kInfiniteDuration);
+        repeat = shape.repeats;
 
-        // One pass of the shape is also one cycle of the clock: a repeat is a
-        // whole envelope again, never a sliver of one (see VoiceParams).
-        shapeSeconds = clampf (shape.shapeSeconds, 1.0e-4f, EnvShape::kInfiniteDuration);
-        cycleSeconds = shapeSeconds;
+        periodInc = 1.0f / (period * sr);
 
-        attackFraction = clampf (0.5f + shape.tilt * 0.45f, 0.02f, 0.98f);
-
-        // vol_fade's second fade lands on silence, which is what lets an
-        // "infinite" note close itself off without anyone lifting a key.
-        fadeFloor = lerpf (shape.sustain, 0.0f, clamp01 (shape.fade));
-
-        cycleInc = 1.0f / (cycleSeconds * sr);
+        // The outer curve is counted in samples, not accumulated as a float:
+        // "the note is over" has to be exact, and a sum of 24000 copies of
+        // 1/24000 is not 1.0. kInfiniteDuration makes the count unreachable
+        // (a soak's worth of samples is 1e8), which is exactly what it means.
+        outerTotal = std::llround (std::max (shape.noteSeconds, 1.0e-4f) * sr);
+        if (outerTotal < 1)
+            outerTotal = 1;
+        outerCount = 0;
         releaseInc = 1.0f / (std::max (shape.releaseSeconds, 1.0e-3f) * sr);
 
+        // The mod pluck's own peak, kept inside the same period it shares.
+        modPeak = clampf (shape.modPeak, 1.0e-3f, 0.999f);
+        modScale = std::max (0.05f, shape.modTimeScale);
+
         pos = 0.0f;
+        holdPos = 0.0f;
+        holdInc = 1.0f / (EnvShape::kHoldFadeSeconds * sr);
         releasePos = 0.0f;
         amp = 0.0f;
         modVal = 0.0f;
         stage = Sounding;
     }
 
-    /// Note off (D-5): stop looping and ramp the level to zero over the fixed
+    /// Note off (D-5): stop repeating and ramp the level to zero over the fixed
     /// release, from wherever it is right now (so this cannot click).
     void release()
     {
@@ -311,19 +331,37 @@ public:
 
             case Sounding:
             {
-                pos += cycleInc;
-                if (pos >= 1.0f)
+                if (repeat)
                 {
-                    if (repeat)
-                        pos -= 1.0f;   // re trigger the same shape
-                    else
-                        pos = 1.0f;    // hold at sustain, or at the fade floor
+                    pos += periodInc;
+                    if (pos >= 1.0f)
+                        pos -= 1.0f;      // sound the pluck again
                 }
-                amp = shapeAt (pos, shape.attackExp, shape.decayExp,
-                               shape.sustain, fadeFloor);
-                // The mod envelope shares the clock and the tilt and always
-                // returns to nothing (6.1.1): it moves parameters, not level.
-                modVal = shapeAt (pos, shape.modAttackExp, shape.modDecayExp, 0.0f, 0.0f);
+                else
+                {
+                    if (pos < 1.0f)
+                        pos = std::min (1.0f, pos + periodInc);
+                    else
+                        holdPos = std::min (1.0f, holdPos + holdInc);
+                }
+
+                if (outerCount < outerTotal)
+                    ++outerCount;
+
+                const float level = outerValue();
+                // A note that was only ever going to pluck once has to end up
+                // somewhere: with a floor under the outer curve it settles there,
+                // faded in over a short window so the join cannot click. With no
+                // floor there is nothing to settle on and the note is over.
+                const float shapeValue = pos < 1.0f ? pluckAt (pos, shape.peak, shape.riseExp)
+                                                   : holdPos;
+                amp = shapeValue * level;
+                // The modulator is the same curve on the same clock (6.1.1): it
+                // has no shape of its own, only its own timing, and it follows
+                // the note's level down so modulation cannot outlive its sound.
+                modVal = (pos < 1.0f ? pluckAt (std::min (1.0f, pos * modScale), modPeak,
+                                                shape.riseExp)
+                                     : holdPos) * level;
                 break;
             }
 
@@ -340,48 +378,69 @@ public:
     float ampValue() const { return amp; }
     bool  isRepeating() const { return repeat; }
     bool  sounding() const { return stage != Idle; }
-    float shapeSecondsOf() const { return shapeSeconds; }
+    float periodOf() const { return period; }
     float positionOf() const { return pos; }
-    float attackFractionOf() const { return attackFraction; }
-    float fadeFloorOf() const { return fadeFloor; }
+    float outerPositionOf() const { return outerPosition(); }
+    float peakOf() const { return shape.peak; }
+    float outerFloorOf() const { return shape.outerFloor; }
 
-    /// True when the envelope can never come back without a new note: the one
-    /// shot ended at silence. This is what lets a note that ended itself (its
-    /// duration is over with no sustain, or vol_fade closed it) free its voice
-    /// while the key is still held.
+    /// True when the envelope can never come back without a new note: the outer
+    /// decay is over and there is no floor to settle on. This is what lets a
+    /// note that ended itself free its voice while the key is still held - and,
+    /// unlike Rev 3, it is the *outer* curve that ends a note, never a pluck.
     bool finished() const
     {
         return stage == Idle
-            || (! repeat && stage == Sounding && pos >= 1.0f && fadeFloor <= 0.0f);
+            || (stage == Sounding && outerDone() && shape.outerFloor <= 0.0f);
     }
 
-    /// True when the shape completed while the key was still down.
-    bool selfEnded() const { return stage == Sounding && ! repeat && pos >= 1.0f; }
+    /// True when the note's length ran out while the key was still down.
+    bool selfEnded() const { return stage == Sounding && outerDone(); }
 
-    void reset() { stage = Idle; amp = 0.0f; modVal = 0.0f; pos = 0.0f; }
+    void reset() { stage = Idle; amp = 0.0f; modVal = 0.0f; pos = 0.0f;
+                   holdPos = 0.0f; outerCount = 0; }
 
 private:
-    /// One pass of the shape: the attack power curve, then a decay aimed at
-    /// `sus`, whose floor itself slides from sustain to fadeFloor across the
-    /// decay (that slide is vol_fade). An exponent of 1 is exactly linear.
-    float shapeAt (float p, float attackExp, float decayExp, float sus, float endFloor) const
+    /// One pluck: rise to the peak with vol_atk's curvature, then fall to zero
+    /// on the fixed curve. Both ends are exactly 0, so a train of them is a
+    /// train of plucks and never a sustained tone.
+    static float pluckAt (float p, float peak, float riseExp)
     {
         if (p <= 0.0f)
             return 0.0f;
-        if (p < attackFraction)
-            return std::pow (p / attackFraction, attackExp);
+        if (p >= 1.0f)
+            return 0.0f;
+        if (p < peak)
+            return std::pow (p / peak, riseExp);
+        return std::pow (1.0f - (p - peak) / (1.0f - peak), EnvShape::kPluckFallExponent);
+    }
 
-        const float u = clamp01 ((p - attackFraction) / (1.0f - attackFraction));
-        const float fl = lerpf (sus, endFloor, u);
-        return fl + (1.0f - fl) * std::pow (1.0f - u, decayExp);
+    bool outerDone() const { return outerCount >= outerTotal; }
+
+    float outerPosition() const
+    {
+        // Clamped at 1.0 by construction, so pow() never sees a negative base.
+        return std::min (1.0f, static_cast<float> (outerCount)
+                                / static_cast<float> (outerTotal));
+    }
+
+    /// The outer curve: a level applied to the repeating pluck, decaying over
+    /// env_time toward the (gated, fade-pulled) floor, with vol_dcy's
+    /// curvature. 1.0 at the start of the note, floor at the end.
+    float outerValue() const
+    {
+        const float f = clamp01 (shape.outerFloor);
+        if (f >= 1.0f)
+            return 1.0f;   // nothing to decay toward
+        return f + (1.0f - f) * std::pow (1.0f - outerPosition (), shape.outerExp);
     }
 
     float sr = 44100.0f;
     EnvShape shape;
-    float shapeSeconds = 1.0f, cycleSeconds = 1.0f;
-    float cycleInc = 1.0f, releaseInc = 1.0f;
-    float attackFraction = 0.5f, fadeFloor = 0.0f;
-    float pos = 0.0f, releasePos = 0.0f;
+    float period = 1.0f, periodInc = 1.0f, releaseInc = 1.0f;
+    long long outerTotal = 1, outerCount = 0;
+    float modPeak = 0.06f, modScale = 1.0f;
+    float pos = 0.0f, holdPos = 0.0f, holdInc = 1.0f, releasePos = 0.0f;
     float amp = 0.0f, modVal = 0.0f, releaseFrom = 0.0f, modAtRelease = 0.0f;
     bool repeat = false;
     Stage stage = Idle;
