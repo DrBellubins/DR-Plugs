@@ -14,9 +14,7 @@ The five changes that matter most when implementing:
 4. **The macro surface is multi-valued** (`Effect` = mix + pan, `Release` = time + reverb gating, `Volume` = limiter drive) and the mod wheel *lerps* every branch toward full growth rather than scaling it.
 5. **All 48 genes are host parameters** in Synplant 2, displayed as raw 0..1 — which is only sane because genes are unitless (§4.3, §9).
 
-*Decisions applied the same day (2026-10-29).* The operator answered every open alignment question, R1–R12 and the carried Rev 2 `D` items — decision table in `Docs/Rev3-Alignment-Plan.md` §4, verbatim answers in `Docs/Rev3-ChangeLog.md` §5.1. Where an answer overrode this document, **the document was edited rather than left to be contradicted**: the gene set is the 48 plus a marked extras block (deviation D-7, `kNumGenes` = 50), `Rotation` is removed everywhere, `env_time ≥ 0.9` is given a workable definition in §6.1.1, and the reverb is instantiated **per voice** (§7, §8). Design §15 Q-6/Q-7/Q-8/Q-9 are closed by those answers; Q-5 (saturation placement) is still open and keeps its default.
-
-*Reading order for a model with a small context budget: §4.2, §5.7, §6.1.1, §7, §14 — plus §3.2 if you need to know where GenoMosh deliberately departs from the reference.*
+*Reading order for a model with a small context budget: §4.2, §5.7, §6.1.1, §7, §14.*
 
 ---
 
@@ -66,13 +64,13 @@ A synthesizer whose sound design happens by *exploration*, not by editing knobs.
 | Term | Meaning in this project |
 | --- | --- |
 | **Gene** | One normalized parameter value in [0, 1] with metadata (curve, group, sensitivity, gates, growth-exemption). Genes have **no units** — the DSP interprets them. |
-| **Genome / DNA** | The ordered vector of all 48 documented genes that fully defines a patch (50 slots in code: the 48 plus the two marked extras of D-7). |
+| **Genome / DNA** | The ordered vector of all 48 genes that fully defines a patch. |
 | **Seed** | The currently selected genome plus a 64-bit `seedId`. Branch identity is derived from that id. |
 | **Branch** | A derived genome: a deterministic mutation of the seed, parameterized by branch index and length. One branch per semitone of one octave. |
 | **Length (growth)** | How far a branch has grown from the seed, in [0, 1]. 0 = identical to seed. Growing a branch **re-derives its gene values**; the reference exposes both the seed's value and the *grown* value of every gene (`dna.grown.<gene>`). |
 | **Growth-exempt** | Genes deliberately excluded from growth (`rvb_size`, `adj_*`) "because it would cause disruption of the audio". |
 | **Wheel** | A performance macro. In v2 the host chooses **what it drives** (`Wheel Target`, 9 values, including growth and LFO amount). |
-| **Rotation** | The reference's macro that rotates which branch is assigned to which key (0-360°), and encourages automating it. **Not implemented in GenoMosh** — decision R4, 2026-10-29, confirming Rev 2 D12: branch↔pitch-class assignment is fixed. |
+| **Rotation** | Rotates which branch is assigned to which key (0-360°). Automating it is explicitly encouraged by the reference's own manual. |
 | **Clone / plant** | The reference's "plant this branch": set all twelve lengths to that branch's length and advance `seed += branchIndex`. |
 | **Layer / bulb mode** | v2 has 12 `layers` with `enabled` flags and a 3-value `bulbMode`. Reading: per-branch enable + plant rendering mode. **[?]** |
 | **Strand / group** | A subset of genes that mutate coherently. Not present in the reference; our invention [ours]. |
@@ -96,10 +94,10 @@ The reference's plant layer is a real parameter namespace (`coreSize, baseHue, h
 
 **Design rules**
 
-- The **growth calculation is computed off the audio thread**. When the seed, wheel, or branch lengths change, build 12 resolved branch genomes (plain arrays of floats) and hand them to the audio thread via a lock-free triple buffer or atomic pointer swap.
-- A voice **captures its branch genome at note-on** so that dragging a branch does not click already-sounding notes. The "optionally crossfade to the new genome over about 50 ms for held notes" is **not** implemented as behaviour (Rev 2 D9, re-confirmed 2026-10-29): it exists as a debug-mode affordance only, because it is the only way to exercise the §5.4 topology crossfades.
+- The **growth calculation is computed off the audio thread**. When the seed, wheel, branch lengths or rotation change, build 12 resolved branch genomes (plain arrays of floats) and hand them to the audio thread via a lock-free triple buffer or atomic pointer swap.
+- A voice **captures its branch genome at note-on** so that dragging a branch does not click already-sounding notes. Optionally crossfade to the new genome over about 50 ms for held notes.
 - Resolving genes to DSP values happens at voice start and per control block, with smoothing.
-- Keep the genome as `std::array<float, N>` with a compile-time `N` and an enum of gene IDs, so growth code is data-driven by a `GeneInfo` table rather than 48 hand-written lines. In the box above, "Master FX" is the **output stage only** — the reverb/chorus lives in the voice (R5, §8).
+- Keep the genome as `std::array<float, N>` with a compile-time `N` and an enum of gene IDs, so growth code is data-driven by a `GeneInfo` table rather than 48 hand-written lines.
 
 ### 3.1 What the reference's engineering choices teach us
 
@@ -124,7 +122,6 @@ Deliberate departures from the reference. Keep them, and keep them labelled, so 
 | D-4 | Optional ratio-snapping on `b_freq` (§5.5). | The reference quantises `a_freq` to octaves and leaves `b_freq` free; the ratio snapper is our extension, kept behind Atonality. |
 | D-5 | Fixed note-off behaviour: stop looping, 180 ms release (§6.1.1). | Operator decision (Rev 2 alignment D5). The reference's envelope simply *is* the note length and is stopped by key-up. |
 | D-6 | Sparse modulation matrix (§6.3). | The reference's routing is fixed per destination; the matrix is our extension. |
-| D-7 | The genome is 48 documented genes **plus a marked extras block** (§4.2). | Operator decision (Rev 3 alignment R1, 2026-10-29), reviving Rev 2 D1/D2. Two extras today: `b_color` (B's colour offset from the shared noise shaper) and `fx_width` (wet mid/side width). An extra is allowed only where it owns a destination no documented gene owns; the 48 keep the reference's ids, order and grouping verbatim. |
 ---
 
 ## 4. Parameter model
@@ -137,7 +134,7 @@ All curves below are what the reference documents for its own macros, and are ad
 | --- | --- | --- |
 | `ModWheel` | **Grows all twelve branches at once.** Its behaviour is exactly: `branch = lerp(branch, 1.0, ModWheel × WheelScale)` | linear %, default **0** |
 | `WheelScale` | How much the wheel is allowed to grow them | linear %, default **1.0** |
-| `Rotation` | **Not implemented [ours, removed]** — Rev 3 alignment R4 (2026-10-29), confirming Rev 2 D12. The reference rotates the branch→key mapping and encourages automating it; GenoMosh deliberately does not, so a branch's pitch-class assignment is fixed. Absent from the note map, the parameter list and the plant UI. | — (no parameter) |
+| `Rotation` | Rotates the branch→key mapping | linear 0-360°, default 0.5 (180°) |
 | `Tuning` | Pitch of the whole plant | linear **±12 semitones**; default 0.5 |
 | `Atonality` | Biases the genome *as it is generated*: `converge(a_mod, atonality)`, same for `b_mod` | linear %, default 0.5 |
 | `Effect` | **Two values: effect mix *and* panning.** "*adjusts the effect mix and panning amount… completely dry monophonic → wet voluminous*"; reducing it also reduces branch panning | bipolar %, centred at v=0.5; default 0.5 |
@@ -149,7 +146,7 @@ All curves below are what the reference documents for its own macros, and are ad
 | `Wheel Target` | **What the mod wheel drives** — 9 values, including growth and LFO amount | discrete, 9 steps |
 | `Tempo Sync` | 7 values; v2 asks the host for tempo information, v1 never did | discrete, 7 steps |
 | `Bulb Mode` | 3 values (`standard`, `layered`, …). Semantics **[?]** | discrete, 3 steps |
-**GenoMosh scope [ours]:** implement `ModWheel`, `WheelScale`, `Tuning`, `Atonality`, `Effect` (both halves), `Release` (both halves), `VelSens`, `Volume` (with the limiter), `Branch1..12` with per-branch volume, and `Voice Mode` + `Glide Time` + a minimal `Wheel Target` (growth / LFO amount / filter cutoff) + `Tempo Sync` for the envelope and LFO. Defer `Bulb Mode` and `layers` beyond a per-branch enable flag. `Rotation` is out (R4).
+**GenoMosh scope [ours]:** implement `ModWheel`, `WheelScale`, `Rotation`, `Tuning`, `Atonality`, `Effect` (both halves), `Release` (both halves), `VelSens`, `Volume` (with the limiter), `Branch1..12` with per-branch volume, and `Voice Mode` + `Glide Time` + a minimal `Wheel Target` (growth / LFO amount / filter cutoff) + `Tempo Sync` for the envelope and LFO. Defer `Bulb Mode` and `layers` beyond a per-branch enable flag.
 
 `TriggerA…H` are **not** note triggers: they are the reference's own action slots, bound through its private MIDI-learn layer to *Undo, Redo, Previous Patch, Next Patch, Plant Seed*. Implement CC-bound actions, not eight mystery inputs.
 
@@ -187,7 +184,7 @@ One shared clock drives both envelopes. **The envelope duration is a gene**, so 
 | `a_form` | Waveform morph sine → saw → square → pulse; **breakpoints: sine 0.0, saw 0.57, square 0.81, pulse 1.0** | Band-limited morph at those exact breakpoints; duty stays 50% **[?]** (no PWM gene exists) | 0.50 |
 | `a_noise` | Noise mix into A; 1.0 = fully obscured by noise | `Squared` | 0.40 |
 | `a_mod` | **Bipolar pitch modulation from the mod envelope**, 0.5 = none | `Bipolar` → up to ±12 st, ceiling set by Atonality; `kFlagPitch` | 0.50 |
-| `a_color` | **Colour of the noise: brown (muddy) → white (sharp)** | One shared noise-spectrum shaper (brown→white); B uses the same source, and the `b_color` **extra** (D-7) adds a per-B *offset* from it — this is how §15 Q-7 is answered | 0.40 |
+| `a_color` | **Colour of the noise: brown (muddy) → white (sharp)** | One shared noise-spectrum shaper (pink→white); B uses the same source **[?]** | 0.40 |
 | `a_freq` | Pitch of A, **quantised to 7 steps over −3…+3 octaves**; it is the patch pitch; B's pitch and the filter cutoffs link to it | `Stepped`, 7 steps in octaves, default 0.5 = unison | 0.30 |
 | `fm_mod` | How the envelope changes the FM amount, 0.5 = no effect | `Bipolar` | 0.50 |
 | `fm_amt` | FM amount, **A modulated by B**, bipolar, 0.5 = none | `Bipolar` → index 0…20, alias-guarded | 0.50 |
@@ -220,23 +217,7 @@ One shared clock drives both envelopes. **The envelope duration is a gene**, so 
 | `adj_treb` | High shelf **±24 dB at 6 kHz** | `Bipolar`, growth-exempt | 0.0 | `kFlagNever` |
 | `adj_pan` | **Branch panning amount** — how far branches are spread across the field; reduced by lowering `Effect` | `Bipolar` spread, growth-exempt | 0.0 | `kFlagNever` |
 | `adj_clip` | **Master soft clipper after the master volume** | Linear drive, growth-exempt | 0.0 | `kFlagNever` |
-#### Extras (2) — GenoMosh additions [ours, deviation D-7, decision R1]
-
-Appended **after** the 48, in their own group, never interleaved with them. They exist because they
-own a destination no documented gene owns; anything else that wants to be a gene has to pass that
-same test and get a row here first. Both are ordinary genes for growth/randomisation purposes
-(no `kFlagNever`) unless a later decision says otherwise.
-
-| Gene | Behaviour | Mapping | Sens |
-| --- | --- | --- | --- |
-| `b_color` | Per-**B** colour *offset* from the shared `a_color` brown→white noise shaper. At 0.5 the two oscillators share one colour; away from it, B's noise is duller or brighter than A's. | `Bipolar` offset (−1…+1) applied to the shared shaper's coefficient | 0.30 |
-| `fx_width` | Width of the **wet signal** of each voice's reverb (mid/side), independent of where the dry branch sits. `adj_pan` spreads branches; this decorrelates the tails. | `Linear` → M/S side gain 0.25…1.6 (as today) | 0.20 |
-
-Why the three other Rev 1-era genes stay deleted: `vol_rel` is fixed note-off behaviour (D-5), and
-`det_spread`/`drift_amt` are per-voice life with fixed amounts (D-3). Reinstating any of them as an
-extra would need a new deviation row and a reason the reference's own surface cannot carry it.
-
-**Migration from the current 43-gene table.** The code (`Source/Genetic/GeneTable.h`) is still Rev 1's set. Rename `fx_*→rvb_*`, `balance→osc_mix`, `sat_drive→saturate`; delete `det_spread`, `drift_amt` (per-voice life stays non-gene, D-3) and `vol_rel` (the note-off release becomes a fixed behaviour, D-5); add `env_kf`, `vol_fade`, `lfo_dly`, `mix_mod`, `flt_type`, `rvb_atk`, `adj_bass`, `adj_treb`, `adj_pan`, `adj_clip`. `b_color` and `fx_width` are **kept as extras** (deviation D-7, decision R1) in a marked block *after* the 48 — the 48 core genes keep the reference's ids, order and page grouping verbatim, so `kNumGenes` becomes 50 while the documented set stays 48. `Docs/Rev3-Alignment-Plan.md` is the plan of record for executing that migration (its milestone M0); `Docs/Rev2-Alignment-Plan.md` is superseded, since its stage list assumed Rev 2's gene *semantics*. Bump `kNumGenes` and `modelVersion`, and **refuse to load** pre-Rev-3 states (§11, decision R11).
+**Migration from the current 43-gene table.** The code (`Source/Genetic/GeneTable.h`) is still Rev 1's set. Rename `fx_*→rvb_*`, `balance→osc_mix`, `sat_drive→saturate`; delete `b_color`, `det_spread`, `drift_amt`, `vol_rel` (per-voice life stays non-gene, per-voice release becomes a fixed behaviour per D-5); add `env_kf`, `vol_fade`, `lfo_dly`, `mix_mod`, `flt_type`, `rvb_atk`, `adj_bass`, `adj_treb`, `adj_pan`, `adj_clip`. `Docs/Rev3-Alignment-Plan.md` is the plan of record for executing that migration (its milestone M0); `Docs/Rev2-Alignment-Plan.md` is superseded, since its stage list assumed Rev 2's gene *semantics*. Bump `kNumGenes`, and treat the old preset format as unreadable (a `mutationVersion`/model bump, §11).
 
 ### 4.3 Gene metadata table (implement as data)
 
@@ -249,7 +230,7 @@ struct GeneInfo {
     float       minValue, maxValue;   // DSP-side mapping only; never stored, never displayed
     float       neutral;     // the "nothing happens" value: 0.5 for every bipolar gene (§5.7.1)
     float       gateLow, gateHigh;    // dead zone / activation threshold (§5.7.3); 0,1 = none
-    Group       group;       // Env, Vol, Mod, Lfo, OscA, Mix, OscB, Filter, Sat, Revb, Out, Extras
+    Group       group;       // Env, Vol, Mod, Lfo, OscA, Mix, OscB, Filter, Sat, Revb, Out
     uint32_t    steps;       // for Curve::Stepped: a_freq=7, flt_type=4
     float       sensitivity; // 0..1 growth scale
     float       softMin, softMax;     // preferred musical region for random seeds and growth
@@ -259,8 +240,6 @@ struct GeneInfo {
 ```
 
 `neutral`, `gateLow/gateHigh`, `steps` and `kFlagNever` are new in Rev 3 because the reference's interface shows them in use everywhere (§5.7). The `helpText` field exists because the reference documents every gene in its own interface (§12).
-
-`Extras` exists for the D-7 extras block only (decision R1). The 48 documented genes never appear in it, and it is appended **after** them so §4.2's ids, order and page grouping stay verbatim; the UI and the parameter list render it as a separate, clearly-labelled group.
 
 ---
 
@@ -323,7 +302,7 @@ Genome growBranch(const Genome& seed, uint64_t seedId, int branch,
 - *Pull toward `neutral`* is new in Rev 3: with the reference's neutral-at-0.5 convention (§5.7.1), a random walk that drifts toward the middle of every range drifts toward "less of everything", which is much safer than drifting toward the ends.
 - *Per-gene sensitivity* is where taste lives. Tune it by ear, constantly.
 
-### 5.3 Wheel and branch lengths
+### 5.3 Wheel, rotation and branch lengths
 
 Adopt the reference's wheel formula:
 
@@ -335,7 +314,7 @@ effLength[i] = lerp(branchLength[i], 1.0f, clamp01(modWheel * wheelScale));
 This is better than Rev 2's multiplication in three ways: it is what the reference actually does; `ModWheel=0` means "exactly as the patch says", so the code's current workaround of defaulting the wheel open becomes unnecessary; and it can only *increase* growth, which is what "growing" means.
 
 - **`Wheel Target` [ours, following v2]**: let the wheel drive growth (default), LFO amount, or filter cutoff. The reference offers nine targets.
-- **Note mapping**: `branchIndex = (midiNote − rootNote) mod 12`. Different octaves use the same branch. The **seed** is what plays at length 0. The reference adds a `rotation·12` term here; GenoMosh does not (R4 — `Rotation` is not implemented, see §4.1), so the branch↔pitch-class assignment is fixed for a plant.
+- **Note mapping**: `branchIndex = (midiNote − rootNote + rotation·12) mod 12`. Different octaves use the same branch. The **seed** is what plays at length 0.
 - **Per-branch `volume` and enable**: v2 stores a trim per branch; implement both as patch data (D-2).
 - Re-resolve genomes when any input changes; smooth on the audio side, resolve off-thread at control rate (100-200 Hz max).
 
@@ -414,7 +393,6 @@ Growing a branch = the user drags it. Choosing a branch = **planting** it. The r
 **Design [ours unless marked].**
 
 - Cycle: `T = envTime · keyFollowFactor(env_kf, note)`, where `env_kf` > 0.5 shortens the envelope on high keys. `env_time ≥ 0.9` ⇒ `T = ∞`.
-- **`T = ∞` means the *duration* is infinite, not the *shape*** (decision R3, quoting the reference: *"Above 0.9, the Envelope will have infinite duration, stopped only by releasing the key or vol_fade fades out"*). The shape still needs a finite time base: use the `env_loop` period (always defined as a gene, so the note repeats every period and "infinite" is heard as an endless sweep), falling back to a named `kInfiniteShapeSeconds` when looping is not in play, after which the envelope holds at `vol_sus` until key-up or `vol_fade` closes it. A literal `phase += dt/∞` freezes the shape at its start and the note never opens — that is a bug, not the reference's behaviour.
 - `env_tilt` skews attack/decay of that shape: low = fast attack + long decay, high = slow attack + fast decay.
 - Repeats: if `envLoopPeriod < T`, re-trigger the shape every period while the note is held; otherwise it plays once.
 - Curvature: attack and decay are power curves with exponent `2^(2(v−0.5))`, so 0.5 is exactly linear.
@@ -428,19 +406,15 @@ Growing a branch = the user drags it. Choosing a branch = **planting** it. The r
 // Per voice, per control block. Envelope names are genes; the behaviour here follows the
 // reference unless marked [ours].
 float T = envTime * (envKf > 0.5f ? keyShorten(note) : 1.0f);   // env_kf above 0.5 shortens
-const bool infinite = envTime >= 0.9f;                           // duration stopped only by key-up
-float Tshape = infinite ? (envLoopPeriod < kInfiniteShapeSeconds ? envLoopPeriod
-                                                                : kInfiniteShapeSeconds)
-                        : T;                                     // the shape always needs a finite base
-
+if (envTime >= 0.9f) T = kInfinite;                              // stopped only by key-up
 float shapeAtk = std::exp2 (2.0f * (volAtk - 0.5f));             // 0.5 = linear
 float shapeDcy = std::exp2 (2.0f * (volDcy - 0.5f));
 float sus      = std::max (0.0f, 2.0f * (volSus - 0.5f));       // below 0.5 = no sustain
 float fade     = volFade > 0.75f ? (volFade - 0.75f) * 4.0f : 0.0f;  // active above 0.75
 
-phase += blockSeconds / Tshape;
-if (envLoopPeriod < T && phase >= envLoopPeriod && noteHeld) { phase -= envLoopPeriod; ++cycle; } // always true when infinite
-float p = tiltWarp (phase / Tshape, envTilt);                    // attack/decay skew; p > 1 clamps to sus
+phase += blockSeconds / T;
+if (envLoopPeriod < T && phase >= envLoopPeriod && noteHeld) { phase -= envLoopPeriod; ++cycle; }
+float p = tiltWarp(phase / T, envTilt);                          // attack/decay skew
 float volEnv = peakSag(p, shapeAtk, shapeDcy, sus, fade) * gateAfterNoteOff();
 float modEnv = shaped (p, modAtk, modDcy) * velScale;            // drives parameters, not level
 if (modShActive) modEnv = sampleAndHold(modEnv, modShRate);      // very high gene values only
@@ -474,8 +448,8 @@ Placement follows the reference's own grouping and help text; the two contested 
        -> [saturate: per-voice, 2x oversampled]        <-- placement [?], see §15 Q-5
        -> amp envelope (shared clock, §6.1.1)
        -> per-branch pan (adj_pan spread) and per-branch volume
-       -> reverb/chorus **per voice** (rvb_*, with rvb_atk bloom and the Release gate per voice) [ours, R5]
-       -> master, shared: dry + wet sum -> adj_bass/adj_treb shelves -> Volume -> saturating limiter + adj_clip
+       -> master: adj_bass/adj_treb shelves -> Volume -> saturating limiter + adj_clip
+       -> reverb/chorus (rvb_*, gated by the Release macro)
 ```
 
 - `a_freq` links B's pitch and the filter cutoffs: resolve that once in `VoiceParams`, so every branch tracks the keyboard.
@@ -494,15 +468,13 @@ Genes `rvb_mix, rvb_atk, rvb_len, rvb_damp, rvb_chor, rvb_size` and the macro `E
 
 **Recommended architecture [ours]**
 
-- **Reverb**: FDN with a Hadamard/Householder matrix, input allpass diffusion, per-line one-pole damping (`rvb_damp`), RT60-based feedback from `rvb_len`, mutually prime delay lengths scaled by `rvb_size`, slight length modulation to kill metallic ringing. **8 lines + 2 allpass stages as a shared bus; 4 lines + 1 allpass when instantiated per voice** (R5, below).
+- **Reverb**: 8-line FDN with a Hadamard/Householder matrix, input allpass diffusion, per-line one-pole damping (`rvb_damp`), RT60-based feedback from `rvb_len`, mutually prime delay lengths scaled by `rvb_size`, slight length modulation to kill metallic ringing.
 - **Chorus/unison**: 2-4 modulated taps inside or across the tail, stereo-decorrelated, slow incommensurate LFOs; `rvb_chor` scales depth and rate together.
-- **`rvb_atk`**: a reverb-amount envelope, gated to values above 0.66 — the wet send blooms in over time instead of starting instantly. Per §15 Q-9 this is answered (R5): it is an envelope on the **wet amount of that voice's own path**, not on a shared bus and not on the tail's decay.
-- **Reverb gating from the `Release` macro**: the second value of `Release` mutes the tail quickly on key-up for short release times. Implement as a gate on the wet path driven by `1 − releaseGateAmount`, separate from the amp release. This is a cheap and very "organic" articulator. With per-voice wet paths the gate is per voice, which is what makes it behave in chords.
-- **Per-voice wet paths [ours, decision R5, 2026-10-29]**: each active voice owns its own reverb instance, so `rvb_atk`, the `Release` gate, `rvb_size` edits and `fx_width` are all per-voice behaviours and tails belong to the note that made them. The reference documents one tail, not a topology; this is an engineering decision, taken with its cost stated: per-voice **quality** is not needed because the wet signals sum. Budget it deliberately — 4-line Hadamard rather than 8, one input allpass, tail processing at reduced rate (damping already discards the HF), 2 chorus taps, coefficient maths shared between voices, quality scaled down as the active-voice count rises — and keep the shared-bus variant behind one `WetPath` interface so the choice stays measurable (the Rev 3 plan's M7 has a CPU gate at 1/4/8/16 voices). Note the consequence that bites: a **stolen** voice must keep its tail alive until it is silent.
+- **`rvb_atk`**: a reverb-amount envelope, gated to values above 0.66 — the wet send blooms in over time instead of starting instantly.
+- **Reverb gating from the `Release` macro**: the second value of `Release` mutes the tail quickly on key-up for short release times. Implement as a gate on the wet bus driven by `1 − releaseGateAmount`, separate from the amp release. This is a cheap and very "organic" articulator.
 - **Mix**: equal-power wet/dry from `rvb_mix`, scaled by `Effect`; `Effect`'s second half scales the branch pan spread, and lowering it reduces panning, as the reference's manual says.
 - **Growth and `rvb_size`**: the reference exempts size from growth because changing delay lengths mid-tail is disruptive. Follow that (`kFlagNever`) rather than crossfading two reverbs; keep crossfade machinery only for direct user edits of size.
-- **Order (answers §15 Q-8)**: with the tail per voice, the shelves can only sit after it — the master chain is dry+wet sum → `adj_bass`/`adj_treb` → `Volume` → limiter/`adj_clip`.
-- **Output stage** (`adj_*`, all growth-exempt): low shelf ±24 dB at 100 Hz, high shelf ±24 dB at 6 kHz, branch-pan spread, then a master soft clipper **after** the master volume. Only the clipper's position is documented by the reference; the rest of this order follows from the per-voice wet path.
+- **Output stage** (`adj_*`, all growth-exempt): low shelf ±24 dB at 100 Hz, high shelf ±24 dB at 6 kHz, branch-pan spread, then a master soft clipper **after** the master volume. The order of the shelves relative to the reverb is not documented — only the clipper's position is [?].
 
 ### 8.1 Level and limiter
 
@@ -521,15 +493,14 @@ The reference's MIDI settings, as its own setup page lists them:
 | `PitchWheelRange` | semitones |
 | `VelocityCurve` | `soft` / `standard` / `hard` — three monotonic curves |
 | `SupportProgramChanges`, `SelectWithMIDI` | program change → presets; MIDI note selects the active branch |
-| MIDI learn | the reference's **own** MIDI-learn layer: fourteen CC slots (tuning, atonality, effect, release, wheel scale, velocity sense, volume, mod wheel, rotation) plus five action triggers — our set is the same minus rotation (R4) |
+| MIDI learn | the reference's **own** MIDI-learn layer: fourteen CC slots (tuning, atonality, effect, release, wheel scale, velocity sense, volume, mod wheel, rotation) plus five action triggers |
 Rules for GenoMosh:
 
-- Expose every macro as an automatable `AudioProcessorValueTreeState` parameter, **and** expose the 48 genes as parameters too, the way v2 does (parameters 26-73, raw 0..1 display). In v2 that is what a DAW shows, and it is what lets the user grow a branch by hand. Keep them in one unit/group named "Genome" so the list stays navigable; the 48 come first in document order, the two extras (D-7) after them.
-- **Those parameters *are* the store, not a copy of it** (decision R9). The gene `AudioParameterFloat`s in the `Genome` unit are the authoritative seed values: their listener writes the seed genome, and the UI and the DAW both read and write the same values. XML stays serialisation only. Anything that keeps a second live copy of gene values is a split-brain bug waiting to happen.
+- Expose every macro as an automatable `AudioProcessorValueTreeState` parameter, **and** expose the 48 genes as parameters too, the way v2 does (parameters 26-73, raw 0..1 display). In v2 that is what a DAW shows, and it is what lets the user grow a branch by hand. Keep them in one unit/group named "Genome" so the list stays navigable.
 - Answer **`IMidiMapping` and `IMidiLearn`** in VST3: v2 answers both, and Sonic Charge's own position is that MIDI CC should map to exposed/automatable parameters. That is exactly why a host that refuses to do that breaks their MIDI-learn; we should not repeat the failure.
 - Branch lengths are patch data, and automatable (operator decision D9 said automatable while dragging; the reference has always made them automatable).
 - Handle sustain, pitch bend (`PitchWheelRange`), mono/legato + glide, and tempo sync. Note that v2 asks the host for tempo and v1 never did — if we add `Tempo Sync` we must handle a missing tempo gracefully.
-- Persist `seedId`, genome, branch lengths + trims + enables, wheel state and target, atonality, FX macro, and the MIDI config. (`Rotation` is not persisted, because it does not exist here — R4.)
+- Persist `seedId`, genome, branch lengths + trims + enables, wheel state and target, rotation, atonality, FX macro, and the MIDI config.
 
 ---
 
@@ -545,7 +516,6 @@ Rules for GenoMosh:
 - **Parameter smoothing** everywhere an audible zipper could occur; topology changes are crossfaded, never slewed.
 - **Unit-testable core:** genome, growth and mapping code must be pure and independent of JUCE audio classes (already true and load-bearing).
 - **Budget:** the reference is not a CPU-heavy instrument — it plays many voices on one core — so a 16-voice GenoMosh is not expected to be a CPU problem. Measure before optimizing; a synth engine of this kind concentrates its cost in a handful of loops, which is a warning against speculative optimization.
-- **Reverb cost [consequence of R5]:** per-voice wet paths multiply tail cost by the number of active voices. That is accepted *only* with the reduced per-voice variant of §8 (fewer lines, fewer allpasses, reduced-rate tail, fewer chorus taps, shared coefficient maths) and a measured budget: profile at 1 / 4 / 8 / 16 active voices and keep the shared-bus variant behind `WetPath` as the fallback. The trap here is that the cost is per voice, so it grows exactly when the user plays chords — the usual place a "not CPU-heavy" claim breaks.
 
 ---
 
@@ -553,7 +523,7 @@ Rules for GenoMosh:
 
 - **Name-keyed, version-gated text format**, like the reference's: parse genes by name so the order can change, and check a version before loading. v2's layout is a good model: a `branches` array of `{id, length, volume}`, a flat `control` object, a `genome` object of plain 0..1 floats, per-branch `layers`, plus `seedId`, `pitchAdjust`, `modified`, `name`.
 - **Three separate version axes**: plugin/product version, engine-model version (what the parameters *mean*), and growth-algorithm version. The reference keeps format and implementation versions apart (`format: 28` vs `implementation: 29` in its own files) — do the same: `formatVersion` (file shape) and `modelVersion` (gene set and semantics), and keep `mutationVersion` for the growth maths. Changing sensitivities or hash inputs rewrites every saved branch, so an old patch must be re-grown, not re-interpreted.
-- **Compatibility handling [decided, R11]**: **refuse to load** a state whose `modelVersion` predates the Rev 3 gene set — warn once, keep the instance at a fresh plant. No fake migration and no partial mapping of the 43-gene table: those states were never shipped, and a half-migrated plant is worse than an honest refusal. `legacyMode` stays as a flag for *future* model versions, where a real migration table is worth writing.
+- **Compatibility handling**: a `legacyMode` flag like v2's, plus an explicit migration table for the Rev 1 → Rev 3 gene set (old presets from the 43-gene table are unreadable; write a converter that maps the carried-over genes and drops the rest).
 - **Init and randomize**: the reference's randomise behaves as a gaussian centred on each gene's default, reflected at the rails (spread of about a quarter of the range). Adopt that as the default randomizer (a gaussian around each gene's neutral, reflected at the rails), with `softMin/softMax` as an extra per-gene clamp on top.
 - **Seed codes and names [ours, following the reference's practice]**: encode `seedId` as a short base-32 string over `23456789abcdefghjkmnopqrstuvwxyz` (no ambiguous glyphs) so seeds can be typed and shared, and generate patch names from a shipped word list.
 
@@ -563,8 +533,8 @@ Rules for GenoMosh:
 
 The reference's plant vocabulary is real parameter data (`coreSize, baseHue, hueVariation, root/branch/twig limits, twistMask, plantZoom, sway*, decay*, seedImage, hoverSeedSize, seedOffset`), and the plant sways as if it were physical. Minimal approach [ours]:
 
-- Central seed; 12 radial branches at 30° intervals (no rotation offset — R4); on-screen length = effective length; hue derived from the genome; twigs as deterministic sub-branches so the plant is a fingerprint of the genome; gentle idle sway; fade for unused branches.
-- Interactions: drag a branch to grow it, a mod-wheel arc, click the seed to plant, hover shows note names.
+- Central seed; 12 radial branches at 30° intervals offset by `rotation`; on-screen length = effective length; hue derived from the genome; twigs as deterministic sub-branches so the plant is a fingerprint of the genome; gentle idle sway; fade for unused branches.
+- Interactions: drag a branch to grow it, drag a rotation handle, a mod-wheel arc, click the seed to plant, hover shows note names.
 
 **What Rev 3 adds, because the reference does it and it is cheap:**
 
@@ -573,7 +543,7 @@ The reference's plant vocabulary is real parameter data (`coreSize, baseHue, hue
 - **Show grown vs base value**: the reference's own view distinguishes the seed's value of a gene from the *grown* value of that gene in the selected branch (`dna.grown.<gene>`). A knob that shows "what the seed says" and "what this branch grew to" makes growth visible, which is the whole point of the instrument.
 - **Live response graphs per group**: every gene page in v2 draws the curves its own genes produce (oscillator, filter, EQ, LFO, reverb, saturation, modulation and volume plots). Draw the envelope/LFO/filter curves, not just knobs.
 
-Build this **after** the audio engine and a plain debug UI (50 sliders — the 48 plus the two extras — plus wheel, atonality and per-branch trims) work well.
+Build this **after** the audio engine and a plain debug UI (48 sliders plus wheel, rotation and per-branch trims) work well.
 
 ---
 
@@ -614,13 +584,13 @@ That is a **seeded note generator at a chosen note density, rendered offline at 
 
 | Phase | Deliverable | Done when |
 | --- | --- | --- |
-| 0 | **Gene table re-semantified** to the 48 documented genes with `neutral`, `gateLow/High`, `steps`, `kFlagNever`, `helpText`, plus the marked 2-gene extras block (D-7); rename/add/delete per §4.2; pre-Rev-3 states refused with a warning (R11) | Table compiles with 50 entries whose **first 48 match §4.2 verbatim**; every gene's neutral and gate documented; unit tests assert "neutral value produces the same sound as the gene at rest" |
+| 0 | **Gene table re-semantified** to the 48 documented genes with `neutral`, `gateLow/High`, `steps`, `kFlagNever`, `helpText`; rename/add/delete per §4.2; old presets rejected or migrated | Table compiles with 48 entries; every gene's neutral and gate documented; unit tests assert "neutral value produces the same sound as the gene at rest" |
 | 1 | Genome, curve mapping, deterministic PRNG, unit tests | Round-trip normalized↔real passes; same seed gives identical genomes across runs |
 | 2 | Growth engine (§5.2-5.7), offline CLI printing branch genomes | Length 0 returns the seed; deviation grows monotonically with length; growth-exempt genes provably never move; guard rails reject silent/unsafe results |
 | 3 | Core voice: two oscillators with the documented morph breakpoints, noise with colour, sub-AM, FM, four filter topologies with tracked cutoff, per-voice saturation, shared envelope | Clean, alias-controlled tone; every gene maps to an audible change without clicks; `flt_freq` tracks the keyboard |
 | 4 | Modulation: shared envelope with loop period, curvatures, `vol_fade`, two S&H sources, bipolar LFO with `lfo_bal`/`lfo_dly`, drift, per-voice variation, matrix extension | Patches feel alive on static notes; modulation is smooth; S&H steps are not smoothed away |
-| 5 | FX and output: **per-voice** chorusing FDN with `rvb_atk` bloom and per-voice `Release` gating (R5), shelves, branch pan, limiter + master clipper | No metallic ringing at defaults; size changes only via direct edits; `Volume` overdrive behaves like the specified curve; per-voice reverb CPU measured at 1/4/8/16 voices against a stated budget |
-| 6 | Plugin shell: macros, 48 gene parameters (the store, R9), MIDI config, mono/glide, tempo sync, state save/load, note→branch mapping, wheel + `Wheel Target` | Loads in a DAW; presets recall exactly; automation and MIDI-learn work |
+| 5 | FX and output: chorusing FDN with `rvb_atk` bloom, reverb gating from `Release`, shelves, branch pan, limiter + master clipper | No metallic ringing at defaults; size changes only via direct edits; `Volume` overdrive behaves like the specified curve |
+| 6 | Plugin shell: macros, 48 gene parameters, MIDI config, mono/glide, tempo sync, state save/load, note→branch mapping, wheel + `Wheel Target`, rotation | Loads in a DAW; presets recall exactly; automation and MIDI-learn work |
 | 7 | Tuning pass with the harness and listening sessions (§13) | A random seed plus any branch is usable most of the time; report the usable-branch ratio |
 | 8 | Plant UI and polish | Interaction feels immediate; UI thread never blocks audio |
 After each phase report: what was built, what was assumed (list the **[ours]**/**[?]** markers touched), measured results, and open questions — the format already used in `Docs/Implementation-Status.md`. `Docs/Rev3-Alignment-Plan.md` is the sequenced and gated form of these phases (milestones M0–M11) against the current code; keep it updated as they complete.
@@ -631,18 +601,18 @@ After each phase report: what was built, what was assumed (list the **[ours]**/*
 
 **Rev 2's questions 1, 2, 3, 4, 5, 6, 9, 10, 11 and 12 are closed** by the reference's own documentation — do not re-open them. Answers are tabulated in `Docs/Rev3-ChangeLog.md` §4. The short version: TriggerA-H are CC-bound *actions*; `b_sh`/`mod_sh` are S&H rates; `env_loop` is a loop period; `env_time` is the note duration and key-up stops it; `lfo_bal` is a vibrato/tremolo split; saturation is per-voice with a master clipper after volume; the wheel lerps branches toward full growth; twelve branches per octave, one per semitone, is how the reference works.
 
-**Still open — answer these before implementing the affected behaviour.** The operator's answers of 2026-10-29 are recorded in `Docs/Rev3-ChangeLog.md` §5 and in `Docs/Rev3-Alignment-Plan.md` §4; several of the questions below are now closed and are marked as such.
+**Still open — answer these before implementing the affected behaviour:**
 
-1. **What are `layers` (12 `enabled` flags) and `Bulb Mode` (3 values)?** Present in the patch format and parameter list; probably per-branch enable + plant/voice mode. **Still open.** Out of scope until answered.
+1. **What are `layers` (12 `enabled` flags) and `Bulb Mode` (3 values)?** Present in the patch format and parameter list; probably per-branch enable + plant/voice mode. Out of scope until answered.
 2. **What does the asterisk on `lfo_amt` and `adj_clip` mean in the screenshots?** The documented growth-exempt set explains `adj_clip` but not `lfo_amt`. Implement the exempt set as `kFlagNever` regardless; give no other special behaviour to asterisked genes. (Also: the three gene-page screenshots in `Pictures/` have no `.txt` descriptions — worth adding for the record.)
-3. **`Wheel Target` has 9 values and `Tempo Sync` has 7**; only the presence and one value ("lfo amount", "growth") are known. Which targets and which sync modes should we offer? **Still open**; a minimal set (growth / LFO amount / cutoff) is planned.
-4. **`a_form`'s pulse width**: the morph runs to "pulse" but no PWM gene exists. Is width fixed, or driven by another gene? **Still open**; assumed fixed 50%.
-5. **Saturation placement conflict — the only blocking one left**: the reference describes `saturate` as per-voice and `adj_clip` as a master stage after volume; `Docs/Rev2-Answers.md` A2 says the opposite (per-voice `adj_clip` pre-filter, master `saturate` post-filter). Which is authoritative for GenoMosh? Unchanged default: the reference's own description. One graph edge either way.
-6. **Atonality's exact reach** — **CLOSED by R7**: `converge(a_mod, at)`, `converge(b_mod, at)` at generation time, plus the D-4 ratio snap on `b_freq` blended by the same Atonality value. No other genes, and the old 5-gene hard ceiling is dropped.
-7. **Does `a_color` colour one shared noise source or only A's?** — **CLOSED by R1**: one shared brown→white shaper; the kept `b_color` *extra* adds a per-B offset from it.
-8. **Where do the `adj_*` shelves sit relative to the reverb?** — **CLOSED as a consequence of R5**: the tail is per voice, so the master chain is dry+wet → shelves → `Volume` → limiter/`adj_clip`.
-9. **Is `rvb_atk` an envelope on the wet send, or on the reverb's own decay?** — **CLOSED by R5**: the wet path is per voice, so it is that voice's wet-amount envelope.
-10. Target formats: VST3, AU, CLAP, standalone? **Still open.** (VST3 note: v2's face is `Instrument|Synth`, one stereo output bus, 16-channel event buses, `IMidiMapping` + `IMidiLearn` — a sane template.)
+3. **`Wheel Target` has 9 values and `Tempo Sync` has 7**; only the presence and one value ("lfo amount", "growth") are known. Which targets and which sync modes should we offer?
+4. **`a_form`'s pulse width**: the morph runs to "pulse" but no PWM gene exists. Is width fixed, or driven by another gene? Assumed fixed 50% for now.
+5. **Saturation placement conflict**: the reference describes `saturate` as per-voice and `adj_clip` as a master stage after volume; `Docs/Rev2-Answers.md` A2 says the opposite (per-voice `adj_clip` pre-filter, master `saturate` post-filter). Which is authoritative for GenoMosh? (Rev 3 defaults to the reference's own description.)
+6. **Atonality's exact reach**: the reference converges only `a_mod`/`b_mod` toward neutral at generation time; operator answers D7 and D11 pull in different directions. Should our Atonality also cover `lfo_amt`'s vibrato share and `b_freq` ratio-snapping?
+7. **Does `a_color` colour one shared noise source or only A's?** There is one colour gene but two noise mixes. Implemented as one shared shaper **[?]**.
+8. **Where do the `adj_*` shelves sit relative to the reverb?** Only the clipper's position is documented.
+9. **Is `rvb_atk` an envelope on the wet send, or on the reverb's own decay?** "Reverb-amount envelope, active above 0.66" admits both.
+10. Target formats: VST3, AU, CLAP, standalone? (VST3 note: v2's face is `Instrument|Synth`, one stereo output bus, 16-channel event buses, `IMidiMapping` + `IMidiLearn` — a sane template.)
 
 ---
 
@@ -651,6 +621,6 @@ After each phase report: what was built, what was assumed (list the **[ours]**/*
 1. **Curate the gene space** — ranges, curves, neutrals, gates, linkings, sensitivities, and the growth-exempt set. This defines the sound, and §5.7 is the recipe.
 2. **Make growth deterministic, continuous, monotonic and safe.**
 3. **Build a high-quality, alias-controlled, slightly unstable voice** with a tracking filter and a duration-shaped envelope.
-4. **Build a great, evolving chorusing-reverb tail** with bloom and gating — per voice, per R5, and inside a measured per-voice budget.
+4. **Build a great, evolving chorusing-reverb tail** with bloom and gating.
 5. **Build the tooling** — a golden-file protocol, plus per-branch render checks.
 6. Only then: UI beauty, plant view, MIDI extras.

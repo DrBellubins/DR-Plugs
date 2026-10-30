@@ -4,11 +4,7 @@
 or overturned most of Rev 2's `[inferred]` gene semantics, so this file's stage list is no
 longer the plan of record — use **`Docs/Rev3-Alignment-Plan.md`**. What is still useful here is
 §2 (the decision register) and §5 ("details that will bite"); Rev 3's plan re-lists those with
-the same `Dn` numbers and says which ones Rev 3 closes, reopens or contradicts. Note that four
-rows of §2 were **re-decided on 2026-10-29** when the Rev 3 register was answered: D1/D2 (48
-genes **plus** a documented extras block — as ruled here), D12 (Rotation: stays removed, as ruled
-here), D15 (replaced by R11: refuse to load, no migration), and D9 (no held-note re-resolution,
-an M6 debug affordance only). The current answers live in `Rev3-Alignment-Plan.md` §4.
+the same `Dn` numbers and says which ones Rev 3 closes, reopens or contradicts.
 
 *Plan of record for bringing the implementation in line with `Docs/Genetic Synth - Design
 Document for Local LLM.md` **Revision 2** (commit `aff2dae`, "Design document corrections").
