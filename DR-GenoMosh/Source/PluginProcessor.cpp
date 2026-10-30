@@ -288,12 +288,8 @@ juce::AudioProcessorEditor* AudioPluginAudioProcessor::createEditor()
 void AudioPluginAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = std::make_unique<juce::XmlElement> ("GenoMoshState");
-    // Three separate version axes (design doc 11): the shape of this XML, the
-    // meaning of the gene table, and the growth algorithm. They are written
-    // together and read apart on purpose.
-    state->setAttribute ("formatVersion", gmosh::kFormatVersion);
-    state->setAttribute ("modelVersion", gmosh::kModelVersion);
-    state->setAttribute ("mutationVersion", gmosh::kMutationVersion);
+    state->setAttribute ("version", 1);
+    state->setAttribute ("mutationVersion", 1);
 
     state->addChildElement (parameters.copyState().createXml().release());
 
@@ -311,21 +307,6 @@ void AudioPluginAudioProcessor::setStateInformation (const void* data, int sizeI
     std::unique_ptr<juce::XmlElement> xml (getXmlFromBinary (data, sizeInBytes));
     if (xml == nullptr)
         return;
-
-    // Decision R11: a state written under a different gene model is refused with
-    // a warning, not half migrated. The 43 gene table and the 48 + 2 Rev 3 table
-    // do not agree about what most of their shared names mean, so a best effort
-    // read would produce a patch that is silently wrong. The instance keeps the
-    // plant it already has, which is a fresh one.
-    const int modelVersion = xml->getIntAttribute ("modelVersion", 0);
-    if (modelVersion != gmosh::kModelVersion)
-    {
-        juce::Logger::writeToLog (
-            "GenoMosh: refusing to load a state saved by gene model "
-            + juce::String (modelVersion) + "; this build reads model "
-            + juce::String (gmosh::kModelVersion) + ". Loading a fresh plant instead.");
-        return;
-    }
 
     if (auto* paramsXml = xml->getChildByName ("GENOMOSH_PARAMS"))
         parameters.replaceState (juce::ValueTree::fromXml (*paramsXml));

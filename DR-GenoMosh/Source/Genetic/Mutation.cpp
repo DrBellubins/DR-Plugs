@@ -57,12 +57,11 @@ BranchDirection buildBranchDirection (uint64_t seedId, int branch, int variant,
 //==============================================================================
 namespace
 {
-    /// How far a pitch capable gene may sit from its neutral point, in gene
-    /// space. Taken from the table (4.3) rather than inferred from the curve:
-    /// a bipolar gene's neutral is the middle, an amount gene's is its end.
-    float neutralSpan (const GeneInfo& gi)
+    /// Where a gene sits when it has no effect on pitch at all: the middle for
+    /// bipolar genes, zero for the unipolar amounts.
+    float pitchNeutral (const GeneInfo& gi)
     {
-        return gi.neutral > 0.0f ? std::max (gi.neutral, 1.0f - gi.neutral) : 1.0f;
+        return (gi.flags & kFlagRatio) != 0 ? 0.5f : 0.0f;
     }
 }
 
@@ -77,8 +76,8 @@ void applyAtonality (Genome& genome, float atonality)
         if ((gi.flags & kFlagPitch) == 0)
             continue;
 
-        const float neutral = gi.neutral;
-        const float span = neutralSpan (gi);
+        const float neutral = pitchNeutral (gi);
+        const float span = neutral > 0.0f ? 0.5f : 1.0f;
 
         genome[i] = clampf (genome[i], neutral - span * at, neutral + span * at);
 
@@ -97,14 +96,10 @@ void applyAtonality (Genome& genome, float atonality)
 //==============================================================================
 void applyCouplings (Genome& g)
 {
-    // The couplings of 5.6, as one line edits in gene space. A few of these
-    // still reason about their genes with Rev 1 meanings (vol_dcy as a time,
-    // flt_freq as absolute hertz); Docs/Rev3-Alignment-Plan.md 6.3 tracks that,
-    // and M3/M5/M7 recalibrate them once those destinations exist.
     // --- resonance safety (5.6): no self oscillation, and less resonance the
     //     higher the cutoff sits, which is where a resonant filter screams.
     const float qCap = 0.55f + 0.45f * (1.0f - g[g_flt_freq]);
-    g[g_flt_q] = std::min (g[g_flt_q], qCap * (1.0f - 0.5f * g[g_saturate]));
+    g[g_flt_q] = std::min (g[g_flt_q], qCap * (1.0f - 0.5f * g[g_sat_drive]));
 
     // --- a low cutoff plus downward filter mod is just silence.
     if (g[g_flt_freq] < 0.25f && g[g_flt_mod] < 0.0f)
@@ -118,9 +113,7 @@ void applyCouplings (Genome& g)
         g[g_a_form] = 0.12f + (0.12f - energy) * 0.5f;
 
     // --- ...and never let the amplitude envelope close everything off: a
-    //     branch that cannot sound is not a branch, it is a bug. The sustain
-    //     gate of 4.2 (< 0.5 = no sustain) lands with M1, which is also where
-    //     this gets a duration aware version.
+    //     branch that cannot sound is not a branch, it is a bug.
     const float ampOpen = std::max (g[g_vol_sus], 0.35f * (1.0f - g[g_vol_dcy]));
     if (ampOpen < 0.08f)
         g[g_vol_sus] = 0.18f;
@@ -208,7 +201,7 @@ float safetyScore (const Genome& g)
     score -= 0.5f * std::max (0.0f, g[g_flt_q] - 0.75f);
     score -= 0.4f * std::max (0.0f, g[g_a_noise] + g[g_b_noise] - 1.1f);
     score -= 0.3f * std::max (0.0f, g[g_fm_amt] - 0.8f);
-    score -= 0.3f * std::max (0.0f, g[g_vol_atk] - 0.85f); // never a swell instead of a note
+    score -= 0.3f * std::max (0.0f, g[g_vol_atk] - 0.85f); // never a 4s swell
 
     return score;
 }
@@ -224,7 +217,7 @@ float loudnessCompensation (const Genome& g)
                       + 0.8f * g[g_fm_amt]
                       + 0.7f * g[g_sub_am]
                       + 0.5f * std::max (g[g_a_noise], g[g_b_noise])
-                      + 0.9f * g[g_saturate];
+                      + 0.9f * g[g_sat_drive];
 
     return 1.0f / std::sqrt (boost);
 }
@@ -237,32 +230,26 @@ void randomizeGenome (Genome& genome, Rng& rng, float atonality)
     for (std::size_t i = 0; i < kNumGenes; ++i)
     {
         const GeneInfo& gi = kGenes[i];
-
-        // 5.7.6: the growth exempt genes are the player's output surface, not
-        // part of the plant, so a fresh seed leaves every one of them neutral.
-        if ((gi.flags & kFlagNever) != 0 || gi.sensitivity <= 0.0f)
-        {
-            genome[i] = gi.neutral;
-            continue;
-        }
-
         float v = rng.range (gi.softMin, gi.softMax);
 
         // Pitch capable genes are drawn inside the atonality band rather than
         // clipped into it afterwards, so a low atonality seed still has a
         // spread of tunings rather than a pile on the ceiling.
         if ((gi.flags & kFlagPitch) != 0)
-            v = gi.neutral + (v - gi.neutral) * at;
+        {
+            const float neutral = pitchNeutral (gi);
+            v = neutral + (v - neutral) * at;
+        }
 
         genome[i] = v;
     }
 
     // Bias a fresh seed towards something that behaves like an instrument
-    // before the guard rails run: a sustained amp envelope, and not all reverb.
-    // (Biasing vol_atk and flt_freq stopped making sense when those genes
-    // became a curvature control and a ratio.)
-    genome[g_vol_sus] = std::max (genome[g_vol_sus], 0.55f);
-    genome[g_rvb_mix] *= 0.7f;
+    // before the guard rails run: audible attack, some sustain, filter open.
+    genome[g_vol_atk] = std::min (genome[g_vol_atk], 0.35f);
+    genome[g_vol_sus] = std::max (genome[g_vol_sus], 0.30f);
+    genome[g_flt_freq] = std::max (genome[g_flt_freq], 0.35f);
+    genome[g_fx_mix] *= 0.7f;
 
     applyCouplings (genome);
 }

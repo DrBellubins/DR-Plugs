@@ -421,35 +421,6 @@ work compile, and it is the only milestone whose failures are compile-time rathe
 `sizeof`s printed once and recorded (expected ≈ 200 B `Genome`, ≈ 8 kB per snapshot).
 **Unlocks:** M1 (neutral/gates/steps are only meaningful once the table carries them) and M2.
 
-**Status: landed 2026-10-30.** The VST3 target and the offline test target build with no new
-warnings; `testTableMatchesDoc` is green (48 ids, order, group, curve and `steps` spelled out
-from §4.2, the two extras at slots 48/49, every gene carrying `helpText`/`neutral`/gates,
-exactly five `kFlagNever`); `testGrowthExempt` was added as the test for the five exempt genes
-and is green; sizes measured 200 B `Genome`, 216 B `BranchDirection`, 8 008 B `PlantSnapshot`,
-24 024 B across the triple buffer; `PlantView::update` keeps twelve 24-byte drawing fingerprints
-and refreshes on revision change only.
-
-The "new sound = old sound" half of the gate had to be done with the harness's per-branch
-peak/rms/dc table, because there is no WAV writer until M2; both tables are recorded in
-`Implementation-Status.md` §10. Six of the seven `same` genes are bit-for-bit unchanged in
-curve and range (`mod_vel`, `lfo_rate`, `a_noise`, `b_noise`, `fm_mod`, `flt_mod`); `fm_amt`
-and `saturate` keep their old depth ranges under the curves §4.2 names. The plant as a whole
-came out **+2.4 dB with a 4× tighter branch spread** (2.7 dB → 0.6 dB) and DC an order of
-magnitude up but 10× inside its gate — expected consequences of `flt_freq` becoming the tracking
-cutoff and of the soft ranges being re-centred on the new neutrals, and the new numbers are the
-baseline M7 tunes against. Two things beyond the M0 bullet list also landed because they were
-free: `randomizeGenome` leaves growth-exempt genes at neutral, and the atonality ceiling reads
-`neutral` from the table instead of inferring it from the curve (both were M1 items).
-
-Two deliberate departures from the M0 bullet list. (1) The coherent **group direction** arrays in
-`buildBranchDirection` are *kept*: they are indexed by `GeneInfo::group`, so they carry no group
-assumption, and §1.1 lists coherent groups under "already aligned — do not churn". What the M0
-bullet actually targets was `GeneGrid`'s `GrpCount/2` column split, which is gone. (2) Flagging
-`a_mod`/`b_mod` as `kFlagPitch` (§4.2's own flag column) means the existing generation-time
-ceiling already converges them toward neutral as Atonality closes — which is R7's requirement,
-pulled forward by the table rather than by M4. It is also what makes `testPitchStability`'s
-current assertion vacuous at atonality 0.
-
 ### M1 — One mapping layer: neutral, gates, steps, links
 
 *Why here: §5.7's mechanisms are pure gene-space arithmetic. Doing them before any DSP change
@@ -807,12 +778,9 @@ the seed genome), and XML stays serialisation only. Practical consequence for M0
 copy gene values into a second live structure; the UI and the host both read and write the same
 APVTS values, and the seed genome is derived from them.
 
-### 6.8 Housekeeping — done (2026-10-30, with M0)
-The three gene-page screenshots in `Pictures/2026-10-22-0854xx/0855xx_hyprshot.png` had no
-`.txt` sidecars (the project convention, and design §15 Q-2 asks about them). They have been
-written, page by page: which gene ids sit in which group, what each figure plots, and what the
-asterisks on `lfo_amt`/`adj_clip` do and do not tell us. Design §15 Q-2 and the provenance note
-are updated to match.
+### 6.8 Housekeeping
+The three gene-page screenshots in `Pictures/2026-10-22-0854xx/0855xx_hyprshot.png` still have no
+`.txt` sidecars (the project convention, and design §15 Q-2 asks about them). Fix during M0.
 
 ---
 
@@ -896,8 +864,7 @@ that had been marked **(B)**, and what each one changed:
    (M6) and mark the code. One graph edge either way.
 2. Design Q-1 (layers / Bulb Mode), Q-3 (`Wheel Target`'s 9 values, `Tempo Sync`'s 7), Q-4
    (`a_form` PWM), Q-10 (target formats) — out of scope or defaulted harmlessly.
-3. ~~§6.8 housekeeping: the three gene-page screenshots still need `.txt` sidecars (fix in M0).~~
-   **Done with M0, 2026-10-30.**
+3. §6.8 housekeeping: the three gene-page screenshots still need `.txt` sidecars (fix in M0).
 4. Whether the fixed per-voice drift/detune amounts should become a macro. Default: no, they stay
    named constants (D-3). Revisit at M10 with measurements, not impressions.
 

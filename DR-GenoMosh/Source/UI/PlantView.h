@@ -68,18 +68,6 @@ private:
 
     void timerCallback() override;
 
-    /// Everything the drawing needs from one branch of the plant. A
-    /// PlantSnapshot is ~8 kB (50 genes x 12 branches x 3 directions), and this
-    /// view is refreshed from the editor timer, so only these four values are
-    /// kept, and only when the plant's revision changes.
-    struct BranchVisual
-    {
-        uint64_t hash = 0;      ///< the tree shape is grown from this
-        float hue = 0.0f;
-        float saturation = 0.5f;
-        float brightness = 0.5f;
-    };
-
     /// A ring slot plays the branch of its own pitch class, which is exactly
     /// what branchForNote does on the audio side.
     int noteForSlot (int slot) const { return 60 + slot; }
@@ -93,13 +81,12 @@ private:
     void growTree (std::vector<Twig>& out, juce::Point<float> from, float angle,
                    float length, int depth, Rng& rng, float& reach) const;
     void drawPlant (juce::Graphics&, juce::Point<float> centre, float angle,
-                    float targetReach, uint64_t branchHash, const juce::Colour&) const;
-    static juce::Colour branchColour (const BranchVisual& visual, float hueShift);
+                    float targetReach, const BranchDirection&, const juce::Colour&) const;
+    static juce::Colour branchColour (const BranchDirection& direction, float hueShift);
 
     std::array<juce::AudioParameterFloat*, kNumBranches> branchParams {};
 
-    std::array<BranchVisual, kNumBranches> visuals {};
-    int snapshotRevision = -1;
+    PlantSnapshot snapshot;
     std::array<float, kNumBranches> lengths {};
     float wheel = 1.0f;
     int active = -1;

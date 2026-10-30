@@ -175,7 +175,3 @@ with it). Everything else was a confirmation.
   report the usable-branch ratio under the new table.
 - Presets written by the Rev 1 table are unreadable under Rev 3: bump `modelVersion` and **refuse to
   load them with a warning** (decision R11) — no partial migration.
-- **Executed at M0, 2026-10-30.** The table migration above is in the code: 50 slots whose first 48
-  match §4.2, `GeneInfo` as §4.3, `Curve::Stepped`, the five `kFlagNever` genes, and a
-  `modelVersion` of 2 that refuses older states. Measured numbers, the before/after render tables
-  and the list of what is still provisional wiring are in `Docs/Implementation-Status.md` §10.

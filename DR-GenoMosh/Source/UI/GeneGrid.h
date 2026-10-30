@@ -40,9 +40,7 @@ private:
     };
 
     void sliderValueChanged (juce::Slider* slider);
-    int rowsInGroup (int group) const;
-    int placeColumn (const std::vector<int>& groups, std::size_t first, std::size_t last,
-                     int x, int width);
+    int placeColumn (int column, int firstGroup, int lastGroup, int x, int width);
 
     juce::Viewport viewport;
     juce::Component content;
