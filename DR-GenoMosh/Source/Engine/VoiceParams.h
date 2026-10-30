@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Dsp.h"
+
 #include "../Genetic/GeneTable.h"
 #include "../Genetic/Mutation.h"
 
@@ -27,7 +29,13 @@ namespace gmosh
 //   5.7.5 steps     - a_freq and flt_type go through Curve::Stepped, so the
 //                     only values that reach the voice are grid points.
 //   5.7.7 curves    - osc_mix is warped into mix space before the equal power
-//                     pan law.
+//                     pan law, and the four curvature genes become shape
+//                     exponents (M3), never seconds.
+//
+// The shared envelope of design 6.1.1 is resolved here as an EnvShape (M3):
+// env_time is the duration, env_kf scales it by key, env_loop is the repeat
+// period, and env_time >= 0.9 is "infinite" (decision R3). The voice owns no
+// envelope arithmetic of its own, it runs the clock this struct describes.
 //
 // Gates, rails and warps are *not* applied to genomes: the genome is the truth
 // the player sees and grows, this is how it is read. Voice reads resolved values
@@ -56,22 +64,36 @@ struct MacroValues
 
 struct VoiceParams
 {
-    // envelope clock (4.2 group 1). env_time *is* the duration of the sound;
-    // the shared envelope engine (M3) is what consumes it as one.
-    float envTime = 1.0f, envRepeat = 0.0f, envTilt = 0.0f, envKeyFollow = 0.0f;
+    // Envelope clock (4.2 group 1). Since M3 this *is* the length of the note:
+    // envDuration is env_time scaled by env_kf, or EnvShape::kInfiniteDuration
+    // once env_time reaches 0.9 (decision R3). envLoopSeconds is env_loop; the
+    // shape's finite time base is derived from the two by SharedEnv, which is
+    // the only place that reading of "infinite" lives (R3).
+    float envDuration = 1.0f, envLoopSeconds = 0.0f, envTilt = 0.0f;
+    bool  envRepeats = false;    ///< env_loop shorter than the duration (4.2)
+    float envShapeSeconds = 1.0f; ///< one pass of the shape, always finite (R3)
+    float envKeyFollow = 0.0f;   ///< resolved octaves/key of time scaling, for M8
 
-    // amplitude envelope
-    float ampAttack = 0.02f, ampDecay = 0.6f, ampSustain = 0.0f,
-          ampRelease = kNoteOffReleaseSeconds;
-    float volFade = 0.0f;
+    // Shape curvatures. vol_atk / vol_dcy / mod_atk / mod_dcy are exponents of
+    // the shared shape (4.2: "0.5 is linear"), so the neutral gene maps to 1.0
+    // and nothing here is ever a number of seconds (5.7.7).
+    float ampAttackExp = 1.0f, ampDecayExp = 1.0f;
+    float modAttackExp = 1.0f, modDecayExp = 1.0f;
 
-    // modulation envelope. modShape is a curve exponent and is deliberately the
-    // identity (1.0 = linear) until M3/M4: mod_sh's documented destination is a
-    // sample and hold *rate*, and reading a rate gene as a curve exponent is
-    // what made its neutral value audible. modSampleHoldHz is the documented
-    // value (8 Hz down to 0.1 Hz, off below the gate); resolved here so the
-    // mapping layer is complete, read by M4.
-    float modAttack = 0.01f, modDecay = 0.5f, modShape = 1.0f, modVelocity = 0.0f;
+    // Levels, read through their gates (5.7.3).
+    float ampSustain = 0.0f;     ///< max(0, 2(v-0.5)): below the gate, no sustain
+    float volFade = 0.0f;        ///< the second fade after the attack, 0..1
+    float ampRelease = kNoteOffReleaseSeconds;   ///< D-5: fixed note off release
+
+    // Modulation envelope depth: VelSens x mod_vel, applied *once*, to the mod
+    // envelope itself (design 6.1.1). The destination amounts stay raw and
+    // bipolar, because scaling both the envelope and its destinations is how a
+    // velocity curve quietly ends up squared.
+    float modVelocity = 0.0f, modScale = 1.0f;
+
+    // mod_sh's documented destination is a sample and hold *rate* on the mod
+    // envelope, gated to the top quarter and inverted (off below the gate). It
+    // is resolved here so the mapping layer is complete; the destination is M4.
     float modSampleHoldHz = 0.0f;
 
     // lfo
@@ -121,10 +143,29 @@ struct VoiceParams
     float velocity = 1.0f;
     float tuneCents = 0.0f;
 
-    unsigned char filterMode = 0;
     unsigned char fmDirection = 0;
-    unsigned char modSource = 0;
     unsigned char oscBMode = 0;
+
+    /// The one place the resolved envelope becomes the clock's configuration.
+    /// The voice calls this at note on and then runs the clock; it never
+    /// interprets a gene itself (design 3, 5.7.2).
+    EnvShape envShape() const
+    {
+        EnvShape s;
+        s.duration       = envDuration;
+        s.repeats        = envRepeats;
+        s.loopPeriod     = envLoopSeconds;
+        s.shapeSeconds   = envShapeSeconds;
+        s.tilt           = envTilt;
+        s.attackExp      = ampAttackExp;
+        s.decayExp       = ampDecayExp;
+        s.modAttackExp   = modAttackExp;
+        s.modDecayExp    = modDecayExp;
+        s.sustain        = ampSustain;
+        s.fade           = volFade;
+        s.releaseSeconds = ampRelease;
+        return s;
+    }
 };
 
 /// Resolve a (already distance displaced) genome into playable settings.

@@ -449,11 +449,25 @@ void measureOneNote (const std::vector<float>& left, const std::vector<float>& r
 
     // The sound falls silent when it drops below -40 dB of its own peak, and
     // stays silent (which is the only way to tell "released" from "gated").
+    //
+    // It has to have been loud first. Searching from the onset, which is defined
+    // at half a percent of the peak, reported a slow attack as "over" a few
+    // blocks after it began: an envelope that takes seconds to reach its peak is
+    // under 1% of it for longer than the confirmation window, and M3 made such
+    // attacks a thing the genes ask for (env_time is the length of the note).
     const float offThreshold = 0.01f * peak;
     const int confirmBlocks = std::max (4, static_cast<int> (sampleRate * 0.05) / env.hop);
     int iSilent = -1;
+    bool sounded = false;
     for (int i = (onset >= 0 ? onset : iStart); i <= iTail; ++i)
     {
+        if (! sounded)
+        {
+            if (env.at (i) >= offThreshold)
+                sounded = true;
+            continue;
+        }
+
         if (env.at (i) < offThreshold)
         {
             bool stayedDown = true;

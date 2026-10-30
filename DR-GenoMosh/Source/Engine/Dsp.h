@@ -188,76 +188,202 @@ private:
 };
 
 //==============================================================================
-// Envelopes.
+// The shared envelope (design doc 6.1.1, plan milestone M3).
 //
-// Deliberately built as smoothed first order stages rather than hard ramps:
-// they can never click when a parameter moves, which matters because branch
-// lengths and the wheel move under a held note.
+// One clock, feeding both the amplitude and the modulation envelope. This is
+// the structure the reference describes; it replaces the Rev 1 ADSR, which had
+// three unrelated time genes and no notion of "how long the note is".
+//
+//   * env_time *is* the duration: T = env_time x key follow, and env_time at
+//     or above 0.9 means the *duration* is infinite (decision R3).
+//   * The shape always needs a finite base (R3 again): a literal T = infinity
+//     would freeze the clock at its start and the note would never open, which
+//     is a bug rather than the reference's behaviour. The base is the loop
+//     period when the envelope repeats, else T, else - only in the infinite,
+//     non repeating case - the duration env_time = 0.9 maps to.
+//   * env_loop repeats the shape; a period at or above the duration means no
+//     repeats at all (4.2).
+//   * vol_atk / vol_dcy / mod_atk / mod_dcy are curvature exponents of *this*
+//     shape (1.0 = exactly linear), never seconds. env_tilt is where the shape
+//     splits into attack and decay.
+//   * vol_sus is the floor the decay aims at; vol_fade is the documented second
+//     fade after the attack, and its destination is silence, which is how a note
+//     with an infinite duration can still end by itself.
+//   * Note off (D-5): stop looping, then a fixed release.
+//
+// Sample accurate, with no first order smoothing anywhere: the design asks for
+// it (6.4), and with the duration being a gene, an envelope that lags its own
+// shape is an envelope that does not measure what the harness measures.
 //==============================================================================
-class Env
+
+/// Everything the clock needs, resolved once per note in VoiceParams. Nothing
+/// here is a gene: gates, rails and ranges are already applied.
+struct EnvShape
+{
+    /// "Infinite duration" as a number the sample loop can compare with. Kept
+    /// finite on purpose: 1e9 s is far beyond any block, and no IEEE special
+    /// case (inf, nan) is ever produced per sample.
+    static constexpr float kInfiniteDuration = 1.0e9f;
+
+    float duration = 1.0f;        ///< T in seconds, or kInfiniteDuration (R3)
+    bool  repeats = false;        ///< env_loop shorter than the duration (4.2)
+    float loopPeriod = 0.0f;      ///< re trigger interval, only when repeats
+    float shapeSeconds = 1.0f;    ///< finite base of one pass of the shape (R3)
+    float tilt = 0.0f;            ///< -1..1, fast attack at -1, slow attack at +1
+
+    float attackExp = 1.0f;       ///< vol_atk curvature, 1 = linear
+    float decayExp  = 1.0f;       ///< vol_dcy curvature, 1 = linear
+    float modAttackExp = 1.0f;    ///< mod_atk curvature
+    float modDecayExp  = 1.0f;    ///< mod_dcy curvature
+
+    float sustain = 0.0f;         ///< max(0, 2(v-0.5)), the floor of the decay
+    float fade    = 0.0f;         ///< vol_fade depth 0..1 (gate already applied)
+    float releaseSeconds = 0.18f; ///< D-5: filled in from kNoteOffReleaseSeconds
+};
+
+class SharedEnv
 {
 public:
-    enum Stage : unsigned char { Idle, Attack, Decay, Release };
+    enum Stage : unsigned char { Idle, Sounding, Release };
 
     void setSampleRate (double sampleRate) { sr = static_cast<float> (sampleRate); }
 
-    void setTimes (float attack, float decay, float sustain, float release)
+    /// Note on (and re articulation of a note that is already held).
+    ///
+    /// Every number here is resolved by VoiceParams, including the decision
+    /// about whether the shape repeats and how long one pass of it is; the
+    /// clock's job is only to run it. That is deliberate: the R3 reading of
+    /// "env_time >= 0.9 means infinite duration" belongs to the mapping layer,
+    /// where it can be tested against the gene table, and this class must not
+    /// re-derive it a second way.
+    void start (const EnvShape& s)
     {
-        aC = timeCoef (attack);
-        dC = timeCoef (decay);
-        rC = timeCoef (release);
-        sus = sustain;
+        shape = s;
+
+        repeat = shape.repeats && shape.loopPeriod > 1.0e-4f;
+
+        // One pass of the shape is also one cycle of the clock: a repeat is a
+        // whole envelope again, never a sliver of one (see VoiceParams).
+        shapeSeconds = clampf (shape.shapeSeconds, 1.0e-4f, EnvShape::kInfiniteDuration);
+        cycleSeconds = shapeSeconds;
+
+        attackFraction = clampf (0.5f + shape.tilt * 0.45f, 0.02f, 0.98f);
+
+        // vol_fade's second fade lands on silence, which is what lets an
+        // "infinite" note close itself off without anyone lifting a key.
+        fadeFloor = lerpf (shape.sustain, 0.0f, clamp01 (shape.fade));
+
+        cycleInc = 1.0f / (cycleSeconds * sr);
+        releaseInc = 1.0f / (std::max (shape.releaseSeconds, 1.0e-3f) * sr);
+
+        pos = 0.0f;
+        releasePos = 0.0f;
+        amp = 0.0f;
+        modVal = 0.0f;
+        stage = Sounding;
     }
 
-    void gateOn()
+    /// Note off (D-5): stop looping and ramp the level to zero over the fixed
+    /// release, from wherever it is right now (so this cannot click).
+    void release()
     {
-        if (stage != Attack)
-            stage = Attack;
-    }
-
-    void gateOff()
-    {
-        if (stage != Idle)
-            stage = Release;
+        if (stage == Idle)
+            return;
+        releaseFrom = amp;
+        modAtRelease = modVal;
+        releasePos = 0.0f;
+        stage = Release;
     }
 
     float process()
     {
         switch (stage)
         {
-            case Attack:
-                value += (1.0f - value) * aC;
-                if (value > 0.999f) { value = 1.0f; stage = Decay; }
-                break;
-            case Decay:
-                value += (sus - value) * dC;
-                break;
             case Release:
-                value += (0.0f - value) * rC;
-                if (value * value < 1.0e-7f) { value = 0.0f; stage = Idle; }
+            {
+                releasePos += releaseInc;
+                if (releasePos >= 1.0f) { releasePos = 1.0f; stage = Idle; }
+                const float g = 1.0f - releasePos;
+                amp = releaseFrom * g;
+                modVal = modAtRelease * g;
                 break;
+            }
+
+            case Sounding:
+            {
+                pos += cycleInc;
+                if (pos >= 1.0f)
+                {
+                    if (repeat)
+                        pos -= 1.0f;   // re trigger the same shape
+                    else
+                        pos = 1.0f;    // hold at sustain, or at the fade floor
+                }
+                amp = shapeAt (pos, shape.attackExp, shape.decayExp,
+                               shape.sustain, fadeFloor);
+                // The mod envelope shares the clock and the tilt and always
+                // returns to nothing (6.1.1): it moves parameters, not level.
+                modVal = shapeAt (pos, shape.modAttackExp, shape.modDecayExp, 0.0f, 0.0f);
+                break;
+            }
+
             case Idle:
             default:
-                value = 0.0f;
+                amp = 0.0f;
+                modVal = 0.0f;
                 break;
         }
-        return value;
+        return amp;
     }
 
-    bool isIdle() const { return stage == Idle; }
-    float valueOf() const { return value; }
-    void reset() { value = 0.0f; stage = Idle; }
+    float modValue() const { return modVal; }
+    float ampValue() const { return amp; }
+    bool  isRepeating() const { return repeat; }
+    bool  sounding() const { return stage != Idle; }
+    float shapeSecondsOf() const { return shapeSeconds; }
+    float positionOf() const { return pos; }
+    float attackFractionOf() const { return attackFraction; }
+    float fadeFloorOf() const { return fadeFloor; }
+
+    /// True when the envelope can never come back without a new note: the one
+    /// shot ended at silence. This is what lets a note that ended itself (its
+    /// duration is over with no sustain, or vol_fade closed it) free its voice
+    /// while the key is still held.
+    bool finished() const
+    {
+        return stage == Idle
+            || (! repeat && stage == Sounding && pos >= 1.0f && fadeFloor <= 0.0f);
+    }
+
+    /// True when the shape completed while the key was still down.
+    bool selfEnded() const { return stage == Sounding && ! repeat && pos >= 1.0f; }
+
+    void reset() { stage = Idle; amp = 0.0f; modVal = 0.0f; pos = 0.0f; }
 
 private:
-    float timeCoef (float seconds) const
+    /// One pass of the shape: the attack power curve, then a decay aimed at
+    /// `sus`, whose floor itself slides from sustain to fadeFloor across the
+    /// decay (that slide is vol_fade). An exponent of 1 is exactly linear.
+    float shapeAt (float p, float attackExp, float decayExp, float sus, float endFloor) const
     {
-        const float t = seconds < 0.0005f ? 0.0005f : seconds;
-        return 1.0f - std::exp (-1.0f / (t * sr));
+        if (p <= 0.0f)
+            return 0.0f;
+        if (p < attackFraction)
+            return std::pow (p / attackFraction, attackExp);
+
+        const float u = clamp01 ((p - attackFraction) / (1.0f - attackFraction));
+        const float fl = lerpf (sus, endFloor, u);
+        return fl + (1.0f - fl) * std::pow (1.0f - u, decayExp);
     }
 
     float sr = 44100.0f;
-    float aC = 1.0f, dC = 1.0f, rC = 1.0f, sus = 0.0f;
-    float value = 0.0f;
+    EnvShape shape;
+    float shapeSeconds = 1.0f, cycleSeconds = 1.0f;
+    float cycleInc = 1.0f, releaseInc = 1.0f;
+    float attackFraction = 0.5f, fadeFloor = 0.0f;
+    float pos = 0.0f, releasePos = 0.0f;
+    float amp = 0.0f, modVal = 0.0f, releaseFrom = 0.0f, modAtRelease = 0.0f;
+    bool repeat = false;
     Stage stage = Idle;
 };
 
