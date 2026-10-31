@@ -45,7 +45,7 @@ void MasterFx::prepare (double sampleRateHz, int maxBlockSamples)
     {
         baseLength[k] = static_cast<float> (kBaseLength[k]) * srRatio;
         const int maxLen = static_cast<int> (baseLength[k] * 1.10f) + maxBlockSamples + 32;
-        lines[k].prepare (maxLen);
+        lines[k].Prepare (maxLen);
         lengthCur[k] = lengthTo[k] = baseLength[k] * sizeCurrent;
         lineModPhase[k] = static_cast<float> (k * 37 % 100) * 0.01f;
         lineModInc[k] = (0.13f + 0.11f * static_cast<float> (k % 3)) / static_cast<float> (sampleRateHz);
@@ -59,8 +59,8 @@ void MasterFx::prepare (double sampleRateHz, int maxBlockSamples)
         outGainR[k] = static_cast<float> (kHadamard[k][3]) * kInvSqrt8;
     }
 
-    chorusL.prepare (static_cast<int> (sampleRateHz * 0.08f) + maxBlockSamples + 8);
-    chorusR.prepare (static_cast<int> (sampleRateHz * 0.08f) + maxBlockSamples + 8);
+    chorusL.Prepare (static_cast<int> (sampleRateHz * 0.08f) + maxBlockSamples + 8);
+    chorusR.Prepare (static_cast<int> (sampleRateHz * 0.08f) + maxBlockSamples + 8);
     chorusModL.setShape (0, rng);
     chorusModR.setShape (0, rng);
     chorusModR.setPhase (0.37f);
@@ -72,10 +72,10 @@ void MasterFx::prepare (double sampleRateHz, int maxBlockSamples)
 //==============================================================================
 void MasterFx::reset()
 {
-    for (auto& l : lines) l.reset();
+    for (auto& l : lines) l.Reset();
     for (auto& d : lineDamp) d.reset();
-    chorusL.reset();
-    chorusR.reset();
+    chorusL.Reset();
+    chorusR.Reset();
     chorusModL.reset();
     chorusModR.reset();
     for (std::size_t k = 0; k < kFdnLines; ++k) { xIn[k] = 0.0f; yOut[k] = 0.0f; }
@@ -142,14 +142,14 @@ void MasterFx::process (float* left, float* right, int numSamples)
         chorusModL.setRateHz (chorusRate, sampleRate);
         chorusModR.setRateHz (chorusRate * 1.137f, sampleRate);
 
-        chorusL.push (dryL);
-        chorusR.push (dryR);
+        chorusL.Push (dryL);
+        chorusR.Push (dryR);
 
         const float dL = chorusBase + chorusDepth * (0.5f + 0.5f * chorusModL.process());
         const float dR = chorusBase + chorusDepth * (0.5f + 0.5f * chorusModR.process());
 
-        const float chL = chorusL.read (dL);
-        const float chR = chorusR.read (dR);
+        const float chL = chorusL.Read (dL);
+        const float chR = chorusR.Read (dR);
 
         const float feedL = lerpf (dryL, chL, chorusCurrent);
         const float feedR = lerpf (dryR, chR, chorusCurrent);
@@ -164,7 +164,7 @@ void MasterFx::process (float* left, float* right, int numSamples)
             lengthCur[k] += (lengthTo[k] - lengthCur[k]) * (1.0f / static_cast<float> (kCtrlPeriod));
 
             const float mod = std::sin (lineModPhase[k] * 2.0f * kPi) * 0.7f;
-            xIn[k] = lineDamp[k].process (lines[k].read (lengthCur[k] + mod));
+            xIn[k] = lineDamp[k].process (lines[k].Read (lengthCur[k] + mod));
         }
 
         for (std::size_t k = 0; k < kFdnLines; ++k)
@@ -177,7 +177,7 @@ void MasterFx::process (float* left, float* right, int numSamples)
         }
 
         for (std::size_t k = 0; k < kFdnLines; ++k)
-            lines[k].push (yOut[k] + feedL * inGainL[k] + feedR * inGainR[k]);
+            lines[k].Push (yOut[k] + feedL * inGainL[k] + feedR * inGainR[k]);
 
         float wetL = 0.0f, wetR = 0.0f;
         for (std::size_t k = 0; k < kFdnLines; ++k)
