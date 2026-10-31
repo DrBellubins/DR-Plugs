@@ -28,7 +28,7 @@ struct VoiceParams
 {
     // The one envelope clock: a pluck, repeated, with a level decay over the
     // repeats. All the decisions are made here; SharedEnv derives none of them.
-    SharedEnv::Shape envShape {};
+    SharedEnv::Shape envShape{};
 
     // mod_sh: sample and hold on the modulator, 0 = off
     float modHoldHz = 0.0f;
@@ -74,8 +74,7 @@ struct VoiceParams
 };
 
 /// Resolve a (already distance displaced) genome into playable settings.
-void resolveVoiceParams (const Genome& genome, const BranchTraits& traits,
-                         const MacroValues& macros, int midiNote, float velocity,
-                         VoiceParams& out);
+void resolveVoiceParams(const Genome& genome, const BranchTraits& traits, const MacroValues& macros,
+                        int midiNote, float velocity, VoiceParams& out);
 
 } // namespace gmosh

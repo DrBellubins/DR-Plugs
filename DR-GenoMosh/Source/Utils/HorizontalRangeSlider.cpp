@@ -42,16 +42,16 @@ void HorizontalRangeSlider::setUpperValue(float NewValue)
 
 void HorizontalRangeSlider::Enable()
 {
-	Enabled = true;
-	currentColour = ThemePink;
-	repaint();
+    Enabled = true;
+    currentColour = ThemePink;
+    repaint();
 }
 
 void HorizontalRangeSlider::Disable()
 {
-	Enabled = false;
-	currentColour = UnfocusedGray;
-	repaint();
+    Enabled = false;
+    currentColour = UnfocusedGray;
+    repaint();
 }
 
 void HorizontalRangeSlider::setRoundness(float Radius)
@@ -88,10 +88,12 @@ void HorizontalRangeSlider::paint(juce::Graphics& Graphics)
     float handleY2 = rangeRect.getBottom() - handleInset;
 
     // Left handle (lowerValue)
-    Graphics.drawLine(lowerX + handleMargin, handleY1, lowerX + handleMargin, handleY2, (float)handleThickness);
+    Graphics.drawLine(lowerX + handleMargin, handleY1, lowerX + handleMargin, handleY2,
+                      (float)handleThickness);
 
     // Right handle (upperValue)
-    Graphics.drawLine(upperX - handleMargin, handleY1, upperX - handleMargin, handleY2, (float)handleThickness);
+    Graphics.drawLine(upperX - handleMargin, handleY1, upperX - handleMargin, handleY2,
+                      (float)handleThickness);
 }
 
 void HorizontalRangeSlider::resized()

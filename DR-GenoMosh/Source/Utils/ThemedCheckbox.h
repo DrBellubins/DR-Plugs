@@ -6,17 +6,11 @@
 // ThemedCheckbox: Custom checkbox using ThemePink and AccentGray colors, with a rounded square indicator.
 class ThemedCheckbox : public juce::ToggleButton
 {
-public:
-    ThemedCheckbox(const juce::String& CheckboxText = juce::String())
-        : juce::ToggleButton(CheckboxText)
-    {
-    }
+  public:
+    ThemedCheckbox(const juce::String& CheckboxText = juce::String()) : juce::ToggleButton(CheckboxText) {}
 
-    void paintButton(
-        juce::Graphics& Graphics,
-        bool ShouldDrawButtonAsHighlighted,
-        bool ShouldDrawButtonAsDown
-    ) override
+    void paintButton(juce::Graphics& Graphics, bool ShouldDrawButtonAsHighlighted,
+                     bool ShouldDrawButtonAsDown) override
     {
         auto bounds = getLocalBounds().toFloat();
 
@@ -61,6 +55,7 @@ public:
         float textHeight = bounds.getHeight();
 
         juce::Rectangle<float> textRect(textX, textY, textWidth, textHeight);
-        Graphics.drawFittedText(getButtonText(), textRect.toNearestInt(), juce::Justification::centredLeft, 1);
+        Graphics.drawFittedText(getButtonText(), textRect.toNearestInt(), juce::Justification::centredLeft,
+                                1);
     }
 };

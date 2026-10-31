@@ -1,36 +1,36 @@
-#include <cstdio>
 #include "Voice.h"
 #include "../Genetic/Rng.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace gmosh
 {
 namespace
 {
-    float clampFreq (float f, float sampleRate)
-    {
-        return clampf (f, 0.5f, static_cast<float> (sampleRate) * 0.45f);
-    }
-
-    float centsToRatio (float cents) { return std::pow (2.0f, cents / 1200.0f); }
+float clampFrequency(float frequencyHz, float sampleRateHz)
+{
+    return clampf(frequencyHz, 0.5f, static_cast<float>(sampleRateHz) * 0.45f);
 }
 
+float centsToRatio(float cents) { return std::pow(2.0f, cents / 1200.0f); }
+} // namespace
+
 //==============================================================================
-void Voice::prepare (double sampleRateHz, int /*maxBlockSamples*/)
+void Voice::prepare(double sampleRateHz, int /*maxBlockSamples*/)
 {
     sampleRate = sampleRateHz;
-    env.setSampleRate (sampleRateHz);
-    modHold.setSampleRate (sampleRateHz);
-    filter1.setSampleRate (sampleRateHz);
-    filter2.setSampleRate (sampleRateHz);
-    dcBlock.setSampleRate (sampleRateHz);
+    envelope.setSampleRate(sampleRateHz);
+    modHold.setSampleRate(sampleRateHz);
+    filterA.setSampleRate(sampleRateHz);
+    filterB.setSampleRate(sampleRateHz);
+    dcBlocker.setSampleRate(sampleRateHz);
 }
 
 //==============================================================================
-void Voice::start (const VoiceParams& params, int midiNote, uint64_t plantHash)
+void Voice::start(const VoiceParams& newParams, int midiNote, uint64_t plantHash)
 {
-    p = params;
+    params = newParams;
     note = midiNote;
     active = true;
     startedAt = sampleCount;
@@ -38,76 +38,76 @@ void Voice::start (const VoiceParams& params, int midiNote, uint64_t plantHash)
 
     // Per voice variation: a fresh, note and time dependent stream (design
     // doc 7 "voice level life").
-    rng = Rng (hash::combine (plantHash,
-                              static_cast<uint64_t> (midiNote) * uint64_t{0x9E3779B97F4A7C15}
-                            + static_cast<uint64_t> (sampleCount)));
+    randomGenerator =
+        Rng(Hash::combine(plantHash, static_cast<uint64_t>(midiNote) * uint64_t{ 0x9E3779B97F4A7C15 }
+                                         + static_cast<uint64_t>(sampleCount)));
 
-    oscA.reset();
-    oscB.reset();
-    env.reset();
+    oscillatorA.reset();
+    oscillatorB.reset();
+    envelope.reset();
     modHold.reset();
     lfo.reset();
-    filter1.reset();
-    filter2.reset();
-    dcBlock.reset();
+    filterA.reset();
+    filterB.reset();
+    dcBlocker.reset();
     subPhase = 0.0f;
     noiseState = 0.0f;
 
-    const float f0 = noteToHz (midiNote, p.tuneCents);
-    baseFreqA = clampFreq (f0 * std::pow (2.0f, p.aRatio / 12.0f), sampleRate);
-    baseFreqB = clampFreq (f0 * std::pow (2.0f, p.bRatio / 12.0f), sampleRate);
-    baseFreqSub = clampFreq (f0 * 0.5f, sampleRate);
-    subInc = baseFreqSub / static_cast<float> (sampleRate);
+    const float fundamentalFrequency = noteToHz(midiNote, params.tuneCents);
+    baseFrequencyA = clampFrequency(fundamentalFrequency * std::pow(2.0f, params.aRatio / 12.0f), sampleRate);
+    baseFrequencyB = clampFrequency(fundamentalFrequency * std::pow(2.0f, params.bRatio / 12.0f), sampleRate);
+    baseFrequencySub = clampFrequency(fundamentalFrequency * 0.5f, sampleRate);
+    subIncrement = baseFrequencySub / static_cast<float>(sampleRate);
 
     // Tiny random detune plus the curated detune gene.
-    detuneA = rng.gaussianClamped (1.0f) * (2.0f + p.detuneCents);
-    detuneB = -detuneA * rng.range (0.5f, 1.0f);
+    detuneA = randomGenerator.gaussianClamped(1.0f) * (2.0f + params.detuneCents);
+    detuneB = -detuneA * randomGenerator.range(0.5f, 1.0f);
 
-    oscA.setFrequency (baseFreqA, static_cast<float> (sampleRate));
-    oscB.setFrequency (baseFreqB, static_cast<float> (sampleRate));
-    oscA.setPhase (rng.uniform());
-    oscB.setPhase (rng.uniform());
+    oscillatorA.setFrequency(baseFrequencyA, static_cast<float>(sampleRate));
+    oscillatorB.setFrequency(baseFrequencyB, static_cast<float>(sampleRate));
+    oscillatorA.setPhase(randomGenerator.uniform());
+    oscillatorB.setPhase(randomGenerator.uniform());
 
     // The envelope is resolved once, here, from the voice's own snapshot: a
     // branch growing under a held note cannot change the pluck that note is
     // playing (design doc 3).
-    env.setShape (p.envShape);
-    env.gateOn();
-    modHold.setRateHz (p.modHoldHz);
+    envelope.setShape(params.envShape);
+    envelope.gateOn();
+    modHold.setRateHz(params.modHoldHz);
 
     // The level meter used for voice stealing, with a slow release, so a voice
     // is never "quiet" in the gap between two of its own plucks.
     levelTrack = 0.0f;
-    levelDecayCoef = std::exp (-1.0f / (0.35f * static_cast<float> (sampleRate)));
+    levelDecayCoefficient = std::exp(-1.0f / (0.35f * static_cast<float>(sampleRate)));
 
-    lfo.setRateHz (p.lfoRate, sampleRate);
-    lfo.setShape (rng.integer (3), rng);
-    lfo.setPhase (rng.uniform());
+    lfo.setRateHz(params.lfoRate, sampleRate);
+    lfo.setShape(randomGenerator.integer(3), randomGenerator);
+    lfo.setPhase(randomGenerator.uniform());
 
-    driftPitch.prepare (sampleRate, rng, 0.25f);
-    driftFilter.prepare (sampleRate, rng, 0.11f);
+    driftPitch.prepare(sampleRate, randomGenerator, 0.25f);
+    driftFilter.prepare(sampleRate, randomGenerator, 0.11f);
 
     // Slight per voice stereo spread so chords breathe.
-    const float pan = rng.gaussianClamped (1.0f) * 0.30f;
-    const float angle = (pan * 0.5f + 0.5f) * 0.5f * kPi;
-    panGainL = std::cos (angle);
-    panGainR = std::sin (angle);
+    const float panAmount = randomGenerator.gaussianClamped(1.0f) * 0.30f;
+    const float angle = (panAmount * 0.5f + 0.5f) * 0.5f * kPi;
+    panGainL = std::cos(angle);
+    panGainR = std::sin(angle);
 
-    const float q2 = 1.0f + (p.filterQ - 1.0f) * 0.5f;
-    cutoff1 = cutoff1To = clampf (p.filterHz, 20.0f, static_cast<float> (sampleRate) * 0.45f);
-    cutoff2 = cutoff2To = clampf (p.filterHz * std::pow (2.0f, p.filterSep), 20.0f,
-                                  static_cast<float> (sampleRate) * 0.45f);
-    filter1.setCutoffQ (cutoff1, p.filterQ);
-    filter2.setCutoffQ (cutoff2, q2);
-    filter1.setDrive (p.drive);
-    filter2.setDrive (p.drive * 0.5f);
+    const float secondaryResonance = 1.0f + (params.filterQ - 1.0f) * 0.5f;
+    cutoffHzA = cutoffHzATarget = clampf(params.filterHz, 20.0f, static_cast<float>(sampleRate) * 0.45f);
+    cutoffHzB = cutoffHzBTarget = clampf(params.filterHz * std::pow(2.0f, params.filterSep), 20.0f,
+                                         static_cast<float>(sampleRate) * 0.45f);
+    filterA.setCutoffQ(cutoffHzA, params.filterQ);
+    filterB.setCutoffQ(cutoffHzB, secondaryResonance);
+    filterA.setDrive(params.drive);
+    filterB.setDrive(params.drive * 0.5f);
 
-    freqA = freqATo = baseFreqA;
-    freqB = freqBTo = baseFreqB;
-    colourA = colourATo = clamp01 (p.aColour);
-    colourB = colourBTo = clamp01 (p.bColour);
-    fmIndex = fmIndexTo = p.fmAmount * 3.0f;
-    freqASlope = freqBSlope = cutoff1Slope = cutoff2Slope = fmIndexSlope = 0.0f;
+    frequencyA = frequencyATarget = baseFrequencyA;
+    frequencyB = frequencyBTarget = baseFrequencyB;
+    colourA = colourATarget = clamp01(params.aColour);
+    colourB = colourBTarget = clamp01(params.bColour);
+    fmIndex = fmIndexTarget = params.fmAmount * 3.0f;
+    frequencyASlope = frequencyBSlope = cutoffHzASlope = cutoffHzBSlope = fmIndexSlope = 0.0f;
     colourASlope = colourBSlope = 0.0f;
     ctrlCountdown = 0;
 }
@@ -115,23 +115,20 @@ void Voice::start (const VoiceParams& params, int midiNote, uint64_t plantHash)
 //==============================================================================
 void Voice::release()
 {
-    if (! active)
+    if (!active)
         return;
 
-    env.gateOff();
+    envelope.gateOff();
 }
 
 //==============================================================================
-float Voice::whiteNoise()
-{
-    return rng.uniform() * 2.0f - 1.0f;
-}
+float Voice::whiteNoise() { return randomGenerator.uniform() * 2.0f - 1.0f; }
 
 //==============================================================================
-void Voice::updateControlTargets (float modValue, float lfoV,
-                                 float driftP, float driftF)
+void Voice::updateControlTargets(float modulationValue, float lfoValue, float driftPitchValue,
+                                 float driftFilterValue)
 {
-    const float driftCents = driftP * p.driftAmount * 12.0f;
+    const float driftCents = driftPitchValue * params.driftAmount * 12.0f;
 
     // Pitch (5.3). a_mod / b_mod are the mod envelope's amount on each
     // oscillator's pitch: with the envelope being a pluck, this is the dive or
@@ -139,178 +136,220 @@ void Voice::updateControlTargets (float modValue, float lfoV,
     // depth is bounded in the mapping layer (kPitchModSemitoneCeiling), so the
     // worst case is an octave, in the direction the gene points.
     // aModSemis / vibSemis are semitones, centsToRatio takes cents.
-    const float centsA = (p.aModSemis * modValue + p.vibSemis * lfoV) * 100.0f;
-    const float centsB = (p.bModSemis * modValue + p.vibSemis * lfoV * 0.7f) * 100.0f;
+    const float centsA = (params.aModSemis * modulationValue + params.vibSemis * lfoValue) * 100.0f;
+    const float centsB = (params.bModSemis * modulationValue + params.vibSemis * lfoValue * 0.7f) * 100.0f;
 
-    freqATo = clampFreq (baseFreqA * centsToRatio (detuneA + driftCents + centsA), sampleRate);
-    freqBTo = clampFreq (baseFreqB * centsToRatio (detuneB + driftCents * 0.7f + centsB), sampleRate);
+    frequencyATarget =
+        clampFrequency(baseFrequencyA * centsToRatio(detuneA + driftCents + centsA), sampleRate);
+    frequencyBTarget =
+        clampFrequency(baseFrequencyB * centsToRatio(detuneB + driftCents * 0.7f + centsB), sampleRate);
 
     // Filter: key follow was pre computed at note on, the mod envelope adds up
     // to three octaves of deviation, and the drift adds a slow wander.
-    const float oct = p.keyFollow
-                    + p.filterMod * modValue * 3.0f
-                    + driftF * p.driftAmount * 0.12f;
+    const float octaveDeviation = params.keyFollow + params.filterMod * modulationValue * 3.0f
+                                  + driftFilterValue * params.driftAmount * 0.12f;
 
-    const float maxCut = static_cast<float> (sampleRate) * 0.45f;
-    cutoff1To = clampf (p.filterHz * std::pow (2.0f, oct), 20.0f, maxCut);
-    cutoff2To = clampf (cutoff1To * std::pow (2.0f, p.filterSep), 20.0f, maxCut);
+    const float maxCutoffHz = static_cast<float>(sampleRate) * 0.45f;
+    cutoffHzATarget = clampf(params.filterHz * std::pow(2.0f, octaveDeviation), 20.0f, maxCutoffHz);
+    cutoffHzBTarget = clampf(cutoffHzATarget * std::pow(2.0f, params.filterSep), 20.0f, maxCutoffHz);
 
-    fmIndexTo = std::max (0.0f, p.fmAmount * (1.0f + p.fmMod * modValue) * 3.0f);
+    fmIndexTarget = std::max(0.0f, params.fmAmount * (1.0f + params.fmMod * modulationValue) * 3.0f);
 }
 
 //==============================================================================
-void Voice::render (float* outL, float* outR, int numSamples)
+void Voice::render(float* outL, float* outR, int numSamples)
 {
-    if (! active)
+    if (!active)
         return;
 
-    const float lpMix = p.filterMode == 0 ? 1.0f : 0.0f;
-    const float bpMix = p.filterMode == 1 ? 1.0f : 0.0f;
-    const float hpMix = p.filterMode == 2 ? 1.0f : 0.0f;
+    const float lowpassMix = params.filterMode == 0 ? 1.0f : 0.0f;
+    const float bandpassMix = params.filterMode == 1 ? 1.0f : 0.0f;
+    const float highpassMix = params.filterMode == 2 ? 1.0f : 0.0f;
 
-    const float mixA = std::cos (p.balance * 0.5f * kPi);
-    const float mixB = std::sin (p.balance * 0.5f * kPi);
+    const float mixA = std::cos(params.balance * 0.5f * kPi);
+    const float mixB = std::sin(params.balance * 0.5f * kPi);
 
-    const float sr = static_cast<float> (sampleRate);
-    const bool syncOn = p.oscBMode == 0 && p.bShape > 0.02f;
-    const bool ringOn = p.oscBMode == 1 && p.bShape > 0.02f;
-    const bool holdOn = p.oscBMode == 2 && p.bShape > 0.02f;
-    const bool hasNoiseA = p.aNoise > 0.001f;
-    const bool hasNoiseB = p.bNoise > 0.001f;
-    const bool hasSub = p.subLevel > 0.001f;
+    const float sampleRateHz = static_cast<float>(sampleRate);
+    const bool syncOn = params.oscBMode == 0 && params.bShape > 0.02f;
+    const bool ringOn = params.oscBMode == 1 && params.bShape > 0.02f;
+    const bool holdOn = params.oscBMode == 2 && params.bShape > 0.02f;
+    const bool hasNoiseA = params.aNoise > 0.001f;
+    const bool hasNoiseB = params.bNoise > 0.001f;
+    const bool hasSub = params.subLevel > 0.001f;
 
-    for (int i = 0; i < numSamples; ++i)
+    for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
     {
         //--------------------------------------------------------------------
         // The one clock, then the modulators that are free (LFO, drift).
-        env.process();
-        const float lfoV = lfo.process();
-        const float driftP = driftPitch.process (rng);
-        const float driftF = driftFilter.process (rng);
+        envelope.process();
+        const float lfoValue = lfo.process();
+        const float driftPitchValue = driftPitch.process(randomGenerator);
+        const float driftFilterValue = driftFilter.process(randomGenerator);
 
         // What drives the modulation destinations. Default is the envelope's own
         // pluck. A branch whose structural trait says otherwise gets a modulator
         // that follows the note as a whole, or the LFO, instead: that choice is
         // what makes two branches of the same plant modulate differently.
-        float modBase;
-        switch (p.modSource)
+        float modulationBase;
+
+        switch (params.modSource)
         {
-            case 1:  modBase = env.outerValue(); break;                    // the note, not each pluck
-            case 2:  modBase = 0.5f + 0.5f * lfoV; break;                 // the LFO
-            default: modBase = env.modValue(); break;                      // the pluck
+            case 1:
+                // A branch whose structural trait asks for this modulates from
+                // the note as a whole instead of from each pluck.
+                modulationBase = envelope.outerValue();
+                break;
+
+            case 2:
+                // Or from the free running LFO.
+                modulationBase = 0.5f + 0.5f * lfoValue;
+                break;
+
+            default:
+                // The pluck envelope itself.
+                modulationBase = envelope.modulationValue();
+                break;
         }
 
         // Velocity scales the modulator once. mod_sh re quantises it: the step
         // is the sound, so nothing here is smoothed.
-        float modValue = modBase * p.modScale;
-        if (p.modHoldHz > 0.0f)
-            modValue = modHold.process (modValue);
+        float modulationValue = modulationBase * params.modScale;
+
+        if (params.modHoldHz > 0.0f)
+            modulationValue = modHold.process(modulationValue);
 
         //--------------------------------------------------------------------
         // Control rate update + ramp (design doc 6.4).
         if (--ctrlCountdown <= 0)
         {
             ctrlCountdown = kCtrlPeriod;
-            constexpr float kCtrlInv = 1.0f / static_cast<float> (kCtrlPeriod);
-            const float fromA = freqA, fromB = freqB, fromC1 = cutoff1, fromC2 = cutoff2, fromF = fmIndex;
-            const float fromCA = colourA, fromCB = colourB;
-            updateControlTargets (modValue, lfoV, driftP, driftF);
-            freqASlope = (freqATo - fromA) * kCtrlInv;
-            freqBSlope = (freqBTo - fromB) * kCtrlInv;
-            cutoff1Slope = (cutoff1To - fromC1) * kCtrlInv;
-            cutoff2Slope = (cutoff2To - fromC2) * kCtrlInv;
-            fmIndexSlope = (fmIndexTo - fromF) * kCtrlInv;
-            colourASlope = (colourATo - fromCA) * kCtrlInv;
-            colourBSlope = (colourBTo - fromCB) * kCtrlInv;
+            constexpr float kCtrlPeriodInverse = 1.0f / static_cast<float>(kCtrlPeriod);
+            const float previousFrequencyA = frequencyA;
+            const float previousFrequencyB = frequencyB;
+            const float previousCutoffA = cutoffHzA;
+            const float previousCutoffB = cutoffHzB;
+            const float previousFmIndex = fmIndex;
+            const float previousColourA = colourA;
+            const float previousColourB = colourB;
+            updateControlTargets(modulationValue, lfoValue, driftPitchValue, driftFilterValue);
+            frequencyASlope = (frequencyATarget - previousFrequencyA) * kCtrlPeriodInverse;
+            frequencyBSlope = (frequencyBTarget - previousFrequencyB) * kCtrlPeriodInverse;
+            cutoffHzASlope = (cutoffHzATarget - previousCutoffA) * kCtrlPeriodInverse;
+            cutoffHzBSlope = (cutoffHzBTarget - previousCutoffB) * kCtrlPeriodInverse;
+            fmIndexSlope = (fmIndexTarget - previousFmIndex) * kCtrlPeriodInverse;
+            colourASlope = (colourATarget - previousColourA) * kCtrlPeriodInverse;
+            colourBSlope = (colourBTarget - previousColourB) * kCtrlPeriodInverse;
         }
 
-        freqA += freqASlope;   oscA.setFrequency (freqA, sr);
-        freqB += freqBSlope;   oscB.setFrequency (freqB, sr);
+        frequencyA += frequencyASlope;
+        oscillatorA.setFrequency(frequencyA, sampleRateHz);
+        frequencyB += frequencyBSlope;
+        oscillatorB.setFrequency(frequencyB, sampleRateHz);
         colourA += colourASlope;
         colourB += colourBSlope;
-        cutoff1 += cutoff1Slope;
-        cutoff2 += cutoff2Slope;
+        cutoffHzA += cutoffHzASlope;
+        cutoffHzB += cutoffHzBSlope;
         fmIndex += fmIndexSlope;
 
-        const bool cutMoved = std::abs (cutoff1Slope) > 1.0e-6f || std::abs (cutoff2Slope) > 1.0e-6f;
+        const bool cutMoved = std::abs(cutoffHzASlope) > 1.0e-6f || std::abs(cutoffHzBSlope) > 1.0e-6f;
+
         if (cutMoved)
         {
-            filter1.setCutoffQ (cutoff1, p.filterQ);
-            filter2.setCutoffQ (cutoff2, 1.0f + (p.filterQ - 1.0f) * 0.5f);
+            filterA.setCutoffQ(cutoffHzA, params.filterQ);
+            filterB.setCutoffQ(cutoffHzB, 1.0f + (params.filterQ - 1.0f) * 0.5f);
         }
 
         //--------------------------------------------------------------------
         // Sources.
-        float a = 0.0f, b = 0.0f;
+        float signalA = 0.0f;
+        float signalB = 0.0f;
 
-        if (p.fmDirection == 0)
+        if (params.fmDirection == 0)
         {
-            const float rawB = oscB.next (p.bForm, colourB);
-            b = rawB;
-            a = oscA.nextModulated (p.aForm, colourA, fmIndex * rawB);
+            const float rawSignalB = oscillatorB.next(params.bForm, colourB);
+            signalB = rawSignalB;
+            signalA = oscillatorA.nextModulated(params.aForm, colourA, fmIndex * rawSignalB);
 
-            if (syncOn && oscA.phaseValue() < oscA.increment())
-                oscB.setPhase (p.bShape * 0.5f);
+            if (syncOn && oscillatorA.phaseValue() < oscillatorA.incrementValue())
+                oscillatorB.setPhase(params.bShape * 0.5f);
         }
         else
         {
-            const float rawA = oscA.next (p.aForm, colourA);
-            a = rawA;
-            b = oscB.nextModulated (p.bForm, colourB, fmIndex * rawA);
+            const float rawSignalA = oscillatorA.next(params.aForm, colourA);
+            signalA = rawSignalA;
+            signalB = oscillatorB.nextModulated(params.bForm, colourB, fmIndex * rawSignalA);
 
-            if (syncOn && oscB.phaseValue() < oscB.increment())
-                oscA.setPhase (p.bShape * 0.5f);
+            if (syncOn && oscillatorB.phaseValue() < oscillatorB.incrementValue())
+                oscillatorA.setPhase(params.bShape * 0.5f);
         }
 
-        if (holdOn) b = oscB.heldValue (p.bForm, colourB);
-        if (ringOn) b = a * b * 2.0f;
+        if (holdOn)
+            signalB = oscillatorB.heldValue(params.bForm, colourB);
 
-        if (hasNoiseA) { noiseState = whiteNoise(); a = a * (1.0f - p.aNoise) + noiseState * p.aNoise; }
-        if (hasNoiseB) { const float n = whiteNoise(); b = b * (1.0f - p.bNoise) + n * p.bNoise; }
+        if (ringOn)
+            signalB = signalA * signalB * 2.0f;
 
-        float mix = a * mixA + b * mixB;
+        if (hasNoiseA)
+        {
+            noiseState = whiteNoise();
+            signalA = signalA * (1.0f - params.aNoise) + noiseState * params.aNoise;
+        }
+
+        if (hasNoiseB)
+        {
+            const float noiseSample = whiteNoise();
+            signalB = signalB * (1.0f - params.bNoise) + noiseSample * params.bNoise;
+        }
+
+        float mixedSignal = signalA * mixA + signalB * mixB;
 
         if (hasSub)
         {
-            subPhase += subInc;
-            if (subPhase >= 1.0f) subPhase -= 1.0f;
-            mix += std::sin (subPhase * 2.0f * kPi) * p.subLevel;
+            subPhase += subIncrement;
+
+            if (subPhase >= 1.0f)
+                subPhase -= 1.0f;
+
+            mixedSignal += std::sin(subPhase * 2.0f * kPi) * params.subLevel;
         }
 
         //--------------------------------------------------------------------
         // Dual filter, amp envelope, level.
-        const float f1 = filter1.process (mix, lpMix, bpMix, hpMix);
-        const float f2 = filter2.process (f1, lpMix, bpMix, hpMix);
-        const float filtered = dcBlock.process (f2);
+        const float filteredA = filterA.process(mixedSignal, lowpassMix, bandpassMix, highpassMix);
+        const float filteredB = filterB.process(filteredA, lowpassMix, bandpassMix, highpassMix);
+        const float filtered = dcBlocker.process(filteredB);
 
         // The tremolo half of the LFO is free too: it rides on top of the
         // envelope instead of replacing it, so it is still there in the middle
         // of a long note.
-        float amp = env.ampValue();
-        if (p.tremDepth > 0.0f)
-            amp *= std::max (0.0f, 1.0f + p.tremDepth * lfoV);
+        float amplitude = envelope.amplitudeValue();
 
-        levelTrack = std::max (amp, levelTrack * levelDecayCoef);
+        if (params.tremDepth > 0.0f)
+            amplitude *= std::max(0.0f, 1.0f + params.tremDepth * lfoValue);
 
-        float out = filtered * amp * p.gain * p.velocity;
+        levelTrack = std::max(amplitude, levelTrack * levelDecayCoefficient);
 
-        if (env.isIdle() && amp <= 0.0f)
+        float outputSample = filtered * amplitude * params.gain * params.velocity;
+
+        if (envelope.isIdle() && amplitude <= 0.0f)
         {
             // Either the key is up and the release has run out, or the outer
             // curve settled on a floor of nothing and the note ended by itself.
             active = false;
-            for (int j = i; j < numSamples; ++j)
+
+            for (int remainingIndex = sampleIndex; remainingIndex < numSamples; ++remainingIndex)
             {
-                outL[j] += 0.0f;
-                outR[j] += 0.0f;
+                outL[remainingIndex] += 0.0f;
+                outR[remainingIndex] += 0.0f;
             }
+
             return;
         }
 
-        peak = std::max (peak, std::abs (out));
+        peak = std::max(peak, std::abs(outputSample));
 
-        outL[i] += out * panGainL;
-        outR[i] += out * panGainR;
+        outL[sampleIndex] += outputSample * panGainL;
+        outR[sampleIndex] += outputSample * panGainR;
 
         ++sampleCount;
     }

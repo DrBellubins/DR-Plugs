@@ -24,24 +24,24 @@ struct PlayState
 
 class Synth
 {
-public:
-    void prepare (double sampleRate, int maxBlockSamples);
+  public:
+    void prepare(double sampleRate, int maxBlockSamples);
     void releaseResources();
 
-    void attachPlant (PlantHandoff* handoff) { plant = handoff; }
+    void attachPlant(PlantHandoff* newPlant) { plant = newPlant; }
 
     /// Called from the audio thread at the start of every block.
-    void setPlayState (const PlayState& state);
+    void setPlayState(const PlayState& newPlayState);
 
     /// Sample accurate note events, collected during the block's MIDI scan and
     /// applied inside render().
-    void addNoteOn (int midiNote, float velocity, int sampleOffset);
-    void addNoteOff (int midiNote, int sampleOffset);
+    void addNoteOn(int midiNote, float velocity, int sampleOffset);
+    void addNoteOff(int midiNote, int sampleOffset);
     void allNotesOff();
 
-    void render (float* const* channels, int numChannels, int numSamples);
+    void render(float* const* channels, int numChannels, int numSamples);
 
-    double tailSeconds() const { return fx.tailSeconds(); }
+    double tailSeconds() const { return masterFx.tailSeconds(); }
     int numActiveVoices() const;
 
     /// Most recently started branch index, for the UI plant view.
@@ -50,19 +50,22 @@ public:
     /// Voice bookkeeping, for the offline harness and the debug UI.
     int numHeldNotes() const
     {
-        int n = 0;
-        for (const auto& h : heldNotes)
-            if (h.note >= 0)
-                ++n;
-        return n;
+        int heldCount = 0;
+
+        for (const auto& heldNote : heldNotes)
+            if (heldNote.note >= 0)
+                ++heldCount;
+
+        return heldCount;
     }
 
-private:
+  private:
     struct PendingNote
     {
-        int note = 60, offset = 0;
+        int note = 60;
+        int sampleOffset = 0;
         float velocity = 1.0f;
-        bool on = false;
+        bool isNoteOn = false;
     };
 
     struct HeldNote
@@ -72,21 +75,22 @@ private:
     };
 
     int allocateVoice();
-    void startVoice (int voiceIndex, int midiNote, float velocity);
-    void renderSegment (float* const* channels, int numChannels, int start, int numSamples);
-    void applyPending (const PendingNote& event);
+    void startVoice(int voiceIndex, int midiNote, float velocity);
+    void renderSegment(float* const* channels, int numChannels, int start, int numSamples);
+    void applyPendingNote(const PendingNote& event);
 
     static constexpr int kMaxVoices = 16;
 
     std::vector<Voice> voices;
-    MasterFx fx;
+    MasterFx masterFx;
     PlantHandoff* plant = nullptr;
-    PlayState play;
-    std::vector<PendingNote> pending;
+    PlayState playState;
+    std::vector<PendingNote> pendingNotes;
     std::vector<HeldNote> heldNotes;
-    std::vector<float> scratchL, scratchR;
+    std::vector<float> scratchL;
+    std::vector<float> scratchR;
     double sampleRate = 44100.0;
-    std::atomic<int> lastPlayedBranch { -1 };
+    std::atomic<int> lastPlayedBranch{ -1 };
 };
 
 } // namespace gmosh

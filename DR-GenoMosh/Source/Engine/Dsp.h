@@ -15,10 +15,10 @@ namespace gmosh
 //==============================================================================
 constexpr float kPi = 3.14159265358979323846f;
 
-inline float softClip(float x)
+inline float softClip(float input)
 {
     // Cheap odd symmetric saturator, unity slope at 0, bounded by +-1.
-    return x / (1.0f + std::abs(x) * 0.65f);
+    return input / (1.0f + std::abs(input) * 0.65f);
 }
 
 inline float noteToHz(int midiNote, float centsOffset = 0.0f)
@@ -30,14 +30,14 @@ inline float noteToHz(int midiNote, float centsOffset = 0.0f)
 class OnePole
 {
   public:
-    void setHz(float hz, double sampleRate)
+    void setHz(float hertz, double sampleRate)
     {
-        coef = 1.0f - std::exp(-2.0f * kPi * std::max(hz, 10.0f) / static_cast<float>(sampleRate));
+        coefficient = 1.0f - std::exp(-2.0f * kPi * std::max(hertz, 10.0f) / static_cast<float>(sampleRate));
     }
 
-    float process(float x)
+    float process(float input)
     {
-        state += (x - state) * coef;
+        state += (input - state) * coefficient;
         return state;
     }
 
@@ -45,7 +45,8 @@ class OnePole
     float value() const { return state; }
 
   private:
-    float coef = 1.0f, state = 0.0f;
+    float coefficient = 1.0f;
+    float state = 0.0f;
 };
 
 //==============================================================================
@@ -64,84 +65,112 @@ class OnePole
 class TrapezoidSVF
 {
   public:
-    void setSampleRate(double sampleRate)
+    void setSampleRate(double newSampleRate)
     {
-        sampleRate = static_cast<float>(sampleRate);
+        sampleRate = static_cast<float>(newSampleRate);
         reset();
     }
 
-    void setCutoffQ(float hz, float q)
+    void setCutoffQ(float hertz, float resonance)
     {
-        const float nyq = sampleRate * 0.5f;
-        const float fc = std::min(std::max(hz, 10.0f), nyq * 0.96f);
-        const float qq = std::max(q, 0.3f);
+        const float nyquistHz = sampleRate * 0.5f;
+        const float clampedCutoffHz = std::min(std::max(hertz, 10.0f), nyquistHz * 0.96f);
+        const float clampedResonance = std::max(resonance, 0.3f);
 
-        g = std::tan(kPi * fc / sampleRate);
-        k = 1.0f / qq;
+        integratorGain = std::tan(kPi * clampedCutoffHz / sampleRate);
+        damping = 1.0f / clampedResonance;
 
-        const float gk = g * k;
-        invGk = 1.0f / (1.0f + gk);
-        invD = 1.0f / (1.0f + gk + g * g);
-        cL = 1.0f + gk;
-        cB = g * (2.0f + gk);
-        cX = g * g;
+        const float gainTimesDamping = integratorGain * damping;
+        inverseLoopGain = 1.0f / (1.0f + gainTimesDamping);
+        inverseDenominator = 1.0f / (1.0f + gainTimesDamping + integratorGain * integratorGain);
+        lowpassNumerator = 1.0f + gainTimesDamping;
+        bandpassNumerator = integratorGain * (2.0f + gainTimesDamping);
+        inputNumerator = integratorGain * integratorGain;
     }
 
-    void setDrive(float d) { drive = d; }
+    void setDrive(float newDrive) { drive = newDrive; }
 
-    void reset() { low = band = hpPrev = 0.0f; }
-
-    /// modeMix: (lp, bp, hp) weights.
-    float process(float x, float lpMix, float bpMix, float hpMix)
+    void reset()
     {
-        const float xh = x + hpPrev;
+        lowpass = 0.0f;
+        bandpass = 0.0f;
+        previousHighpass = 0.0f;
+    }
 
-        float newLow = (low * cL + band * cB + xh * cX) * invD;
-        float newBand = (band + xh * g - newLow * g) * invGk;
-        float newHp = x - newBand * k - newLow;
+    /// The three weights select the lowpass, bandpass and highpass outputs.
+    float process(float input, float lowpassMix, float bandpassMix, float highpassMix)
+    {
+        const float inputPlusHistory = input + previousHighpass;
+
+        const float newLowpass =
+            (lowpass * lowpassNumerator + bandpass * bandpassNumerator + inputPlusHistory * inputNumerator)
+            * inverseDenominator;
+        const float newBandpass =
+            (bandpass + inputPlusHistory * integratorGain - newLowpass * integratorGain) * inverseLoopGain;
+        float newHighpass = input - newBandpass * damping - newLowpass;
 
         if (drive > 0.0f)
-            newHp = newHp / (1.0f + drive * newHp * newHp * 0.5f);
+            newHighpass = newHighpass / (1.0f + drive * newHighpass * newHighpass * 0.5f);
 
-        low = newLow;
-        band = newBand;
-        hpPrev = newHp;
+        lowpass = newLowpass;
+        bandpass = newBandpass;
+        previousHighpass = newHighpass;
 
-        return newLow * lpMix + newBand * bpMix + newHp * hpMix;
+        return newLowpass * lowpassMix + newBandpass * bandpassMix + newHighpass * highpassMix;
     }
 
   private:
     float sampleRate = 44100.0f;
 
-    // No idea what these are...
-    float g = 0.0f, k = 0.0f, invGk = 1.0f, invD = 1.0f, cL = 1.0f, cB = 0.0f, cX = 0.0f;
+    // The solved, delay free loop of the derivation above: integratorGain is the
+    // g of that derivation, damping is 1/Q, and the numerator terms are the
+    // closed form of one sample step.
+    float integratorGain = 0.0f;
+    float damping = 0.0f;
+    float inverseLoopGain = 1.0f;
+    float inverseDenominator = 1.0f;
+    float lowpassNumerator = 1.0f;
+    float bandpassNumerator = 0.0f;
+    float inputNumerator = 0.0f;
 
     float drive = 0.0f;
-    float low = 0.0f, band = 0.0f, hpPrev = 0.0f;
+
+    // The three filter states, one per mode.
+    float lowpass = 0.0f;
+    float bandpass = 0.0f;
+    float previousHighpass = 0.0f;
 };
 
 //==============================================================================
 class DcBlocker
 {
   public:
-    void setSampleRate(double sampleRate)
+    void setSampleRate(double newSampleRate)
     {
         // One pole highpass at ~7 Hz: r = 1 - 2*pi*fc/fs.
-        r = 1.0f - 2.0f * kPi * 7.0f / static_cast<float>(sampleRate);
+        poleCoefficient = 1.0f - 2.0f * kPi * 7.0f / static_cast<float>(newSampleRate);
     }
 
-    float process(float x)
+    float process(float input)
     {
-        const float y = x - prevIn + r * prevOut;
-        prevIn = x;
-        prevOut = y;
-        return y;
+        const float output = input - previousInput + poleCoefficient * previousOutput;
+
+        previousInput = input;
+        previousOutput = output;
+
+        return output;
     }
 
-    void reset() { prevIn = prevOut = 0.0f; }
+    void reset()
+    {
+        previousInput = 0.0f;
+        previousOutput = 0.0f;
+    }
 
   private:
-    float r = 0.995f, prevIn = 0.0f, prevOut = 0.0f;
+    float poleCoefficient = 0.995f;
+    float previousInput = 0.0f;
+    float previousOutput = 0.0f;
 };
 
 //==============================================================================
@@ -152,52 +181,57 @@ class VariableDelay
     void Prepare(int maxSamples)
     {
         buffer.assign(static_cast<std::size_t>(maxSamples) + 1, 0.0f);
-        writePos = 0;
+        writePosition = 0;
     }
 
     void Reset()
     {
-        for (float& s : buffer)
-            s = 0.0f;
-        writePos = 0;
+        for (float& slot : buffer)
+            slot = 0.0f;
+
+        writePosition = 0;
     }
 
-    void Push(float x)
+    void Push(float input)
     {
-        buffer[writePos] = x;
-        if (++writePos >= buffer.size())
-            writePos = 0;
+        buffer[writePosition] = input;
+
+        if (++writePosition >= buffer.size())
+            writePosition = 0;
     }
 
     /// delay in samples (>= 1).
     float Read(float delay) const
     {
-        const float n = static_cast<float>(Size());
-        float d = delay < 1.0f ? 1.0f : (delay > n - 2.0f ? n - 2.0f : delay);
+        const float numSamples = static_cast<float>(Size());
+        const float clampedDelay =
+            delay < 1.0f ? 1.0f : (delay > numSamples - 2.0f ? numSamples - 2.0f : delay);
 
-        const float rp = static_cast<float>(writePos) - d;
-        float i0f = std::floor(rp);
-        const float frac = rp - i0f;
-        auto i0 = static_cast<std::size_t>(wrap(i0f, n));
-        auto i1 = static_cast<std::size_t>(wrap(i0f + 1.0f, n));
+        const float reversePos = static_cast<float>(writePosition) - clampedDelay;
+        const float indexBelowPos = std::floor(reversePos);
+        const float fraction = reversePos - indexBelowPos;
+        const auto indexBelow = static_cast<std::size_t>(wrap(indexBelowPos, numSamples));
+        const auto indexAbove = static_cast<std::size_t>(wrap(indexBelowPos + 1.0f, numSamples));
 
-        return buffer[i0] * (1.0f - frac) + buffer[i1] * frac;
+        return buffer[indexBelow] * (1.0f - fraction) + buffer[indexAbove] * fraction;
     }
 
     int Size() const { return static_cast<int>(buffer.size()); }
 
   private:
-    static float wrap(float v, float n)
+    static float wrap(float value, float numSamples)
     {
-        while (v < 0.0f)
-            v += n;
-        while (v >= n)
-            v -= n;
-        return v;
+        while (value < 0.0f)
+            value += numSamples;
+
+        while (value >= numSamples)
+            value -= numSamples;
+
+        return value;
     }
 
     std::vector<float> buffer;
-    std::size_t writePos = 0;
+    std::size_t writePosition = 0;
 };
 
 //==============================================================================
@@ -231,8 +265,12 @@ class SharedEnv
   public:
     // The pluck's fall is deliberately not a parameter: that curve is what
     // makes the shape a pluck. Giving it a gene is what turns it into a
-    // straight ramp and the voice into a click.
-    static constexpr float kPluckFallExponent = 0.6f; // <1 = fast drop, long tail
+    // straight ramp and the voice into a click. The exponent stays below 1 so
+    // the drop is fast and the tail stays long.
+    static constexpr float kPluckFallExponent = 0.6f;
+
+    // Both curves are evaluated through a table of this size, built in
+    // setShape(), so the audio loop only ever reads it.
     static constexpr int kTableSize = 512;
 
     struct Shape
@@ -249,28 +287,29 @@ class SharedEnv
         float ModFallScale = 1.0f; ///< fraction of the level's fall window the mod uses
     };
 
-    void setSampleRate(double sampleRate) { sr = static_cast<float>(sampleRate); }
+    void setSampleRate(double newSampleRate) { sampleRate = static_cast<float>(newSampleRate); }
 
-    void setShape(const Shape& mShape)
+    void setShape(const Shape& newShape)
     {
-        shape = mShape;
+        shape = newShape;
 
         // A period of about an hour is "one pluck that never gets to repeat";
         // anything faster than 2 ms is treated as an audio rate tremolo.
-        const float period = (mShape.Period > 0.002f ? mShape.Period : 3600.0f);
-        phaseInc = 1.0f / (period * sr);
+        const float period = (newShape.Period > 0.002f ? newShape.Period : 3600.0f);
+        phaseIncrement = 1.0f / (period * sampleRate);
 
-        outerInc = (mShape.Duration > 0.0f) ? 1.0f / (mShape.Duration * sr) : 0.0f;
-        releaseCoef = 1.0f - std::exp(-1.0f / (std::max(mShape.Release, 0.01f) * sr));
+        outerIncrement = (newShape.Duration > 0.0f) ? 1.0f / (newShape.Duration * sampleRate) : 0.0f;
+        releaseCoefficient = 1.0f - std::exp(-1.0f / (std::max(newShape.Release, 0.01f) * sampleRate));
 
-        buildTable(curve, mShape.PeakPos, mShape.RiseExp, mShape.FallExp, 1.0f);
-        buildTable(modCurve, mShape.ModPeak, mShape.RiseExp, mShape.FallExp, mShape.ModFallScale);
+        buildTable(levelCurve, newShape.PeakPos, newShape.RiseExp, newShape.FallExp, 1.0f);
+        buildTable(modulatorCurve, newShape.ModPeak, newShape.RiseExp, newShape.FallExp,
+                   newShape.ModFallScale);
     }
 
     void gateOn()
     {
         phase = 0.0f;
-        outerPos = 0.0f;
+        outerPosition = 0.0f;
         gateLevel = 1.0f;
         stage = Running;
     }
@@ -285,26 +324,27 @@ class SharedEnv
     {
         if (stage == Idle)
         {
-            amp = mod = 0.0f;
+            amplitude = 0.0f;
+            modulation = 0.0f;
             return;
         }
 
-        phase += phaseInc;
+        phase += phaseIncrement;
 
         if (phase >= 1.0f)
             phase -= 1.0f;
 
-        if (outerInc > 0.0f)
+        if (outerIncrement > 0.0f)
         {
-            outerPos += outerInc;
+            outerPosition += outerIncrement;
 
-            if (outerPos > 1.0f)
-                outerPos = 1.0f;
+            if (outerPosition > 1.0f)
+                outerPosition = 1.0f;
         }
 
         if (stage == Releasing)
         {
-            gateLevel -= gateLevel * releaseCoef;
+            gateLevel -= gateLevel * releaseCoefficient;
 
             if (gateLevel < 1.0e-4f)
             {
@@ -313,97 +353,101 @@ class SharedEnv
             }
         }
 
-        const float outer = outerOf();
-        amp = readTable(curve, phase) * outer * gateLevel;
-        mod = readTable(modCurve, phase) * outer * gateLevel;
+        const float outer = outerLevel();
+        amplitude = readTable(levelCurve, phase) * outer * gateLevel;
+        modulation = readTable(modulatorCurve, phase) * outer * gateLevel;
 
         // A note with nothing to settle to ends by itself. The outer curve is
         // exactly zero at that point, so this cannot click.
-        if (stage == Running && outerPos >= 1.0f && shape.FloorLevel <= 1.0e-3f)
+        if (stage == Running && outerPosition >= 1.0f && shape.FloorLevel <= 1.0e-3f)
             stage = Idle;
     }
 
-    float ampValue() const { return amp; }
-    float modValue() const { return mod; }
+    float amplitudeValue() const { return amplitude; }
+    float modulationValue() const { return modulation; }
 
     /// The outer curve on its own: a slow modulator that follows the note as a
     /// whole instead of following every pluck.
-    float outerValue() const { return outerOf() * gateLevel; }
+    float outerValue() const { return outerLevel() * gateLevel; }
 
     bool isIdle() const { return stage == Idle; }
 
     void reset()
     {
         stage = Idle;
-        amp = mod = 0.0f;
+        amplitude = 0.0f;
+        modulation = 0.0f;
         gateLevel = 0.0f;
         phase = 0.0f;
-        outerPos = 0.0f;
+        outerPosition = 0.0f;
     }
 
   private:
-    static float curveAt(float ph, float peak, float riseExp, float fallExp, float fallWindow)
+    static float curveAt(float phaseValue, float peakPosition, float riseExponent, float fallExponent,
+                         float fallWindow)
     {
-        if (ph <= 0.0f)
+        if (phaseValue <= 0.0f)
             return 0.0f;
 
-        if (ph < peak)
+        if (phaseValue < peakPosition)
         {
-            const float u = ph / peak;
-            return std::pow(u, riseExp);
+            const float risePosition = phaseValue / peakPosition;
+            return std::pow(risePosition, riseExponent);
         }
 
-        const float window = (1.0f - peak) * std::max(fallWindow, 0.0f);
+        const float window = (1.0f - peakPosition) * std::max(fallWindow, 0.0f);
 
         if (window <= 1.0e-6f)
             return 0.0f;
 
-        const float w = (ph - peak) / window;
+        const float fallPosition = (phaseValue - peakPosition) / window;
 
-        if (w >= 1.0f)
+        if (fallPosition >= 1.0f)
             return 0.0f;
 
-        return std::pow(1.0f - w, fallExp);
+        return std::pow(1.0f - fallPosition, fallExponent);
     }
 
-    void buildTable(float* t, float peak, float riseExp, float fallExp, float fallWindow)
+    void buildTable(float* table, float peakPosition, float riseExponent, float fallExponent,
+                    float fallWindow)
     {
-        peak = clampf(peak, 0.005f, 0.98f);
+        peakPosition = clampf(peakPosition, 0.005f, 0.98f);
 
-        for (int i = 0; i < kTableSize; ++i)
-            t[i] = curveAt(static_cast<float>(i) / static_cast<float>(kTableSize - 1), peak, riseExp, fallExp,
-                           fallWindow);
+        for (int entryIndex = 0; entryIndex < kTableSize; ++entryIndex)
+        {
+            const float phaseValue = static_cast<float>(entryIndex) / static_cast<float>(kTableSize - 1);
+            table[entryIndex] = curveAt(phaseValue, peakPosition, riseExponent, fallExponent, fallWindow);
+        }
     }
 
-    static float readTable(const float* t, float ph)
+    static float readTable(const float* table, float phaseValue)
     {
-        ph = clamp01(ph);
+        const float clampedPhase = clamp01(phaseValue);
+        const float position = clampedPhase * static_cast<float>(kTableSize - 1);
+        const float positionFloor = std::floor(position);
+        const int indexBelow = static_cast<int>(positionFloor);
+        const int indexAbove = indexBelow + 1 < kTableSize ? indexBelow + 1 : indexBelow;
+        const float fraction = position - positionFloor;
 
-        const float pos = ph * static_cast<float>(kTableSize - 1);
-        const float posFloor = std::floor(pos);
-        const int i0 = static_cast<int>(posFloor);
-        const int i1 = i0 + 1 < kTableSize ? i0 + 1 : i0;
-        const float frac = pos - posFloor;
-
-        return t[i0] + (t[i1] - t[i0]) * frac;
+        return table[indexBelow] + (table[indexAbove] - table[indexBelow]) * fraction;
     }
 
-    float outerOf() const
+    float outerLevel() const
     {
-        if (outerInc <= 0.0f)
+        if (outerIncrement <= 0.0f)
             return 1.0f;
 
-        const float floorL = clamp01(shape.FloorLevel);
+        const float floorLevel = clamp01(shape.FloorLevel);
 
-        if (outerPos <= 0.0f)
+        if (outerPosition <= 0.0f)
             return 1.0f;
 
-        if (outerPos >= 1.0f)
-            return floorL;
+        if (outerPosition >= 1.0f)
+            return floorLevel;
 
         // Counted from the top down: (1 - q) is exact at both ends, and a floor
         // of zero lands on exactly zero rather than on a rounding error.
-        return floorL + (1.0f - floorL) * std::pow(1.0f - outerPos, shape.OuterExp);
+        return floorLevel + (1.0f - floorLevel) * std::pow(1.0f - outerPosition, shape.OuterExp);
     }
 
     enum Stage : unsigned char
@@ -413,16 +457,24 @@ class SharedEnv
         Releasing
     };
 
-    float sr = 44100.0f;
-    float phaseInc = 0.0f, outerInc = 0.0f, releaseCoef = 0.01f;
-    float phase = 0.0f, outerPos = 0.0f, gateLevel = 0.0f;
-    float amp = 0.0f, mod = 0.0f;
+    float sampleRate = 44100.0f;
+
+    float phaseIncrement = 0.0f;
+    float outerIncrement = 0.0f;
+    float releaseCoefficient = 0.01f;
+
+    float phase = 0.0f;
+    float outerPosition = 0.0f;
+    float gateLevel = 0.0f;
+
+    float amplitude = 0.0f;
+    float modulation = 0.0f;
 
     Shape shape;
     Stage stage = Idle;
 
-    float curve[kTableSize]{};
-    float modCurve[kTableSize]{};
+    float levelCurve[kTableSize]{};
+    float modulatorCurve[kTableSize]{};
 };
 
 //==============================================================================
@@ -432,22 +484,22 @@ class SharedEnv
 class SampleHold
 {
   public:
-    void setSampleRate(double sampleRate) { sr = static_cast<float>(sampleRate); }
+    void setSampleRate(double newSampleRate) { sampleRate = static_cast<float>(newSampleRate); }
 
     /// 0 Hz means pass through.
-    void setRateHz(float hz) { inc = hz > 0.0f ? std::min(hz / sr, 0.5f) : 0.0f; }
+    void setRateHz(float hertz) { increment = hertz > 0.0f ? std::min(hertz / sampleRate, 0.5f) : 0.0f; }
 
-    float process(float x)
+    float process(float input)
     {
-        if (inc <= 0.0f)
-            return x;
+        if (increment <= 0.0f)
+            return input;
 
-        phase += inc;
+        phase += increment;
 
         if (phase >= 1.0f)
         {
             phase -= 1.0f;
-            value = x;
+            value = input;
         }
 
         return value;
@@ -460,7 +512,10 @@ class SampleHold
     }
 
   private:
-    float sr = 44100.0f, inc = 0.0f, phase = 0.0f, value = 0.0f;
+    float sampleRate = 44100.0f;
+    float increment = 0.0f;
+    float phase = 0.0f;
+    float value = 0.0f;
 };
 
 //==============================================================================
@@ -468,41 +523,51 @@ class SampleHold
 class Modulator
 {
   public:
-    void setRateHz(float hz, double sampleRate)
+    void setRateHz(float hertz, double sampleRate)
     {
-        inc = std::min(hz, static_cast<float>(sampleRate) * 0.25f) / static_cast<float>(sampleRate);
+        increment = std::min(hertz, static_cast<float>(sampleRate) * 0.25f) / static_cast<float>(sampleRate);
     }
 
-    void setShape(int shape, Rng& rng)
+    void setShape(int shape, Rng& randomGenerator)
     {
-        wave = static_cast<unsigned char>(shape % 3);
+        waveform = static_cast<unsigned char>(shape % 3);
         holdValue = 0.0f;
-        holdPhase = rng.uniform();
+        holdPhase = randomGenerator.uniform();
     }
 
-    void setPhase(float p) { phase = p; }
+    void setPhase(float newPhase) { phase = newPhase; }
 
     float process()
     {
-        phase += inc;
+        phase += increment;
 
         if (phase >= 1.0f)
         {
             phase -= 1.0f;
-            if (wave == 2)
-                holdPhase = holdValue; // re-randomise per period
+
+            // The step is drawn again once per period, so a triangle or sine
+            // never sees a discontinuity here.
+            if (waveform == 2)
+                holdPhase = holdValue;
         }
 
-        switch (wave)
+        switch (waveform)
         {
-            case 1: // triangle
+            case 1:
+                // triangle
                 return phase < 0.5f ? (4.0f * phase - 1.0f) : (3.0f - 4.0f * phase);
-            case 2: // sample and hold
-                if (phase < inc)
+
+            case 2:
+
+                // sample and hold
+                if (phase < increment)
                     holdValue = holdPhase * 2.0f - 1.0f;
+
                 return holdValue;
+
             case 0:
-            default: // sine
+            default:
+                // sine
                 return std::sin(phase * 2.0f * kPi);
         }
     }
@@ -510,8 +575,11 @@ class Modulator
     void reset() { phase = 0.0f; }
 
   private:
-    float inc = 0.0f, phase = 0.0f, holdValue = 0.0f, holdPhase = 0.0f;
-    unsigned char wave = 0;
+    float increment = 0.0f;
+    float phase = 0.0f;
+    float holdValue = 0.0f;
+    float holdPhase = 0.0f;
+    unsigned char waveform = 0;
 };
 
 //==============================================================================
@@ -520,32 +588,35 @@ class Modulator
 class Drift
 {
   public:
-    void prepare(double sampleRate, Rng& rng, float rateHz)
+    void prepare(double sampleRate, Rng& randomGenerator, float rateHertz)
     {
-        interval = static_cast<int>(sampleRate / std::max(rateHz, 0.02f));
-        smooth = 1.0f - std::exp(-1.0f / (0.25f * static_cast<float>(sampleRate)));
-        target = rng.range(-1.0f, 1.0f);
-        counter = rng.integer(interval) + 1;
+        interval = static_cast<int>(sampleRate / std::max(rateHertz, 0.02f));
+        smoothCoefficient = 1.0f - std::exp(-1.0f / (0.25f * static_cast<float>(sampleRate)));
+        target = randomGenerator.range(-1.0f, 1.0f);
+        counter = randomGenerator.integer(interval) + 1;
         value = target;
     }
 
-    float process(Rng& rng)
+    float process(Rng& randomGenerator)
     {
         if (--counter <= 0)
         {
             counter = interval;
-            target = rng.gaussianClamped(1.0f);
+            target = randomGenerator.gaussianClamped(1.0f);
         }
 
-        value += (target - value) * smooth;
+        value += (target - value) * smoothCoefficient;
         return value;
     }
 
     float valueOf() const { return value; }
 
   private:
-    int interval = 1000, counter = 1000;
-    float smooth = 0.001f, target = 0.0f, value = 0.0f;
+    int interval = 1000;
+    int counter = 1000;
+    float smoothCoefficient = 0.001f;
+    float target = 0.0f;
+    float value = 0.0f;
 };
 
 } // namespace gmosh

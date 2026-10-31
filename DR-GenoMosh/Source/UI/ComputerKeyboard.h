@@ -25,11 +25,11 @@ namespace gmosh
 {
 class ComputerKeyboard
 {
-public:
-    std::function<void (int midiNote, float velocity)> onNote;
+  public:
+    std::function<void(int midiNote, float velocity)> onNote;
 
     /// Returns true when the key belongs to this keyboard (consumed).
-    bool handleKeyPress (const juce::KeyPress&);
+    bool handleKeyPress(const juce::KeyPress&);
 
     /// From keyStateChanged: releases the held keys that are no longer down.
     void handleKeyStateChanged();
@@ -38,29 +38,29 @@ public:
     void releaseAll();
 
     int octave() const { return octaveShift; }
-    void setOctave (int newOctave);
+    void setOctave(int newOctave);
 
     /// One line of help for the UI.
     static juce::String helpText();
 
-private:
+  private:
     struct Mapping
     {
-        int key;         ///< normalised key code
-        int row;         ///< 0 = lower row (C3), 1 = upper row (C4)
-        int semitones;   ///< from the root of that row
+        int key; ///< normalised key code
+        int row; ///< 0 = lower row (C3), 1 = upper row (C4)
+        int semitones; ///< from the root of that row
     };
 
     static const std::vector<Mapping>& mappings();
-    static int normalise (int keyCode);
-    static const Mapping* find (int keyCode);
+    static int normalise(int keyCode);
+    static const Mapping* find(int keyCode);
 
-    int noteFor (const Mapping& mapping) const;
-    void noteOn (int keyCode, int midiNote);
-    void noteOffAt (std::size_t index);
+    int noteFor(const Mapping& mapping) const;
+    void noteOn(int keyCode, int midiNote);
+    void noteOffAt(std::size_t index);
 
     int octaveShift = 0;
-    std::vector<std::pair<int, int>> held;   ///< key code -> midi note
+    std::vector<std::pair<int, int>> held; ///< key code -> midi note
 
     static constexpr int kMinOctave = -3;
     static constexpr int kMaxOctave = 3;

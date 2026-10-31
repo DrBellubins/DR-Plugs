@@ -17,30 +17,29 @@ namespace gmosh
 // tunable by ear.
 //==============================================================================
 {
-class GeneGrid : public juce::Component,
-             private juce::Slider::Listener
+class GeneGrid : public juce::Component, private juce::Slider::Listener
 {
-public:
+  public:
     GeneGrid();
 
-    std::function<float (std::size_t)> getGeneValue;
-    std::function<void (std::size_t, float)> setGeneValue;
+    std::function<float(std::size_t)> getGeneValue;
+    std::function<void(std::size_t, float)> setGeneValue;
 
     /// Push the current genome into the sliders.
     void refresh();
 
     void resized() override;
 
-private:
+  private:
     struct Row
     {
-        std::size_t gene = 0;
+        std::size_t geneIndex = 0;
         std::unique_ptr<juce::Slider> slider;
         std::unique_ptr<juce::Label> label;
     };
 
-    void sliderValueChanged (juce::Slider* slider);
-    int placeColumn (int column, int firstGroup, int lastGroup, int x, int width);
+    void sliderValueChanged(juce::Slider* slider);
+    int placeColumn(int columnIndex, int firstGroupIndex, int lastGroupIndex, int columnX, int columnWidth);
 
     juce::Viewport viewport;
     juce::Component content;
@@ -48,7 +47,7 @@ private:
     std::array<std::unique_ptr<juce::Label>, GrpCount> groupHeaders;
     int contentHeight = 0;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GeneGrid)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GeneGrid)
 };
 
 } // namespace gmosh

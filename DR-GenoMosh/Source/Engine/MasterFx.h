@@ -19,19 +19,20 @@ namespace gmosh
 {
 class MasterFx
 {
-public:
-    void prepare (double sampleRate, int maxBlockSamples);
+  public:
+    void prepare(double sampleRate, int maxBlockSamples);
     void reset();
 
     /// Called at block rate from the audio thread; values are ramped inside so
     /// growing a branch never clicks the tail.
-    void setParams (float size, float rt60, float damp, float chorus, float mix, float width);
+    void setParams(float newSize, float newRt60Seconds, float newDamping, float newChorus, float newMix,
+                   float newWidth);
 
-    void process (float* left, float* right, int numSamples);
+    void process(float* left, float* right, int numSamples);
 
     double tailSeconds() const { return rt60Current; }
 
-private:
+  private:
     static constexpr std::size_t kFdnLines = 8;
     static constexpr int kCtrlPeriod = 32;
 
@@ -39,20 +40,20 @@ private:
 
     double sampleRate = 44100.0;
 
-    std::array<VariableDelay, kFdnLines> lines;
-    std::array<OnePole, kFdnLines> lineDamp;
-    std::array<float, kFdnLines> baseLength{};   ///< samples at size 1, 48 kHz
-    std::array<float, kFdnLines> lengthCur{};
-    std::array<float, kFdnLines> lengthTo{};
+    std::array<VariableDelay, kFdnLines> delayLines;
+    std::array<OnePole, kFdnLines> lineDampFilters;
+    std::array<float, kFdnLines> baseLengthSamples{}; ///< samples at size 1, 48 kHz
+    std::array<float, kFdnLines> lengthCurrentSamples{};
+    std::array<float, kFdnLines> lengthTargetSamples{};
     std::array<float, kFdnLines> feedback{};
     std::array<float, kFdnLines> lineModPhase{};
-    std::array<float, kFdnLines> lineModInc{};
+    std::array<float, kFdnLines> lineModulationIncrement{};
 
     std::array<float, kFdnLines> inGainL{}, inGainR{}, outGainL{}, outGainR{};
 
-    VariableDelay chorusL, chorusR;
-    Modulator chorusModL, chorusModR;
-    Rng rng { 0 };
+    VariableDelay chorusDelayL, chorusDelayR;
+    Modulator chorusModulatorL, chorusModulatorR;
+    Rng randomGenerator{ 0 };
 
     // smoothed targets
     float sizeCurrent = 0.6f, sizeTarget = 0.6f;
@@ -62,7 +63,7 @@ private:
     float mixCurrent = 0.2f, mixTarget = 0.2f;
     float widthCurrent = 0.6f, widthTarget = 0.6f;
 
-    float xIn[kFdnLines] {}, yOut[kFdnLines] {};
+    float lineInput[kFdnLines]{}, lineOutput[kFdnLines]{};
     int ctrlCountdown = 0;
 };
 

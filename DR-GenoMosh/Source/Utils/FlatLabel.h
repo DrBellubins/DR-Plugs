@@ -6,7 +6,7 @@
 // Subclass juce::Label, not juce::TextEditor!
 class FlatLabel : public juce::Label
 {
-public:
+  public:
     FlatLabel() : juce::Label() {}
 
     void paint(juce::Graphics& graphics) override

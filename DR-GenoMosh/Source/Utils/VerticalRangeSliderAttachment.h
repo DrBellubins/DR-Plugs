@@ -4,19 +4,16 @@
 #include "VerticalRangeSlider.h"
 
 // A custom attachment that binds two AudioProcessorValueTreeState parameters to a VerticalRangeSlider.
-class VerticalRangeSliderAttachment :
-    private juce::AudioProcessorValueTreeState::Listener
+class VerticalRangeSliderAttachment : private juce::AudioProcessorValueTreeState::Listener
 {
-public:
-    VerticalRangeSliderAttachment(
-        juce::AudioProcessorValueTreeState& ParameterValueTreeState,
-        const juce::String& LowerParameterID,
-        const juce::String& UpperParameterID,
-        VerticalRangeSlider& RangeSlider);
+  public:
+    VerticalRangeSliderAttachment(juce::AudioProcessorValueTreeState& ParameterValueTreeState,
+                                  const juce::String& LowerParameterID, const juce::String& UpperParameterID,
+                                  VerticalRangeSlider& RangeSlider);
 
     ~VerticalRangeSliderAttachment() override;
 
-private:
+  private:
     juce::AudioProcessorValueTreeState& valueTreeState;
     juce::String lowerID, upperID;
     VerticalRangeSlider& rangeSlider;

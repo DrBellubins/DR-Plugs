@@ -70,10 +70,12 @@ void VerticalRangeSlider::paint(juce::Graphics& graphics)
     float handleX2 = rangeRect.getRight() - handleInset;
 
     // Top handle (upperValue)
-    graphics.drawLine(handleX1, upperY + handleMargin, handleX2, upperY + handleMargin, (float)handleThickness);
+    graphics.drawLine(handleX1, upperY + handleMargin, handleX2, upperY + handleMargin,
+                      (float)handleThickness);
 
     // Bottom handle (lowerValue)
-    graphics.drawLine(handleX1, lowerY - handleMargin, handleX2, lowerY - handleMargin, (float)handleThickness);
+    graphics.drawLine(handleX1, lowerY - handleMargin, handleX2, lowerY - handleMargin,
+                      (float)handleThickness);
 }
 
 void VerticalRangeSlider::resized()

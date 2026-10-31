@@ -1,6 +1,7 @@
 #include "SteppedHorizontalRangeSlider.h"
 
-SteppedHorizontalRangeSlider::SteppedHorizontalRangeSlider(float MinimumValue, float MaximumValue, float StepSize)
+SteppedHorizontalRangeSlider::SteppedHorizontalRangeSlider(float MinimumValue, float MaximumValue,
+                                                           float StepSize)
     : HorizontalRangeSlider(MinimumValue, MaximumValue), stepSize(StepSize)
 {
 }
@@ -14,10 +15,7 @@ void SteppedHorizontalRangeSlider::setStepSize(float NewStepSize)
     setUpperValue(getUpperValue());
 }
 
-float SteppedHorizontalRangeSlider::getStepSize() const
-{
-    return stepSize;
-}
+float SteppedHorizontalRangeSlider::getStepSize() const { return stepSize; }
 
 void SteppedHorizontalRangeSlider::setLowerValue(float NewValue)
 {
@@ -43,6 +41,7 @@ void SteppedHorizontalRangeSlider::mouseDrag(const juce::MouseEvent& MouseEvent)
         {
             quantized = getUpperValue();
         }
+
         setLowerValue(quantized);
     }
     else if (dragging == Upper)
@@ -51,6 +50,7 @@ void SteppedHorizontalRangeSlider::mouseDrag(const juce::MouseEvent& MouseEvent)
         {
             quantized = getLowerValue();
         }
+
         setUpperValue(quantized);
     }
 }

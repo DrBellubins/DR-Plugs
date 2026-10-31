@@ -28,34 +28,31 @@ namespace gmosh
 // botany: same seed, same plant.
 //==============================================================================
 {
-class PlantView : public juce::Component
-                , private juce::Timer
+class PlantView : public juce::Component, private juce::Timer
 {
-public:
-    void setParameters (std::array<juce::AudioParameterFloat*, kNumBranches> lengthParameters)
+  public:
+    void setParameters(std::array<juce::AudioParameterFloat*, kNumBranches> lengthParameters)
     {
         branchParams = lengthParameters;
     }
 
     /// Called from the editor's timer with the values currently in force.
-    void update (const PlantSnapshot& snapshot,
-                 const std::array<float, kNumBranches>& lengths,
-                 int activeBranch,
-                 float wheelValue);
+    void update(const PlantSnapshot& snapshot, const std::array<float, kNumBranches>& lengths,
+                int activeBranch, float wheelValue);
 
-    void paint (juce::Graphics&) override;
-    void mouseDown (const juce::MouseEvent&) override;
-    void mouseDrag (const juce::MouseEvent&) override;
-    void mouseUp (const juce::MouseEvent&) override;
+    void paint(juce::Graphics&) override;
+    void mouseDown(const juce::MouseEvent&) override;
+    void mouseDrag(const juce::MouseEvent&) override;
+    void mouseUp(const juce::MouseEvent&) override;
 
     /// Ends a note this view started, e.g. when the editor closes.
     void releaseAllNotes();
 
     /// onPlayNote is called with a velocity for note on, and with 0 for note off.
-    std::function<void (int note, float velocity)> onPlayNote;
-    std::function<void (int)> onPlantBranch;
+    std::function<void(int note, float velocity)> onPlayNote;
+    std::function<void(int)> onPlantBranch;
 
-private:
+  private:
     /// One stroke of a branch, in "unit" space (root stem length 1, origin at
     /// the seed). The tree is built in unit space, measured, then scaled to the
     /// growth target, which is what keeps it inside the ring without clamping
@@ -70,24 +67,24 @@ private:
 
     /// A ring slot plays the branch of its own pitch class, which is exactly
     /// what branchForNote does on the audio side.
-    int noteForSlot (int slot) const { return 60 + slot; }
-    void startNote (int midiNote);
+    int noteForSlot(int slot) const { return 60 + slot; }
+    void startNote(int midiNote);
     void endNote();
 
-    int slotAt (juce::Point<float> position) const;
-    float ringRadius() const { return juce::jmin (getWidth(), getHeight()) * 0.42f; }
+    int slotAt(juce::Point<float> position) const;
+    float ringRadius() const { return juce::jmin(getWidth(), getHeight()) * 0.42f; }
 
     /// Recursive, unit space. `reach` tracks the farthest point from the seed.
-    void growTree (std::vector<Twig>& out, juce::Point<float> from, float angle,
-                   float length, int depth, Rng& rng, float& reach) const;
-    void drawPlant (juce::Graphics&, juce::Point<float> centre, float angle,
-                    float targetReach, const BranchDirection&, const juce::Colour&) const;
-    static juce::Colour branchColour (const BranchDirection& direction, float hueShift);
+    void growTree(std::vector<Twig>& outTwigs, juce::Point<float> from, float angle, float length, int depth,
+                  Rng& randomGenerator, float& reach) const;
+    void drawPlant(juce::Graphics&, juce::Point<float> centre, float angle, float targetReach,
+                   const BranchDirection&, const juce::Colour&) const;
+    static juce::Colour branchColour(const BranchDirection& direction, float hueShift);
 
-    std::array<juce::AudioParameterFloat*, kNumBranches> branchParams {};
+    std::array<juce::AudioParameterFloat*, kNumBranches> branchParams{};
 
     PlantSnapshot snapshot;
-    std::array<float, kNumBranches> lengths {};
+    std::array<float, kNumBranches> lengths{};
     float wheel = 1.0f;
     int active = -1;
     int pressedSlot = -1;

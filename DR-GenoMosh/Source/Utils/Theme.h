@@ -1,6 +1,7 @@
 #pragma once
 
-#include <juce_graphics/juce_graphics.h> // Only JUCE color types needed
+// Only the JUCE colour types are needed here.
+#include <juce_graphics/juce_graphics.h>
 
 const juce::Colour BGGray = juce::Colour(50, 50, 50);
 const juce::Colour AccentGray = juce::Colour(40, 40, 40);

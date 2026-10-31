@@ -6,7 +6,7 @@
 // ThemedKnob: Customizable rotary knob with a label and flexible value/text handling.
 class ThemedKnob : public juce::Slider
 {
-public:
+  public:
     // Format function: (double value) -> juce::String for knob text
     using ValueToTextFunction = std::function<juce::String(double Value)>;
 
@@ -14,16 +14,11 @@ public:
     using TextToValueFunction = std::function<double(const juce::String& Text)>;
 
     // Constructor: pass label text and, optionally, text/value conversion functions, suffix, and textbox position
-    ThemedKnob(const juce::String& LabelText = "Knob",
-               ValueToTextFunction ToTextFunction = nullptr,
-               TextToValueFunction ToValueFunction = nullptr,
-               const juce::String& Suffix = "",
+    ThemedKnob(const juce::String& LabelText = "Knob", ValueToTextFunction ToTextFunction = nullptr,
+               TextToValueFunction ToValueFunction = nullptr, const juce::String& Suffix = "",
                juce::Slider::TextEntryBoxPosition TextBoxPosition = juce::Slider::TextBoxBelow)
-        : juce::Slider(juce::Slider::RotaryVerticalDrag, TextBoxPosition),
-          labelText(LabelText),
-          valueToTextFunction(ToTextFunction),
-          textToValueFunction(ToValueFunction),
-          valueSuffix(Suffix)
+        : juce::Slider(juce::Slider::RotaryVerticalDrag, TextBoxPosition), labelText(LabelText),
+          valueToTextFunction(ToTextFunction), textToValueFunction(ToValueFunction), valueSuffix(Suffix)
     {
         setTextValueSuffix(valueSuffix);
     }
@@ -77,10 +72,7 @@ public:
         repaint();
     }
 
-    void setTextToValueFunction(TextToValueFunction Function)
-    {
-        textToValueFunction = Function;
-    }
+    void setTextToValueFunction(TextToValueFunction Function) { textToValueFunction = Function; }
 
     void setValueSuffix(const juce::String& Suffix)
     {
@@ -99,19 +91,15 @@ public:
 
         float verticalNudge = 6.0f; // For optical centering of label
 
-        juce::Rectangle<float> knobCircleArea(
-            center.x - diameter / 2.0f,
-            center.y - diameter / 2.0f - verticalNudge,
-            diameter,
-            diameter
-        );
+        juce::Rectangle<float> knobCircleArea(center.x - diameter / 2.0f,
+                                              center.y - diameter / 2.0f - verticalNudge, diameter, diameter);
 
         Graphics.setColour(juce::Colours::white);
         Graphics.setFont(15.0f);
         Graphics.drawFittedText(labelText, knobCircleArea.toNearestInt(), juce::Justification::centred, 1);
     }
 
-private:
+  private:
     juce::String labelText;
     ValueToTextFunction valueToTextFunction;
     TextToValueFunction textToValueFunction;

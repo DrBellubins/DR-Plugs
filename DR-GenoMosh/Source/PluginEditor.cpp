@@ -21,24 +21,26 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor(AudioPluginAudi
     // synth even when nothing else is focused (standalone testing, no DAW).
     setWantsKeyboardFocus(true);
 
-    computerKeys.onNote = [this](int note, float velocity)
+    computerKeys.onNote = [this](int midiNote, float velocity)
     {
         if (velocity > 0.0f)
-            processorRef.playNote(note, velocity);
+            processorRef.playNote(midiNote, velocity);
         else
-            processorRef.stopNote(note);
+            processorRef.stopNote(midiNote);
     };
 
-    auto attach = [this](const juce::String& id, juce::Slider& slider)
+    auto attach = [this](const juce::String& parameterId, juce::Slider& slider)
     {
-        if (auto* p = param(processorRef, id))
-        {
-            const auto& range = p->getNormalisableRange();
-            slider.setRange(static_cast<double>(range.start), static_cast<double>(range.end));
-            slider.setValue(static_cast<double>(p->get()), juce::dontSendNotification);
+        auto* parameter = param(processorRef, parameterId);
 
-            attachments.push_back(std::make_unique<juce::SliderParameterAttachment>(*p, slider, nullptr));
-        }
+        if (parameter == nullptr)
+            return;
+
+        const auto& range = parameter->getNormalisableRange();
+        slider.setRange(static_cast<double>(range.start), static_cast<double>(range.end));
+        slider.setValue(static_cast<double>(parameter->get()), juce::dontSendNotification);
+
+        attachments.push_back(std::make_unique<juce::SliderParameterAttachment>(*parameter, slider, nullptr));
     };
 
     attach("volume", volumeSlider);
@@ -78,6 +80,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor(AudioPluginAudi
           "How much playing harder changes loudness and the modulation envelope." },
         { &volumeLabel, &volumeSlider, "volume", "Master output level." },
     };
+
     for (const auto& caption : captions)
     {
         caption.label->setText(caption.text, juce::dontSendNotification);
@@ -134,7 +137,9 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor(AudioPluginAudi
 
     newSeedButton.onClick = [this]
     {
-        processorRef.newSeed(); // also folds the branch lengths back to default
+        // newSeed() also folds the branch lengths back to their default, so
+        // the view has to re read them.
+        processorRef.newSeed();
         selectedBranch = -1;
         geneGrid.refresh();
     };
@@ -146,45 +151,48 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor(AudioPluginAudi
 
         if (selectedBranch >= 0)
         {
-            const juce::String id = AudioPluginAudioProcessor::branchParamId(selectedBranch);
+            const juce::String branchId = AudioPluginAudioProcessor::branchParamId(selectedBranch);
+            auto* branchParameter = param(processorRef, branchId);
 
-            if (auto* parameter = param(processorRef, id))
-                processorRef.plantBranch(selectedBranch, parameter->get());
+            if (branchParameter != nullptr)
+                processorRef.plantBranch(selectedBranch, branchParameter->get());
         }
     };
     pageButton.onClick = [this] { showPage(!showingGenes); };
 
     std::array<juce::AudioParameterFloat*, gmosh::kNumBranches> branchParams{};
 
-    for (int b = 0; b < gmosh::kNumBranches; ++b)
-        branchParams[static_cast<std::size_t>(b)] =
-            param(processorRef, AudioPluginAudioProcessor::branchParamId(b));
+    for (int branchIndex = 0; branchIndex < gmosh::kNumBranches; ++branchIndex)
+        branchParams[static_cast<std::size_t>(branchIndex)] =
+            param(processorRef, AudioPluginAudioProcessor::branchParamId(branchIndex));
 
     plantView.setParameters(branchParams);
 
-    plantView.onPlayNote = [this](int note, float velocity)
+    plantView.onPlayNote = [this](int midiNote, float velocity)
     {
         if (velocity > 0.0f)
         {
             selectedBranch = processorRef.lastPlayedBranch();
-            processorRef.playNote(note, velocity);
+            processorRef.playNote(midiNote, velocity);
         }
         else
         {
-            processorRef.stopNote(note);
+            processorRef.stopNote(midiNote);
         }
     };
 
-    plantView.onPlantBranch = [this](int branch)
+    plantView.onPlantBranch = [this](int branchIndex)
     {
-        const juce::String id = AudioPluginAudioProcessor::branchParamId(branch);
+        const juce::String branchId = AudioPluginAudioProcessor::branchParamId(branchIndex);
 
-        if (auto* parameter = param(processorRef, id))
-            processorRef.plantBranch(branch, parameter->get());
+        if (auto* parameter = param(processorRef, branchId))
+            processorRef.plantBranch(branchIndex, parameter->get());
     };
 
-    geneGrid.getGeneValue = [this](std::size_t gene) { return processorRef.seedGenome()[gene]; };
-    geneGrid.setGeneValue = [this](std::size_t gene, float value) { processorRef.setSeedGene(gene, value); };
+    geneGrid.getGeneValue = [this](std::size_t geneIndex) { return processorRef.seedGenome()[geneIndex]; };
+
+    geneGrid.setGeneValue = [this](std::size_t geneIndex, float normalisedValue)
+    { processorRef.setSeedGene(geneIndex, normalisedValue); };
 
     addAndMakeVisible(plantView);
     geneGrid.setVisible(false);
@@ -238,7 +246,8 @@ bool AudioPluginAudioProcessorEditor::keyStateChanged(bool isKeyDown)
     if (!isKeyDown)
         computerKeys.handleKeyStateChanged();
 
-    return false; // never swallow the key, sliders and buttons still need it
+    // Never swallow the key: sliders and buttons still need it.
+    return false;
 }
 
 void AudioPluginAudioProcessorEditor::updateKeyHint()
@@ -278,7 +287,7 @@ void AudioPluginAudioProcessorEditor::timerCallback()
 
     // The wheel readout also shows what the wheel scale slider is doing, which
     // is otherwise invisible: it is a multiplier on how far the plant opens.
-    const double wheelNow  = processorRef.currentWheel();
+    const double wheelNow = processorRef.currentWheel();
     const double wheelOpen = wheelScaleSlider.getValue();
 
     wheelLabel.setText("wheel " + juce::String(wheelNow, 2) + "  x " + juce::String(wheelOpen, 2) + "  = "
@@ -299,15 +308,16 @@ AudioPluginAudioProcessorEditor::Layout AudioPluginAudioProcessorEditor::layout(
 
     layout.body = area.reduced(10, 6);
 
-    const int side  = juce::jmin(layout.body.getWidth() - kSideColumnWidth, layout.body.getHeight());
-    layout.plant = { layout.body.getX(), layout.body.getY(), side, side };
-    layout.controlsPanel = layout.body.withTrimmedLeft(side + 12);
+    const int plantSize = juce::jmin(layout.body.getWidth() - kSideColumnWidth, layout.body.getHeight());
+    layout.plant = { layout.body.getX(), layout.body.getY(), plantSize, plantSize };
+    layout.controlsPanel = layout.body.withTrimmedLeft(plantSize + 12);
 
     // Top row: generation facing, on the plain background. Bottom row: the live
     // macros, which get the darker plate. The left half of the top row is left
     // empty on purpose.
     auto controls = layout.controlsPanel.reduced(12, 10);
-    auto rows = controls.withTrimmedTop(44); // wheel readout lives above
+    // The wheel readout lives above the sliders.
+    auto rows = controls.withTrimmedTop(44);
 
     const int rowHeight = rows.getHeight() / 2;
     layout.knobRowTop = { rows.getX(), rows.getY(), rows.getWidth(), rowHeight };
@@ -335,12 +345,12 @@ void AudioPluginAudioProcessorEditor::paint(juce::Graphics& graphics)
     // be moved while the synth is sounding sit on a darker plate.
     auto drawPlate = [&graphics](juce::Rectangle<int> area)
     {
-        const auto rect = area.toFloat().reduced(1.0f);
+        const auto panelRect = area.toFloat().reduced(1.0f);
 
         graphics.setColour(PanelGray);
-        graphics.fillRoundedRectangle(rect, 10.0f);
+        graphics.fillRoundedRectangle(panelRect, 10.0f);
         graphics.setColour(PanelEdge);
-        graphics.drawRoundedRectangle(rect, 10.0f, 1.0f);
+        graphics.drawRoundedRectangle(panelRect, 10.0f, 1.0f);
     };
 
     drawPlate(mLayout.footerPanel);
@@ -369,13 +379,15 @@ void AudioPluginAudioProcessorEditor::resized()
     const int sliderWidth = mLayout.footer.getWidth() / 3 - 12;
 
     juce::Slider* sliders[3] = { &wheelScaleSlider, &velSensSlider, &volumeSlider };
-    juce::Label* labels[3]   = { &wheelScaleLabel, &velSensLabel, &volumeLabel };
+    juce::Label* labels[3] = { &wheelScaleLabel, &velSensLabel, &volumeLabel };
 
-    for (int i = 0; i < 3; ++i)
+    for (int entryIndex = 0; entryIndex < 3; ++entryIndex)
     {
-        const int x = mLayout.footer.getX() + i * (sliderWidth + 18);
-        labels[i]->setBounds(x, rowTop, 140, labelHeight);
-        sliders[i]->setBounds(x, rowTop + labelHeight + 2, sliderWidth, sliderHeight);
+        const int rowX = mLayout.footer.getX() + entryIndex * (sliderWidth + 18);
+
+        labels[static_cast<std::size_t>(entryIndex)]->setBounds(rowX, rowTop, 140, labelHeight);
+        sliders[static_cast<std::size_t>(entryIndex)]->setBounds(rowX, rowTop + labelHeight + 2, sliderWidth,
+                                                                 sliderHeight);
     }
 
     keyHint.setBounds(mLayout.footer.getX(), mLayout.footer.getBottom() - 18, mLayout.footer.getWidth(), 16);
@@ -387,7 +399,8 @@ void AudioPluginAudioProcessorEditor::resized()
                          mLayout.controlsPanel.getWidth() - 24, 18);
 
     const int topKnobWidth = mLayout.knobRowTop.getWidth() / 2;
-    const auto topRow = mLayout.knobRowTop.reduced(0, 12); // keep its text box clear of the plate
+    // Keep the knobs' text boxes clear of the plate behind them.
+    const auto topRow = mLayout.knobRowTop.reduced(0, 12);
     atonalityKnob.setBounds(topRow.getX() + topKnobWidth, topRow.getY(), topKnobWidth, topRow.getHeight());
 
     //------------------------------------------------------------------------
@@ -395,7 +408,8 @@ void AudioPluginAudioProcessorEditor::resized()
     // while playing.
     liveCaption.setBounds(mLayout.macroPlate.getX() + 12, mLayout.macroPlate.getY() + 6, 200, 14);
 
-    const auto bottomRow = mLayout.knobRowBottom.reduced(6, 20); // room for the caption
+    // Leave room for the caption under the knobs.
+    const auto bottomRow = mLayout.knobRowBottom.reduced(6, 20);
     const int knobWidth = bottomRow.getWidth() / 2;
     const int knobHeight = bottomRow.getHeight();
 

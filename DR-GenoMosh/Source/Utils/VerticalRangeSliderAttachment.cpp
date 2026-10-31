@@ -11,13 +11,9 @@ void VerticalRangeSliderAttachment::updateSliderFromParameters()
 }
 
 VerticalRangeSliderAttachment::VerticalRangeSliderAttachment(
-    juce::AudioProcessorValueTreeState& ParameterValueTreeState,
-    const juce::String& LowerParameterID,
-    const juce::String& UpperParameterID,
-    VerticalRangeSlider& RangeSlider)
-    : valueTreeState(ParameterValueTreeState),
-      lowerID(LowerParameterID),
-      upperID(UpperParameterID),
+    juce::AudioProcessorValueTreeState& ParameterValueTreeState, const juce::String& LowerParameterID,
+    const juce::String& UpperParameterID, VerticalRangeSlider& RangeSlider)
+    : valueTreeState(ParameterValueTreeState), lowerID(LowerParameterID), upperID(UpperParameterID),
       rangeSlider(RangeSlider)
 {
     valueTreeState.addParameterListener(lowerID, this);
@@ -32,7 +28,8 @@ VerticalRangeSliderAttachment::VerticalRangeSliderAttachment(
         {
             updatingParameter = true;
 
-            if (auto* parameter = dynamic_cast<juce::AudioParameterFloat*>(valueTreeState.getParameter(lowerID)))
+            if (auto* parameter =
+                    dynamic_cast<juce::AudioParameterFloat*>(valueTreeState.getParameter(lowerID)))
             {
                 parameter->setValueNotifyingHost(newLowerValue);
             }
@@ -47,7 +44,8 @@ VerticalRangeSliderAttachment::VerticalRangeSliderAttachment(
         {
             updatingParameter = true;
 
-            if (auto* parameter = dynamic_cast<juce::AudioParameterFloat*>(valueTreeState.getParameter(upperID)))
+            if (auto* parameter =
+                    dynamic_cast<juce::AudioParameterFloat*>(valueTreeState.getParameter(upperID)))
             {
                 parameter->setValueNotifyingHost(newUpperValue);
             }

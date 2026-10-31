@@ -4,7 +4,7 @@
 
 class VerticalRangeSlider : public juce::Component
 {
-public:
+  public:
     VerticalRangeSlider(float min, float max);
     ~VerticalRangeSlider() override = default;
 
@@ -22,22 +22,27 @@ public:
     void paint(juce::Graphics&) override;
     void resized() override;
 
-protected:
+  protected:
     void mouseDown(const juce::MouseEvent&) override;
     void mouseDrag(const juce::MouseEvent&) override;
     void mouseMove(const juce::MouseEvent&) override;
 
-private:
+  private:
     float minValue, maxValue;
     float lowerValue, upperValue;
 
     float roundness = 20.0f; // default roundness
 
-    enum DraggingThumb { None, Lower, Upper };
+    enum DraggingThumb
+    {
+        None,
+        Lower,
+        Upper
+    };
     DraggingThumb dragging = None;
 
     int handleThickness = 4; // thickness of the drag handles
-    int handleMargin = 8;    // margin inside the range rect for handles
+    int handleMargin = 8; // margin inside the range rect for handles
 
     int valueToY(float value) const;
     float yToValue(int y) const;

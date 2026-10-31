@@ -6,11 +6,10 @@
 
 class FlatRotaryLookAndFeel : public juce::LookAndFeel_V4
 {
-public:
-    void drawRotarySlider (
-        juce::Graphics& graphics, int x, int y, int width, int height,
-        float sliderPosProportional, float rotaryStartAngle, float rotaryEndAngle,
-        juce::Slider& slider) override
+  public:
+    void drawRotarySlider(juce::Graphics& graphics, int x, int y, int width, int height,
+                          float sliderPosProportional, float rotaryStartAngle, float rotaryEndAngle,
+                          juce::Slider& slider) override
     {
         auto bounds = juce::Rectangle<float>(x, y, width, height);
         float diameter = juce::jmin(width, height) - 8.0f;
@@ -24,8 +23,8 @@ public:
         // Value arc
         float angle = rotaryStartAngle + sliderPosProportional * (rotaryEndAngle - rotaryStartAngle);
         juce::Path valueArc;
-        valueArc.addArc(center.x - radius, center.y - radius, diameter, diameter,
-                        rotaryStartAngle, angle, true);
+        valueArc.addArc(center.x - radius, center.y - radius, diameter, diameter, rotaryStartAngle, angle,
+                        true);
 
         graphics.setColour(ThemePink);
         graphics.strokePath(valueArc, juce::PathStrokeType(6.0f));
@@ -37,7 +36,8 @@ public:
         return box;
     }
 
-    void drawTextEditorOutline(juce::Graphics& graphics, int width, int height, juce::TextEditor& textEditor) override
+    void drawTextEditorOutline(juce::Graphics& graphics, int width, int height,
+                               juce::TextEditor& textEditor) override
     {
         const int thickness = (textEditor.hasKeyboardFocus(false) ? 2 : 1);
 

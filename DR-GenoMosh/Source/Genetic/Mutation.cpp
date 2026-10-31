@@ -6,52 +6,53 @@
 namespace gmosh
 {
 //==============================================================================
-BranchDirection buildBranchDirection(uint64_t seedId, int branch, int variant, const MutationParams& mp)
+BranchDirection buildBranchDirection(uint64_t seedId, int branchIndex, int variantIndex,
+                                     const MutationParams& params)
 {
-    BranchDirection out;
-    out.hash = branchHash(seedId, branch, variant);
+    BranchDirection result;
+    result.hash = branchHash(seedId, branchIndex, variantIndex);
 
-    Rng rng(out.hash);
+    Rng randomGenerator(result.hash);
 
     // 1. One coherent direction per gene group, plus a per gene direction.
-    float groupDir[GrpCount];
+    float groupDirection[GrpCount];
 
-    for (int g = 0; g < GrpCount; ++g)
-        groupDir[g] = rng.gaussianClamped(1.0f);
+    for (int groupIndex = 0; groupIndex < GrpCount; ++groupIndex)
+        groupDirection[groupIndex] = randomGenerator.gaussianClamped(1.0f);
 
-    const float coherence = clamp01(mp.coherence);
+    const float coherence = clamp01(params.coherence);
 
-    for (std::size_t i = 0; i < kNumGenes; ++i)
+    for (std::size_t geneIndex = 0; geneIndex < kNumGenes; ++geneIndex)
     {
-        const GeneInfo& gi = kGenes[i];
+        const GeneInfo& geneInfo = kGenes[geneIndex];
 
-        if ((gi.flags & kFlagNever) != 0)
+        if ((geneInfo.flags & kFlagNever) != 0)
         {
-            out.dir[i] = 0.0f;
+            result.displacement[geneIndex] = 0.0f;
             continue;
         }
 
-        const float indiv = rng.gaussianClamped(1.0f);
-        const float dir = lerpf(indiv, groupDir[gi.group], coherence);
+        const float individualDirection = randomGenerator.gaussianClamped(1.0f);
+        const float blendedDirection = lerpf(individualDirection, groupDirection[geneInfo.group], coherence);
 
         // 3. Per gene sensitivity is where the taste lives (design doc 5.2).
-        float amount = dir * gi.sensitivity * mp.globalScale;
+        float geneAmount = blendedDirection * geneInfo.sensitivity * params.globalScale;
 
         // Atonality ceiling: a branch may not walk into pitch territory beyond
         // what the plant is allowed to have. The resolved genome is gated again
         // (applyAtonality), this only keeps the direction honest.
-        if ((gi.flags & kFlagPitch) != 0)
-            amount *= clamp01(mp.atonality);
+        if ((geneInfo.flags & kFlagPitch) != 0)
+            geneAmount *= clamp01(params.atonality);
 
-        out.dir[i] = amount;
+        result.displacement[geneIndex] = geneAmount;
     }
 
     // UI fingerprint: hue from a couple of timbre genes plus the hash, so two
     // different seeds always look different in the plant view.
-    const float hueSeed = static_cast<float>(out.hash % 100000u) / 100000.0f;
-    out.hue = hueSeed;
+    const float hueSeed = static_cast<float>(result.hash % 100000u) / 100000.0f;
+    result.hue = hueSeed;
 
-    return out;
+    return result;
 }
 
 //==============================================================================
@@ -64,19 +65,19 @@ float pitchNeutral(const GeneInfo& geneInfo) { return (geneInfo.flags & kFlagRat
 
 void applyAtonality(Genome& genome, float atonality)
 {
-    const float at = clamp01(atonality);
+    const float ceiling = clamp01(atonality);
 
-    for (std::size_t i = 0; i < kNumGenes; ++i)
+    for (std::size_t geneIndex = 0; geneIndex < kNumGenes; ++geneIndex)
     {
-        const GeneInfo& geneInfo = kGenes[i];
+        const GeneInfo& geneInfo = kGenes[geneIndex];
 
         if ((geneInfo.flags & kFlagPitch) == 0)
             continue;
 
         const float neutral = pitchNeutral(geneInfo);
-        const float span    = neutral > 0.0f ? 0.5f : 1.0f;
+        const float span = neutral > 0.0f ? 0.5f : 1.0f;
 
-        genome[i] = clampf(genome[i], neutral - span * at, neutral + span * at);
+        genome[geneIndex] = clampf(genome[geneIndex], neutral - span * ceiling, neutral + span * ceiling);
 
         if ((geneInfo.flags & kFlagRatio) != 0)
         {
@@ -85,7 +86,7 @@ void applyAtonality(Genome& genome, float atonality)
             // atonality is; atonality decides how far up the ladder it may go.
             // Snapping is a fixed point (a table entry snaps to itself), so the
             // whole function stays idempotent.
-            genome[i] = unmapGene(geneInfo, snapToRatio(mapGene(geneInfo, genome[i]), 0.0f));
+            genome[geneIndex] = unmapGene(geneInfo, snapToRatio(mapGene(geneInfo, genome[geneIndex]), 0.0f));
         }
     }
 }
@@ -95,8 +96,8 @@ void applyCouplings(Genome& genome)
 {
     // --- resonance safety (5.6): no self oscillation, and less resonance the
     //     higher the cutoff sits, which is where a resonant filter screams.
-    const float qCap = 0.55f + 0.45f * (1.0f - genome[g_flt_freq]);
-    genome[g_flt_q]  = std::min(genome[g_flt_q], qCap * (1.0f - 0.5f * genome[g_sat_drive]));
+    const float resonanceCeiling = 0.55f + 0.45f * (1.0f - genome[g_flt_freq]);
+    genome[g_flt_q] = std::min(genome[g_flt_q], resonanceCeiling * (1.0f - 0.5f * genome[g_sat_drive]));
 
     // --- a low cutoff plus downward filter mod is just silence.
     if (genome[g_flt_freq] < 0.25f && genome[g_flt_mod] < 0.0f)
@@ -106,12 +107,14 @@ void applyCouplings(Genome& genome)
     //     has any noise and both waveforms sit at pure sine, open one up.
     const float energy = std::max(std::max(genome[g_a_form], genome[g_b_form]),
                                   std::max(genome[g_a_noise], genome[g_b_noise]));
+
     if (energy < 0.12f)
         genome[g_a_form] = 0.12f + (0.12f - energy) * 0.5f;
 
     // --- ...and never let the amplitude envelope close everything off: a
     //     branch that cannot sound is not a branch, it is a bug.
     const float ampOpen = std::max(genome[g_vol_sus], 0.35f * (1.0f - genome[g_vol_dcy]));
+
     if (ampOpen < 0.08f)
         genome[g_vol_sus] = 0.18f;
 
@@ -119,31 +122,33 @@ void applyCouplings(Genome& genome)
     if (genome[g_flt_sep] > 0.5f && genome[g_flt_q] > 0.5f)
         genome[g_flt_sep] = 0.5f + (1.0f - genome[g_flt_q]) * 0.5f * genome[g_flt_sep];
 
-    for (std::size_t i = 0; i < kNumGenes; ++i)
-        genome[i] = clamp01(genome[i]);
+    for (std::size_t geneIndex = 0; geneIndex < kNumGenes; ++geneIndex)
+        genome[geneIndex] = clamp01(genome[geneIndex]);
 }
 
 //==============================================================================
 Genome applyDistance(const Genome& seed, const BranchDirection& direction, float distance,
-                     const MutationParams& mp)
+                     const MutationParams& params)
 {
     Genome out = seed;
 
-    const float dist = clamp01(distance);
+    const float clampedDistance = clamp01(distance);
 
-    if (dist <= 0.0f)
-        return out; // 5.1.3: distance 0 returns the seed exactly.
+    // 5.1.3: distance 0 must give back the seed exactly, so it does not even
+    // run the displacement.
+    if (clampedDistance <= 0.0f)
+        return out;
 
     // 2. Non linear distance response.
-    const float step = std::pow(dist, mp.distanceExponent);
+    const float step = std::pow(clampedDistance, params.distanceExponent);
 
-    for (std::size_t i = 0; i < kNumGenes; ++i)
+    for (std::size_t geneIndex = 0; geneIndex < kNumGenes; ++geneIndex)
     {
-        const GeneInfo& gi = kGenes[i];
-        const float x      = seed[i] + direction.dir[i] * step;
+        const GeneInfo& geneInfo = kGenes[geneIndex];
+        const float displacedValue = seed[geneIndex] + direction.displacement[geneIndex] * step;
 
         // 4. Boundary handling: compress past the soft range, never clamp.
-        out[i] = softCompress(x, seed[i], gi.softMin, gi.softMax);
+        out[geneIndex] = softCompress(displacedValue, seed[geneIndex], geneInfo.softMin, geneInfo.softMax);
     }
 
     // 6. Couplings and guard rails.
@@ -152,41 +157,41 @@ Genome applyDistance(const Genome& seed, const BranchDirection& direction, float
 }
 
 //==============================================================================
-BranchTraits resolveTraits(uint64_t seedHash, float distance, const MutationParams& mp)
+BranchTraits resolveTraits(uint64_t seedHash, float distance, const MutationParams& params)
 {
     BranchTraits traits;
 
-    const float p = std::pow(clamp01(distance), 3.0f) * mp.structuralRate;
+    const float triggerProbability = std::pow(clamp01(distance), 3.0f) * params.structuralRate;
 
-    if (p <= 0.0f)
+    if (triggerProbability <= 0.0f)
         return traits;
 
     // One fixed random threshold per trait: monotonic in distance, so a trait
     // flips once as a branch grows and stays flipped.
-    Rng rng(hash::combine(seedHash, 0x5EED1E5ull));
+    Rng randomGenerator(Hash::combine(seedHash, 0x5EED1E5ull));
 
-    const float t0 = rng.uniform();
-    const float t1 = rng.uniform();
-    const float t2 = rng.uniform();
-    const float t3 = rng.uniform();
+    const float thresholdFilterMode = randomGenerator.uniform();
+    const float thresholdFmDirection = randomGenerator.uniform();
+    const float thresholdModSource = randomGenerator.uniform();
+    const float thresholdOscBMode = randomGenerator.uniform();
 
-    if (p > t0)
-        traits.filterMode = static_cast<unsigned char>(rng.integer(3));
+    if (triggerProbability > thresholdFilterMode)
+        traits.filterMode = static_cast<unsigned char>(randomGenerator.integer(3));
 
-    if (p > t1)
-        traits.fmDirection = static_cast<unsigned char>(rng.integer(2));
+    if (triggerProbability > thresholdFmDirection)
+        traits.fmDirection = static_cast<unsigned char>(randomGenerator.integer(2));
 
-    if (p > t2)
-        traits.modSource = static_cast<unsigned char>(rng.integer(3));
+    if (triggerProbability > thresholdModSource)
+        traits.modSource = static_cast<unsigned char>(randomGenerator.integer(3));
 
-    if (p > t3)
-        traits.oscBMode = static_cast<unsigned char>(rng.integer(3));
+    if (triggerProbability > thresholdOscBMode)
+        traits.oscBMode = static_cast<unsigned char>(randomGenerator.integer(3));
 
     return traits;
 }
 
 //==============================================================================
-float safetyScore(const Genome& g)
+float safetyScore(const Genome& genome)
 {
     // Rough "will this be an audible, non horrible sound" score. Used only to
     // pick between the kNumDirections variants of a branch (5.6 silence
@@ -194,43 +199,46 @@ float safetyScore(const Genome& g)
     float score = 1.0f;
 
     // Needs to be able to sound at all.
-    score -= 0.9f * std::max(0.0f, 0.10f - std::max(g[g_vol_sus], 0.4f * (1.0f - g[g_vol_dcy])));
+    score -= 0.9f * std::max(0.0f, 0.10f - std::max(genome[g_vol_sus], 0.4f * (1.0f - genome[g_vol_dcy])));
 
     // Needs something to hear: source energy and an open enough filter.
-    const float energy = std::max(std::max(g[g_a_form], g[g_a_noise]), std::max(g[g_b_form], g[g_b_noise]));
+    const float energy = std::max(std::max(genome[g_a_form], genome[g_a_noise]),
+                                  std::max(genome[g_b_form], genome[g_b_noise]));
     score -= 0.6f * std::max(0.0f, 0.15f - energy);
-    score -= 0.8f * std::max(0.0f, 0.12f - g[g_flt_freq]);
+    score -= 0.8f * std::max(0.0f, 0.12f - genome[g_flt_freq]);
 
     // Penalise the usual offenders.
-    score -= 0.5f * std::max(0.0f, g[g_flt_q] - 0.75f);
-    score -= 0.4f * std::max(0.0f, g[g_a_noise] + g[g_b_noise] - 1.1f);
-    score -= 0.3f * std::max(0.0f, g[g_fm_amt] - 0.8f);
-    score -= 0.3f * std::max(0.0f, g[g_vol_atk] - 0.85f); // never a 4s swell
+    score -= 0.5f * std::max(0.0f, genome[g_flt_q] - 0.75f);
+    score -= 0.4f * std::max(0.0f, genome[g_a_noise] + genome[g_b_noise] - 1.1f);
+    score -= 0.3f * std::max(0.0f, genome[g_fm_amt] - 0.8f);
+    // A four second swell is not a note, it is a pad.
+    score -= 0.3f * std::max(0.0f, genome[g_vol_atk] - 0.85f);
 
     return score;
 }
 
 //==============================================================================
-float loudnessCompensation(const Genome& g)
+float loudnessCompensation(const Genome& genome)
 {
     // Estimate where the branch sits level wise and pull it back towards the
     // seed (5.6). Sources of extra loudness: resonance, FM sidebands, sub,
     // noise and drive.
-    const float boost = 1.0f + 1.7f * g[g_flt_q] * g[g_flt_q] + 0.8f * g[g_fm_amt] + 0.7f * g[g_sub_am]
-                        + 0.5f * std::max(g[g_a_noise], g[g_b_noise]) + 0.9f * g[g_sat_drive];
+    const float boost = 1.0f + 1.7f * genome[g_flt_q] * genome[g_flt_q] + 0.8f * genome[g_fm_amt]
+                        + 0.7f * genome[g_sub_am] + 0.5f * std::max(genome[g_a_noise], genome[g_b_noise])
+                        + 0.9f * genome[g_sat_drive];
 
     return 1.0f / std::sqrt(boost);
 }
 
 //==============================================================================
-void randomizeGenome(Genome& genome, Rng& rng, float atonality)
+void randomizeGenome(Genome& genome, Rng& randomGenerator, float atonality)
 {
-    const float at = clamp01(atonality);
+    const float ceiling = clamp01(atonality);
 
-    for (std::size_t i = 0; i < kNumGenes; ++i)
+    for (std::size_t geneIndex = 0; geneIndex < kNumGenes; ++geneIndex)
     {
-        const GeneInfo& geneInfo = kGenes[i];
-        float pitch = rng.range(geneInfo.softMin, geneInfo.softMax);
+        const GeneInfo& geneInfo = kGenes[geneIndex];
+        float geneValue = randomGenerator.range(geneInfo.softMin, geneInfo.softMax);
 
         // Pitch capable genes are drawn inside the atonality band rather than
         // clipped into it afterwards, so a low atonality seed still has a
@@ -238,10 +246,10 @@ void randomizeGenome(Genome& genome, Rng& rng, float atonality)
         if ((geneInfo.flags & kFlagPitch) != 0)
         {
             const float neutral = pitchNeutral(geneInfo);
-            pitch = neutral + (pitch - neutral) * at;
+            geneValue = neutral + (geneValue - neutral) * ceiling;
         }
 
-        genome[i] = pitch;
+        genome[geneIndex] = geneValue;
     }
 
     // Bias a fresh seed towards something that behaves like an instrument

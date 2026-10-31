@@ -5,258 +5,268 @@
 namespace gmosh
 {
 //==============================================================================
-void Synth::prepare (double sampleRateHz, int maxBlockSamples)
+void Synth::prepare(double sampleRateHz, int maxBlockSamples)
 {
     sampleRate = sampleRateHz;
 
     voices.clear();
-    voices.resize (static_cast<std::size_t> (kMaxVoices));
-    for (auto& v : voices)
-        v.prepare (sampleRateHz, maxBlockSamples);
+    voices.resize(static_cast<std::size_t>(kMaxVoices));
 
-    fx.prepare (sampleRateHz, maxBlockSamples);
+    for (auto& voice : voices)
+        voice.prepare(sampleRateHz, maxBlockSamples);
+
+    masterFx.prepare(sampleRateHz, maxBlockSamples);
 
     // Reserve so the audio thread never allocates (design doc section 10).
-    pending.clear();
-    pending.reserve (128);
+    pendingNotes.clear();
+    pendingNotes.reserve(128);
     heldNotes.clear();
-    heldNotes.reserve (static_cast<std::size_t> (kMaxVoices));
+    heldNotes.reserve(static_cast<std::size_t>(kMaxVoices));
 
-    scratchL.assign (static_cast<std::size_t> (maxBlockSamples) + 1, 0.0f);
-    scratchR.assign (static_cast<std::size_t> (maxBlockSamples) + 1, 0.0f);
+    scratchL.assign(static_cast<std::size_t>(maxBlockSamples) + 1, 0.0f);
+    scratchR.assign(static_cast<std::size_t>(maxBlockSamples) + 1, 0.0f);
 }
 
 void Synth::releaseResources()
 {
-    fx.reset();
+    masterFx.reset();
     heldNotes.clear();
-    pending.clear();
+    pendingNotes.clear();
 }
 
 //==============================================================================
-void Synth::setPlayState (const PlayState& state)
-{
-    play = state;
-}
+void Synth::setPlayState(const PlayState& newPlayState) { playState = newPlayState; }
 
 //==============================================================================
-void Synth::addNoteOn (int midiNote, float velocity, int sampleOffset)
+void Synth::addNoteOn(int midiNote, float velocity, int sampleOffset)
 {
-    PendingNote e;
-    e.note = midiNote;
-    e.velocity = velocity;
-    e.offset = sampleOffset;
-    e.on = true;
-    pending.push_back (e);
+    PendingNote event;
+    event.note = midiNote;
+    event.velocity = velocity;
+    event.sampleOffset = sampleOffset;
+    event.isNoteOn = true;
+    pendingNotes.push_back(event);
 }
 
-void Synth::addNoteOff (int midiNote, int sampleOffset)
+void Synth::addNoteOff(int midiNote, int sampleOffset)
 {
-    PendingNote e;
-    e.note = midiNote;
-    e.offset = sampleOffset;
-    e.on = false;
-    pending.push_back (e);
+    PendingNote event;
+    event.note = midiNote;
+    event.sampleOffset = sampleOffset;
+    event.isNoteOn = false;
+    pendingNotes.push_back(event);
 }
 
 void Synth::allNotesOff()
 {
-    for (auto& v : voices)
-        v.clearActive();
+    for (auto& voice : voices)
+        voice.clearActive();
 
     heldNotes.clear();
-    pending.clear();
-    fx.reset();
+    pendingNotes.clear();
+    masterFx.reset();
 }
 
 //==============================================================================
 int Synth::numActiveVoices() const
 {
-    int n = 0;
-    for (const auto& v : voices)
-        if (v.isActive())
-            ++n;
-    return n;
+    int activeCount = 0;
+
+    for (const auto& voice : voices)
+        if (voice.isActive())
+            ++activeCount;
+
+    return activeCount;
 }
 
 //==============================================================================
 int Synth::allocateVoice()
 {
-    for (std::size_t i = 0; i < voices.size(); ++i)
+    for (std::size_t voiceIndex = 0; voiceIndex < voices.size(); ++voiceIndex)
     {
-        if (! voices[i].isActive())
-            return static_cast<int> (i);
+        if (!voices[voiceIndex].isActive())
+            return static_cast<int>(voiceIndex);
     }
 
     // Release aware stealing: take the quietest voice.
-    int best = 0;
+    int bestVoiceIndex = 0;
     float bestLevel = 1.0e9f;
-    for (std::size_t i = 0; i < voices.size(); ++i)
+
+    for (std::size_t voiceIndex = 0; voiceIndex < voices.size(); ++voiceIndex)
     {
-        const float level = voices[i].ampLevel();
+        const float level = voices[voiceIndex].ampLevel();
+
         if (level < bestLevel)
         {
             bestLevel = level;
-            best = static_cast<int> (i);
+            bestVoiceIndex = static_cast<int>(voiceIndex);
         }
     }
 
-    voices[static_cast<std::size_t> (best)].release();
-    return best;
+    voices[static_cast<std::size_t>(bestVoiceIndex)].release();
+    return bestVoiceIndex;
 }
 
 //==============================================================================
-void Synth::startVoice (int voiceIndex, int midiNote, float velocity)
+void Synth::startVoice(int voiceIndex, int midiNote, float velocity)
 {
     if (plant == nullptr || voiceIndex < 0)
         return;
 
     const PlantSnapshot& snapshot = plant->current();
 
-    const int branch = branchForNote (midiNote);
-    const float distance = effectiveDistance (play.branchLength[static_cast<std::size_t> (branch)],
-                                             play.macros.wheel, play.macros.wheelScale);
+    const int branchIndex = branchForNote(midiNote);
+    const float branchDistance =
+        effectiveDistance(playState.branchLength[static_cast<std::size_t>(branchIndex)],
+                          playState.macros.wheel, playState.macros.wheelScale);
 
     BranchTraits traits;
-    const Genome genome = resolveBranchGenome (snapshot, branch, distance, traits);
+    const Genome genome = resolveBranchGenome(snapshot, branchIndex, branchDistance, traits);
 
     VoiceParams params;
-    resolveVoiceParams (genome, traits, play.macros, midiNote, velocity, params);
+    resolveVoiceParams(genome, traits, playState.macros, midiNote, velocity, params);
 
-    const uint64_t voiceHash = hash::combine (snapshot.seedId,
-                                              static_cast<uint64_t> (branch));
-    voices[static_cast<std::size_t> (voiceIndex)].start (params, midiNote, voiceHash);
+    const uint64_t voiceHash = Hash::combine(snapshot.seedId, static_cast<uint64_t>(branchIndex));
+    voices[static_cast<std::size_t>(voiceIndex)].start(params, midiNote, voiceHash);
 
-    lastPlayedBranch.store (branch);
+    lastPlayedBranch.store(branchIndex);
 
     // The tail follows the timbre of what was just played (design doc 8).
-    fx.setParams (params.fxSize, params.fxLength, params.fxDamp,
-                  params.fxChorus, params.fxMix, params.fxWidth);
+    masterFx.setParams(params.fxSize, params.fxLength, params.fxDamp, params.fxChorus, params.fxMix,
+                       params.fxWidth);
 }
 
 //==============================================================================
-void Synth::applyPending (const PendingNote& event)
+void Synth::applyPendingNote(const PendingNote& pendingNote)
 {
     // One slot per note, reused: a re trigger of a note that is already held
     // re articulates its own voice instead of adding a second tracking entry
     // (which used to grow heldNotes without bound while a branch was dragged).
     int slot = -1;
-    for (std::size_t i = 0; i < heldNotes.size(); ++i)
+
+    for (std::size_t heldIndex = 0; heldIndex < heldNotes.size(); ++heldIndex)
     {
-        if (heldNotes[i].note == event.note)
+        if (heldNotes[heldIndex].note == pendingNote.note)
         {
-            slot = static_cast<int> (i);
+            slot = static_cast<int>(heldIndex);
             break;
         }
     }
 
-    if (event.on)
+    if (pendingNote.isNoteOn)
     {
-        int voiceIndex = slot >= 0 ? heldNotes[static_cast<std::size_t> (slot)].voice : -1;
+        int voiceIndex = slot >= 0 ? heldNotes[static_cast<std::size_t>(slot)].voice : -1;
 
-        if (voiceIndex < 0 || ! voices[static_cast<std::size_t> (voiceIndex)].isActive())
+        if (voiceIndex < 0 || !voices[static_cast<std::size_t>(voiceIndex)].isActive())
             voiceIndex = allocateVoice();
 
-        startVoice (voiceIndex, event.note, event.velocity);
+        startVoice(voiceIndex, pendingNote.note, pendingNote.velocity);
 
         if (slot >= 0)
-        {
-            heldNotes[static_cast<std::size_t> (slot)].voice = voiceIndex;
-        }
+            heldNotes[static_cast<std::size_t>(slot)].voice = voiceIndex;
         else
         {
-            bool tracked = false;
-            for (auto& h : heldNotes)
+            bool isTracked = false;
+
+            for (auto& heldNote : heldNotes)
             {
-                if (h.note < 0)
+                if (heldNote.note < 0)
                 {
-                    h.note = event.note;
-                    h.voice = voiceIndex;
-                    tracked = true;
+                    heldNote.note = pendingNote.note;
+                    heldNote.voice = voiceIndex;
+                    isTracked = true;
                     break;
                 }
             }
-            if (! tracked)
-                heldNotes.push_back ({ event.note, voiceIndex });
+
+            if (!isTracked)
+                heldNotes.push_back({ pendingNote.note, voiceIndex });
         }
     }
     else if (slot >= 0)
     {
-        auto& h = heldNotes[static_cast<std::size_t> (slot)];
-        if (h.voice >= 0)
-            voices[static_cast<std::size_t> (h.voice)].release();
-        h.note = -1;
-        h.voice = -1;
+        auto& heldNote = heldNotes[static_cast<std::size_t>(slot)];
+
+        if (heldNote.voice >= 0)
+            voices[static_cast<std::size_t>(heldNote.voice)].release();
+
+        heldNote.note = -1;
+        heldNote.voice = -1;
     }
 }
 
 //==============================================================================
-void Synth::renderSegment (float* const* channels, int numChannels, int start, int numSamples)
+void Synth::renderSegment(float* const* channels, int numChannels, int start, int numSamples)
 {
     if (numSamples <= 0)
         return;
 
-    float* left = channels[0] + start;
-    float* right = numChannels >= 2 ? channels[1] + start : scratchR.data() + start;
+    float* leftChannel = channels[0] + start;
+    float* rightChannel = numChannels >= 2 ? channels[1] + start : scratchR.data() + start;
 
     if (numChannels < 2)
-        left = scratchL.data() + start;
+        leftChannel = scratchL.data() + start;
 
-    for (auto& v : voices)
+    for (auto& voice : voices)
     {
-        if (v.isActive())
-            v.render (left, right, numSamples);
+        if (voice.isActive())
+            voice.render(leftChannel, rightChannel, numSamples);
     }
 
     if (numChannels < 2)
     {
-        float* mono = channels[0] + start;
-        for (int i = 0; i < numSamples; ++i)
-            mono[i] += (scratchL[static_cast<std::size_t> (start + i)]
-                      + scratchR[static_cast<std::size_t> (start + i)]) * 0.5f;
+        float* monoChannel = channels[0] + start;
+
+        for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
+            monoChannel[sampleIndex] += (scratchL[static_cast<std::size_t>(start + sampleIndex)]
+                                         + scratchR[static_cast<std::size_t>(start + sampleIndex)])
+                                        * 0.5f;
     }
 }
 
 //==============================================================================
-void Synth::render (float* const* channels, int numChannels, int numSamples)
+void Synth::render(float* const* channels, int numChannels, int numSamples)
 {
     if (plant != nullptr)
         plant->acquire();
 
-    std::stable_sort (pending.begin(), pending.end(),
-                      [] (const PendingNote& a, const PendingNote& b)
-                      {
-                          return a.offset < b.offset;
-                      });
+    std::stable_sort(pendingNotes.begin(), pendingNotes.end(),
+                     [](const PendingNote& first, const PendingNote& second)
+                     { return first.sampleOffset < second.sampleOffset; });
 
     int position = 0;
-    for (const auto& e : pending)
+
+    for (const auto& event : pendingNotes)
     {
-        const int offset = std::min (std::max (e.offset, position), numSamples);
-        if (offset > position)
+        const int eventOffset = std::min(std::max(event.sampleOffset, position), numSamples);
+
+        if (eventOffset > position)
         {
-            renderSegment (channels, numChannels, position, offset - position);
-            position = offset;
+            renderSegment(channels, numChannels, position, eventOffset - position);
+            position = eventOffset;
         }
-        applyPending (e);
+
+        applyPendingNote(event);
     }
-    pending.clear();
+
+    pendingNotes.clear();
 
     if (position < numSamples)
-        renderSegment (channels, numChannels, position, numSamples - position);
+        renderSegment(channels, numChannels, position, numSamples - position);
 
     //------------------------------------------------------------------------
     // Master effects and output limiter.
     if (numChannels >= 2)
     {
-        fx.process (channels[0], channels[1], numSamples);
+        masterFx.process(channels[0], channels[1], numSamples);
 
-        const float volume = play.macros.volume;
-        for (int i = 0; i < numSamples; ++i)
+        const float volume = playState.macros.volume;
+
+        for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
         {
             // Runaway protection (design doc 5.6).
-            channels[0][i] = softClip (channels[0][i] * volume) * 0.95f;
-            channels[1][i] = softClip (channels[1][i] * volume) * 0.95f;
+            channels[0][sampleIndex] = softClip(channels[0][sampleIndex] * volume) * 0.95f;
+            channels[1][sampleIndex] = softClip(channels[1][sampleIndex] * volume) * 0.95f;
         }
     }
 }

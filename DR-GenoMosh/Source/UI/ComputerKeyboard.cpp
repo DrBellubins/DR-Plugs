@@ -7,22 +7,40 @@ namespace gmosh
 // octave shift is one integer.
 const std::vector<ComputerKeyboard::Mapping>& ComputerKeyboard::mappings()
 {
-    static const std::vector<Mapping> map {
+    static const std::vector<Mapping> map{
         // lower row: z s x c v b n m with s d g h j as the sharps
-        { 'z', 0,  0 }, { 's', 0,  1 }, { 'x', 0,  2 }, { 'd', 0,  3 },
-        { 'c', 0,  4 }, { 'v', 0,  5 }, { 'g', 0,  6 }, { 'b', 0,  7 },
-        { 'h', 0,  8 }, { 'n', 0,  9 }, { 'j', 0, 10 }, { 'm', 0, 11 },
+        { 'z', 0, 0 },
+        { 's', 0, 1 },
+        { 'x', 0, 2 },
+        { 'd', 0, 3 },
+        { 'c', 0, 4 },
+        { 'v', 0, 5 },
+        { 'g', 0, 6 },
+        { 'b', 0, 7 },
+        { 'h', 0, 8 },
+        { 'n', 0, 9 },
+        { 'j', 0, 10 },
+        { 'm', 0, 11 },
 
         // upper row: q w e r t y u with 1 2 5 6 7 as the sharps
-        { 'q', 1,  0 }, { '1', 1,  1 }, { 'w', 1,  2 }, { '2', 1,  3 },
-        { 'e', 1,  4 }, { 'r', 1,  5 }, { '5', 1,  6 }, { 't', 1,  7 },
-        { '6', 1,  8 }, { 'y', 1,  9 }, { '7', 1, 10 }, { 'u', 1, 11 },
+        { 'q', 1, 0 },
+        { '1', 1, 1 },
+        { 'w', 1, 2 },
+        { '2', 1, 3 },
+        { 'e', 1, 4 },
+        { 'r', 1, 5 },
+        { '5', 1, 6 },
+        { 't', 1, 7 },
+        { '6', 1, 8 },
+        { 'y', 1, 9 },
+        { '7', 1, 10 },
+        { 'u', 1, 11 },
     };
 
     return map;
 }
 
-int ComputerKeyboard::normalise (int keyCode)
+int ComputerKeyboard::normalise(int keyCode)
 {
     // Letters arrive uppercase (JUCE key codes) or lowercase (text
     // characters); both mean the same key.
@@ -32,102 +50,106 @@ int ComputerKeyboard::normalise (int keyCode)
     return keyCode;
 }
 
-const ComputerKeyboard::Mapping* ComputerKeyboard::find (int keyCode)
+const ComputerKeyboard::Mapping* ComputerKeyboard::find(int keyCode)
 {
-    for (const auto& m : mappings())
-        if (m.key == keyCode)
-            return &m;
+    for (const auto& mapping : mappings())
+        if (mapping.key == keyCode)
+            return &mapping;
 
     return nullptr;
 }
 
-int ComputerKeyboard::noteFor (const Mapping& mapping) const
+int ComputerKeyboard::noteFor(const Mapping& mapping) const
 {
     return 48 + 12 * (octaveShift + mapping.row) + mapping.semitones;
 }
 
 //==============================================================================
-bool ComputerKeyboard::handleKeyPress (const juce::KeyPress& key)
+bool ComputerKeyboard::handleKeyPress(const juce::KeyPress& key)
 {
-    const int code = normalise (key.getKeyCode());
+    const int keyCode = normalise(key.getKeyCode());
 
-    if (code == ',')
+    if (keyCode == ',')
     {
-        setOctave (octaveShift - 1);
+        setOctave(octaveShift - 1);
         return true;
     }
 
-    if (code == '.')
+    if (keyCode == '.')
     {
-        setOctave (octaveShift + 1);
+        setOctave(octaveShift + 1);
         return true;
     }
 
-    const Mapping* mapping = find (code);
+    const Mapping* mapping = find(keyCode);
+
     if (mapping == nullptr)
         return false;
 
     // Auto repeat sends the same key press over and over: only the first one
     // is a note on.
-    for (const auto& h : held)
-        if (h.first == code)
+    for (const auto& heldNote : held)
+        if (heldNote.first == keyCode)
             return true;
 
-    noteOn (code, noteFor (*mapping));
+    noteOn(keyCode, noteFor(*mapping));
     return true;
 }
 
 //==============================================================================
 void ComputerKeyboard::handleKeyStateChanged()
 {
-    for (std::size_t i = held.size(); i > 0; --i)
+    for (std::size_t reverseIndex = held.size(); reverseIndex > 0; --reverseIndex)
     {
-        const std::size_t index = i - 1;
-        const int code = held[index].first;
+        const std::size_t index = reverseIndex - 1;
+        const int heldKeyCode = held[index].first;
 
-        if (juce::KeyPress::isKeyCurrentlyDown (code))
+        if (juce::KeyPress::isKeyCurrentlyDown(heldKeyCode))
             continue;
 
         // Some back ends report letter keys uppercase only.
-        if (code >= 'a' && code <= 'z'
-         && juce::KeyPress::isKeyCurrentlyDown (code - 'a' + 'A'))
+        if (heldKeyCode >= 'a' && heldKeyCode <= 'z'
+            && juce::KeyPress::isKeyCurrentlyDown(heldKeyCode - 'a' + 'A'))
             continue;
 
-        noteOffAt (index);
+        noteOffAt(index);
     }
 }
 
 //==============================================================================
-void ComputerKeyboard::noteOn (int keyCode, int midiNote)
+void ComputerKeyboard::noteOn(int keyCode, int midiNote)
 {
-    held.emplace_back (keyCode, midiNote);
+    held.emplace_back(keyCode, midiNote);
 
     if (onNote != nullptr)
-        onNote (midiNote, 0.80f);
+        onNote(midiNote, 0.80f);
 }
 
-void ComputerKeyboard::noteOffAt (std::size_t index)
+void ComputerKeyboard::noteOffAt(std::size_t index)
 {
     const int midiNote = held[index].second;
-    held.erase (held.begin() + static_cast<std::ptrdiff_t> (index));
+    held.erase(held.begin() + static_cast<std::ptrdiff_t>(index));
 
     if (onNote != nullptr)
-        onNote (midiNote, 0.0f);   // velocity 0 means note off
+        // Velocity 0 is how the callback spells note off.
+        onNote(midiNote, 0.0f); // velocity 0 means note off
 }
 
 void ComputerKeyboard::releaseAll()
 {
-    while (! held.empty())
-        noteOffAt (held.size() - 1);
+    while (!held.empty())
+        noteOffAt(held.size() - 1);
 }
 
-void ComputerKeyboard::setOctave (int newOctave)
+void ComputerKeyboard::setOctave(int newOctave)
 {
-    const int clamped = juce::jlimit (kMinOctave, kMaxOctave, newOctave);
+    const int clamped = juce::jlimit(kMinOctave, kMaxOctave, newOctave);
+
     if (clamped == octaveShift)
         return;
 
-    releaseAll();   // a held note would otherwise keep the old pitch
+    // A held note would otherwise keep the pitch of the previous octave.
+    releaseAll();
     octaveShift = clamped;
 }
 

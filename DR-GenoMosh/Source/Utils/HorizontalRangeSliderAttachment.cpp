@@ -1,15 +1,10 @@
 #include "HorizontalRangeSliderAttachment.h"
 
 HorizontalRangeSliderAttachment::HorizontalRangeSliderAttachment(
-    juce::AudioProcessorValueTreeState& ParameterValueTreeState,
-    const juce::String& LowerParameterID,
-    const juce::String& UpperParameterID,
-    HorizontalRangeSlider& RangeSlider
-)
-    : valueTreeState(ParameterValueTreeState)
-    , lowerID(LowerParameterID)
-    , upperID(UpperParameterID)
-    , rangeSlider(RangeSlider)
+    juce::AudioProcessorValueTreeState& ParameterValueTreeState, const juce::String& LowerParameterID,
+    const juce::String& UpperParameterID, HorizontalRangeSlider& RangeSlider)
+    : valueTreeState(ParameterValueTreeState), lowerID(LowerParameterID), upperID(UpperParameterID),
+      rangeSlider(RangeSlider)
 {
     valueTreeState.addParameterListener(lowerID, this);
     valueTreeState.addParameterListener(upperID, this);
@@ -22,12 +17,14 @@ HorizontalRangeSliderAttachment::HorizontalRangeSliderAttachment(
         if (!updatingParameter)
         {
             updatingSlider = true;
+
             if (auto* Parameter = valueTreeState.getParameter(lowerID))
             {
                 Parameter->beginChangeGesture();
                 Parameter->setValueNotifyingHost(Parameter->convertTo0to1(NewValue));
                 Parameter->endChangeGesture();
             }
+
             updatingSlider = false;
         }
     };
@@ -37,12 +34,14 @@ HorizontalRangeSliderAttachment::HorizontalRangeSliderAttachment(
         if (!updatingParameter)
         {
             updatingSlider = true;
+
             if (auto* Parameter = valueTreeState.getParameter(upperID))
             {
                 Parameter->beginChangeGesture();
                 Parameter->setValueNotifyingHost(Parameter->convertTo0to1(NewValue));
                 Parameter->endChangeGesture();
             }
+
             updatingSlider = false;
         }
     };

@@ -9,11 +9,11 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
 {
     // A fixed initial seed keeps a fresh instance reproducible while still
     // being a real random genome rather than a hand written preset.
-    seedIdentifier = gmosh::hash::fromString("genomosh-initial-seed");
+    seedIdentifier = gmosh::Hash::fromString("genomosh-initial-seed");
     syncGenerationParams();
 
-    gmosh::Rng rng(seedIdentifier);
-    gmosh::randomizeGenome(seed, rng, mutation.atonality);
+    gmosh::Rng randomGenerator(seedIdentifier);
+    gmosh::randomizeGenome(seed, randomGenerator, mutation.atonality);
 
     parameters.addParameterListener("atonality", this);
 
@@ -30,11 +30,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> list;
 
-    auto addFloat = [&list](const juce::String& id, const juce::String& label, float lo, float hi, float def,
-                            float interval = 0.0f)
+    auto addFloat = [&list](const juce::String& parameterId, const juce::String& parameterLabel,
+                            float lowerValue, float upperValue, float defaultValue, float interval = 0.0f)
     {
         list.push_back(std::make_unique<juce::AudioParameterFloat>(
-            id, label, juce::NormalisableRange<float>(lo, hi, interval), def));
+            parameterId, parameterLabel, juce::NormalisableRange<float>(lowerValue, upperValue, interval),
+            defaultValue));
     };
 
     // Macro / performance parameters (design doc 4.1). The genome itself is
@@ -51,8 +52,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
 
     // The twelve branch lengths are part of the patch and are persisted, and
     // are automatable so a host can grow a branch over time.
-    for (int b = 0; b < gmosh::kNumBranches; ++b)
-        addFloat(branchParamId(b), "Branch " + juce::String(b + 1), 0.0f, 1.0f, kDefaultBranchLength);
+    for (int branchIndex = 0; branchIndex < gmosh::kNumBranches; ++branchIndex)
+    {
+        addFloat(branchParamId(branchIndex), "Branch " + juce::String(branchIndex + 1), 0.0f, 1.0f,
+                 kDefaultBranchLength);
+    }
 
     return { list.begin(), list.end() };
 }
@@ -109,8 +113,8 @@ bool AudioPluginAudioProcessor::isBusesLayoutSupported(const BusesLayout& layout
 // and never while a note sounds.
 void AudioPluginAudioProcessor::syncGenerationParams()
 {
-    if (auto* v = parameters.getRawParameterValue("atonality"))
-        mutation.atonality = gmosh::clamp01(v->load());
+    if (auto* atonalityParameter = parameters.getRawParameterValue("atonality"))
+        mutation.atonality = gmosh::clamp01(atonalityParameter->load());
 }
 
 void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID, float newValue)
@@ -125,20 +129,20 @@ void AudioPluginAudioProcessor::parameterChanged(const juce::String& parameterID
 //==============================================================================
 void AudioPluginAudioProcessor::rebuildPlant()
 {
-    auto& target = handoff.beginWrite();
+    gmosh::PlantSnapshot& newSnapshot = handoff.beginWrite();
 
-    gmosh::buildPlant(target, seedIdentifier, seed, mutation);
+    gmosh::buildPlant(newSnapshot, seedIdentifier, seed, mutation);
 
-    lastPlant = target;
+    lastPlant = newSnapshot;
     handoff.publish();
 }
 
-void AudioPluginAudioProcessor::setSeedGene(std::size_t gene, float normalisedValue)
+void AudioPluginAudioProcessor::setSeedGene(std::size_t geneIndex, float normalisedValue)
 {
-    if (gene >= gmosh::kNumGenes)
+    if (geneIndex >= gmosh::kNumGenes)
         return;
 
-    seed[gene] = gmosh::clamp01(normalisedValue);
+    seed[geneIndex] = gmosh::clamp01(normalisedValue);
     rebuildPlant();
 }
 
@@ -154,49 +158,50 @@ void AudioPluginAudioProcessor::newSeed()
     // Deterministic seed chain: the same sequence of "new seed" presses gives
     // the same plants on every machine (design doc 10, determinism).
     ++seedIdentifier;
-    seedIdentifier = gmosh::hash::mix(seedIdentifier);
+    seedIdentifier = gmosh::Hash::mix(seedIdentifier);
 
     syncGenerationParams();
-    gmosh::Rng rng(seedIdentifier);
-    gmosh::randomizeGenome(seed, rng, mutation.atonality);
+    gmosh::Rng randomGenerator(seedIdentifier);
+    gmosh::randomizeGenome(seed, randomGenerator, mutation.atonality);
     resetBranchLengths();
     rebuildPlant();
 }
 
 void AudioPluginAudioProcessor::resetBranchLengths()
 {
-    for (int b = 0; b < gmosh::kNumBranches; ++b)
+    for (int branchIndex = 0; branchIndex < gmosh::kNumBranches; ++branchIndex)
     {
-        if (auto* p = parameters.getParameter(branchParamId(b)))
-            p->setValueNotifyingHost(gmosh::clamp01(kDefaultBranchLength));
+        if (auto* branchParameter = parameters.getParameter(branchParamId(branchIndex)))
+            branchParameter->setValueNotifyingHost(gmosh::clamp01(kDefaultBranchLength));
     }
 }
 
-void AudioPluginAudioProcessor::plantBranch(int branch, float distance)
+void AudioPluginAudioProcessor::plantBranch(int branchIndex, float distance)
 {
-    if (branch < 0 || branch >= gmosh::kNumBranches)
+    if (branchIndex < 0 || branchIndex >= gmosh::kNumBranches)
         return;
 
     gmosh::BranchTraits traits;
 
-    const auto grown = gmosh::resolveBranchGenome(lastPlant, branch, gmosh::clamp01(distance), traits);
+    const gmosh::Genome grownGenome =
+        gmosh::resolveBranchGenome(lastPlant, branchIndex, gmosh::clamp01(distance), traits);
 
     // Planting folds the planted branch into the seed, so the growth of the old
     // plant goes with it (5.6.1: "branch lengths reset or decay").
     resetBranchLengths();
-    setSeedGenome(grown);
+    setSeedGenome(grownGenome);
 }
 
 //==============================================================================
 void AudioPluginAudioProcessor::playNote(int midiNote, float velocity)
 {
-    const juce::SpinLock::ScopedLockType sl(uiMidiLock);
+    const juce::SpinLock::ScopedLockType scopedLock(uiMidiLock);
     uiMidi.addEvent(juce::MidiMessage::noteOn(1, midiNote, juce::jlimit(0.05f, 1.0f, velocity)), 0);
 }
 
 void AudioPluginAudioProcessor::stopNote(int midiNote)
 {
-    const juce::SpinLock::ScopedLockType sl(uiMidiLock);
+    const juce::SpinLock::ScopedLockType scopedLock(uiMidiLock);
     uiMidi.addEvent(juce::MidiMessage::noteOff(1, midiNote), 0);
 }
 
@@ -207,26 +212,27 @@ void AudioPluginAudioProcessor::handleMidiController(const juce::MidiMessage& me
         midiWheel.store(message.getControllerValue() / 127.0f);
 }
 
-void AudioPluginAudioProcessor::fillPlayState(gmosh::PlayState& state)
+void AudioPluginAudioProcessor::fillPlayState(gmosh::PlayState& playState)
 {
-    auto raw = [this](const char* id) { return parameters.getRawParameterValue(id)->load(); };
+    auto raw = [this](const char* parameterId)
+    { return parameters.getRawParameterValue(parameterId)->load(); };
 
-    state.macros.volume      = raw("volume") * 1.15f;
-    state.macros.velSens     = raw("velSens");
-    state.macros.tuningCents = raw("tuning");
-    state.macros.effect      = raw("effect");
-    state.macros.wheelScale  = raw("wheelScale");
+    playState.macros.volume = raw("volume") * 1.15f;
+    playState.macros.velSens = raw("velSens");
+    playState.macros.tuningCents = raw("tuning");
+    playState.macros.effect = raw("effect");
+    playState.macros.wheelScale = raw("wheelScale");
 
     const float hostWheel = raw("wheel");
-    const float midi      = midiWheel.load();
-    state.macros.wheel    = midi >= 0.0f ? midi : hostWheel;
+    const float midiWheelValue = midiWheel.load();
+    playState.macros.wheel = midiWheelValue >= 0.0f ? midiWheelValue : hostWheel;
 
-    liveWheel.store(state.macros.wheel);
+    liveWheel.store(playState.macros.wheel);
 
-    for (int b = 0; b < gmosh::kNumBranches; ++b)
+    for (int branchIndex = 0; branchIndex < gmosh::kNumBranches; ++branchIndex)
     {
-        const juce::String id                           = branchParamId(b);
-        state.branchLength[static_cast<std::size_t>(b)] = raw(id.toRawUTF8());
+        const juce::String branchId = branchParamId(branchIndex);
+        playState.branchLength[static_cast<std::size_t>(branchIndex)] = raw(branchId.toRawUTF8());
     }
 }
 
@@ -235,18 +241,18 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
 {
     juce::ScopedNoDenormals noDenormals;
 
-    const int totalNumInputChannels  = getTotalNumInputChannels();
+    const int totalNumInputChannels = getTotalNumInputChannels();
     const int totalNumOutputChannels = getTotalNumOutputChannels();
 
-    for (int i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear(i, 0, buffer.getNumSamples());
+    for (int channelIndex = totalNumInputChannels; channelIndex < totalNumOutputChannels; ++channelIndex)
+        buffer.clear(channelIndex, 0, buffer.getNumSamples());
 
     // The synth mixes into the buffer, so the audio channels start empty.
-    for (int ch = 0; ch < totalNumOutputChannels; ++ch)
-        buffer.clear(ch, 0, buffer.getNumSamples());
+    for (int channelIndex = 0; channelIndex < totalNumOutputChannels; ++channelIndex)
+        buffer.clear(channelIndex, 0, buffer.getNumSamples());
 
     {
-        const juce::SpinLock::ScopedLockType sl(uiMidiLock);
+        const juce::SpinLock::ScopedLockType scopedLock(uiMidiLock);
 
         if (!uiMidi.isEmpty())
         {
@@ -263,12 +269,12 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
     for (const auto metadata : midiMessages)
     {
         const auto message = metadata.getMessage();
-        const int offset   = metadata.samplePosition;
+        const int sampleOffset = metadata.samplePosition;
 
         if (message.isNoteOn())
-            synth.addNoteOn(message.getNoteNumber(), message.getVelocity(), offset);
+            synth.addNoteOn(message.getNoteNumber(), message.getVelocity(), sampleOffset);
         else if (message.isNoteOff())
-            synth.addNoteOff(message.getNoteNumber(), offset);
+            synth.addNoteOff(message.getNoteNumber(), sampleOffset);
         else if (message.isController())
             handleMidiController(message);
         else if (message.isAllNotesOff() || message.isAllSoundOff())
@@ -289,20 +295,20 @@ juce::AudioProcessorEditor* AudioPluginAudioProcessor::createEditor()
 //==============================================================================
 void AudioPluginAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
-    auto state = std::make_unique<juce::XmlElement>("GenoMoshState");
-    state->setAttribute("version", 1);
-    state->setAttribute("mutationVersion", 1);
+    auto stateXml = std::make_unique<juce::XmlElement>("GenoMoshState");
+    stateXml->setAttribute("version", 1);
+    stateXml->setAttribute("mutationVersion", 1);
 
-    state->addChildElement(parameters.copyState().createXml().release());
+    stateXml->addChildElement(parameters.copyState().createXml().release());
 
     auto seedXml = std::make_unique<juce::XmlElement>("SEED");
     seedXml->setAttribute("seedId", juce::String(static_cast<juce::int64>(seedIdentifier)));
 
-    for (std::size_t i = 0; i < gmosh::kNumGenes; ++i)
-        seedXml->setAttribute(gmosh::kGenes[i].id, static_cast<double>(seed[i]));
+    for (std::size_t geneIndex = 0; geneIndex < gmosh::kNumGenes; ++geneIndex)
+        seedXml->setAttribute(gmosh::kGenes[geneIndex].id, static_cast<double>(seed[geneIndex]));
 
-    state->addChildElement(seedXml.release());
-    copyXmlToBinary(*state, destData);
+    stateXml->addChildElement(seedXml.release());
+    copyXmlToBinary(*stateXml, destData);
 }
 
 void AudioPluginAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
@@ -312,19 +318,20 @@ void AudioPluginAudioProcessor::setStateInformation(const void* data, int sizeIn
     if (xml == nullptr)
         return;
 
-    if (auto* paramsXml = xml->getChildByName("GENOMOSH_PARAMS"))
-        parameters.replaceState(juce::ValueTree::fromXml(*paramsXml));
+    if (auto* parametersXml = xml->getChildByName("GENOMOSH_PARAMS"))
+        parameters.replaceState(juce::ValueTree::fromXml(*parametersXml));
 
     if (auto* seedXml = xml->getChildByName("SEED"))
     {
         seedIdentifier = static_cast<uint64_t>(seedXml->getStringAttribute("seedId").getLargeIntValue());
 
-        for (std::size_t i = 0; i < gmosh::kNumGenes; ++i)
+        for (std::size_t geneIndex = 0; geneIndex < gmosh::kNumGenes; ++geneIndex)
         {
-            const juce::String name = gmosh::kGenes[i].id;
+            const juce::String geneId = gmosh::kGenes[geneIndex].id;
 
-            if (seedXml->hasAttribute(name))
-                seed[i] = gmosh::clamp01(static_cast<float>(seedXml->getDoubleAttribute(name, seed[i])));
+            if (seedXml->hasAttribute(geneId))
+                seed[geneIndex] =
+                    gmosh::clamp01(static_cast<float>(seedXml->getDoubleAttribute(geneId, seed[geneIndex])));
         }
     }
 

@@ -49,9 +49,11 @@ struct MutationParams
 /// which is what makes the mod wheel able to open a branch live.
 struct BranchDirection
 {
-    Genome dir{};      ///< already multiplied by gene sensitivity + globalScale
+    // Pre scaled per gene displacement: the audio thread only has to
+    // multiply it by the current effective distance.
+    Genome displacement{};
     uint64_t hash = 0;
-    float hue = 0.0f;  ///< UI colour fingerprint (design doc 12)
+    float hue = 0.0f; ///< UI colour fingerprint (design doc 12)
     float score = 0.0f;
 };
 
@@ -59,51 +61,51 @@ struct BranchDirection
 struct BranchTraits
 {
     unsigned char filterMode = 0; ///< 0 = low, 1 = band, 2 = high
-    unsigned char fmDirection = 0;///< 0 = B modulates A, 1 = A modulates B
-    unsigned char modSource = 0;  ///< 0 = mod env, 1 = loop env, 2 = LFO
-    unsigned char oscBMode = 0;   ///< 0 = sync, 1 = ring mod, 2 = sample & hold
+    unsigned char fmDirection = 0; ///< 0 = B modulates A, 1 = A modulates B
+    unsigned char modSource = 0; ///< 0 = mod env, 1 = loop env, 2 = LFO
+    unsigned char oscBMode = 0; ///< 0 = sync, 1 = ring mod, 2 = sample & hold
 };
 
 /// Deterministic identity of a branch of a given seed.
-inline uint64_t branchHash (uint64_t seedId, int branch, int variant = 0)
+inline uint64_t branchHash(uint64_t seedId, int branchIndex, int variantIndex = 0)
 {
-    return hash::combine (hash::combine (seedId, static_cast<uint64_t> (branch)),
-                          static_cast<uint64_t> (variant));
+    return Hash::combine(Hash::combine(seedId, static_cast<uint64_t>(branchIndex)),
+                         static_cast<uint64_t>(variantIndex));
 }
 
 /// Step 1 of 5.2: build the direction vector for one branch.
-BranchDirection buildBranchDirection (uint64_t seedId, int branch, int variant,
-                                      const MutationParams& mp);
+BranchDirection buildBranchDirection(uint64_t seedId, int branchIndex, int variantIndex,
+                                     const MutationParams& params);
 
 /// Steps 2 to 4 of 5.2: displace the seed along a branch direction.
 /// distance = 0 returns the seed exactly (requirement 5.1.3).
-Genome applyDistance (const Genome& seed, const BranchDirection& direction,
-                      float distance, const MutationParams& mp);
+Genome applyDistance(const Genome& seed, const BranchDirection& direction, float distance,
+                     const MutationParams& params);
 
 /// Step 5: structural mutations. Deterministic *and* monotonic in distance:
 /// each trait has a fixed random threshold, so growing a branch flips it once
 /// and it never flips back while the branch keeps growing.
-BranchTraits resolveTraits (uint64_t hash, float distance, const MutationParams& mp);
+BranchTraits resolveTraits(uint64_t seedHash, float distance, const MutationParams& params);
 
 /// Section 5.6 guard rails, applied to a resolved genome in place.
-void applyCouplings (Genome& genome);
+void applyCouplings(Genome& genome);
 
 /// The atonality ceiling above, applied to a genome in place. Idempotent:
 /// applying it twice is the same as applying it once, which is what lets a
 /// planted branch (a resolved genome fed back in as the next seed) be gated
 /// again without ratcheting the tuning down a little more every time.
-void applyAtonality (Genome& genome, float atonality);
+void applyAtonality(Genome& genome, float atonality);
 
 /// Rough "this branch will make a usable sound" score in [0,1].
-float safetyScore (const Genome& genome);
+float safetyScore(const Genome& genome);
 
 /// Level compensation gain (5.6): keeps branches within a few dB of the seed.
-float loudnessCompensation (const Genome& genome);
+float loudnessCompensation(const Genome& genome);
 
 /// Random seed inside the curated soft ranges (design doc 11). Pitch capable
 /// genes are drawn inside the atonality ceiling instead of the full range, so a
 /// low atonality seed is spread over its allowed band rather than pinned to the
 /// edge of it.
-void randomizeGenome (Genome& genome, Rng& rng, float atonality = 1.0f);
+void randomizeGenome(Genome& genome, Rng& randomGenerator, float atonality = 1.0f);
 
 } // namespace gmosh
