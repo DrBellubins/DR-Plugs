@@ -296,7 +296,10 @@ juce::AudioProcessorEditor* AudioPluginAudioProcessor::createEditor()
 void AudioPluginAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
     auto stateXml = std::make_unique<juce::XmlElement>("GenoMoshState");
-    stateXml->setAttribute("version", 1);
+    // 2: Amp Sustain became Amp Floor, and Amp Fade was added. The seed is stored
+    // by gene id, so an older state still loads; the genes it never had keep
+    // their constructed value.
+    stateXml->setAttribute("version", 2);
     stateXml->setAttribute("mutationVersion", 1);
 
     stateXml->addChildElement(parameters.copyState().createXml().release());
@@ -329,9 +332,17 @@ void AudioPluginAudioProcessor::setStateInformation(const void* data, int sizeIn
         {
             const juce::String geneId = gmosh::kGenes[geneIndex].id;
 
+            // A gene this state never had (a patch saved before that gene
+            // existed) is not zero: it goes to the middle of the region the seed
+            // generator prefers, so an old patch still sounds like an instrument.
+            const float absentDefault =
+                0.5f * (gmosh::kGenes[geneIndex].softMin + gmosh::kGenes[geneIndex].softMax);
+
             if (seedXml->hasAttribute(geneId))
                 seed[geneIndex] =
                     gmosh::clamp01(static_cast<float>(seedXml->getDoubleAttribute(geneId, seed[geneIndex])));
+            else
+                seed[geneIndex] = gmosh::clamp01(absentDefault);
         }
     }
 

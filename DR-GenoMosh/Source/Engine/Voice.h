@@ -12,8 +12,10 @@ namespace gmosh
 //          [Osc B] ---+-> balance -> dual filter -> amp env -> pan
 //          [Sub]  ---+
 //
-// Modulation: one shared envelope (a pluck with a level decay over its
-// repeats) drives the amp and, on the same clock, the modulation destinations.
+// Modulation: one shared envelope (a pluck, optionally lifted off silence by
+// the amp floor, fading out over a counted number of repeats) drives the amp
+// and, on the same clock, the modulation destinations. The modulator keeps the
+// full pluck shape even when the level is flat.
 // The LFO and the two slow drift generators run free, plus per voice random
 // detune and phase start.
 //

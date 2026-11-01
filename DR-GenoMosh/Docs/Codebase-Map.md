@@ -3,7 +3,7 @@
 An introductory guide to what each file, class and function in `Source/` actually does,
 grouped by *the job it performs in the instrument* rather than by folder.
 
-Scope: the tree as it stands at commit `f7c285a` (43 genes, 12 branches, 16 voices,
+Scope: the tree as it stands at commit `f7c285a` (44 genes, 12 branches, 16 voices,
 ~7.0k lines including the test harness). Line counts are given in the appendix so you
 can judge how much attention each part deserves.
 
@@ -222,13 +222,16 @@ Pure data in / data out. Everything here is off the audio thread.
 * `safetyScore(Genome)` — coarse "will this be audible and not horrible" scalar in
   ~[-1,1]. Used only to rank the `kNumDirections` variants of a branch.
 * `loudnessCompensation(Genome)` — estimates sources of extra loudness
-  (resonance², FM sidebands, sub, noise, drive) and returns `1/sqrt(boost)` so
-  branches sit near the seed's level *(doc §5.6)*.
+  (resonance², FM sidebands, sub, noise, drive, and the amp floor / fade duty
+  cycle) and returns `1/sqrt(boost)` so branches sit near the seed's level *(doc
+  §5.6)*.
 * `randomizeGenome(Genome&, Rng&, atonality)` — draws each gene inside its soft
   range; pitch-capable genes are drawn *inside* the atonality band rather than
   clipped into it afterwards, so a low-atonality seed still has a spread of tunings
   rather than a pile on the ceiling. Then biases toward instrument-like behaviour
-  (audible attack, some sustain, filter open, FX pulled back) and runs couplings.
+  (audible attack, a note that lasts long enough to hear, filter open, FX pulled
+  back — deliberately **not** the amp floor: plucky vs sustained is the variety the
+  player grows for) and runs couplings.
 
 ### `Genetic/PlantEngine.h` / `.cpp` — assembling & shipping the plant *(doc §3)*
 
@@ -286,13 +289,19 @@ wildly mutated branch playable.
     audio loop never does that subtraction.
   * Velocity is folded into `p.velocity` (amplitude) and `p.modScale` (modulation)
     once, per `VelSens` and `mod_vel`.
-  * `gain = loudnessCompensation(genome) × velocity`.
+  * `gain = loudnessCompensation(genome) × velocity` — and `loudnessCompensation`
+    now counts the amp genes: a floored level has several times the duty cycle of a
+    closed pluck, so without it a pad branch sits ~8 dB above a plucky one.
 
   File-local constants (these are the instrument's safety envelope — worth
   re-deriving rather than copying blindly):
-  `kInfiniteDurationGene = 0.9` (at or above this `env_time` there is no outer decay
-  at all), `kPluckPeakFast/Neutral/Swell = 0.010/0.060/0.950`,
-  `kPluckPeriodFast/Slow = 30 ms…16 s`, `kModHoldGate = 0.75` then 8 → 0.1 Hz,
+  `kInfiniteDurationGene = 0.9` (at or above this `env_time` there is no ceiling on
+  the note), `kPluckPeakFast/Neutral/Swell = 0.010/0.060/0.950`,
+  `kPluckPeriodFast/Slow = 30 ms…16 s`,
+  `kFadeMinCycles/kFadeMaxCycles = 1…64` and `kInfiniteFadeGene = 0.95` (`vol_fade`
+  counts *repeats*; at or above that gene value there is no fade), `kNoFadeSeconds`
+  ("longer than any note", so the `min()` of the fade and the `env_time` ceiling needs
+  no special case), `kModHoldGate = 0.75` then 8 → 0.1 Hz,
   `kPitchModSemitoneCeiling`, `kVibratoSemitoneCeiling`, `kTremoloDepthCeiling`;
   helpers `expRange(lo,hi,v)`, `peakPositionFor(tilt)`,
   `curvatureExponent(gene) = 2^(2(v-0.5))`.
@@ -338,14 +347,18 @@ crossfade in `Voice.cpp`. Currently white; noise colouring is a known gap.
 The heart of the instrument, and **not an ADSR**:
 
 ```
-amp(t) = pluck(phase)  ×  outer(t / duration)  ×  gate
-mod(t) = pluckM(phase) ×  outer(t / duration)  ×  gate
+amp(t) = (ampFloor + (1−ampFloor)·pluck(phase)) × outer(t / fadeDuration) × gate
+mod(t) = pluck(phase)                            × outer(t / fadeDuration) × gate
 ```
 
 * `struct Shape` — every decision the envelope makes arrives pre-made in this
   struct. `SharedEnv` derives **nothing**; all policy lives in the mapping layer.
-  Fields: `period, peakPos, riseExp, fallExp, duration, outerExp, floorLevel,
-  release, modPeak, modFallScale`.
+  Fields: `period, peakPos, riseExp, fallExp, pluckFloor, duration, outerExp,
+  release, modPeak, modFallScale`. There is no outer sustain level any more: the
+  fade always ends at silence, and `pluckFloor` is what decides whether the gaps
+  between repeats are audible (0 = closed pluck, 1 = a plain level with no pluck
+  left in it). The floor is baked into the level table only — the modulator keeps
+  its full pluck shape so a flat level is still a living one.
 * `kPluckFallExponent = 0.6` — the pluck's fall is deliberately **not a gene**.
   Giving it a gene is what turns the shape into a straight ramp and the voice into a
   click.
@@ -353,24 +366,25 @@ mod(t) = pluckM(phase) ×  outer(t / duration)  ×  gate
   **bakes two 512-entry wavetables** (level + modulator) so the audio loop does no
   `pow()`, and so moving a parameter can never click mid-note (a fresh note is
   always built from scratch). `period < 2 ms` is treated as audio-rate tremolo;
-  `duration ≤ 0` means no outer decay at all.
+  `duration ≤ 0` means no outer fade at all.
 * `gateOn() / gateOff() / reset()` — note-on restarts the clock at zero; note-off
   only switches the release stage, which fades *from the level it is at*.
 * `process()` — advance phase and outer position, then
-  `amp = curve(phase) · outer · gate` and `mod = modCurve(phase) · outer · gate`.
-  Also handles self-termination: when the outer curve reaches its floor and that
-  floor is ≈ 0 the stage goes Idle — a note with nothing to settle to ends by
-  itself, click-free.
+  `amp = levelTable(phase) · outer · gate` and `mod = modTable(phase) · outer · gate`.
+  Also handles self-termination: when the outer fade reaches its end the stage goes
+  Idle — the fade always lands on silence, so a note whose fade is over ends by
+  itself, click-free, and frees its voice.
 * `ampValue() / modValue()` — the two curves on the shared clock.
 * `outerValue()` — the outer curve on its own: *a slow modulator that follows the
   note as a whole instead of following every pluck.* This is what `modSource == 1`
   selects.
 * `isIdle()` — drives voice de-allocation.
-* private `curveAt / buildTable / readTable / outerOf` — the curve itself
+* private `curveAt / buildTable / readTable / outerLevel` — the curve itself
   (rise `u^riseExp`, fall `(1−w)^fallExp` inside `modFallScale` of the window) and
-  the table reader. The outer curve is counted from the top down,
-  `floor + (1−floor)·(1−q)^outerExp`, so it is exact at both ends and a floor of
-  zero lands on exactly zero.
+  the table reader; `buildTable` takes the floor it is to bake in, and lifts the
+  bottom of the curve without touching the peak. The outer curve is counted from
+  the top down, `(1−q)^outerExp`, so it is exact at both ends and the fade lands
+  on exactly zero.
 
 ---
 
@@ -656,7 +670,8 @@ the real `Synth` offline and return peak/rms/dc.
 | `testAtonalityCeiling` | the ceiling actually bounds pitch-flag genes, and is idempotent |
 | `testPitchStability` | "nothing *else* moves the pitch" (its seed pins `a_mod`/`b_mod` neutral) |
 | `testEnvelopeMapping` | what the `vol_*`/`env_*` genes resolve to in the mapping layer |
-| `testPluckEnvelope` | what `SharedEnv` does with them — a pluck, repeated, with a level decay over the repeats |
+| `testPluckEnvelope` | what `SharedEnv` does with them — a pluck, repeated, faded out to silence |
+| `testAmpFloorAndFade` | `vol_floor` lifts only the gaps (peaks stay at full level), `vol_floor 1` is a straight level whose modulator still moves, and the fade ends it regardless |
 | `testModulationReachesAudio` | pitch modulation is real and bounded; tremolo moves the level without moving the mean |
 | `testFilter` | the trapezoidal SVF against an RBJ biquad reference |
 | `testRender` | every branch audible, no NaN/Inf, no runaway DC, branches within ~12 dB of each other, bit-identical reruns, clean at 44.1 / 48 / 96 kHz |

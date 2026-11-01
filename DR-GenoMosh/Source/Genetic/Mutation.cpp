@@ -111,12 +111,14 @@ void applyCouplings(Genome& genome)
     if (energy < 0.12f)
         genome[g_a_form] = 0.12f + (0.12f - energy) * 0.5f;
 
-    // --- ...and never let the amplitude envelope close everything off: a
-    //     branch that cannot sound is not a branch, it is a bug.
-    const float ampOpen = std::max(genome[g_vol_sus], 0.35f * (1.0f - genome[g_vol_dcy]));
+    // --- ...and never let the amplitude envelope close everything off: a branch
+    //     that sounds once and stops is not a branch, it is a click. Either the
+    //     repeats stay audible (vol_floor) or there are enough of them to hear
+    //     (vol_fade); one of the two has to be true.
+    const float ampOpen = std::max(genome[g_vol_floor], genome[g_vol_fade]);
 
-    if (ampOpen < 0.08f)
-        genome[g_vol_sus] = 0.18f;
+    if (ampOpen < 0.10f)
+        genome[g_vol_fade] = 0.20f;
 
     // --- keep the two filters from stacking their resonance into a howl.
     if (genome[g_flt_sep] > 0.5f && genome[g_flt_q] > 0.5f)
@@ -198,8 +200,9 @@ float safetyScore(const Genome& genome)
     // rejection); it is deliberately cheap and coarse.
     float score = 1.0f;
 
-    // Needs to be able to sound at all.
-    score -= 0.9f * std::max(0.0f, 0.10f - std::max(genome[g_vol_sus], 0.4f * (1.0f - genome[g_vol_dcy])));
+    // Needs to be able to sound at all: an audible level, and either a floor
+    // under the repeats or enough repeats to fade.
+    score -= 0.9f * std::max(0.0f, 0.10f - std::max(genome[g_vol_floor], genome[g_vol_fade]));
 
     // Needs something to hear: source energy and an open enough filter.
     const float energy = std::max(std::max(genome[g_a_form], genome[g_a_noise]),
@@ -223,11 +226,18 @@ float loudnessCompensation(const Genome& genome)
     // Estimate where the branch sits level wise and pull it back towards the
     // seed (5.6). Sources of extra loudness: resonance, FM sidebands, sub,
     // noise and drive.
-    const float boost = 1.0f + 1.7f * genome[g_flt_q] * genome[g_flt_q] + 0.8f * genome[g_fm_amt]
-                        + 0.7f * genome[g_sub_am] + 0.5f * std::max(genome[g_a_noise], genome[g_b_noise])
-                        + 0.9f * genome[g_sat_drive];
+    const float source = 1.0f + 1.7f * genome[g_flt_q] * genome[g_flt_q] + 0.8f * genome[g_fm_amt]
+                         + 0.7f * genome[g_sub_am] + 0.5f * std::max(genome[g_a_noise], genome[g_b_noise])
+                         + 0.9f * genome[g_sat_drive];
 
-    return 1.0f / std::sqrt(boost);
+    // ...and by far the biggest one: what the amp genes do to the duty cycle. A
+    // level that never closes between repeats carries several times the energy of
+    // a closed pluck, and a note that fades out is quieter than one that does
+    // not. Without this a pad branch sits ~8 dB above a plucky one at the same
+    // distance, which is a level difference the player hears as a bug.
+    const float duty = 1.0f + 2.2f * clamp01(genome[g_vol_floor]) + 0.5f * clamp01(genome[g_vol_fade]);
+
+    return 1.0f / std::sqrt(source * duty);
 }
 
 //==============================================================================
@@ -253,9 +263,12 @@ void randomizeGenome(Genome& genome, Rng& randomGenerator, float atonality)
     }
 
     // Bias a fresh seed towards something that behaves like an instrument
-    // before the guard rails run: audible attack, some sustain, filter open.
+    // before the guard rails run: audible attack, a note that lasts long enough
+    // to hear, filter open. The amp floor is deliberately *not* biased: whether
+    // a plant is plucky or sustained is exactly the variety the player grows
+    // for, and loudnessCompensation keeps the two at one level.
     genome[g_vol_atk] = std::min(genome[g_vol_atk], 0.35f);
-    genome[g_vol_sus] = std::max(genome[g_vol_sus], 0.30f);
+    genome[g_vol_fade] = std::max(genome[g_vol_fade], 0.30f);
     genome[g_flt_freq] = std::max(genome[g_flt_freq], 0.35f);
     genome[g_fx_mix] *= 0.7f;
 

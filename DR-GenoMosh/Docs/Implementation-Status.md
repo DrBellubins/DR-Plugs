@@ -449,6 +449,11 @@ The macro column is split by what the controls actually are:
 
 ## 10. Addendum 2026-10-30 — the envelope becomes a pluck; the modulator follows it
 
+> **Superseded in part by §11 (2026-10-31):** `vol_sus` is gone, `vol_fade` and
+> `vol_floor` exist, the outer curve no longer settles on a sustain level, and
+> `env_time` is a ceiling rather than the fade itself. The shape of the pluck and
+> everything in "Modulation" below are unchanged.
+
 The Rev 3 / Rev 4 work was reverted (it stopped sounding organic and had audible
 bugs), but two parts of it were wanted: the envelope, and the modulation. This
 addendum is what landed on top of the reverted code. **The genetic engine was
@@ -582,3 +587,118 @@ spanning the note** (`period = min (period, duration)`), which is asserted in
   random shape is part of the current variety — but it is why the tremolo probe
   asserts "moves the level, keeps the mean" rather than "vibrato leaves the level
   completely alone".
+
+---
+
+## 11. Addendum 2026-10-31 — Amp Sustain becomes Amp Floor, and Amp Fade counts the repeats
+
+The report was: *"I don't like how the current sustain settles the pluck to a level
+above 0 while the pluck is still audible."* That is exactly what a **floor on the
+outer curve** does: the train of plucks keeps its shape and gets a level under it,
+so a "sustained" plant was still a pluck, only louder in the gaps. It cannot make a
+sound that *isn't* plucked. Two genes replace it:
+
+| gene | label | means |
+| --- | --- | --- |
+| `vol_floor` | Amp Floor | how low the amp may go **between repeats**. 0 closes all the way to silence (the plain pluck), 1 is a straight level with no pluck left in it. In between the level keeps moving without ever closing. |
+| `vol_fade` | Amp Fade | how long the fade to silence takes, counted in **repeats**: 0 is one single pluck, 0.5 is a train of them, the top of the range never fades at all. |
+
+`vol_sus` (Amp Sustain) and the outer `FloorLevel` are deleted. A level that
+settles above silence and stays there forever no longer exists as a thing: either
+the fade ends the note, or the note runs until the key is released. A sustained
+sound is `vol_floor = 1`, and it still fades out unless `vol_fade` says otherwise —
+which is the operator's two examples, and both are asserted in the harness:
+
+* `vol_floor 1, vol_fade 0.5` → a flat level that fades out by itself.
+* `vol_floor 1, vol_fade 1` → a flat level that holds until key up.
+
+### The model (`Dsp.h`)
+
+```
+amp(t) = (ampFloor + (1 − ampFloor) · pluck(phase)) × outer(t / fadeDuration) × gate
+mod(t) =  pluck(phase)                              × outer(t / fadeDuration) × gate
+```
+
+* The floor **lifts the bottom of the pluck curve, never its peak**: the peaks stay
+  at unity, so a floored note is the same sound left audible rather than a different
+  one. It is baked into the level wavetable in `setShape()` (`buildTable` now takes
+  the floor it should bake in), so it costs nothing in the sample loop and cannot
+  zipper a held note.
+* **The modulator is deliberately not floored.** A level that stopped moving is
+  still modulated once per repeat — pitch dive, filter and FM — and that is what
+  keeps a pad here alive instead of dead. Asserted directly.
+* **The outer curve always ends at silence**, bent by `vol_dcy` as before, so the
+  self termination in `process()` is unconditional now: a note whose fade is over
+  ends on the exact zero and frees its voice, click free.
+
+### The mapping (`VoiceParams.cpp`)
+
+* `vol_fade` counts repeats, which is what makes a fade the same length *in music*
+  at any pluck period: `cycles = expRange(1, 64, gene) × period`, with
+  `gene ≥ 0.95` meaning no fade. Counting was the operator's spec ("fade 0 → only
+  one pluck, fade 0.5 → several"), and it is why the gene is `Linear` in the table
+  and exponential only here — same convention as `env_loop`.
+* `env_time` was the fade's length in seconds; two genes setting one thing is a
+  conflict, so it becomes an **absolute ceiling** on the same fade (a slow pluck
+  counted in repeats could otherwise run the voice for minutes). Its existing
+  "top of the range = none" convention is kept (`env_time ≥ 0.9` = no ceiling), so
+  `Duration = min(cycles × period, ceiling)`, and no ceiling at all on either side
+  is handed to the block as `Duration = 0` ("no fade") exactly as before.
+* `vol_floor` is a straight `clamp01` of the gene: the top of the range *is* the
+  flat level, so the mapping layer adds no ceiling of its own. Soft range
+  `0.00 … 0.65`: random seeds sit articulate, and a plant can still be grown into a
+  pad.
+
+### The genetic engine (`GeneTable.h`, `Mutation.cpp`)
+
+* 44 genes (was 43): `vol_floor` and `vol_fade` take `vol_sus`'s place in the
+  `GrpAmp` block. Both `sens = 0.45` — these are now the two genes that decide
+  whether a plant is a pluck or a pad, so they should move.
+* The "never close everything off" guard rail and the silence term of `safetyScore`
+  now read `max(vol_floor, vol_fade)`: with the new model the only way a branch is
+  inaudible is one single very short pluck, and either gene fixes it.
+* `randomizeGenome` biases `vol_fade ≥ 0.30` (a note that lasts long enough to
+  hear) and deliberately **does not bias `vol_floor`**: plucky vs sustained is the
+  variety the player grows for.
+* `loudnessCompensation` gained a duty cycle term (`1 + 2.2·floor + 0.5·fade` under
+  the `1/sqrt`). A level that never closes carries several times the energy of one
+  that does; without this a pad branch sits ~8 dB above a plucky branch at the same
+growth, which the player hears as a bug rather than as a feature.
+
+### Measured
+
+`GenoMosh_Tests`: **68 checks, 0 failures** (was 56). New: `testAmpFloorAndFade`
+(7 checks: no floor closes to silence, a mid floor lifts only the gaps and keeps the
+peaks at full level, floor 1 is a straight line, the modulator still moves at floor
+1, a floored level fades out anyway, no fade holds until key up, note off on a held
+level does not click), plus fade/floor assertions in `testEnvelopeMapping` (one
+pluck at `vol_fade 0`, monotone, several repeats at 0.5, `env_time` as the ceiling,
+floor mapping at 0 / mid / 1) and re written outer curve checks in
+`testPluckEnvelope` (fades to silence rather than settling, ends by itself).
+
+Level table (`testRender`, 12 branches at 0.85, seed `render-seed`) before → after:
+peaks 0.45…0.54 → **0.63…1.03**, rms 0.055…0.070 → **0.096…0.219**. That is +5 dB
+of average level, and it is the point of the change: these plants sound most of the
+time now instead of between plucks. The compensation above is what keeps the twelve
+branches within ~4 dB of each other; **no master trim was added** — one branch
+peaks just over 1.0, so if that bothers the operator the honest place to fix it is
+the default `MacroValues::volume` or a trim on the master, not more gene surgery.
+
+Two things to know:
+
+1. **Old patches.** The seed is stored by gene id, so a pre change state still
+   loads; `version` is bumped to 2 to record the break. A gene the state never had
+   now gets the middle of its soft range instead of 0, so an old patch does not come
+   back as one single click.
+2. `Failed_Design.md` also lists a `vol_fade` (a gate above 0.75 that pulls the
+   sustain floor to silence). Same id, unrelated meaning — that document is a record
+   of the failed Rev 3 design and was not edited.
+
+### Still open
+
+* `env_time` and `vol_fade` both describe the note's length, one in seconds and one
+  in repeats. The ceiling is defensible (it bounds a slow pluck), but it is the one
+  remaining pair of genes that fight over a single job. If it turns out to be
+  confusing in the grid, `env_time` is the gene to remove or repurpose.
+* No expression or aftertouch; `vol_floor` is a gene, so it can only be changed by
+  re planting or in the grid, not ridden live from a controller.

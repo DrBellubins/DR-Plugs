@@ -9,31 +9,49 @@ namespace gmosh
 //
 // The gene table is left exactly as it is (its sensitivities, soft ranges and
 // groups are what the genetic engine works on). What changes is only what the
-// envelope genes *mean*: the four vol_*/env_* genes no longer describe an
-// attack/decay/sustain trapezoid, they describe a pluck and a level decay over
-// the repeats of that pluck.
+// envelope genes *mean*: they describe a pluck and a fade over the repeats of
+// that pluck, and nothing is an attack/decay/sustain trapezoid.
 //
-// The direction of every gene is preserved, so a plant that used to be punchy
-// is still punchy:
+//   env_time  ceiling on how long the note may run, in seconds (it bounds the
+//             fade below; at its top there is no ceiling)
+//   env_loop  longer individual pluck             (was "loop amount": it is now
+//                                                the period, and a period longer
+//                                                than the note is one slow
+//                                                swell)
+//   env_tilt  peak later in the cycle             (unchanged direction)
+//   vol_atk   softer, more delayed rise           (was "attack time": in a pluck
+//                                                there is no attack time, only
+//                                                how the rise bends into the
+//                                                peak)
+//   vol_dcy   later collapse of the fade          (was "decay time": the length
+//                                                of the fade is vol_fade, this
+//                                                only bends it)
+//   vol_floor how low the plucks may go between repeats. 0 closes all the way to
+//                                                silence (the plain pluck), 1 is
+//                                                a straight level with no pluck
+//                                                left in it, and in between the
+//                                                level keeps moving without
+//                                                ever closing. The modulator is
+//                                                never floored.
+//   vol_fade  how long the fade takes, counted in *repeats* rather than in
+//                                                seconds: 0 is one single pluck,
+//                                                0.5 is a train of them, and the
+//                                                top of the range never fades at
+//                                                all. Counting cycles is what
+//                                                makes a fade the same length in
+//                                                music at any pluck period.
+//   vol_rel   note off fade                      (unchanged)
 //
-//   env_time  longer overall decay            (unchanged: it is a time)
-//   env_loop  longer individual pluck         (was "loop amount": it is now the
-//                                             period, and a period longer than
-//                                             the note is one slow swell)
-//   env_tilt  peak later in the cycle         (unchanged direction)
-//   vol_atk   softer, more delayed rise       (was "attack time": in a pluck
-//                                             there is no attack time, only how
-//                                             the rise bends into the peak)
-//   vol_dcy   later collapse of the repeats   (was "decay time": the length of
-//                                             the decay is env_time, this only
-//                                             bends it)
-//   vol_sus   where the repeats settle        (unchanged: it is the level)
-//   vol_rel   note off fade                 (unchanged)
+// `vol_sus` (Amp Sustain) is gone: a level that "settles above silence and
+// stays there forever" is not a thing here. Either the fade ends the note, or
+// the note runs until the key is released, and how audible the gaps between the
+// repeats are is vol_floor's job. A sustained sound is vol_floor at 1, and it
+// still fades out unless vol_fade says otherwise.
 //==============================================================================
 namespace
 {
-// At or above this env_time the note has no outer decay at all: the pluck
-// train runs at full level until the key is released.
+// At or above this env_time there is no ceiling on the note: the fade is vol_
+// fade's alone, and a fade that asks for none means the note runs to key up.
 constexpr float kInfiniteDurationGene = 0.9f;
 
 // Where the pluck peaks in its cycle for the three ends of env_tilt.
@@ -46,6 +64,18 @@ constexpr float kPluckPeakSwell = 0.950f;
 // The shortest and longest individual pluck the instrument will make.
 constexpr float kPluckPeriodFast = 0.030f;
 constexpr float kPluckPeriodSlow = 16.0f;
+
+// vol_fade counts repeats, so it is exponential like anything else you count:
+// one pluck at the bottom, a train of them in the middle. At or above
+// kInfiniteFadeGene there is no fade at all.
+constexpr float kFadeMinCycles = 1.0f;
+constexpr float kFadeMaxCycles = 64.0f;
+constexpr float kInfiniteFadeGene = 0.95f;
+
+// "Longer than any note". Used as the value of "no fade" on both sides of the
+// min() below, so the shorter of the two requests wins without special casing
+// it; anything at least half of this is handed to the block as "no fade".
+constexpr float kNoFadeSeconds = 3600.0f;
 
 // mod_sh is off until here, then a sample and hold on the modulator: fast
 // just past the gate, slower as the gene climbs.
@@ -86,26 +116,44 @@ void resolveVoiceParams(const Genome& genome, const BranchTraits& traits, const 
 {
     //------------------------------------------------------------------------
     // The one envelope clock.
-    const float envTimeGene = genome[g_env_time];
-
-    params.envShape.Duration = envTimeGene >= kInfiniteDurationGene ? 0.0f : mapGene(g_env_time, envTimeGene);
     params.envShape.Period = expRange(kPluckPeriodFast, kPluckPeriodSlow, genome[g_env_loop]);
+
+    // The fade is counted in repeats: one pluck at the bottom of vol_fade, a
+    // long train of them in the middle, nothing at the top. The count is what
+    // keeps the articulation the same when only the period moves.
+    const float fadeGene = clamp01(genome[g_vol_fade]);
+    const float fadeSeconds =
+        fadeGene >= kInfiniteFadeGene
+            ? kNoFadeSeconds
+            : expRange(kFadeMinCycles, kFadeMaxCycles, fadeGene) * params.envShape.Period;
+
+    // env_time is an absolute ceiling on that same fade: a slow pluck counted in
+    // repeats could otherwise run the voice for minutes.
+    const float envTimeGene = clamp01(genome[g_env_time]);
+    const float ceilingSeconds =
+        envTimeGene >= kInfiniteDurationGene ? kNoFadeSeconds : mapGene(g_env_time, envTimeGene);
+
+    const float noteSeconds = std::min(fadeSeconds, ceilingSeconds);
+    params.envShape.Duration = (noteSeconds >= 0.5f * kNoFadeSeconds) ? 0.0f : noteSeconds;
 
     // A pluck longer than the note is one pluck spanning the note: without this
     // a slow env_loop would leave the voice rising for longer than the note
     // lasts, and the branch would never arrive. It keeps repeating at that
-    // length afterwards, at the level the outer curve has settled to.
+    // length afterwards, at whatever level the fade has reached.
     if (params.envShape.Duration > 0.0f && params.envShape.Period > params.envShape.Duration)
         params.envShape.Period = params.envShape.Duration;
 
     params.envShape.PeakPos = peakPositionFor(mapGene(g_env_tilt, genome[g_env_tilt]));
     params.envShape.RiseExp = curvatureExponent(genome[g_vol_atk]);
 
-    // The outer curve is counted as "how much is left": 1 - q, bent by an
-    // exponent. A high exponent spends the level early, a low one holds and then
-    // collapses, which is the direction vol_dcy had as a decay time.
+    // The floor lifts the bottom of the pluck curve, not its peak: at 1 there is
+    // no pluck left and the level is a plain sustain, which still fades out.
+    params.envShape.PluckFloor = clamp01(genome[g_vol_floor]);
+
+    // The fade is counted as "how much is left": 1 - q, bent by an exponent. A
+    // high exponent spends the level early, a low one holds and then collapses,
+    // which is the direction vol_dcy had as a decay time.
     params.envShape.OuterExp = std::exp2(2.0f * (0.5f - clamp01(genome[g_vol_dcy])));
-    params.envShape.FloorLevel = clamp01(genome[g_vol_sus]);
     params.envShape.Release = mapGene(g_vol_rel, genome[g_vol_rel]);
 
     // The modulator is the same curve on the same clock: mod_atk moves where it

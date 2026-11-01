@@ -26,8 +26,9 @@ struct MacroValues
 
 struct VoiceParams
 {
-    // The one envelope clock: a pluck, repeated, with a level decay over the
-    // repeats. All the decisions are made here; SharedEnv derives none of them.
+    // The one envelope clock: a pluck, optionally floored above silence, faded
+    // out after a counted number of repeats. All the decisions are made here;
+    // SharedEnv derives none of them.
     SharedEnv::Shape envShape{};
 
     // mod_sh: sample and hold on the modulator, 0 = off

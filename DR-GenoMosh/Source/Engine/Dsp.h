@@ -240,17 +240,31 @@ class VariableDelay
 // Not an ADSR. The instrument's envelope is *one clock and two curves that are
 // multiplied together*:
 //
-//     amp(t) = pluck (phase)  x  outer (t / duration)  x  gate
-//     mod(t) = pluckM(phase)  x  outer (t / duration)  x  gate
+//     amp(t) = plucked (phase)  x  outer (t / fadeDuration)  x  gate
+//     mod(t) = pluck  (phase)   x  outer (t / fadeDuration)  x  gate
 //
 // The inner curve is a pluck: it starts at zero, rises to a single peak and
 // falls back to zero. It never plateaus, and it repeats at `period`. Rapidly
 // repeating plucks on a held key are the intended sound.
 //
+// `PluckFloor` lifts the bottom of that curve without touching its peak:
+//
+//     plucked (phase) = PluckFloor + (1 - PluckFloor) * pluck (phase)
+//
+// At 0 the repeats close all the way to silence, which is the plain pluck. At 1
+// the curve is a straight line and there is no pluck left in it: the level is a
+// plain sustain. Everything in between keeps plucking at the top of each cycle
+// and settles somewhere above silence between them, which is what makes a sound
+// move without being only plucked. The floor is applied to the level only: the
+// modulator keeps its full pluck shape, so a flat sustained level can still be
+// vibratoed, filtered and FMed once per cycle.
+//
 // The outer curve is not a second envelope shape, it is a level decay applied
-// to the whole train of plucks: it falls from 1.0 to `floor` over `duration`
-// seconds. `duration <= 0` means no decay at all, i.e. the pluck train runs at
-// full level until the key is released.
+// to the whole train of plucks: it falls from 1.0 to silence over `duration`
+// seconds. `duration <= 0` means no decay at all, i.e. the train (plucked or
+// flat) runs at full level until the key is released. The mapping layer counts
+// that duration in *repeats* (design: "amp fade"), so a fade is the same length
+// in music whatever the period is.
 //
 // The modulator is the *same* curve on the *same* clock, with its own peak
 // position and its own fall window; it has no shape of its own. Everything the
@@ -258,7 +272,8 @@ class VariableDelay
 //
 // Both curves are evaluated through a small wavetable built when the voice is
 // started, so the audio loop does no pow() and moving a parameter never clicks
-// mid note (a fresh note is always built from scratch).
+// mid note (a fresh note is always built from scratch). The floor is folded
+// into that table too, which is why it costs nothing per sample.
 //==============================================================================
 class SharedEnv
 {
@@ -279,9 +294,9 @@ class SharedEnv
         float PeakPos = 0.06f; ///< where the pluck peaks, as a fraction of the period
         float RiseExp = 1.0f; ///< curvature of the rise into the peak (1 = linear)
         float FallExp = kPluckFallExponent;
-        float Duration = 0.0f; ///< outer decay time; <= 0 = no outer decay
-        float OuterExp = 1.0f; ///< curvature of the outer decay (1 = linear)
-        float FloorLevel = 0.0f; ///< where the outer decay settles
+        float PluckFloor = 0.0f; ///< how low the repeats may go (0 = silence, 1 = no pluck)
+        float Duration = 0.0f; ///< outer fade time; <= 0 = no outer fade
+        float OuterExp = 1.0f; ///< curvature of the outer fade (1 = linear)
         float Release = 0.25f; ///< note off fade, from the level it is at
         float ModPeak = 0.06f; ///< the modulator's own peak position
         float ModFallScale = 1.0f; ///< fraction of the level's fall window the mod uses
@@ -301,9 +316,12 @@ class SharedEnv
         outerIncrement = (newShape.Duration > 0.0f) ? 1.0f / (newShape.Duration * sampleRate) : 0.0f;
         releaseCoefficient = 1.0f - std::exp(-1.0f / (std::max(newShape.Release, 0.01f) * sampleRate));
 
-        buildTable(levelCurve, newShape.PeakPos, newShape.RiseExp, newShape.FallExp, 1.0f);
+        buildTable(levelCurve, newShape.PeakPos, newShape.RiseExp, newShape.FallExp, 1.0f,
+                   clamp01(newShape.PluckFloor));
+        // The modulator is never floored: a level that stopped moving can still
+        // be modulated once per cycle.
         buildTable(modulatorCurve, newShape.ModPeak, newShape.RiseExp, newShape.FallExp,
-                   newShape.ModFallScale);
+                   newShape.ModFallScale, 0.0f);
     }
 
     void gateOn()
@@ -357,9 +375,10 @@ class SharedEnv
         amplitude = readTable(levelCurve, phase) * outer * gateLevel;
         modulation = readTable(modulatorCurve, phase) * outer * gateLevel;
 
-        // A note with nothing to settle to ends by itself. The outer curve is
-        // exactly zero at that point, so this cannot click.
-        if (stage == Running && outerPosition >= 1.0f && shape.FloorLevel <= 1.0e-3f)
+        // The fade always ends at silence, so a note whose fade has finished is
+        // over and frees its voice. The outer curve is exactly zero at that
+        // point, so this cannot click.
+        if (stage == Running && outerPosition >= 1.0f)
             stage = Idle;
     }
 
@@ -367,7 +386,8 @@ class SharedEnv
     float modulationValue() const { return modulation; }
 
     /// The outer curve on its own: a slow modulator that follows the note as a
-    /// whole instead of following every pluck.
+    /// whole instead of following every pluck. A floored level does not floor
+    /// this: it is the note fading out, whatever the level does inside it.
     float outerValue() const { return outerLevel() * gateLevel; }
 
     bool isIdle() const { return stage == Idle; }
@@ -409,14 +429,20 @@ class SharedEnv
     }
 
     void buildTable(float* table, float peakPosition, float riseExponent, float fallExponent,
-                    float fallWindow)
+                    float fallWindow, float floorLevel)
     {
         peakPosition = clampf(peakPosition, 0.005f, 0.98f);
+        const float floorValue = clamp01(floorLevel);
 
         for (int entryIndex = 0; entryIndex < kTableSize; ++entryIndex)
         {
             const float phaseValue = static_cast<float>(entryIndex) / static_cast<float>(kTableSize - 1);
-            table[entryIndex] = curveAt(phaseValue, peakPosition, riseExponent, fallExponent, fallWindow);
+            const float curveValue =
+                curveAt(phaseValue, peakPosition, riseExponent, fallExponent, fallWindow);
+
+            // The floor lifts the bottom of the curve, never the top of it, so
+            // the peak stays at unity whatever the floor is.
+            table[entryIndex] = floorValue + (1.0f - floorValue) * curveValue;
         }
     }
 
@@ -437,17 +463,15 @@ class SharedEnv
         if (outerIncrement <= 0.0f)
             return 1.0f;
 
-        const float floorLevel = clamp01(shape.FloorLevel);
-
         if (outerPosition <= 0.0f)
             return 1.0f;
 
         if (outerPosition >= 1.0f)
-            return floorLevel;
+            return 0.0f;
 
-        // Counted from the top down: (1 - q) is exact at both ends, and a floor
-        // of zero lands on exactly zero rather than on a rounding error.
-        return floorLevel + (1.0f - floorLevel) * std::pow(1.0f - outerPosition, shape.OuterExp);
+        // Counted from the top down: (1 - q) is exact at both ends, so the fade
+        // lands on exactly silence and the note can end on it without a click.
+        return std::pow(1.0f - outerPosition, shape.OuterExp);
     }
 
     enum Stage : unsigned char

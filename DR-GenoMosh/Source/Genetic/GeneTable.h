@@ -35,7 +35,8 @@ namespace gmosh
     /* --- amplitude envelope ------------------------------------------------ */                            \
     X(vol_atk, "Amp Attack", Curve::Exp, 0.001f, 4.0f, GrpAmp, 0.50f, 0.02f, 0.75f, 0)                       \
     X(vol_dcy, "Amp Decay", Curve::Exp, 0.010f, 8.0f, GrpAmp, 0.50f, 0.05f, 0.75f, 0)                        \
-    X(vol_sus, "Amp Sustain", Curve::Linear, 0.0f, 1.0f, GrpAmp, 0.40f, 0.15f, 0.90f, 0)                     \
+    X(vol_floor, "Amp Floor", Curve::Linear, 0.0f, 1.0f, GrpAmp, 0.45f, 0.00f, 0.65f, 0)                     \
+    X(vol_fade, "Amp Fade", Curve::Linear, 0.0f, 1.0f, GrpAmp, 0.45f, 0.15f, 0.90f, 0)                       \
     X(vol_rel, "Amp Release", Curve::Exp, 0.020f, 12.0f, GrpAmp, 0.50f, 0.05f, 0.65f, 0)                     \
     /* --- modulation envelope ----------------------------------------------- */                            \
     X(mod_atk, "Mod Attack", Curve::Exp, 0.001f, 4.0f, GrpMod, 0.50f, 0.02f, 0.70f, 0)                       \

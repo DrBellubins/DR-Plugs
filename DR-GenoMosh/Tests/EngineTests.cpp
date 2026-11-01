@@ -4,8 +4,8 @@
 //     determinism, distance 0 returns the seed, deviation grows with distance,
 //     guard rails hold;
 //   * the envelope: what the vol_*/env_* genes resolve to (mapping layer), and
-//     what SharedEnv does with them (a pluck, repeated, with a level decay over
-//     the repeats);
+//     what SharedEnv does with them (a pluck, repeated, optionally floored above
+//     silence, faded out after a counted number of repeats);
 //   * the modulation: bounded pitch modulation from the pluck, and a free LFO
 //     whose tremolo half rides on top of the envelope;
 //   * a numeric check of the trapezoidal SVF against a reference biquad;
@@ -237,7 +237,7 @@ static void testGenome(const MutationParams& mp)
                     safe = false;
             }
 
-            if (resolved[g_flt_q] > 1.0f || resolved[g_vol_sus] < 0.0f)
+            if (resolved[g_flt_q] > 1.0f || resolved[g_vol_floor] < 0.0f || resolved[g_vol_fade] < 0.0f)
                 safe = false;
         }
     }
@@ -564,6 +564,9 @@ static void testPitchStability()
     seed[g_a_noise] = 0.0f;
     seed[g_b_noise] = 0.0f;
     seed[g_env_loop] = 0.0f;
+    seed[g_env_time] = 0.95f; // no ceiling on the note
+    seed[g_vol_fade] = 1.0f; // ...and no fade either: the probe needs a held tone
+    seed[g_vol_floor] = 0.6f;
     // This test is about everything *except* the mod envelope: a_mod / b_mod are
     // at neutral (no pitch modulation) so the assertion below measures the rest
     // of the voice. What a_mod does when it is open is testModulationReachesAudio.
@@ -690,17 +693,51 @@ static void testEnvelopeMapping()
         return p;
     };
 
-    // env_time at the top of its range means no level decay at all: the pluck
-    // train runs at full level until the key is released.
+    // vol_fade counts pluck repeats rather than seconds: one single pluck at the
+    // bottom, a train of them in the middle, no fade at all at the top (with
+    // env_time asking for no ceiling either).
     Genome g = seed;
     g[g_env_time] = 0.95f;
-    check(resolve(g).envShape.Duration <= 0.0f, "env_time at the top of its range asks for no outer decay");
-    g[g_env_time] = 0.5f;
-    const float midTime = resolve(g).envShape.Duration;
-    check(midTime > 0.0f, "env_time below that gate resolves to a real decay time");
+    g[g_vol_fade] = 0.0f;
+    const VoiceParams onePluck = resolve(g);
+    check(std::abs(onePluck.envShape.Duration - onePluck.envShape.Period) < 1.0e-4f,
+          "vol_fade at zero fades over exactly one pluck");
+
+    g[g_vol_fade] = 1.0f;
+    check(resolve(g).envShape.Duration <= 0.0f, "vol_fade at the top of its range asks for no fade at all");
+
+    float lastFade = -1.0f;
+    bool fadeMonotone = true;
+
+    for (float v = 0.0f; v <= 0.85f; v += 0.05f)
+    {
+        g[g_vol_fade] = v;
+        const float faded = resolve(g).envShape.Duration;
+
+        if (faded < lastFade)
+            fadeMonotone = false;
+
+        lastFade = faded;
+    }
+
+    check(fadeMonotone, "vol_fade lengthens the fade monotonically");
+
+    g[g_vol_fade] = 0.5f;
+    const VoiceParams severalPlucks = resolve(g);
+    check(severalPlucks.envShape.Duration > 4.0f * severalPlucks.envShape.Period
+              && severalPlucks.envShape.Duration < 32.0f * severalPlucks.envShape.Period,
+          "vol_fade at neutral leaves several plucks before the fade");
+
+    // env_time is an absolute ceiling on that same counted fade, so a slow pluck
+    // cannot run the voice for minutes.
+    g[g_env_time] = 0.3f;
+    const VoiceParams capped = resolve(g);
+    check(capped.envShape.Duration <= mapGene(g_env_time, 0.3f) + 1.0e-4f,
+          "env_time caps how long a counted fade may take");
 
     // env_loop is the period of one pluck, monotone, and never longer than the
     // note it sits in (a longer pluck is one pluck spanning the note).
+    g[g_env_time] = 0.5f;
     float lastPeriod = -1.0f;
     bool monotone = true, clamped = true;
 
@@ -712,7 +749,7 @@ static void testEnvelopeMapping()
         if (p.envShape.Period < lastPeriod)
             monotone = false;
 
-        if (p.envShape.Period > midTime + 1.0e-4f)
+        if (p.envShape.Duration > 0.0f && p.envShape.Period > p.envShape.Duration + 1.0e-4f)
             clamped = false;
 
         lastPeriod = p.envShape.Period;
@@ -744,10 +781,17 @@ static void testEnvelopeMapping()
     check(peakMonotone && peakSane, "env_tilt moves the pluck peak along the cycle, in range");
     check(resolve(g).envShape.PeakPos < 0.12f, "env_tilt at neutral is a plain pluck, not a swell");
 
-    // vol_sus is the floor the repeats settle at; vol_atk / vol_dcy only bend
-    // the curves (a gene at 0.5 is a straight line, both ways).
-    check(resolve(g).envShape.FloorLevel == clamp01(g[g_vol_sus]),
-          "vol_sus is the level the outer curve settles at");
+    // vol_floor is how low the repeats may go: zero closes all the way to
+    // silence, one leaves a straight level with no pluck in it. vol_atk /
+    // vol_dcy only bend the curves (a gene at 0.5 is a straight line, both
+    // ways).
+    check(resolve(g).envShape.PluckFloor == clamp01(g[g_vol_floor]),
+          "vol_floor is how low the pluck level is allowed to go");
+    g[g_vol_floor] = 0.0f;
+    check(resolve(g).envShape.PluckFloor == 0.0f, "vol_floor at zero is the plain closed pluck");
+    g[g_vol_floor] = 1.0f;
+    check(resolve(g).envShape.PluckFloor == 1.0f, "vol_floor at the top is a level, not a pluck");
+    g[g_vol_floor] = 0.5f;
     g[g_vol_atk] = 0.5f;
     g[g_vol_dcy] = 0.5f;
     const VoiceParams straight = resolve(g);
@@ -834,7 +878,7 @@ static void testPluckEnvelope()
     s.PeakPos = 0.30f;
     s.RiseExp = 1.0f;
     s.Duration = 0.0f;
-    s.FloorLevel = 0.0f;
+    s.PluckFloor = 0.0f;
     restart(e, s);
 
     const int periodSamples = static_cast<int>(s.Period * sr);
@@ -890,34 +934,26 @@ static void testPluckEnvelope()
     check(std::abs(secondPeak - peak) < 1.0e-3f && std::abs(thirdPeak - peak) < 1.0e-3f,
           "the train repeats at env_loop with the same level (env_time off)");
 
-    // The outer curve is a level applied to the train, not a second envelope:
-    // it lands exactly on the floor and stays there.
+    // The fade is a level applied to the whole train, not a second envelope: it
+    // ends at silence whatever the pluck floor is, and the note ends with it.
     s.Duration = 1.0f;
-    s.FloorLevel = 0.5f;
     s.OuterExp = 1.0f;
     restart(e, s);
 
-    for (int i = 0; i < sr; ++i)
-        e.process();
-
-    const float settled = e.outerValue();
-
-    for (int i = 0; i < sr; ++i)
-        e.process();
-
-    check(std::abs(settled - 0.5f) < 1.0e-3f && std::abs(e.outerValue() - 0.5f) < 1.0e-3f,
-          "the outer curve settles on vol_sus and holds there");
-
     float mid = 0.0f;
-    restart(e, s);
 
     for (int i = 0; i < sr / 2; ++i)
         e.process();
 
     mid = e.outerValue();
-    check(mid > 0.5f && mid < 0.85f, "the level decays over the repeats rather than falling at once");
+    check(mid > 0.4f && mid < 0.6f, "the level fades over the repeats rather than falling at once");
 
-    // vol_dcy bends that decay: a low exponent holds, then collapses.
+    for (int i = sr / 2; i < sr; ++i)
+        e.process();
+
+    check(e.outerValue() < 1.0e-3f, "the fade ends at silence, not on a sustain level");
+
+    // vol_dcy bends that fade: a low exponent holds, then collapses.
     s.OuterExp = 0.3f;
     restart(e, s);
 
@@ -926,9 +962,8 @@ static void testPluckEnvelope()
 
     check(e.outerValue() > mid, "vol_dcy high collapses late, vol_dcy low fades early");
 
-    // Nothing to settle to means the note ends by itself and stops running.
+    // A fade that finishes ends the note by itself and stops running.
     s.Duration = 0.3f;
-    s.FloorLevel = 0.0f;
     s.OuterExp = 1.0f;
     restart(e, s);
     int i = 0;
@@ -939,12 +974,12 @@ static void testPluckEnvelope()
         ++i;
     }
 
-    check(e.isIdle() && e.amplitudeValue() == 0.0f, "a note with no floor ends by itself");
+    check(e.isIdle() && e.amplitudeValue() == 0.0f, "a note whose fade is over ends by itself");
 
     // Note off is a fade from wherever the level happens to be, never a jump.
     s.Period = 0.25f;
     s.Duration = 0.0f;
-    s.FloorLevel = 0.0f;
+    s.PluckFloor = 0.0f;
     s.Release = 0.05f;
     restart(e, s);
 
@@ -988,6 +1023,124 @@ static void testPluckEnvelope()
     check(modPeak > 0.5f && std::abs(modPeakAt - s.ModPeak) < 0.03f,
           "the modulator follows its own peak position, not the level's");
     check(ampAtModEnd > 0.2f, "the modulator can finish while the level is still up");
+}
+
+//==============================================================================
+// The two amp genes as the player experiences them: vol_floor decides whether a
+// note is a pluck or a level, vol_fade decides how many repeats there are before
+// silence. Together they cover the range from "one single click" to "a pad that
+// never ends", and one does not interfere with the other.
+//==============================================================================
+static void testAmpFloorAndFade()
+{
+    std::printf("the amp floor lifts the gaps, the amp fade counts the repeats\n");
+
+    constexpr int sr = 48000;
+    constexpr int cycle = static_cast<int>(0.25f * static_cast<float>(sr));
+
+    SharedEnv e;
+    e.setSampleRate(48000.0);
+
+    SharedEnv::Shape s;
+    s.Period = 0.25f;
+    s.PeakPos = 0.30f;
+    s.RiseExp = 1.0f;
+    s.PluckFloor = 0.0f;
+    s.Duration = 0.0f;
+    s.Release = 0.05f;
+
+    auto peakAndTrough = [](SharedEnv& env, int samples, float& peak, float& trough)
+    {
+        peak = 0.0f;
+        trough = 1.0f;
+
+        for (int i = 0; i < samples; ++i)
+        {
+            env.process();
+            peak = std::max(peak, env.amplitudeValue());
+            trough = std::min(trough, env.amplitudeValue());
+        }
+    };
+
+    float peak = 0.0f, trough = 1.0f;
+
+    // No floor is the plain closed pluck.
+    e.setShape(s);
+    e.gateOn();
+    peakAndTrough(e, 3 * cycle, peak, trough);
+    check(peak > 0.99f && trough < 0.01f, "with no amp floor the level closes all the way between repeats");
+
+    // A floor lifts the bottom of the curve and only the bottom: the peaks stay
+    // at full level, so a floored note is the same sound left audible.
+    s.PluckFloor = 0.5f;
+    e.setShape(s);
+    e.gateOn();
+    peakAndTrough(e, 3 * cycle, peak, trough);
+    check(peak > 0.99f && std::abs(trough - 0.5f) < 0.03f,
+          "a mid amp floor keeps the peaks at full level and lifts only the gaps");
+
+    // At the top there is no pluck left in the level at all.
+    s.PluckFloor = 1.0f;
+    e.setShape(s);
+    e.gateOn();
+    peakAndTrough(e, 3 * cycle, peak, trough);
+    check(std::abs(peak - 1.0f) < 1.0e-3f && std::abs(trough - 1.0f) < 1.0e-3f,
+          "at amp floor 1 the level is a straight line with no pluck in it");
+
+    // ...which is exactly why the modulator is never floored: a level that stopped
+    // moving is still modulated once per repeat, and that is what keeps a pad
+    // alive instead of dead.
+    float modPeak = 0.0f, modTrough = 1.0f;
+
+    for (int i = 0; i < 3 * cycle; ++i)
+    {
+        e.process();
+        modPeak = std::max(modPeak, e.modulationValue());
+        modTrough = std::min(modTrough, e.modulationValue());
+    }
+
+    check(modPeak > 0.9f && modTrough < 0.05f, "the modulator keeps its full pluck shape at amp floor 1");
+
+    // The two genes do not interfere: a flat level still fades out when the fade
+    // is not at the top of its range (amp floor 1 + amp fade 0.5 = a pad that
+    // ends by itself), and only the top of the fade makes it endless.
+    s.Duration = 0.5f; // two repeats at this period, which is what a mid fade is
+    e.setShape(s);
+    e.gateOn();
+
+    for (int i = 0; i < sr / 10; ++i) // 0.10 s into a 0.50 s fade
+        e.process();
+
+    const float levelEarly = e.amplitudeValue();
+
+    for (int i = 0; i < sr * 7 / 20; ++i) // 0.45 s: the fade is nearly spent
+        e.process();
+
+    const float levelLate = e.amplitudeValue();
+    check(levelEarly > 0.7f && levelLate < levelEarly * 0.5f,
+          "a floored level fades out just the same: the fade is not the floor's job");
+
+    s.Duration = 0.0f;
+    e.setShape(s);
+    e.gateOn();
+
+    for (int i = 0; i < sr * 4; ++i)
+        e.process();
+
+    check(!e.isIdle() && e.amplitudeValue() > 0.99f,
+          "a floored level with no fade holds until the key is released");
+
+    float worstJump = 0.0f, previous = e.amplitudeValue();
+    e.gateOff();
+
+    for (int i = 0; i < sr && !e.isIdle(); ++i)
+    {
+        e.process();
+        worstJump = std::max(worstJump, std::abs(e.amplitudeValue() - previous));
+        previous = e.amplitudeValue();
+    }
+
+    check(e.isIdle() && worstJump < 0.02f, "note off still ends a held level without clicking");
 }
 
 //==============================================================================
@@ -1060,10 +1213,11 @@ static Genome modTestSeed(Rng& rng)
     seed[g_flt_freq] = 0.8f;
     seed[g_flt_q] = 0.0f;
     seed[g_flt_mod] = 0.5f;
-    seed[g_env_time] = 0.95f; // no outer decay
+    seed[g_env_time] = 0.95f; // no ceiling on the note
     seed[g_env_loop] = 0.58f; // one pluck a second
     seed[g_env_tilt] = 0.0f; // a plain pluck
-    seed[g_vol_sus] = 0.7f;
+    seed[g_vol_floor] = 0.7f; // the level barely dips between repeats
+    seed[g_vol_fade] = 0.95f; // no fade: the probe needs a held tone
     seed[g_mod_atk] = 0.5f;
     seed[g_mod_dcy] = 0.9f; // mod follows the pluck
     seed[g_mod_sh] = 0.0f;
@@ -1424,6 +1578,7 @@ int main()
     testAtonalityCeiling();
     testEnvelopeMapping();
     testPluckEnvelope();
+    testAmpFloorAndFade();
     testModulationReachesAudio();
     testPitchStability();
     testGenome(mp);
