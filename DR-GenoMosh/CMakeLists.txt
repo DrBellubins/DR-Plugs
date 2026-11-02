@@ -10,6 +10,16 @@ option(JUCE_ENABLE_MODULE_SOURCE_GROUPS "Show all module sources in IDE projects
 
 add_subdirectory(Libs/JUCE)
 
+# The editor is a web page (WebUI/). Serving it from the binary needs the web
+# browser component and the files compiled in as binary data; there is no web
+# server and no files to install.
+file(GLOB WEBUI_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/WebUI/*")
+
+juce_add_binary_data("${PROJECT_NAME}WebUI"
+    NAMESPACE gmosh::WebAssets
+    HEADER_NAME WebAssets.h
+    SOURCES ${WEBUI_SOURCES})
+
 juce_add_plugin("${PROJECT_NAME}"
     FORMATS Standalone VST3
     PRODUCT_NAME "Dr GenoMosh"
@@ -22,6 +32,7 @@ juce_add_plugin("${PROJECT_NAME}"
     NEEDS_MIDI_OUTPUT FALSE
     IS_MIDI_EFFECT FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS TRUE
+    NEEDS_WEB_BROWSER TRUE
     COPY_PLUGIN_AFTER_BUILD FALSE
 )
 
@@ -32,7 +43,6 @@ add_subdirectory(Source)
 
 target_compile_definitions("${PROJECT_NAME}"
     PUBLIC
-    JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0
     JUCE_DISPLAY_SPLASH_SCREEN=0
@@ -41,6 +51,7 @@ target_compile_definitions("${PROJECT_NAME}"
 target_link_libraries("${PROJECT_NAME}"
     PRIVATE
         juce::juce_audio_utils
+        "${PROJECT_NAME}WebUI"
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GenoMosh</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <div id="app">
+    <header id="header">
+      <h1 id="title">GENOMOSH</h1>
+      <span id="pageLabel">seed / branches</span>
+      <span id="seedLabel" class="caption"></span>
+      <div id="headerButtons">
+        <button id="newSeedButton" type="button">new seed</button>
+        <button id="plantBranchButton" type="button">plant branch</button>
+        <button id="pageButton" type="button">genes</button>
+      </div>
+    </header>
+
+    <main id="body">
+      <section id="plantHost">
+        <svg id="plant" viewBox="-120 -120 240 240" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <radialGradient id="soil" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#1b1f22" />
+              <stop offset="70%" stop-color="#15181a" />
+              <stop offset="100%" stop-color="#101214" />
+            </radialGradient>
+          </defs>
+          <g id="plantScene"></g>
+        </svg>
+        <p id="plantHint" class="caption">click a note to play &middot; drag outwards to grow &middot; right click to plant</p>
+      </section>
+
+      <section id="sideColumn">
+        <div id="wheelReadout" class="caption">wheel 0.00</div>
+
+        <div id="genRow">
+          <div class="genCell">
+            <div class="controlSlot" id="slot-atonality"></div>
+          </div>
+        </div>
+
+        <div id="macroPlate">
+          <div class="plateCaption">live macros</div>
+          <div class="macroRow">
+            <div class="controlSlot" id="slot-effect"></div>
+            <div class="controlSlot" id="slot-tuning"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="genePage" hidden>
+        <div id="geneGrid"></div>
+      </section>
+    </main>
+
+    <footer id="footer">
+      <div class="plateCaption">output / response</div>
+      <div id="outputRow">
+        <div class="outputCell">
+          <label>wheel scale</label>
+          <div class="controlSlot" id="slot-wheelScale"></div>
+        </div>
+        <div class="outputCell">
+          <label>velocity</label>
+          <div class="controlSlot" id="slot-velSens"></div>
+        </div>
+        <div class="outputCell">
+          <label>volume</label>
+          <div class="controlSlot" id="slot-volume"></div>
+        </div>
+      </div>
+      <div id="keyHint" class="caption"></div>
+    </footer>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+
+</html>

@@ -8,6 +8,7 @@ file(GLOB UTILS_SOURCES CONFIGURE_DEPENDS "Utils/*.cpp" "Utils/*.h")
 file(GLOB GENETIC_SOURCES CONFIGURE_DEPENDS "Genetic/*.cpp" "Genetic/*.h")
 file(GLOB ENGINE_SOURCES CONFIGURE_DEPENDS "Engine/*.cpp" "Engine/*.h")
 file(GLOB UI_SOURCES CONFIGURE_DEPENDS "UI/*.cpp" "UI/*.h")
+file(GLOB WEB_SOURCES CONFIGURE_DEPENDS "Web/*.cpp" "Web/*.h")
 
 target_sources("${PROJECT_NAME}"
     PRIVATE
@@ -18,7 +19,8 @@ target_sources("${PROJECT_NAME}"
         ${UTILS_SOURCES}
         ${GENETIC_SOURCES}
         ${ENGINE_SOURCES}
-        ${UI_SOURCES})
+        ${UI_SOURCES}
+        ${WEB_SOURCES})
 
 # Add subdirectories with source files, if present
 # add_subdirectory(<name>)

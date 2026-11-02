@@ -819,3 +819,46 @@ a quantity that should be relative to the note being absolute — is still live 
   difference, but it is a per-note one, and a sample-and-hold LFO at `lfo_amt` up
   to an octave of vibrato is a loud one. Whether that draw should be per note, per
   branch or per plant is an open design question (§11's list still applies).
+
+---
+
+## 13. Addendum 2026-11-02 — the editor becomes a web page
+
+The UI is now HTML/CSS/JS (`WebUI/`, embedded in the binary and served by a
+`juce::WebBrowserComponent` resource provider). `Source/UI/PlantView.*` and
+`Source/UI/GeneGrid.*` are deleted; the ring, the growth handles, the gene
+table, the knobs and the computer keyboard all exist in the page. Everything
+else is unchanged: the engine, the gene table, the parameter set, the state
+format.
+
+What moved and what did not:
+
+* **Shape stays authoritative in C++.** `Source/Web/PlantGeometry.cpp` is the
+  old `PlantView::growTree`, unchanged, emitting unit-space strokes plus their
+  measured reach. `WebUI/plant.js` only deforms and scales what it is given, so
+  "grow the tree in unit space, measure, then scale to `kMaxReach`" and "the
+  ring never moves" are still true, and the plant on screen cannot disagree with
+  the plant the audio thread resolves.
+* **New in this UI: the plant is animated.** Wind (three incommensurate sines,
+  per-branch phase, bend growing with radius), a damped spring on grab/drag/
+  release, a glow plus extra sway fed by a note, and growth that is followed
+  instead of jumped to. All of it lives in `plant.js`.
+* **Ranges still exist once.** The page builds its controls from `ui.controls`,
+  generated from the APVTS; the keyboard map still exists once, in
+  `ComputerKeyboard` (the page forwards typed characters).
+
+Measured (Release build, Xvfb, `WEBKIT_DISABLE_COMPOSITING_MODE=1`): the page
+loads from the binary and renders (header, plant, knobs with real values,
+sliders, gene page with group colours); readouts show the real defaults (0.85 /
+0.60 / 0.75) rather than the page's placeholders; two screenshots one second
+apart differ in 219 px of the plant area, which is the wind; `ctest` 1/1 green;
+VST3 + Standalone build warning-free.
+
+Two traps recorded in `Docs/Web-UI.md`, which is the reference for this area:
+`juce::var` owns the `DynamicObject` (wrapping one pointer twice frees it in the
+first temporary — it crashes inside `JSON::writeToStream`), and anything emitted
+before the page has installed its listeners is silently lost, so the back end
+waits for `ui.ready` and resets its change detection there.
+
+`Docs/Codebase-Map.md` sections `UI/PlantView` and `UI/GeneGrid` describe code
+that no longer exists; `Docs/Web-UI.md` replaces them.

@@ -577,7 +577,7 @@ automatable; the genome is the patch).
 
 ## 13. Aspect: *Interface* — "the plant on screen"
 
-### `UI/PlantView.h` / `.cpp` *(doc §12)*
+### `UI/PlantView.h` / `.cpp` *(doc §12)* — **removed 2026-11-02**, see `Docs/Web-UI.md`
 
 The instrument's face: a ring of twelve slots = twelve pitch classes = exactly what
 `branchForNote` does on the audio side.
@@ -610,7 +610,7 @@ The instrument's face: a ring of twelve slots = twelve pitch classes = exactly w
 * `onPlayNote(note, velocity)` / `onPlantBranch(branch)` — callbacks; velocity 0
   means note-off (the same convention the computer keyboard uses).
 
-### `UI/GeneGrid.h` / `.cpp` — the gene table made editable
+### `UI/GeneGrid.h` / `.cpp` — the gene table made editable — **removed 2026-11-02**, see `Docs/Web-UI.md`
 
 Every gene as a horizontal slider, grouped by `Group`, in a two-column scrollable
 grid. This is the "make the gene table tunable by ear" debug page — the tool you use

@@ -1,0 +1,436 @@
+/* GenoMosh web editor.
+ *
+ * The palette mirrors Source/Utils/Theme.h so the web UI and the rest of the
+ * plugin look like the same instrument: grey plates for anything you can move
+ * while the synth is sounding, plain background for seed generation.
+ */
+
+:root {
+  --bg: #323232;
+  --accent: #282828;
+  --panel: #262626;
+  --panel-edge: #404040;
+  --caption: #919191;
+  --text: #cfcfcf;
+  --gold: #fafad2;
+  --disc: #15181a;
+  --disc-edge: #2a2f33;
+  --font: "DejaVu Sans", "Helvetica Neue", Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* display:flex on a section would otherwise win over the hidden attribute. */
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#app {
+  display: grid;
+  grid-template-rows: 44px 1fr 104px;
+  height: 100%;
+}
+
+#app.genes-page {
+  grid-template-rows: 44px 1fr 104px;
+}
+
+caption,
+.caption {
+  color: var(--caption);
+  font-size: 12px;
+}
+
+/*------------------------------------------------------------------ header */
+#header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 12px;
+  border-bottom: 2px solid var(--accent);
+}
+
+#title {
+  font-size: 21px;
+  font-weight: 700;
+  color: var(--gold);
+  margin: 0;
+  letter-spacing: 1px;
+}
+
+#pageLabel {
+  color: var(--caption);
+}
+
+#seedLabel {
+  margin-left: auto;
+}
+
+#headerButtons {
+  display: flex;
+  gap: 8px;
+}
+
+button {
+  font-family: var(--font);
+  font-size: 12px;
+  color: var(--text);
+  background: #3c3c3c;
+  border: 1px solid var(--panel-edge);
+  border-radius: 4px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #474747;
+}
+
+button:active {
+  background: #2d2d2d;
+}
+
+/*-------------------------------------------------------------------- body */
+#body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 270px;
+  min-height: 0;
+  padding: 8px 10px;
+  gap: 12px;
+}
+
+#body.genes-page {
+  grid-template-columns: 1fr;
+}
+
+#plantHost {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* The SVG fills the host and keeps the plant square inside it; the hint is an
+   overlay so the drawing never shrinks to make room for text. */
+#plant {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+#plantHint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  text-align: center;
+  pointer-events: none;
+}
+
+#sideColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+#wheelReadout {
+  padding: 2px 4px;
+}
+
+#genRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 4px 2px;
+}
+
+#genRow .genCell:nth-child(1) {
+  grid-column: 2;
+}
+
+#macroPlate {
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  border-radius: 10px;
+  padding: 8px;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.plateCaption {
+  color: var(--caption);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: lowercase;
+  margin-bottom: 6px;
+}
+
+.macroRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  flex: 1 1 auto;
+  align-items: stretch;
+}
+
+/*---------------------------------------------------------------- controls */
+.control {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.control .name {
+  font-size: 11px;
+  color: var(--caption);
+  white-space: nowrap;
+}
+
+.control .value {
+  font-size: 11px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.knob {
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.knob svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: 86px;
+  max-height: 86px;
+}
+
+.knob .arc-track {
+  stroke: #3a3a3a;
+}
+
+.knob .arc-value {
+  stroke: var(--gold);
+}
+
+.knob .pointer {
+  stroke: #dcdcdc;
+}
+
+.knob.live .arc-value {
+  stroke: #8fd6a0;
+}
+
+.slider {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 26px;
+}
+
+.slider input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: #3a3a3a;
+  outline: none;
+}
+
+.slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 18px;
+  border-radius: 3px;
+  background: #9a9a9a;
+  cursor: ew-resize;
+}
+
+.slider input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 18px;
+  border: none;
+  border-radius: 3px;
+  background: #9a9a9a;
+}
+
+/*------------------------------------------------------------------ footer */
+#footer {
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  border-radius: 10px;
+  margin: 6px 8px 8px;
+  padding: 8px 12px;
+}
+
+#outputRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-top: 4px;
+}
+
+#outputRow .outputCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+#outputRow label {
+  font-size: 12px;
+  color: var(--caption);
+}
+
+#keyHint {
+  margin-top: 6px;
+}
+
+/*---------------------------------------------------------------- gene page */
+#genePage {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+#geneGrid {
+  columns: 2;
+  column-gap: 18px;
+  padding: 4px;
+}
+
+.gene-group {
+  break-inside: avoid;
+  margin-bottom: 10px;
+}
+
+.gene-group h2 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gold);
+  margin: 0 0 4px;
+}
+
+.gene-row {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+}
+
+.gene-row .gene-name {
+  font-size: 11.5px;
+  color: #c8c8c8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gene-row input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 5px;
+  border-radius: 3px;
+  background: #3a3a3a;
+  outline: none;
+}
+
+.gene-row input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 9px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--gene-colour, #7fd08a);
+  cursor: ew-resize;
+}
+
+.gene-row input[type="range"]::-moz-range-thumb {
+  width: 9px;
+  height: 14px;
+  border: none;
+  border-radius: 2px;
+  background: var(--gene-colour, #7fd08a);
+}
+
+/*------------------------------------------------------------------- plant */
+.disc {
+  fill: url(#soil);
+  stroke: var(--disc-edge);
+  stroke-width: 2;
+}
+
+.seed-dot {
+  fill: var(--gold);
+  opacity: 0.9;
+}
+
+.twigs path {
+  fill: none;
+  stroke-linecap: round;
+}
+
+.handle {
+  cursor: grab;
+}
+
+.handle-hit {
+  fill: transparent;
+  cursor: grab;
+}
+
+.slot-label {
+  font-size: 11px;
+  fill: #b8b8b8;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+  font-family: var(--font);
+}
+
+.slot-label.active {
+  fill: #ffffff;
+  font-weight: 700;
+}
+
+.slot-ring {
+  fill: none;
+  stroke: transparent;
+}
+
+.branch.sounding .halo {
+  opacity: 1;
+}
+
+.branch.grabbed .handle {
+  stroke: #ffffff;
+  stroke-width: 1.5;
+}
+
+.branch.hovered .slot-label {
+  fill: #ffffff;
+}

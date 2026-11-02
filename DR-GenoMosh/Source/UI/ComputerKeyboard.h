@@ -34,6 +34,11 @@ class ComputerKeyboard
     /// From keyStateChanged: releases the held keys that are no longer down.
     void handleKeyStateChanged();
 
+    /// Note off for one key from a front end that reports key releases directly
+    /// (the web page does; native key handling has no such event, which is why
+    /// handleKeyStateChanged above has to poll instead).
+    void releaseKey(int keyCode);
+
     /// Note off for everything still held (focus left the editor, closing...).
     void releaseAll();
 

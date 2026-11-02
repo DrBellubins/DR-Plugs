@@ -135,6 +135,20 @@ void ComputerKeyboard::noteOffAt(std::size_t index)
         onNote(midiNote, 0.0f); // velocity 0 means note off
 }
 
+void ComputerKeyboard::releaseKey(int keyCode)
+{
+    const int normalisedKeyCode = normalise(keyCode);
+
+    for (std::size_t index = 0; index < held.size(); ++index)
+    {
+        if (held[index].first != normalisedKeyCode)
+            continue;
+
+        noteOffAt(index);
+        return;
+    }
+}
+
 void ComputerKeyboard::releaseAll()
 {
     while (!held.empty())
