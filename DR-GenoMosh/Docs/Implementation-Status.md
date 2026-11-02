@@ -702,3 +702,120 @@ Two things to know:
   confusing in the grid, `env_time` is the gene to remove or repurpose.
 * No expression or aftertouch; `vol_floor` is a gene, so it can only be changed by
   re planting or in the grid, not ridden live from a controller.
+
+---
+
+## 12. Addendum 2026-11-02 — the filter is anchored to the pitch being played
+
+The report was: *"certain keys of a given seed sound VASTLY different from the
+other notes"* — and, after the branch lengths were pulled to 0 and then to 0.25,
+*it stayed*. That second half is the whole story: at length 0 `applyDistance`
+returns the seed verbatim and `resolveTraits` returns all defaults, so **no plant
+parameter can be responsible**. One seed, one genome, and one key sounding like a
+hi-hat while its neighbours are plucks.
+
+### Cause
+
+The genome is relative (everything is `[0,1]`, then octaves and ratios); the voice
+was absolute. `midiNote` reached the sound in exactly two places — `noteToHz()` and
+the `flt_kf` term — so every other part of the voice ran at the same Hz whatever
+key was pressed. A typical random plant puts the cutoff at 340…1600 Hz with
+`flt_q` 0.3…0.6 (Q ≈ 4…8) and a second stage up to two octaves away: a **fixed pair
+of formants sitting on the keyboard**. The one key whose fundamental crosses them
+loses its body entirely — what is left is the top of its own spectrum, the noise
+mix (which never changes with pitch), and the filter's ring, all cut by a short
+pluck: a hi-hat. `flt_kf` could have tracked the keyboard, but it is a mutated gene
+drawn anywhere in ±1 octave/octave and neutral 0 means *no tracking at all*, so
+most plants had nothing following the key and the top of the keyboard outran the
+filter by several octaves.
+
+This is the gap `Failed_Design.md` named twice and the phase 3 acceptance criterion
+asked for: *"cutoff locked to A's pitch + flt_sep + flt_q + flt_kf (soft-railed)"*,
+*"`a_freq` links B's pitch and the filter cutoffs: resolve that once in
+`VoiceParams`, so every branch tracks the keyboard"*, *"`flt_freq` tracks the
+keyboard"*.
+
+### Fix
+
+No gene was added, renamed or re-ranged, and no preset state version was bumped.
+One anchor was added, in the mapping layer, where the design put it:
+
+* `resolveVoiceParams` now resolves **the voice's pitch once**: `noteFrequencyHz`
+  (the key plus the tuning macro) and `oscillatorAFrequencyHz` /
+  `oscillatorBFrequencyHz` (that, with `a_freq` / `b_freq` on top). `Voice::start`
+  reads these and only clamps them for audio — computing the pitch twice is how a
+  cutoff ends up an octave away from the pitch it was meant to follow.
+* `filterHz = oscillatorAFrequencyHz × (flt_freq's Hz / noteToHz(kFilterReferenceNote))`,
+  with `kFilterReferenceNote = 60`. The gene keeps its whole meaning **at middle C
+  for a voice at unison** — nothing a plant author set at C3 moves — and from there
+  the cutoff is one octave per octave with the key, locked to oscillator A rather
+  than to the bare key, so a branch that offsets A keeps its spectral relationship
+  too. Unclamped at this layer on purpose: it has no sample rate, and the voice
+  already clamps.
+* `flt_kf` is re-semantified as the **deviation from locked tracking**: neutral
+  tracks exactly (it is now a gene whose neutral point really is the resting state),
+  and either end asks for an octave per octave either way on top, i.e. 0…2 octaves
+  per octave of absolute tracking. `Voice::updateControlTargets` is unchanged — it
+  was already adding octaves of deviation.
+* **The old behaviour is one gene end away, not lost.** `flt_kf` at its lowest
+  (−1 octave per octave) cancels the tracking exactly, which is the classic analog
+  posture: a filter held at fixed Hz that the keyboard plays through, high notes
+  dark and low notes open. It is asserted, because that cancellation is arithmetic
+  the mapping layer is now responsible for.
+* The `flt_freq` comment in `GeneTable.h` says which ranges in the table are not
+  absolute, and the resonance-safety coupling in `applyCouplings` now reads as what
+  it is: less resonance the higher the cutoff sits *above the note it is filtering*
+  (the normalized value is that height at every key, which makes the guard rail
+  more correct than it was, not less).
+
+### Measured
+
+`GenoMosh_Tests`: **77 checks, 0 failures** (was 68). New: `testFilterTracksKeyboard`
+(9 checks). The numbers it prints, before → after the change:
+
+```
+before:  cutoff at note 48 383.5 Hz, note 60 383.5 Hz, note 72 383.5 Hz
+         rms at note 60 0.09885, note 72 0.02854  (-10.8 dB)     4 checks FAIL
+after:   cutoff at note 48 191.7 Hz, note 60 383.5 Hz, note 72 767.0 Hz
+         rms at note 60 0.09885, note 72 0.10005  ( +0.1 dB)     all PASS
+```
+
+The audio half is the honest one: a plain held sine, one closed filter
+(`flt_freq 0.37` → 378 Hz), `flt_q`/`flt_mod` at rest, `flt_kf` neutral, and the
+same seed rendered at two notes an octave apart. An untracked filter lost 10.8 dB
+of the high note; anchored, the two are within 0.1 dB. The mapping half asserts the
+tracking is exact (one octave per octave), that the gene still means its own value
+at the reference note, that a neutral `flt_kf` asks for no deviation, and that the
+anchor is oscillator A's pitch rather than the key (a `+12 st` `a_freq` moves the
+cutoff an octave with it). `testPitchStability`, `testRender` (levels, reproducibility,
+three sample rates) and everything else are unchanged and still pass; every
+translation unit in the project, harness included, syntax-checks clean from
+`compile_commands.json`.
+
+What a player hears: a plant is one instrument across the keyboard instead of one
+instrument per register. Hot and cold spots from resonance still exist, but they
+now travel *with* the key instead of being pinned to a frequency, so they no longer
+single out one note.
+
+### Still open
+
+Anchoring the filter was the largest one, not the only one. The same class of bug —
+a quantity that should be relative to the note being absolute — is still live in:
+
+* **FM and hard sync**: `fm_amt` is a phase index, so sidebands sit at the note's
+  own frequency; `nextModulated` band-limits nothing and the sync at
+  `Voice.cpp:277` resets an audible oscillator's phase with no PolyBLEP. Both are
+  mild in the bass and noisy at the top of the keyboard.
+* **`env_loop` in seconds**: a 30 ms pluck holds under four cycles of a note below
+  ~130 Hz, so the low register articulates as ticks however the amp genes are set.
+  (`env_kf` — key follow of the cycle length — is the gene for this and does not
+  exist yet; `Failed_Design.md` lists it.)
+* **The sub at exactly −1 octave and the master `softClip`**: subsonic level on the
+  lowest keys is summed at a fixed gain and drives a memoryless saturator, so only
+  the bass distorts. There is still no per-key level trim anywhere —
+  `loudnessCompensation` is a function of the genome alone.
+* **Per-note life is seeded per note**, including a random LFO waveform
+  (`Voice.cpp:86`: sine / triangle / sample-and-hold). It is not a per-*key*
+  difference, but it is a per-note one, and a sample-and-hold LFO at `lfo_amt` up
+  to an octave of vibrato is a loud one. Whether that draw should be per note, per
+  branch or per plant is an open design question (§11's list still applies).

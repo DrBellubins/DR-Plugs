@@ -89,6 +89,12 @@ constexpr float kPitchModSemitoneCeiling = 12.0f;
 constexpr float kVibratoSemitoneCeiling = 12.0f;
 constexpr float kTremoloDepthCeiling = 0.6f;
 
+// The filter does not run at absolute Hz: flt_freq is the cutoff *at this note*
+// (unison), and the voice scales it with the key. Middle C is also the point
+// flt_kf measures its deviation from, so a preset still means what its author
+// set at that key. See the filter block in resolveVoiceParams.
+constexpr int kFilterReferenceNote = 60;
+
 /// An exponential ramp between two positive ends, driven by a normalized value.
 float expRange(float lowValue, float highValue, float normalized)
 {
@@ -205,11 +211,36 @@ void resolveVoiceParams(const Genome& genome, const BranchTraits& traits, const 
     params.subLevel = genome[g_sub_am];
     params.detuneCents = genome[g_det_spread] * 30.0f;
 
-    params.filterHz = mapGene(g_flt_freq, genome[g_flt_freq]);
+    //------------------------------------------------------------------------
+    // The voice's pitch, resolved once. The key and the two oscillator offsets
+    // are multiplied together here and nowhere else, because the filter below is
+    // anchored to the result: computing the pitch twice is how a cutoff ends up
+    // an octave away from the pitch it was meant to follow. Left unclamped, the
+    // voice clamps it for audio.
+    params.tuneCents = macros.tuningCents;
+    params.noteFrequencyHz = noteToHz(midiNote, params.tuneCents);
+    params.oscillatorAFrequencyHz = params.noteFrequencyHz * std::pow(2.0f, params.aRatio / 12.0f);
+    params.oscillatorBFrequencyHz = params.noteFrequencyHz * std::pow(2.0f, params.bRatio / 12.0f);
+
+    //------------------------------------------------------------------------
+    // Filter. The cutoff is anchored to the voice's own pitch, never to absolute
+    // Hz: the gene's value is the cutoff at kFilterReferenceNote, scaled by how
+    // far this note's oscillator A sits from that key. That is what "cutoff
+    // locked to A's pitch" (design doc signal flow) and the phase 3 acceptance
+    // "flt_freq tracks the keyboard" mean, and it is what keeps one plant one
+    // instrument: a filter fixed in Hz sits above the fundamental of some keys
+    // and far below it at others, so whichever key crosses that line loses its
+    // body and is left as the top of its own spectrum.
+    const float filterRatioToOscillatorA =
+        mapGene(g_flt_freq, genome[g_flt_freq]) / noteToHz(kFilterReferenceNote);
+    params.filterHz = params.oscillatorAFrequencyHz * filterRatioToOscillatorA;
     params.filterQ = 0.5f + 13.0f * genome[g_flt_q];
 
-    // Pre computed: key follow in octaves of deviation for this note.
-    params.keyFollow = mapGene(g_flt_kf, genome[g_flt_kf]) * static_cast<float>(midiNote - 60) / 12.0f;
+    // flt_kf is a deviation *from* the locked tracking rather than the whole of
+    // it: neutral tracks exactly, and either end of the gene asks for an octave
+    // per octave either way on top of it (0 .. 2 octaves per octave in all).
+    params.keyFollow =
+        mapGene(g_flt_kf, genome[g_flt_kf]) * static_cast<float>(midiNote - kFilterReferenceNote) / 12.0f;
     params.filterMod = mapGene(g_flt_mod, genome[g_flt_mod]);
     params.filterSep = genome[g_flt_sep] * 2.0f; // octaves between the two stages
 
@@ -224,8 +255,6 @@ void resolveVoiceParams(const Genome& genome, const BranchTraits& traits, const 
 
     params.driftAmount = genome[g_drift_amt];
     params.drive = mapGene(g_sat_drive, genome[g_sat_drive]);
-
-    params.tuneCents = macros.tuningCents;
 
     params.filterMode = traits.filterMode;
     params.fmDirection = traits.fmDirection;

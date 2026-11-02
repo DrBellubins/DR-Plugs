@@ -95,7 +95,9 @@ void applyAtonality(Genome& genome, float atonality)
 void applyCouplings(Genome& genome)
 {
     // --- resonance safety (5.6): no self oscillation, and less resonance the
-    //     higher the cutoff sits, which is where a resonant filter screams.
+    //     higher the cutoff sits above the note it is filtering, which is where
+    //     a resonant filter screams. The cutoff tracks the key, so the
+    //     normalized gene value *is* that height whatever note gets played.
     const float resonanceCeiling = 0.55f + 0.45f * (1.0f - genome[g_flt_freq]);
     genome[g_flt_q] = std::min(genome[g_flt_q], resonanceCeiling * (1.0f - 0.5f * genome[g_sat_drive]));
 

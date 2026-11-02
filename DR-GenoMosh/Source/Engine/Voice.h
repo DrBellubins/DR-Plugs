@@ -24,6 +24,11 @@ namespace gmosh
 // b_mod, hard capped in VoiceParams), vibrato from the LFO and a few cents of
 // drift. Everything that can move the pitch has a ceiling the voice cannot
 // exceed; only the drift and detune are always tiny.
+//
+// Filter policy: the cutoff is not a frequency, it is a place relative to this
+// voice's own pitch. VoiceParams anchors it to oscillator A at note on, so the
+// same setting is the same sound at every key; keyFollow and the filter mod are
+// octaves of deviation from that.
 //==============================================================================
 {
 class Voice

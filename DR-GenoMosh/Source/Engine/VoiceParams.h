@@ -10,6 +10,10 @@ namespace gmosh
 //
 // Design doc section 3: this happens at note on, never per sample. The genome
 // stays normalized; all the ranges and curves live in the gene table.
+//
+// The played key is looked at once, here. The voice's pitch and the filter's
+// anchor are both resolved from it (see the pitch block below), so no other
+// layer in the engine needs the note number.
 //==============================================================================
 {
 /// Host automatable macros (design doc 4.1). These are *not* genes: they never
@@ -47,6 +51,15 @@ struct VoiceParams
     float aForm = 0.0f, aColour = 0.5f, aNoise = 0.0f, aRatio = 0.0f;
     float bForm = 0.0f, bColour = 0.5f, bNoise = 0.0f, bRatio = 0.0f, bShape = 0.0f;
 
+    // The pitch the voice is built on, resolved once at note on: the key with
+    // the tuning macro on it, then the two oscillator offset genes on top. The
+    // voice uses these instead of recomputing them, and the filter cutoff is
+    // anchored to oscillator A's. Unclamped Hz: this layer has no sample rate,
+    // the voice clamps for audio.
+    float noteFrequencyHz = 261.63f;
+    float oscillatorAFrequencyHz = 261.63f;
+    float oscillatorBFrequencyHz = 261.63f;
+
     // a_mod / b_mod resolved in semitones at their ceiling (the ceiling is a
     // hard bound of the mapping layer, not something the voice may exceed)
     float aModSemis = 0.0f, bModSemis = 0.0f;
@@ -54,7 +67,9 @@ struct VoiceParams
     // mix / cross modulation
     float balance = 0.5f, fmAmount = 0.0f, fmMod = 0.0f, subLevel = 0.0f, detuneCents = 0.0f;
 
-    // filter
+    // filter. filterHz is already anchored to the pitch being played: it is the
+    // cutoff at oscillatorAFrequencyHz. keyFollow and filterMod are octaves of
+    // deviation from a filter that tracks the keyboard.
     float filterHz = 4000.0f, filterQ = 1.0f, keyFollow = 0.0f, filterMod = 0.0f, filterSep = 0.0f;
 
     // effects

@@ -53,10 +53,12 @@ void Voice::start(const VoiceParams& newParams, int midiNote, uint64_t plantHash
     subPhase = 0.0f;
     noiseState = 0.0f;
 
-    const float fundamentalFrequency = noteToHz(midiNote, params.tuneCents);
-    baseFrequencyA = clampFrequency(fundamentalFrequency * std::pow(2.0f, params.aRatio / 12.0f), sampleRate);
-    baseFrequencyB = clampFrequency(fundamentalFrequency * std::pow(2.0f, params.bRatio / 12.0f), sampleRate);
-    baseFrequencySub = clampFrequency(fundamentalFrequency * 0.5f, sampleRate);
+    // The pitches come from the mapping layer: VoiceParams resolves the key and
+    // the oscillator offsets once, and anchors the filter cutoff to oscillator A
+    // with them. This is only the audio safety clamp.
+    baseFrequencyA = clampFrequency(params.oscillatorAFrequencyHz, sampleRate);
+    baseFrequencyB = clampFrequency(params.oscillatorBFrequencyHz, sampleRate);
+    baseFrequencySub = clampFrequency(params.noteFrequencyHz * 0.5f, sampleRate);
     subIncrement = baseFrequencySub / static_cast<float>(sampleRate);
 
     // Tiny random detune plus the curated detune gene.
@@ -144,8 +146,9 @@ void Voice::updateControlTargets(float modulationValue, float lfoValue, float dr
     frequencyBTarget =
         clampFrequency(baseFrequencyB * centsToRatio(detuneB + driftCents * 0.7f + centsB), sampleRate);
 
-    // Filter: key follow was pre computed at note on, the mod envelope adds up
-    // to three octaves of deviation, and the drift adds a slow wander.
+    // Filter: the cutoff the mapping layer anchored to this voice's pitch at
+    // note on, then flt_kf's deviation from tracking and the mod envelope's up
+    // to three octaves of deviation, then the slow drift.
     const float octaveDeviation = params.keyFollow + params.filterMod * modulationValue * 3.0f
                                   + driftFilterValue * params.driftAmount * 0.12f;
 

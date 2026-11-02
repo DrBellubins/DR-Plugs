@@ -25,6 +25,12 @@ namespace gmosh
 // seeds are drawn from inside it and branch displacement is compressed outside
 // it (see Curves.h / softCompress), which is what keeps random results usable.
 //
+// One range in the table is not read as an absolute value: 'flt_freq' is given
+// in Hz, but the Hz it names is the cutoff at middle C, and the voice scales it
+// with the pitch being played (Engine/VoiceParams.cpp anchors the cutoff to
+// oscillator A). 'flt_kf' is the deviation from that locked tracking, neutral
+// being exactly tracked. No other range here is anchored.
+//
 // kFlagPitch marks the genes that can move the played pitch (oscillator
 // offsets, vibrato, drift, per voice detune). Atonality is a ceiling on those
 // genes at generation time, see Mutation.h / applyAtonality.

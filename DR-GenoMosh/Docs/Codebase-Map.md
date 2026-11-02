@@ -271,10 +271,11 @@ wildly mutated branch playable.
   holding.
 * `struct VoiceParams` — the fully-resolved playable snapshot of one voice
   (envelope `Shape`, mod-hold rate, LFO split into `vibSemis`/`tremDepth`,
-  oscillator forms/ratios/noise, `aModSemis`/`bModSemis`, balance/FM/sub/detune,
-  filter Hz·Q·key-follow·mod·spread, FX, drift/drive, `gain`, `velocity`, and the
-  four trait bytes). A voice owns this, so growing a branch cannot change a held
-  note.
+  oscillator forms/ratios/noise, the three resolved pitches (`noteFrequencyHz`,
+  `oscillatorAFrequencyHz`, `oscillatorBFrequencyHz`), `aModSemis`/`bModSemis`,
+  balance/FM/sub/detune, filter cutoff *anchored to oscillator A* ·Q·key-follow
+deviation·mod·spread, FX, drift/drive, `gain`, `velocity`, and the four trait
+bytes). A voice owns this, so growing a branch cannot change a held note.
 * `resolveVoiceParams(genome, traits, macros, midiNote, velocity, out)` — the single
   function where genes become music. Read it top to bottom; the file's header comment
   documents the reinterpretation of the envelope genes. Notable decisions:
@@ -285,8 +286,16 @@ wildly mutated branch playable.
     arrives (it cost ~6 dB of level).
   * Pitch modulation depth is capped here (`kPitchModSemitoneCeiling = 12 st`,
     vibrato 12 st, tremolo 0.6), *not* in the voice.
-  * Key follow is **precomputed for this note** (`(midiNote-60)/12` octaves), so the
-    audio loop never does that subtraction.
+  * The played key is read **once, here**: `noteFrequencyHz` and the two
+    oscillator pitches are resolved in no other place, because the filter cutoff
+    is anchored to the result. `Voice::start` only clamps them for audio.
+  * `filterHz` is a place relative to the voice's own pitch, never a frequency
+    (what feeds `setCutoffQ`, see the TrapezoidSVF section): the gene's value is
+    the cutoff at `kFilterReferenceNote` for a voice at unison, scaled by how far
+    this note's oscillator A sits from that key. `flt_kf` is the **deviation from
+    locked tracking** (neutral = exactly tracked, either end = 0 or 2 octaves per
+    octave), precomputed for this note so the audio loop never does that
+    subtraction.
   * Velocity is folded into `p.velocity` (amplitude) and `p.modScale` (modulation)
     once, per `VelSens` and `mod_vel`.
   * `gain = loudnessCompensation(genome) × velocity` — and `loudnessCompensation`
@@ -302,7 +311,9 @@ wildly mutated branch playable.
   counts *repeats*; at or above that gene value there is no fade), `kNoFadeSeconds`
   ("longer than any note", so the `min()` of the fade and the `env_time` ceiling needs
   no special case), `kModHoldGate = 0.75` then 8 → 0.1 Hz,
-  `kPitchModSemitoneCeiling`, `kVibratoSemitoneCeiling`, `kTremoloDepthCeiling`;
+  `kPitchModSemitoneCeiling`, `kVibratoSemitoneCeiling`, `kTremoloDepthCeiling`,
+  `kFilterReferenceNote = 60` (the note `flt_freq`'s Hz value belongs to: the
+  voice scales the cutoff with the pitch being played);
   helpers `expRange(lo,hi,v)`, `peakPositionFor(tilt)`,
   `curvatureExponent(gene) = 2^(2(v-0.5))`.
 
@@ -417,7 +428,8 @@ a slow note.
 A trapezoidal (zero-delay-feedback) state-variable filter: the classic coupled
 integrator SVF digitised with the trapezoidal rule and the feedback loop solved
 analytically. Unlike plain Chamberlin it stays stable and accurate right up to
-Nyquist, which matters because `flt_freq` reaches 18 kHz.
+Nyquist, which matters because the voice asks it for cutoffs anywhere up to its own
+0.45·fs clamp.
 
 * `setSampleRate(sr)`, `setCutoffQ(hz, q)` — precomputes
   `g = tan(π·fc/fs)` and the solved coefficients; clamps fc to 0.96·Nyquist and
@@ -426,6 +438,10 @@ Nyquist, which matters because `flt_freq` reaches 18 kHz.
 * `process(x, lpMix, bpMix, hpMix)` — one iteration, returns the weighted mix of the
   three classic responses; the `filterMode` trait chooses the weights.
 * `reset()`.
+* What is *not* in this class: any idea of the note. The keyboard tracking is done
+  once in the mapping layer — `VoiceParams.filterHz` is anchored to oscillator A's
+  resolved pitch, so both stages sit at the same place in the note at every key,
+  and `Voice::updateControlTargets` only adds octaves of deviation on top.
 
 ### `Engine/Dsp.h` → `class DcBlocker`
 
@@ -655,7 +671,7 @@ what to re-implement.
 
 ## 14. Aspect: *Verification* — the offline harness
 
-### `Tests/EngineTests.cpp` (1265 lines, plain `main()`, no framework, no JUCE)
+### `Tests/EngineTests.cpp` (1689 lines, plain `main()`, no framework, no JUCE)
 
 This is the design doc's §13 measurement harness, and it is the clearest statement
 of what the code is *for*. `check(ok, what)` prints PASS/FAIL and counts failures;
@@ -674,6 +690,7 @@ the real `Synth` offline and return peak/rms/dc.
 | `testAmpFloorAndFade` | `vol_floor` lifts only the gaps (peaks stay at full level), `vol_floor 1` is a straight level whose modulator still moves, and the fade ends it regardless |
 | `testModulationReachesAudio` | pitch modulation is real and bounded; tremolo moves the level without moving the mean |
 | `testFilter` | the trapezoidal SVF against an RBJ biquad reference |
+| `testFilterTracksKeyboard` | the cutoff tracks the key exactly (one octave per octave, following `a_freq`), one seed stays level an octave up the keyboard (was −10.8 dB), and `flt_kf` at its lowest still buys back a filter that does not track |
 | `testRender` | every branch audible, no NaN/Inf, no runaway DC, branches within ~12 dB of each other, bit-identical reruns, clean at 44.1 / 48 / 96 kHz |
 | `testNoteBookkeeping` | what dragging a branch does to the voice pool (re-articulate one voice, release once) |
 
@@ -711,6 +728,7 @@ Keep these in any reimplementation; they are the contract.
 | Same seed id ⇒ bit-identical plants | `Rng.h`, `branchHash`, seed chains | `testGenome`, `testRender` |
 | Works at any sample rate | every block takes `sampleRate` | `testRender` |
 | Nothing in a note can exceed its pitch ceiling | `applyAtonality` (generation) + `kPitchModSemitoneCeiling` (mapping) | `testAtonalityCeiling`, `testModulationReachesAudio` |
+| The filter sits at the same place in the note at every key | the cutoff anchor in `resolveVoiceParams` (`kFilterReferenceNote`) | `testFilterTracksKeyboard` |
 | Every branch makes an audible, non-horrible sound | `applyCouplings`, `safetyScore`, `randomizeGenome` biases | `testRender`, `testGenome` |
 | Branches stay near the seed's level | `loudnessCompensation` | `testRender` (±12 dB) |
 | A held note is never changed by growth | voices own their `VoiceParams`/envelope tables | design, by construction |
@@ -757,10 +775,10 @@ Source/
     Dsp.h         522  OnePole, TrapezoidSVF, DcBlocker, VariableDelay,
                        SharedEnv, SampleHold, Modulator, Drift, softClip
     Oscillator.h  146  PolyBLEP + MorphOsc (equal-power waveform morph)
-    VoiceParams.h  81  MacroValues, VoiceParams
-    VoiceParams.cpp 193 resolveVoiceParams — the mapping layer
-    Voice.h        96  one voice: sources, filters, control-rate state
-    Voice.cpp     319 note start, modulation bus, per-sample render
+    VoiceParams.h  96  MacroValues, VoiceParams
+    VoiceParams.cpp 277 resolveVoiceParams — the mapping layer, the pitch anchor
+    Voice.h       147 one voice: sources, filters, control-rate state
+    Voice.cpp     361 note start, modulation bus, per-sample render
     MasterFx.h     69  chorus + 8-line FDN
     MasterFx.cpp  206 Hadamard FDN, damping, width, equal-power mix
     Synth.h        92  voice pool, PlayState, note events

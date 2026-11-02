@@ -8,7 +8,9 @@
 //     silence, faded out after a counted number of repeats);
 //   * the modulation: bounded pitch modulation from the pluck, and a free LFO
 //     whose tremolo half rides on top of the envelope;
-//   * a numeric check of the trapezoidal SVF against a reference biquad;
+//   * a numeric check of the trapezoidal SVF against a reference biquad, and
+//     the keyboard tracking of the cutoff (the same seed must not turn one key
+//     into another instrument because the filter is fixed in Hz);
 //   * an offline render of every branch at several distances with level,
 //     silence, NaN and DC checks, plus a bit identical reproducibility test.
 //
@@ -1147,7 +1149,8 @@ static void testAmpFloorAndFade()
 // A held note rendered from a hand written seed, plus the two probes that read
 // one destination at a time off it.
 //==============================================================================
-static std::vector<float> renderHeldNote(const Genome& seed, uint64_t seedId, float sampleRate, float seconds)
+static std::vector<float> renderHeldNote(const Genome& seed, uint64_t seedId, float sampleRate, float seconds,
+                                         int midiNote = 60)
 {
     MutationParams mp;
     PlantSnapshot plant;
@@ -1175,7 +1178,7 @@ static std::vector<float> renderHeldNote(const Genome& seed, uint64_t seedId, fl
         const int n = std::min(block, numSamples - offset);
 
         if (offset == 0)
-            synth.addNoteOn(60, 0.9f, 8);
+            synth.addNoteOn(midiNote, 0.9f, 8);
 
         float* channels[2] = { left.data() + static_cast<std::size_t>(offset),
                                right.data() + static_cast<std::size_t>(offset) };
@@ -1437,6 +1440,119 @@ static void testModulationReachesAudio()
     check(std::abs(meanRatio) < 0.15f, "a strong tremolo does not change the note's mean level");
 }
 
+//==============================================================================
+// The cutoff is anchored to the voice's own pitch (Docs/Failed_Design.md, Phase 3
+// acceptance: "flt_freq tracks the keyboard"). A filter fixed in Hz turns the one
+// key that lands on the far side of it into another instrument: the body of the
+// note is filtered away and only the top of the spectrum is left. Both halves of
+// that are checked, the mapping (exactly one octave of cutoff per octave of key,
+// following oscillator A's offset) and real audio (one seed, two notes an octave
+// apart, through a closed filter).
+static void testFilterTracksKeyboard()
+{
+    std::printf("filter tracks the keyboard\n");
+
+    Rng randomGenerator(Hash::fromString("keyboard-tracking-probe"));
+    // A plain held sine through one closed filter: no resonance ring, no filter
+    // modulation, and a neutral flt_kf, so only the tracking itself is measured.
+    Genome seed = modTestSeed(randomGenerator);
+    // ~378 Hz at the reference note: between the fundamentals of the two probes.
+    seed[g_flt_freq] = 0.37f;
+    seed[g_flt_q] = 0.0f;
+    seed[g_flt_kf] = 0.5f;
+    seed[g_flt_mod] = 0.5f;
+
+    const float geneCutoffHz = mapGene(g_flt_freq, seed[g_flt_freq]);
+    const BranchTraits traits;
+    const MacroValues macros;
+
+    VoiceParams atReferenceNote;
+    VoiceParams oneOctaveUp;
+    VoiceParams oneOctaveDown;
+    resolveVoiceParams(seed, traits, macros, 60, 0.9f, atReferenceNote);
+    resolveVoiceParams(seed, traits, macros, 72, 0.9f, oneOctaveUp);
+    resolveVoiceParams(seed, traits, macros, 48, 0.9f, oneOctaveDown);
+
+    std::printf("       cutoff at note 48 %.1f Hz, note 60 %.1f Hz, note 72 %.1f Hz\n",
+                oneOctaveDown.filterHz, atReferenceNote.filterHz, oneOctaveUp.filterHz);
+
+    check(std::abs(atReferenceNote.filterHz - geneCutoffHz) < 0.01f * geneCutoffHz,
+          "at the reference note the cutoff gene still means its own value");
+    check(std::abs(oneOctaveUp.filterHz - 2.0f * geneCutoffHz) < 0.02f * geneCutoffHz,
+          "one octave up on the key is one octave up on the cutoff");
+    check(std::abs(oneOctaveDown.filterHz - 0.5f * geneCutoffHz) < 0.01f * geneCutoffHz,
+          "and one octave down on the key is one octave down on the cutoff");
+    check(atReferenceNote.keyFollow == 0.0f,
+          "a neutral flt_kf asks for no deviation from the locked tracking");
+
+    // The anchor is oscillator A's resolved pitch, not the bare key: a branch
+    // that offsets A sings with its filter offset the same way (a_freq links B's
+    // pitch and the filter cutoffs, resolved once here).
+    Genome offsetSeed = seed;
+    offsetSeed[g_a_freq] = 0.75f; // +12 semitones on oscillator A
+    VoiceParams offsetVoice;
+    resolveVoiceParams(offsetSeed, traits, macros, 60, 0.9f, offsetVoice);
+
+    check(std::abs(offsetVoice.oscillatorAFrequencyHz - 2.0f * noteToHz(60)) < 0.5f,
+          "the voice reports oscillator A's resolved pitch");
+    check(std::abs(offsetVoice.filterHz - 2.0f * geneCutoffHz) < 0.02f * geneCutoffHz,
+          "the cutoff is anchored to oscillator A, not to the key alone");
+
+    // The old behaviour is still reachable: flt_kf at its lowest asks for an
+    // octave per octave against the tracking, which lands back on a filter held
+    // at fixed Hz while the keyboard plays through it.
+    Genome staticSeed = seed;
+    staticSeed[g_flt_kf] = 0.0f;
+    VoiceParams staticAtReferenceNote;
+    VoiceParams staticOneOctaveUp;
+    resolveVoiceParams(staticSeed, traits, macros, 60, 0.9f, staticAtReferenceNote);
+    resolveVoiceParams(staticSeed, traits, macros, 72, 0.9f, staticOneOctaveUp);
+
+    const float staticCutoffAtReferenceNote =
+        staticAtReferenceNote.filterHz * std::pow(2.0f, staticAtReferenceNote.keyFollow);
+    const float staticCutoffOneOctaveUp =
+        staticOneOctaveUp.filterHz * std::pow(2.0f, staticOneOctaveUp.keyFollow);
+
+    check(std::abs(staticCutoffOneOctaveUp - staticCutoffAtReferenceNote)
+              < 0.02f * staticCutoffAtReferenceNote,
+          "flt_kf at its lowest still buys back a filter that does not track");
+
+    // Real audio, same seed at both notes. A sine one octave apart from itself:
+    // a fixed cutoff sits above the low note's fundamental and below the high
+    // one's, so an untracked filter loses most of a dozen dB between them.
+    constexpr float sampleRate = 48000.0f;
+
+    const auto heldNoteRms = [sampleRate](const Genome& probeSeed, uint64_t probeId, int midiNote)
+    {
+        const std::vector<float> mono = renderHeldNote(probeSeed, probeId, sampleRate, 1.2f, midiNote);
+        double sum = 0.0;
+        int counted = 0;
+
+        for (std::size_t sampleIndex = static_cast<std::size_t>(sampleRate * 0.25f);
+             sampleIndex < mono.size(); ++sampleIndex)
+        {
+            const double value = mono[sampleIndex];
+            sum += value * value;
+            ++counted;
+        }
+
+        return counted > 0 ? static_cast<float>(std::sqrt(sum / static_cast<double>(counted))) : 0.0f;
+    };
+
+    const float lowNoteLevel = heldNoteRms(seed, Hash::fromString("tracking-probe-low"), 60);
+    const float highNoteLevel = heldNoteRms(seed, Hash::fromString("tracking-probe-high"), 72);
+    const float levelDifferenceDb =
+        20.0f * std::log10(std::max(highNoteLevel, 1.0e-6f) / std::max(lowNoteLevel, 1.0e-6f));
+
+    std::printf("       rms at note 60 %.5f, note 72 %.5f (%+.1f dB)\n", lowNoteLevel, highNoteLevel,
+                levelDifferenceDb);
+
+    check(lowNoteLevel > 1.0e-3f && highNoteLevel > 1.0e-3f,
+          "both probe notes stay audible through a closed filter");
+    check(std::abs(levelDifferenceDb) < 4.0f,
+          "an octave up the key does not change how much of the note survives the filter");
+}
+
 static void testRender()
 {
     std::printf("offline render\n");
@@ -1580,6 +1696,7 @@ int main()
     testPluckEnvelope();
     testAmpFloorAndFade();
     testModulationReachesAudio();
+    testFilterTracksKeyboard();
     testPitchStability();
     testGenome(mp);
     testFilter();
